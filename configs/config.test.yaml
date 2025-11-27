@@ -1,0 +1,238 @@
+# configs/config.test.yaml
+# Test Environment Configuration for Camunda Workers
+# Compliant with:
+# - Franchise Workflow Requirement Document (v1.0)
+# - Franchise Workflow Solution Document (v1.0)
+# - Camunda 8 Workflow System Requirements Document (v1.0)
+
+app:
+  name: camunda-workers-test
+  version: 1.0.0
+  environment: test
+
+camunda:
+  broker_address: zeebe-test:26500 # Use test Zeebe instance
+  max_jobs_active: 5 # Lower for tests
+  timeout: 10s # Shorter timeout for faster test feedback
+  request_timeout: 3s
+
+database:
+  postgres:
+    host: postgres-test # Use test DB instance
+    port: 5432
+    database: franchises_test
+    user: postgres
+    password: postgres_test # Use secrets manager in real CI
+    max_connections: 5 # Lower for tests
+    max_idle: 2
+  elasticsearch:
+    addresses: ["http://elasticsearch-test:9200"] # Use test ES instance
+    username: elastic
+    password: elastic_test # Use secrets manager in real CI
+  redis:
+    address: redis-test:6379 # Use test Redis instance
+    password: ""
+    db: 1 # Use a different DB number for isolation
+
+# Test-specific overrides for workers
+workers:
+  # --- Infrastructure Workers (17 Core) ---
+  validate-subscription:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s # Added 's' for consistency
+
+  build-response:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  select-template:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  query-postgresql:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 30s
+
+  query-elasticsearch:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 30s
+
+  # --- Business Logic Workers ---
+  parse-search-filters:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  apply-relevance-ranking:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  calculate-match-score:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  validate-application-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  check-readiness-score:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  check-priority-routing:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  create-application-record:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  send-notification:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  # --- AI/ML Workers ---
+  parse-user-intent:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  query-internal-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  enrich-web-search:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s # As per BPMN boundary event
+
+  llm-synthesis:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5s # As per BPMN boundary event
+
+  # --- NEW: Authentication & Utility Workers (8) ---
+  auth-signin-google:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  auth-signin-linkedin:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  auth-signup-google:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  auth-signup-linkedin:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  auth-logout:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5s
+
+  captcha-verify:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5s
+
+  crm-user-create:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+  email-send:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10s
+
+logging:
+  level: debug
+  format: console
+  output: stdout
+
+# External API settings (often mocked in tests, but config still needed)
+apis:
+  genai:
+    base_url: http://genai-mock:8080 # Point to a mock service in tests
+    timeout: 5s # Shorter for tests
+    # api_key is typically loaded from environment in tests
+  web_search:
+    base_url: https://mock-web-search.com/v1 # Point to a mock
+    timeout: 3s # Shorter for tests
+    # api_key, engine_id loaded from env
+
+# Notifications (often disabled or pointed to mock in tests)
+notifications:
+  email:
+    enabled: false # Disable email in tests
+    from_email: noreply@test.franchisehub.com
+  sms:
+    enabled: false # Disable SMS in tests
+    priority_threshold: high
+  aws:
+    region: us-east-1-test # Use test region if applicable
+
+# Authentication (often uses test Keycloak instance)
+auth:
+  keycloak:
+    url: http://keycloak-test:8080 # Use test Keycloak
+    realm: camunda-test
+    client_id: camunda-test-worker
+    client_secret: test-secret # Use secrets manager in real CI
+
+# Integrations (often mocked in tests)
+integrations:
+  zoho:
+    api_key: test_zoho_key # Use secrets manager in real CI
+    oauth_token: test_zoho_oauth # Use secrets manager in real CI
+  aws:
+    region: us-east-1-test
+    ses:
+      enabled: false # Disable SES in tests
+      from_email: noreply@test.franchisehub.com
+    sns:
+      enabled: false # Disable SNS in tests
+      default_sms_sender_id: FranchiseHubTest
+
+logging:
+  level: info # Could be debug for more verbose test logs
+  format: console # Could be json for structured test logs
+  output: stdout
+
+template:
+  # Template rules (could be simplified for tests if needed)
+  template_rules:
+    route:
+      /franchises/detail:free: franchise-detail-basic-test
+      /franchises/detail:premium: franchise-detail-premium-test
+      /franchises/explore:free: franchise-list-limited-test
+      /franchises/explore:premium: franchise-list-full-test
+      /franchises/detail:fallback: franchise-detail-basic-test
+      /franchises/explore:fallback: franchise-list-limited-test
+
+# Feature Flags for tests (can be toggled easily)
+feature_flags:
+  notifications_email_enabled: false
+  notifications_sms_enabled: false
+  captcha_required_for_signup: true
+  ai_enhanced_responses: true

@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                   id="Definitions_AIQuery"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <!-- Error Definition -->
+  <bpmn:error id="Error_LLMTimeout" name="LLM Timeout" errorCode="LLM_TIMEOUT" />
+  
+  <bpmn:process id="ai-query-workflow" name="AI Query Workflow" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartAIQuery" name="Start AI Query">
+      <bpmn:outgoing>Flow_ToParseIntent</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Parse User Intent -->
+    <bpmn:serviceTask id="ParseUserIntent" name="Parse User Intent">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-user-intent" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToParseIntent</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToGatherData</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Parallel Gateway - Gather Data (CHANGED from Inclusive to Parallel) -->
+    <bpmn:parallelGateway id="GatherData" name="Gather Data">
+      <bpmn:incoming>Flow_ToGatherData</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToQueryInternal</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToEnrichWeb</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- Query Internal Data -->
+    <bpmn:serviceTask id="QueryInternalData" name="Query Internal Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-internal-data" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToQueryInternal</bpmn:incoming>
+      <bpmn:outgoing>Flow_InternalToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Enrich with Web Search -->
+    <bpmn:serviceTask id="EnrichWithWebSearch" name="Enrich with Web Search">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="enrich-web-search" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToEnrichWeb</bpmn:incoming>
+      <bpmn:outgoing>Flow_WebToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Parallel Gateway - Join Data (CHANGED from Inclusive to Parallel) -->
+    <bpmn:parallelGateway id="JoinData" name="Join Data">
+      <bpmn:incoming>Flow_InternalToJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_WebToJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToLLMSynthesis</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- LLM Synthesis -->
+    <bpmn:serviceTask id="LLMSynthesis" name="LLM Synthesis">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="llm-synthesis" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToLLMSynthesis</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCheckSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Exclusive Gateway - Check LLM Success -->
+    <bpmn:exclusiveGateway id="CheckLLMSuccess" name="Check LLM Success">
+      <bpmn:incoming>Flow_ToCheckSuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToLLMTimeout</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToSelectTemplate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- LLM Timeout Error End -->
+    <bpmn:endEvent id="LLMTimeoutEnd" name="LLM Timeout Error">
+      <bpmn:incoming>Flow_ToLLMTimeout</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="Error_LLMTimeout" />
+    </bpmn:endEvent>
+    
+    <!-- Select Response Template -->
+    <bpmn:serviceTask id="SelectResponseTemplate" name="Select Response Template">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="select-template" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToSelectTemplate</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToBuildResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Build Response -->
+    <bpmn:serviceTask id="BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToBuildResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCallbackBFF</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Callback to BFF -->
+    <bpmn:serviceTask id="CallbackBFF" name="Callback to BFF">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="callback-to-bff" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCallbackBFF</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="AIQueryComplete" name="AI Query Complete">
+      <bpmn:incoming>Flow_ToComplete</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToParseIntent" sourceRef="StartAIQuery" targetRef="ParseUserIntent" />
+    <bpmn:sequenceFlow id="Flow_ToGatherData" sourceRef="ParseUserIntent" targetRef="GatherData" />
+    
+    <!-- Parallel flows don't need conditions -->
+    <bpmn:sequenceFlow id="Flow_ToQueryInternal" name="Internal Data" sourceRef="GatherData" targetRef="QueryInternalData" />
+    <bpmn:sequenceFlow id="Flow_ToEnrichWeb" name="Web Data" sourceRef="GatherData" targetRef="EnrichWithWebSearch" />
+    
+    <bpmn:sequenceFlow id="Flow_InternalToJoin" sourceRef="QueryInternalData" targetRef="JoinData" />
+    <bpmn:sequenceFlow id="Flow_WebToJoin" sourceRef="EnrichWithWebSearch" targetRef="JoinData" />
+    <bpmn:sequenceFlow id="Flow_ToLLMSynthesis" name="All Data" sourceRef="JoinData" targetRef="LLMSynthesis" />
+    <bpmn:sequenceFlow id="Flow_ToCheckSuccess" sourceRef="LLMSynthesis" targetRef="CheckLLMSuccess" />
+    
+    <!-- FIXED: Added = prefix to condition expressions -->
+    <bpmn:sequenceFlow id="Flow_ToLLMTimeout" name="LLM Timeout" sourceRef="CheckLLMSuccess" targetRef="LLMTimeoutEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=${llmSuccess == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <!-- FIXED: Added = prefix to condition expressions -->
+    <bpmn:sequenceFlow id="Flow_ToSelectTemplate" name="Synthesized Answer" sourceRef="CheckLLMSuccess" targetRef="SelectResponseTemplate">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=${llmSuccess == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_ToBuildResponse" name="Response" sourceRef="SelectResponseTemplate" targetRef="BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_ToCallbackBFF" sourceRef="BuildResponse" targetRef="CallbackBFF" />
+    <bpmn:sequenceFlow id="Flow_ToComplete" sourceRef="CallbackBFF" targetRef="AIQueryComplete" />
+    
+  </bpmn:process>
+  
+  <!-- BPMN Diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_AIQuery">
+    <bpmndi:BPMNPlane id="BPMNPlane_AIQuery" bpmnElement="ai-query-workflow">
+      
+      <!-- Start AI Query -->
+      <bpmndi:BPMNShape id="Shape_StartAIQuery" bpmnElement="StartAIQuery">
+        <dc:Bounds x="152" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Parse User Intent -->
+      <bpmndi:BPMNShape id="Shape_ParseUserIntent" bpmnElement="ParseUserIntent">
+        <dc:Bounds x="240" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Gather Data Gateway -->
+      <bpmndi:BPMNShape id="Shape_GatherData" bpmnElement="GatherData">
+        <dc:Bounds x="395" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Query Internal Data -->
+      <bpmndi:BPMNShape id="Shape_QueryInternalData" bpmnElement="QueryInternalData">
+        <dc:Bounds x="250" y="360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Enrich with Web Search -->
+      <bpmndi:BPMNShape id="Shape_EnrichWithWebSearch" bpmnElement="EnrichWithWebSearch">
+        <dc:Bounds x="250" y="490" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Join Data Gateway -->
+      <bpmndi:BPMNShape id="Shape_JoinData" bpmnElement="JoinData">
+        <dc:Bounds x="545" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- LLM Synthesis -->
+      <bpmndi:BPMNShape id="Shape_LLMSynthesis" bpmnElement="LLMSynthesis">
+        <dc:Bounds x="650" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Check LLM Success Gateway -->
+      <bpmndi:BPMNShape id="Shape_CheckLLMSuccess" bpmnElement="CheckLLMSuccess">
+        <dc:Bounds x="795" y="245" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- LLM Timeout End -->
+      <bpmndi:BPMNShape id="Shape_LLMTimeoutEnd" bpmnElement="LLMTimeoutEnd">
+        <dc:Bounds x="802" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Select Response Template -->
+      <bpmndi:BPMNShape id="Shape_SelectResponseTemplate" bpmnElement="SelectResponseTemplate">
+        <dc:Bounds x="890" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Build Response -->
+      <bpmndi:BPMNShape id="Shape_BuildResponse" bpmnElement="BuildResponse">
+        <dc:Bounds x="1040" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Callback to BFF -->
+      <bpmndi:BPMNShape id="Shape_CallbackBFF" bpmnElement="CallbackBFF">
+        <dc:Bounds x="1190" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- AI Query Complete -->
+      <bpmndi:BPMNShape id="Shape_AIQueryComplete" bpmnElement="AIQueryComplete">
+        <dc:Bounds x="1340" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Edge_ToParseIntent" bpmnElement="Flow_ToParseIntent">
+        <di:waypoint x="188" y="270" />
+        <di:waypoint x="240" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToGatherData" bpmnElement="Flow_ToGatherData">
+        <di:waypoint x="340" y="270" />
+        <di:waypoint x="395" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToQueryInternal" bpmnElement="Flow_ToQueryInternal">
+        <di:waypoint x="420" y="295" />
+        <di:waypoint x="420" y="400" />
+        <di:waypoint x="300" y="400" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToEnrichWeb" bpmnElement="Flow_ToEnrichWeb">
+        <di:waypoint x="420" y="295" />
+        <di:waypoint x="420" y="530" />
+        <di:waypoint x="300" y="530" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_InternalToJoin" bpmnElement="Flow_InternalToJoin">
+        <di:waypoint x="350" y="400" />
+        <di:waypoint x="570" y="400" />
+        <di:waypoint x="570" y="295" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_WebToJoin" bpmnElement="Flow_WebToJoin">
+        <di:waypoint x="350" y="530" />
+        <di:waypoint x="570" y="530" />
+        <di:waypoint x="570" y="295" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToLLMSynthesis" bpmnElement="Flow_ToLLMSynthesis">
+        <di:waypoint x="595" y="270" />
+        <di:waypoint x="650" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCheckSuccess" bpmnElement="Flow_ToCheckSuccess">
+        <di:waypoint x="750" y="270" />
+        <di:waypoint x="795" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToLLMTimeout" bpmnElement="Flow_ToLLMTimeout">
+        <di:waypoint x="820" y="245" />
+        <di:waypoint x="820" y="168" />
+        <di:waypoint x="802" y="150" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToSelectTemplate" bpmnElement="Flow_ToSelectTemplate">
+        <di:waypoint x="845" y="270" />
+        <di:waypoint x="890" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToBuildResponse" bpmnElement="Flow_ToBuildResponse">
+        <di:waypoint x="990" y="270" />
+        <di:waypoint x="1040" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCallbackBFF" bpmnElement="Flow_ToCallbackBFF">
+        <di:waypoint x="1140" y="270" />
+        <di:waypoint x="1190" y="270" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToComplete" bpmnElement="Flow_ToComplete">
+        <di:waypoint x="1290" y="270" />
+        <di:waypoint x="1340" y="270" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

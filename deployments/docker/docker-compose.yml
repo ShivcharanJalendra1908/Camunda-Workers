@@ -1,0 +1,303 @@
+version: '3.8'
+
+networks:
+  camunda-network:
+    driver: bridge
+
+volumes:
+  zeebe-data:
+  postgres-data:
+  es-data:
+  redis-data:
+  keycloak-data:
+
+services:
+  # Elasticsearch - Centralized logging/indexing (REQ-INT-007)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - ingest.geoip.downloader.enabled=false
+      - cluster.name=camunda-cluster
+      - network.host=0.0.0.0
+      - http.port=9200
+      - transport.port=9300
+      - http.max_content_length=200mb
+      - thread_pool.write.queue_size=1000
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  # Zeebe - Workflow Engine (REQ-INT-001, REQ-INT-002)
+  zeebe:
+    image: camunda/zeebe:8.3.9
+    container_name: zeebe
+    ports:
+      - "26500:26500"
+      - "9600:9600"
+    environment:
+      - ZEEBE_BROKER_GATEWAY_ENABLE=true
+      - ZEEBE_BROKER_NETWORK_HOST=0.0.0.0
+      - ZEEBE_BROKER_GATEWAY_NETWORK_HOST=0.0.0.0
+      # OAuth Configuration
+      - ZEEBE_GATEWAY_SECURITY_AUTHENTICATION_MODE=oauth
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_ISSUERBACKENDURL=http://keycloak:8080/realms/camunda-platform
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_AUDIENCE=zeebe-api
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_SCOPES=profile,email
+    
+      # Add these additional OAuth settings
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_TYPE=keycloak
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_JWKSURL=http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/certs
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_AUTHORIZATIONURL=http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/auth
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_TOKENURL=http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token
+      - ZEEBE_GATEWAY_SECURITY_OAUTH_USERINFOURL=http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/userinfo
+    
+      # Elasticsearch Exporter Configuration (REQ-INT-007)
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME=io.camunda.zeebe.exporter.ElasticsearchExporter
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL=http://elasticsearch:9200
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE=100
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY=5
+      # Additional settings
+      - ZEEBE_LOG_LEVEL=warn
+      - ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK=0.998
+      - ZEEBE_BROKER_DATA_DISKUSAGEREPLICATIONWATERMARK=0.999
+      - ZEEBE_BROKER_GATEWAY_LONGREQUESTTIMEOUT=45000
+      - JAVA_OPTS=-Xms512m -Xmx512m
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - zeebe-data:/usr/local/zeebe/data
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/9600' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    restart: on-failure:3
+
+  # Operate - Workflow Monitoring (REQ-MON-005)
+  operate:
+    image: camunda/operate:8.3.9
+    container_name: operate
+    ports:
+      - "8081:8080"
+    environment:
+      - CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS=zeebe:26500
+      - CAMUNDA_OPERATE_ELASTICSEARCH_URL=http://elasticsearch:9200
+      - CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL=http://elasticsearch:9200
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      zeebe:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - camunda-network
+    restart: on-failure:3
+
+  # PostgreSQL - Primary Data Store (REQ-INT-006)
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=franchises
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching & Session (REQ-INT-008)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Keycloak - Identity Management
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: keycloak
+    command:
+      - start-dev
+      - --import-realm 
+    ports:
+      - "8080:8080"
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+       # HTTP settings
+      - KC_HTTP_ENABLED=true
+      - KC_HTTP_PORT=8080
+      - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_STRICT_HTTPS=false
+
+
+      # Database (uses H2 by default in dev mode)
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/keycloak
+      - KC_DB_USERNAME=postgres
+      - KC_DB_PASSWORD=postgres
+
+      # Health check
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+
+    volumes:
+      # 🚀 Mount pre-configured realm file
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      #- /c/Users/lenovo/Desktop/LeMiCi/Camunda-Workers/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+
+      # Persist Keycloak data
+      - keycloak-data:/opt/keycloak/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080;echo -e 'GET /health/ready HTTP/1.1\r\nhost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Camunda Workers - All workers in one service
+  camunda-workers:
+    build:
+      context: ../..  # Go up to project root from deployments/docker
+      dockerfile: deployments/docker/Dockerfile.worker
+    image: camunda-workers:latest
+    container_name: camunda-workers
+    restart: on-failure:10
+    environment:
+      # Project Configuration
+      - APP_NAME=camunda-workers
+      - APP_VERSION=1.0.0
+      - APP_ENVIRONMENT=development
+      
+      # Camunda 8 Configuration
+      - ZEEBE_ADDRESS=zeebe:26500
+      - ZEEBE_CLIENT_ID=worker-client
+      - ZEEBE_CLIENT_SECRET=worker-secret
+      #- ZEEBE_AUTHORIZATION_SERVER_URL=http://keycloak:8080/realms/camunda-platform
+      - ZEEBE_AUTHORIZATION_SERVER_URL=http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token
+      - ZEEBE_TOKEN_AUDIENCE=zeebe-api
+      - ZEEBE_CLIENT_MODE=oauth
+      
+      
+      # Database Configuration
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=franchises
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSLMODE=disable
+      - DB_MAX_CONNECTIONS=20
+      - DB_MAX_IDLE=5
+      
+      # Elasticsearch Configuration
+      - ES_URLS=http://elasticsearch:9200
+      #- ES_USERNAME=elastic
+      #- ES_PASSWORD=elastic
+      - ES_SSL_ENABLED=false
+      
+      # Redis Configuration
+      - REDIS_ADDRESS=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      
+      # External API Keys (Mock Values)
+      - GENAI_API_KEY=mock_genai_dev_key_a1b2c3d4e5f6g7h8i9j0
+      - WEB_SEARCH_API_KEY=mock_search_dev_key_k1l2m3n4o5p6q7r8s9t0
+      - WEB_SEARCH_ENGINE_ID=mock_engine_id_u1v2w3x4y5z6
+      - ZOHO_CRM_API_KEY=mock_zoho_dev_key_1234567890abcdefghij
+      - ZOHO_CRM_OAUTH_TOKEN=mock_zoho_oauth_dev_token_abcdef1234567890
+      - GOOGLE_CLIENT_ID=mock-google-client-id.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=mock_google_client_secret_dev123456
+      - LINKEDIN_CLIENT_ID=mock_linkedin_client_id_dev78901234
+      - LINKEDIN_CLIENT_SECRET=mock_linkedin_client_secret_dev567890
+      
+      # AWS Configuration
+      - AWS_REGION=us-east-1
+      - AWS_SES_ENABLED=false
+      - AWS_SES_FROM_EMAIL=noreply@franchisehub-dev.com
+      - AWS_SNS_ENABLED=false
+      - AWS_SNS_DEFAULT_SMS_SENDER_ID=FranchiseHub
+      
+      # Keycloak Configuration
+      - KEYCLOAK_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=camunda-platform 
+      - KEYCLOAK_CLIENT_ID=worker-client
+      - KEYCLOAK_CLIENT_SECRET=worker-secret
+      
+      # Application Configuration
+      - LOG_LEVEL=debug
+      - HEALTH_CHECK_PORT=8080
+      - METRICS_PORT=9090
+      - REQUEST_TIMEOUT=30
+      - SHUTDOWN_TIMEOUT=30
+      
+      # Feature Flags
+      - FEATURE_FLAG_NOTIFICATIONS_EMAIL_ENABLED=false
+      - FEATURE_FLAG_NOTIFICATIONS_SMS_ENABLED=false
+      - FEATURE_FLAG_CAPTCHA_REQUIRED_FOR_SIGNUP=true
+      - FEATURE_FLAG_AI_ENHANCED_RESPONSES=true
+      
+    depends_on:
+      keycloak:
+        condition: service_healthy 
+      zeebe:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ../../configs:/app/configs:ro
+      - ../../bpmn:/app/bpmn:ro
+    networks:
+      - camunda-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

@@ -1,0 +1,27 @@
+# configs/config.prod.yaml
+app:
+  environment: production
+
+logging:
+  level: info
+  format: json
+
+database:
+  postgres:
+    host: postgres-service
+    password: "${DB_PASSWORD}"
+  redis:
+    address: redis-service:6379
+
+apis:
+  genai:
+    base_url: "http://genai-service:8080"
+  web_search:
+    api_key: "${WEB_SEARCH_API_KEY}"
+    engine_id: "${WEB_SEARCH_ENGINE_ID}"
+
+notifications:
+  email:
+    from_email: "noreply@franchisehub.com"
+  aws:
+    region: "us-east-1"

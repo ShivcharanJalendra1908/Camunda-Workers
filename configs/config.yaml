@@ -1,0 +1,525 @@
+app:
+  name: camunda-workers
+  version: 1.0.0
+  environment: development
+
+camunda:
+  broker_address: zeebe:26500
+  oauth:
+    enabled: true
+    client_id: "worker-client"
+    client_secret: "worker-secret"
+    token_url: "http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token"
+    audience: "zeebe-api"
+  max_jobs_active: 10
+  timeout: 30000
+  request_timeout: 5000
+
+database:
+  postgres:
+    host: postgres
+    port: 5432
+    database: franchises
+    user: postgres
+    password: postgres
+    max_connections: 20
+    max_idle: 5
+    sslmode: disable
+  elasticsearch:
+    addresses: 
+      - http://elasticsearch:9200
+    username: ""
+    password: ""
+    ssl_enabled: false
+  redis:
+    address: redis:6379
+    password: ""
+    db: 0
+
+auth:
+  keycloak:
+    url: "http://keycloak:8080"
+    realm: "camunda-platform"
+    admin_client_id: "admin-cli"
+    admin_client_secret: "${KEYCLOAK_ADMIN_CLIENT_SECRET}"
+  oauth_providers:
+    google:
+      client_id: "${GOOGLE_CLIENT_ID}"
+      client_secret: "${GOOGLE_CLIENT_SECRET}"
+      # redirect_uri: "http://localhost:3000/auth/callback/google"
+      redirect_uri: "http://localhost/dummy"    
+    linkedin:
+      client_id: "${LINKEDIN_CLIENT_ID}"
+      client_secret: "${LINKEDIN_CLIENT_SECRET}"
+      # redirect_uri: "http://localhost:3000/auth/callback/linkedin"
+      redirect_uri: "http://localhost/dummy"
+
+
+integrations:
+  zoho:
+    api_key: "${ZOHO_CRM_API_KEY}"
+    oauth_token: "${ZOHO_CRM_OAUTH_TOKEN}"
+  aws:
+    ses:
+      enabled: true
+      from_email: "noreply@franchisehub.com"
+      region: "us-east-1"
+    sns:
+      enabled: true
+      default_sms_sender_id: "FranchiseHub"
+      region: "us-east-1"
+
+  smtp:
+    host: "localhost"
+    port: 1025
+    username: "test"
+    password: "test"
+    use_tls: false
+    default_from: "noreply@franchisehub.dev" 
+
+apis:
+  genai:
+    base_url: "http://genai-service:8080"
+    timeout: 10000
+    api_key: "${GENAI_API_KEY}"
+  web_search:
+    base_url: "https://www.googleapis.com/customsearch/v1"
+    api_key: "${WEB_SEARCH_API_KEY}"
+    engine_id: "${WEB_SEARCH_ENGINE_ID}"
+    timeout: 10000
+
+security:
+  recaptcha:
+    secret_key: "dummy-key"
+    verify_url: "http://localhost/recaptcha"
+
+
+workers:
+  # Infrastructure Workers
+  validate-subscription:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  build-response:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  select-template:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  # Data Access Workers
+  query-postgresql:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 30000
+
+  query-elasticsearch:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 30000
+
+  # Business Logic Workers - Franchise
+  parse-search-filters:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  apply-relevance-ranking:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  calculate-match-score:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  # Business Logic Workers - Application
+  validate-application-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  check-readiness-score:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  check-priority-routing:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  create-application-record:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  send-notification:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  # AI/ML Workers
+  parse-user-intent:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  query-internal-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  enrich-web-search:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  llm-synthesis:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5000
+
+  # Authentication & Utility Workers
+  auth-signin-google:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  auth-signin-linkedin:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  auth-signup-google:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  auth-signup-linkedin:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  auth-logout:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5000
+
+  captcha-verify:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  crm-user-create:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 20000
+
+  email-send:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 15000
+
+logging:
+  level: debug
+  format: console
+  output: stdout
+
+template:
+  template_rules:
+    route:
+      /franchises/detail:free: franchise-detail-basic
+      /franchises/detail:premium: franchise-detail-premium
+      /franchises/explore:free: franchise-list-limited
+      /franchises/explore:premium: franchise-list-full
+      /franchises/detail:fallback: franchise-detail-basic
+      /franchises/explore:fallback: franchise-list-limited
+    flow:
+      signup: welcome-email
+      signin: sign-in-confirmation
+  registry_path: "configs/templates.json"
+
+
+  # configs/config.yaml
+# BASE configuration - Environment-agnostic defaults
+# Secrets are referenced as ${ENV_VAR} and loaded from .env
+
+# app:
+#   name: camunda-workers
+#   version: 1.0.0
+#   environment: production  # Default
+
+# camunda:
+#   broker_address: zeebe:26500
+#   oauth:
+#     enabled: true
+#     client_id: "${ZEEBE_CLIENT_ID}"
+#     client_secret: "${ZEEBE_CLIENT_SECRET}"
+#     token_url: "${ZEEBE_AUTHORIZATION_SERVER_URL}/protocol/openid-connect/token"
+#     audience: "zeebe-api"
+#   max_jobs_active: 10
+#   timeout: 30000
+#   request_timeout: 5000
+
+# database:
+#   postgres:
+#     host: postgres
+#     port: 5432
+#     database: franchises
+#     user: "${DB_USER}"
+#     password: "${DB_PASSWORD}"
+#     max_connections: 20
+#     max_idle: 5
+#     sslmode: require
+#   elasticsearch:
+#     addresses: 
+#       - "${ES_URLS}"
+#     username: "${ES_USERNAME}"
+#     password: "${ES_PASSWORD}"
+#     ssl_enabled: true
+#   redis:
+#     address: redis:6379
+#     password: "${REDIS_PASSWORD}"
+#     db: 0
+
+# auth:
+#   keycloak:
+#     url: "${KEYCLOAK_URL}"
+#     realm: "${KEYCLOAK_REALM}"
+#     admin_client_id: "${KEYCLOAK_CLIENT_ID}"
+#     admin_client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+  
+#   oauth_providers:
+#     google:
+#       client_id: "${GOOGLE_CLIENT_ID}"
+#       client_secret: "${GOOGLE_CLIENT_SECRET}"
+#       redirect_uri: "${GOOGLE_REDIRECT_URI}"
+#     linkedin:
+#       client_id: "${LINKEDIN_CLIENT_ID}"
+#       client_secret: "${LINKEDIN_CLIENT_SECRET}"
+#       redirect_uri: "${LINKEDIN_REDIRECT_URI}"
+
+# integrations:
+#   zoho:
+#     api_key: "${ZOHO_CRM_API_KEY}"
+#     oauth_token: "${ZOHO_CRM_OAUTH_TOKEN}"
+  
+#   aws:
+#     region: "${AWS_REGION}"
+#     ses:
+#       enabled: true
+#       from_email: "${AWS_SES_FROM_EMAIL}"
+#     sns:
+#       enabled: true
+#       default_sms_sender_id: "FranchiseHub"
+  
+#   smtp:
+#     host: "${SMTP_HOST}"
+#     port: 587
+#     username: "${SMTP_USERNAME}"
+#     password: "${SMTP_PASSWORD}"
+#     use_tls: true
+#     default_from: "${SMTP_FROM}"
+
+# apis:
+#   genai:
+#     base_url: "${GENAI_BASE_URL}"
+#     api_key: "${GENAI_API_KEY}"
+#     timeout: 10000
+#   web_search:
+#     base_url: "https://www.googleapis.com/customsearch/v1"
+#     api_key: "${WEB_SEARCH_API_KEY}"
+#     engine_id: "${WEB_SEARCH_ENGINE_ID}"
+#     timeout: 10000
+
+# security:
+#   recaptcha:
+#     secret_key: "${RECAPTCHA_SECRET_KEY}"
+#     verify_url: "https://www.google.com/recaptcha/api/siteverify"
+
+# # Worker configurations with sensible defaults
+# workers:
+#   validate-subscription:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 3
+
+#   build-response:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 2
+
+#   select-template:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 1
+
+#   query-postgresql:
+#     enabled: true
+#     max_jobs_active: 10
+#     timeout: 30000
+#     max_retries: 3
+
+#   query-elasticsearch:
+#     enabled: true
+#     max_jobs_active: 10
+#     timeout: 30000
+#     max_retries: 3
+
+#   parse-search-filters:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 2
+
+#   apply-relevance-ranking:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   calculate-match-score:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   validate-application-data:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 2
+
+#   check-readiness-score:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   check-priority-routing:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 2
+
+#   create-application-record:
+#     enabled: true
+#     max_jobs_active: 3
+#     timeout: 20000
+#     max_retries: 5
+
+#   send-notification:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   parse-user-intent:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   query-internal-data:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 20000
+#     max_retries: 3
+
+#   enrich-web-search:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 2
+
+#   llm-synthesis:
+#     enabled: true
+#     max_jobs_active: 3
+#     timeout: 20000
+#     max_retries: 1
+
+#   auth-signin-google:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   auth-signin-linkedin:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   auth-signup-google:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 20000
+#     max_retries: 3
+
+#   auth-signup-linkedin:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 20000
+#     max_retries: 3
+
+#   auth-logout:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+#     max_retries: 1
+
+#   captcha-verify:
+#     enabled: true
+#     max_jobs_active: 10
+#     timeout: 10000
+#     max_retries: 2
+
+#   email-send:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+#     max_retries: 3
+
+#   crm-user-create:
+#     enabled: true
+#     max_jobs_active: 3
+#     timeout: 20000
+#     max_retries: 5
+
+# logging:
+#   level: info
+#   format: json
+#   output: stdout
+
+# notifications:
+#   email:
+#     enabled: true
+#     from_email: "${AWS_SES_FROM_EMAIL}"
+#   sms:
+#     enabled: true
+#     priority_threshold: "high"
+#   aws:
+#     region: "${AWS_REGION}"
+
+# template:
+#   template_rules:
+#     route:
+#       /franchises/detail:free: franchise-detail-basic
+#       /franchises/detail:premium: franchise-detail-premium
+#       /franchises/explore:free: franchise-list-limited
+#       /franchises/explore:premium: franchise-list-full
+#       /franchises/detail:fallback: franchise-detail-basic
+#       /franchises/explore:fallback: franchise-list-limited
+#     flow:
+#       signup: welcome-email
+#       signin: sign-in-confirmation
+#   registry_path: "configs/templates.json"

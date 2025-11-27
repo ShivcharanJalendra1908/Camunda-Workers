@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.0.0">
+
+  <bpmn:process id="error-handling-process" name="Error Handling Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Error Occurred">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Validate Error Input -->
+    <bpmn:serviceTask id="Task_ValidateError" name="Validate Error Input">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.validation" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Error Type Classification -->
+    <!-- FIX: default attribute goes on gateway, not sequence flow -->
+    <bpmn:exclusiveGateway id="Gateway_ErrorType" name="Error Type?" default="SequenceFlow_6">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_5</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Network Error Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_3" sourceRef="Gateway_ErrorType" targetRef="Task_HandleNetworkError">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=errorType = "network"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_HandleNetworkError" name="Handle Network Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.network" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Authentication Error Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_4" sourceRef="Gateway_ErrorType" targetRef="Task_HandleAuthError">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=errorType = "authentication"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_HandleAuthError" name="Handle Auth Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.auth" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_4</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_8</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- System Error Path -->
+    <bpmn:sequenceFlow id="SequenceFlow_5" sourceRef="Gateway_ErrorType" targetRef="Task_HandleSystemError">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=errorType = "system"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_HandleSystemError" name="Handle System Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.system" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_9</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Validation Error Path (Default Flow) -->
+    <!-- FIX: Remove default attribute from sequence flow -->
+    <bpmn:sequenceFlow id="SequenceFlow_6" sourceRef="Gateway_ErrorType" targetRef="Task_HandleValidationError" />
+
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.validation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_6</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Join Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_ErrorJoin" name="Join Error Handling">
+      <bpmn:incoming>SequenceFlow_7</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_8</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_9</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Error Notification -->
+    <bpmn:serviceTask id="Task_SendErrorNotification" name="Send Error Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notification.email.send" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_15</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_16</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Audit Log Task -->
+    <bpmn:serviceTask id="Task_AuditLog" name="Log Error Handling">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit.log.create" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_16</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_19</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Error Handled">
+      <bpmn:incoming>SequenceFlow_19</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_1" targetRef="Task_ValidateError" />
+    <bpmn:sequenceFlow id="SequenceFlow_2" sourceRef="Task_ValidateError" targetRef="Gateway_ErrorType" />
+    <bpmn:sequenceFlow id="SequenceFlow_7" sourceRef="Task_HandleNetworkError" targetRef="Gateway_ErrorJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_8" sourceRef="Task_HandleAuthError" targetRef="Gateway_ErrorJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_9" sourceRef="Task_HandleSystemError" targetRef="Gateway_ErrorJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="Task_HandleValidationError" targetRef="Gateway_ErrorJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_15" sourceRef="Gateway_ErrorJoin" targetRef="Task_SendErrorNotification" />
+    <bpmn:sequenceFlow id="SequenceFlow_16" sourceRef="Task_SendErrorNotification" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="SequenceFlow_19" sourceRef="Task_AuditLog" targetRef="EndEvent_1" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="error-handling-process">
+      
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_1" bpmnElement="StartEvent_1">
+        <dc:Bounds x="162" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="142" y="145" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Validate Error Input -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_ValidateError" bpmnElement="Task_ValidateError">
+        <dc:Bounds x="250" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Gateway: Error Type Classification -->
+      <bpmndi:BPMNShape id="_BPMNShape_Gateway_ErrorType" bpmnElement="Gateway_ErrorType" isMarkerVisible="true">
+        <dc:Bounds x="400" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="395" y="75" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Handle Network Error -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_HandleNetworkError" bpmnElement="Task_HandleNetworkError">
+        <dc:Bounds x="500" y="50" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Handle Auth Error -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_HandleAuthError" bpmnElement="Task_HandleAuthError">
+        <dc:Bounds x="500" y="150" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Handle System Error -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_HandleSystemError" bpmnElement="Task_HandleSystemError">
+        <dc:Bounds x="500" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Handle Validation Error -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_HandleValidationError" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="500" y="350" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Join Gateway -->
+      <bpmndi:BPMNShape id="_BPMNShape_Gateway_ErrorJoin" bpmnElement="Gateway_ErrorJoin" isMarkerVisible="true">
+        <dc:Bounds x="700" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="683" y="75" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Send Error Notification -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_SendErrorNotification" bpmnElement="Task_SendErrorNotification">
+        <dc:Bounds x="800" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Audit Log -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_AuditLog" bpmnElement="Task_AuditLog">
+        <dc:Bounds x="950" y="80" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Success End Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_EndEvent_1" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1100" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1078" y="145" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_1" bpmnElement="SequenceFlow_1">
+        <di:waypoint x="198" y="120" />
+        <di:waypoint x="250" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_2" bpmnElement="SequenceFlow_2">
+        <di:waypoint x="350" y="120" />
+        <di:waypoint x="400" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_3" bpmnElement="SequenceFlow_3">
+        <di:waypoint x="425" y="95" />
+        <di:waypoint x="425" y="90" />
+        <di:waypoint x="500" y="90" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="73" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_4" bpmnElement="SequenceFlow_4">
+        <di:waypoint x="425" y="145" />
+        <di:waypoint x="425" y="190" />
+        <di:waypoint x="500" y="190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="173" width="27" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_5" bpmnElement="SequenceFlow_5">
+        <di:waypoint x="425" y="145" />
+        <di:waypoint x="425" y="290" />
+        <di:waypoint x="500" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="273" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_6" bpmnElement="SequenceFlow_6">
+        <di:waypoint x="425" y="145" />
+        <di:waypoint x="425" y="390" />
+        <di:waypoint x="500" y="390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="373" width="50" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_7" bpmnElement="SequenceFlow_7">
+        <di:waypoint x="600" y="90" />
+        <di:waypoint x="700" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_8" bpmnElement="SequenceFlow_8">
+        <di:waypoint x="600" y="190" />
+        <di:waypoint x="700" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_9" bpmnElement="SequenceFlow_9">
+        <di:waypoint x="600" y="290" />
+        <di:waypoint x="700" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_10" bpmnElement="SequenceFlow_10">
+        <di:waypoint x="600" y="390" />
+        <di:waypoint x="700" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_15" bpmnElement="SequenceFlow_15">
+        <di:waypoint x="750" y="120" />
+        <di:waypoint x="800" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_16" bpmnElement="SequenceFlow_16">
+        <di:waypoint x="900" y="120" />
+        <di:waypoint x="950" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="_BPMNEdge_SequenceFlow_19" bpmnElement="SequenceFlow_19">
+        <di:waypoint x="1050" y="120" />
+        <di:waypoint x="1100" y="120" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

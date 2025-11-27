@@ -1,0 +1,79 @@
+# deployments/docker/Dockerfile.worker
+# Multi-stage build for Camunda Workers
+
+# Stage 1: Build
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make gcc musl-dev file
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files first (for better layer caching)
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy entire source code
+COPY . .
+
+# Build the worker-manager binary
+# Note: Building from project root, so paths are relative to root
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a \
+    -installsuffix cgo \
+    -ldflags="-w -s -X main.Version=1.0.0 -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
+    -o worker-manager \
+    ./cmd/worker-manager/main.go
+
+# Verify binary was created
+RUN ls -lh worker-manager && file worker-manager
+
+# Stage 2: Runtime
+FROM alpine:3.18
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    wget
+
+# Create non-root user for security
+RUN addgroup -g 1000 camunda && \
+    adduser -D -u 1000 -G camunda camunda
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=builder --chown=camunda:camunda /build/worker-manager .
+
+# Copy configuration files and BPMN definitions
+COPY --from=builder --chown=camunda:camunda /build/configs ./configs
+COPY --from=builder --chown=camunda:camunda /build/bpmn ./bpmn
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/logs /app/data && \
+    chown -R camunda:camunda /app && \
+    chmod +x /app/worker-manager
+
+# Switch to non-root user
+USER camunda
+
+# Expose ports
+# 8080: Health check endpoint
+# 9090: Metrics endpoint
+EXPOSE 8080 9090
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Set entrypoint
+ENTRYPOINT ["./worker-manager"]
+
+# Optional: Default command arguments (can be overridden)
+CMD []

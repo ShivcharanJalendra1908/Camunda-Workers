@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                   id="Definitions_Discovery"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <!-- Error Definitions -->
+  <bpmn:error id="Error_InvalidSubscription" name="Invalid Subscription" errorCode="INVALID_SUBSCRIPTION" />
+  <bpmn:error id="Error_SearchFailed" name="Search Failed" errorCode="SEARCH_FAILED" />
+  
+  <bpmn:process id="discovery-workflow" name="Franchise Discovery Workflow" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartDiscovery" name="Start Discovery">
+      <bpmn:outgoing>Flow_ToValidateSubscription</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validate Subscription -->
+    <bpmn:serviceTask id="ValidateSubscription" name="Validate Subscription">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-subscription" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToValidateSubscription</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToValidationGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Gateway -->
+    <bpmn:exclusiveGateway id="ValidationGateway" name="Subscription Valid?">
+      <bpmn:incoming>Flow_ToValidationGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToInvalidSubscription</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToParseFilters</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Invalid Subscription Error End -->
+    <bpmn:endEvent id="InvalidSubscriptionEnd" name="Invalid Subscription">
+      <bpmn:incoming>Flow_ToInvalidSubscription</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="Error_InvalidSubscription" />
+    </bpmn:endEvent>
+    
+    <!-- Parse Search Filters -->
+    <bpmn:serviceTask id="ParseSearchFilters" name="Parse Search Filters">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-search-filters" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToParseFilters</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToParallelGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Parallel Gateway - Split -->
+    <bpmn:parallelGateway id="ParallelDataFetch" name="Parallel Data Fetch">
+      <bpmn:incoming>Flow_ToParallelGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToQueryES</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToQueryPG</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- Query Elasticsearch -->
+    <bpmn:serviceTask id="QueryElasticsearch" name="Query Elasticsearch">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToQueryES</bpmn:incoming>
+      <bpmn:outgoing>Flow_ESToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Query PostgreSQL Details -->
+    <bpmn:serviceTask id="QueryPostgreSQLDetails" name="Query PostgreSQL Details">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToQueryPG</bpmn:incoming>
+      <bpmn:outgoing>Flow_PGToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Parallel Gateway - Join -->
+    <bpmn:parallelGateway id="JoinResults" name="Join Results">
+      <bpmn:incoming>Flow_ESToJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_PGToJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToResultsGateway</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- Results Gateway -->
+    <bpmn:exclusiveGateway id="ResultsGateway" name="Any Results?">
+      <bpmn:incoming>Flow_ToResultsGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSearchFailed</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToApplyRanking</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Search Failed Error End -->
+    <bpmn:endEvent id="SearchFailedEnd" name="Search Failed">
+      <bpmn:incoming>Flow_ToSearchFailed</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="Error_SearchFailed" />
+    </bpmn:endEvent>
+    
+    <!-- Apply Relevance Ranking -->
+    <bpmn:serviceTask id="ApplyRelevanceRanking" name="Apply Relevance Ranking">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="apply-relevance-ranking" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToApplyRanking</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSelectTemplate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Select Template -->
+    <bpmn:serviceTask id="SelectTemplate" name="Select Template">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="select-template" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToSelectTemplate</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToBuildResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Build Response -->
+    <bpmn:serviceTask id="BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToBuildResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCallbackBFF</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Callback to BFF -->
+    <bpmn:serviceTask id="CallbackBFF" name="Callback to BFF">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="callback-to-bff" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCallbackBFF</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="DiscoveryComplete" name="Discovery Complete">
+      <bpmn:incoming>Flow_ToComplete</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToValidateSubscription" sourceRef="StartDiscovery" targetRef="ValidateSubscription" />
+    <bpmn:sequenceFlow id="Flow_ToValidationGateway" sourceRef="ValidateSubscription" targetRef="ValidationGateway" />
+    <bpmn:sequenceFlow id="Flow_ToInvalidSubscription" name="Invalid" sourceRef="ValidationGateway" targetRef="InvalidSubscriptionEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToParseFilters" name="Valid" sourceRef="ValidationGateway" targetRef="ParseSearchFilters">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToParallelGateway" sourceRef="ParseSearchFilters" targetRef="ParallelDataFetch" />
+    <bpmn:sequenceFlow id="Flow_ToQueryES" sourceRef="ParallelDataFetch" targetRef="QueryElasticsearch" />
+    <bpmn:sequenceFlow id="Flow_ToQueryPG" sourceRef="ParallelDataFetch" targetRef="QueryPostgreSQLDetails" />
+    <bpmn:sequenceFlow id="Flow_ESToJoin" sourceRef="QueryElasticsearch" targetRef="JoinResults" />
+    <bpmn:sequenceFlow id="Flow_PGToJoin" sourceRef="QueryPostgreSQLDetails" targetRef="JoinResults" />
+    <bpmn:sequenceFlow id="Flow_ToResultsGateway" sourceRef="JoinResults" targetRef="ResultsGateway" />
+    <bpmn:sequenceFlow id="Flow_ToSearchFailed" name="No Results" sourceRef="ResultsGateway" targetRef="SearchFailedEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resultCount == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToApplyRanking" name="Has Results" sourceRef="ResultsGateway" targetRef="ApplyRelevanceRanking">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${resultCount > 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToSelectTemplate" sourceRef="ApplyRelevanceRanking" targetRef="SelectTemplate" />
+    <bpmn:sequenceFlow id="Flow_ToBuildResponse" sourceRef="SelectTemplate" targetRef="BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_ToCallbackBFF" sourceRef="BuildResponse" targetRef="CallbackBFF" />
+    <bpmn:sequenceFlow id="Flow_ToComplete" sourceRef="CallbackBFF" targetRef="DiscoveryComplete" />
+    
+  </bpmn:process>
+  
+  <!-- BPMN Diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Discovery">
+    <bpmndi:BPMNPlane id="BPMNPlane_Discovery" bpmnElement="discovery-workflow">
+      
+      <!-- Start Discovery -->
+      <bpmndi:BPMNShape id="Shape_StartDiscovery" bpmnElement="StartDiscovery">
+        <dc:Bounds x="152" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validate Subscription -->
+      <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="ValidateSubscription">
+        <dc:Bounds x="240" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Gateway -->
+      <bpmndi:BPMNShape id="Shape_ValidationGateway" bpmnElement="ValidationGateway">
+        <dc:Bounds x="395" y="295" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Invalid Subscription End -->
+      <bpmndi:BPMNShape id="Shape_InvalidSubscriptionEnd" bpmnElement="InvalidSubscriptionEnd">
+        <dc:Bounds x="422" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Parse Search Filters -->
+      <bpmndi:BPMNShape id="Shape_ParseSearchFilters" bpmnElement="ParseSearchFilters">
+        <dc:Bounds x="500" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Parallel Gateway -->
+      <bpmndi:BPMNShape id="Shape_ParallelDataFetch" bpmnElement="ParallelDataFetch">
+        <dc:Bounds x="655" y="295" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Query Elasticsearch -->
+      <bpmndi:BPMNShape id="Shape_QueryElasticsearch" bpmnElement="QueryElasticsearch">
+        <dc:Bounds x="770" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Query PostgreSQL -->
+      <bpmndi:BPMNShape id="Shape_QueryPostgreSQLDetails" bpmnElement="QueryPostgreSQLDetails">
+        <dc:Bounds x="770" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Join Results -->
+      <bpmndi:BPMNShape id="Shape_JoinResults" bpmnElement="JoinResults">
+        <dc:Bounds x="925" y="295" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Results Gateway -->
+      <bpmndi:BPMNShape id="Shape_ResultsGateway" bpmnElement="ResultsGateway">
+        <dc:Bounds x="1030" y="295" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Search Failed End -->
+      <bpmndi:BPMNShape id="Shape_SearchFailedEnd" bpmnElement="SearchFailedEnd">
+        <dc:Bounds x="1055" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Apply Relevance Ranking -->
+      <bpmndi:BPMNShape id="Shape_ApplyRelevanceRanking" bpmnElement="ApplyRelevanceRanking">
+        <dc:Bounds x="1135" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Select Template -->
+      <bpmndi:BPMNShape id="Shape_SelectTemplate" bpmnElement="SelectTemplate">
+        <dc:Bounds x="1295" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Build Response -->
+      <bpmndi:BPMNShape id="Shape_BuildResponse" bpmnElement="BuildResponse">
+        <dc:Bounds x="1455" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Callback to BFF -->
+      <bpmndi:BPMNShape id="Shape_CallbackBFF" bpmnElement="CallbackBFF">
+        <dc:Bounds x="1615" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Discovery Complete -->
+      <bpmndi:BPMNShape id="Shape_DiscoveryComplete" bpmnElement="DiscoveryComplete">
+        <dc:Bounds x="1777" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="Edge_ToValidateSubscription" bpmnElement="Flow_ToValidateSubscription">
+        <di:waypoint x="188" y="320" />
+        <di:waypoint x="240" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToValidationGateway" bpmnElement="Flow_ToValidationGateway">
+        <di:waypoint x="340" y="320" />
+        <di:waypoint x="395" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToInvalidSubscription" bpmnElement="Flow_ToInvalidSubscription">
+        <di:waypoint x="420" y="295" />
+        <di:waypoint x="440" y="218" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToParseFilters" bpmnElement="Flow_ToParseFilters">
+        <di:waypoint x="445" y="320" />
+        <di:waypoint x="500" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToParallelGateway" bpmnElement="Flow_ToParallelGateway">
+        <di:waypoint x="600" y="320" />
+        <di:waypoint x="655" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToQueryES" bpmnElement="Flow_ToQueryES">
+        <di:waypoint x="680" y="295" />
+        <di:waypoint x="680" y="260" />
+        <di:waypoint x="770" y="260" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToQueryPG" bpmnElement="Flow_ToQueryPG">
+        <di:waypoint x="680" y="345" />
+        <di:waypoint x="680" y="380" />
+        <di:waypoint x="770" y="380" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ESToJoin" bpmnElement="Flow_ESToJoin">
+        <di:waypoint x="870" y="260" />
+        <di:waypoint x="950" y="260" />
+        <di:waypoint x="950" y="295" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_PGToJoin" bpmnElement="Flow_PGToJoin">
+        <di:waypoint x="870" y="380" />
+        <di:waypoint x="950" y="380" />
+        <di:waypoint x="950" y="345" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToResultsGateway" bpmnElement="Flow_ToResultsGateway">
+        <di:waypoint x="975" y="320" />
+        <di:waypoint x="1030" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToSearchFailed" bpmnElement="Flow_ToSearchFailed">
+        <di:waypoint x="1055" y="295" />
+        <di:waypoint x="1073" y="218" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToApplyRanking" bpmnElement="Flow_ToApplyRanking">
+        <di:waypoint x="1080" y="320" />
+        <di:waypoint x="1135" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToSelectTemplate" bpmnElement="Flow_ToSelectTemplate">
+        <di:waypoint x="1235" y="320" />
+        <di:waypoint x="1295" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToBuildResponse" bpmnElement="Flow_ToBuildResponse">
+        <di:waypoint x="1395" y="320" />
+        <di:waypoint x="1455" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCallbackBFF" bpmnElement="Flow_ToCallbackBFF">
+        <di:waypoint x="1555" y="320" />
+        <di:waypoint x="1615" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToComplete" bpmnElement="Flow_ToComplete">
+        <di:waypoint x="1715" y="320" />
+        <di:waypoint x="1777" y="320" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

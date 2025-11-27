@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_ActivityApproval" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.3.0">
+  
+  <!-- Error Definitions MUST be at the root level -->
+  <bpmn:error id="Error_ValidationFailed" name="validation_failed" errorCode="ACT_001" />
+  <bpmn:error id="Error_TechRejected" name="tech_rejected" errorCode="ACT_002" />
+  <bpmn:error id="Error_SecurityRejected" name="security_rejected" errorCode="ACT_003" />
+  <bpmn:error id="Error_FinalRejected" name="final_rejected" errorCode="ACT_004" />
+  <bpmn:error id="Error_ImplementationFailed" name="implementation_failed" errorCode="ACT_005" />
+  <bpmn:error id="Error_DeploymentFailed" name="deployment_failed" errorCode="ACT_006" />
+  
+  <bpmn:process id="activity-approval-process" name="Activity Approval Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Approval" name="New Activity Request">
+      <bpmn:outgoing>Flow_StartApproval</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validate Activity Proposal with Error Boundary Event -->
+    <bpmn:serviceTask id="Task_ValidateProposal" name="Validate Activity Proposal">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="activity.validation" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_StartApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToTechReview</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Error Boundary Event for Validation - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ValidationError" name="Validation Error" attachedToRef="Task_ValidateProposal">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_ValidationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Technical Review with Error Boundary Event -->
+    <bpmn:userTask id="Task_TechReview" name="Technical Review">
+      <bpmn:incoming>Flow_ToTechReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSecurityReview</bpmn:outgoing>
+    </bpmn:userTask>
+    
+    <!-- Error Boundary Event for Technical Review - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_TechError" name="Technical Rejection" attachedToRef="Task_TechReview">
+      <bpmn:outgoing>Flow_TechError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_TechRejected" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Security Review with Error Boundary Event -->
+    <bpmn:userTask id="Task_SecurityReview" name="Security Review">
+      <bpmn:incoming>Flow_ToSecurityReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFinalApproval</bpmn:outgoing>
+    </bpmn:userTask>
+    
+    <!-- Error Boundary Event for Security Review - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_SecurityError" name="Security Rejection" attachedToRef="Task_SecurityReview">
+      <bpmn:outgoing>Flow_SecurityError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_SecurityRejected" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Final Approval with Error Boundary Event -->
+    <bpmn:userTask id="Task_FinalApproval" name="Final Approval">
+      <bpmn:incoming>Flow_ToFinalApproval</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToImplementation</bpmn:outgoing>
+    </bpmn:userTask>
+    
+    <!-- Error Boundary Event for Final Approval - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_FinalError" name="Final Rejection" attachedToRef="Task_FinalApproval">
+      <bpmn:outgoing>Flow_FinalError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_FinalRejected" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Call Implementation Process -->
+    <bpmn:callActivity id="CallActivity_Implement" name="Implement Activity">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="worker-implementation-process" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToImplementation</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToDeployment</bpmn:outgoing>
+    </bpmn:callActivity>
+    
+    <!-- Error Boundary Event for Implementation - ADDED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ImplementationError" name="Implementation Error" attachedToRef="CallActivity_Implement">
+      <bpmn:outgoing>Flow_ImplementationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_5" errorRef="Error_ImplementationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Deploy to Registry with Error Boundary Event -->
+    <bpmn:serviceTask id="Task_DeployToRegistry" name="Deploy to Registry">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="registry.deployment" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToDeployment</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndApproval</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Error Boundary Event for Deployment - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_DeploymentError" name="Deployment Error" attachedToRef="Task_DeployToRegistry">
+      <bpmn:outgoing>Flow_DeploymentError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_6" errorRef="Error_DeploymentFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Error Handling Tasks -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.validation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValidationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="Task_HandleRejectionError" name="Handle Rejection Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.rejection" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TechError</bpmn:incoming>
+      <bpmn:incoming>Flow_SecurityError</bpmn:incoming>
+      <bpmn:incoming>Flow_FinalError</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectionErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Implementation Error Handler - ADDED -->
+    <bpmn:serviceTask id="Task_HandleImplementationError" name="Handle Implementation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.implementation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ImplementationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ImplementationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="Task_HandleDeploymentError" name="Handle Deployment Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.deployment" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_DeploymentError</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeploymentErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Approval" name="Activity Approved">
+      <bpmn:incoming>Flow_EndApproval</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events -->
+    <bpmn:endEvent id="EndEvent_ValidationFailed" name="Validation Failed">
+      <bpmn:incoming>Flow_ValidationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_RejectionFailed" name="Activity Rejected">
+      <bpmn:incoming>Flow_RejectionErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Implementation Error End Event - ADDED -->
+    <bpmn:endEvent id="EndEvent_ImplementationFailed" name="Implementation Failed">
+      <bpmn:incoming>Flow_ImplementationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_DeploymentFailed" name="Deployment Failed">
+      <bpmn:incoming>Flow_DeploymentErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartApproval" sourceRef="StartEvent_Approval" targetRef="Task_ValidateProposal" />
+    <bpmn:sequenceFlow id="Flow_ToTechReview" sourceRef="Task_ValidateProposal" targetRef="Task_TechReview" />
+    <bpmn:sequenceFlow id="Flow_ToSecurityReview" sourceRef="Task_TechReview" targetRef="Task_SecurityReview" />
+    <bpmn:sequenceFlow id="Flow_ToFinalApproval" sourceRef="Task_SecurityReview" targetRef="Task_FinalApproval" />
+    <bpmn:sequenceFlow id="Flow_ToImplementation" sourceRef="Task_FinalApproval" targetRef="CallActivity_Implement" />
+    <bpmn:sequenceFlow id="Flow_ToDeployment" sourceRef="CallActivity_Implement" targetRef="Task_DeployToRegistry" />
+    <bpmn:sequenceFlow id="Flow_EndApproval" sourceRef="Task_DeployToRegistry" targetRef="EndEvent_Approval" />
+    
+    <!-- Error Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="BoundaryEvent_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_TechError" sourceRef="BoundaryEvent_TechError" targetRef="Task_HandleRejectionError" />
+    <bpmn:sequenceFlow id="Flow_SecurityError" sourceRef="BoundaryEvent_SecurityError" targetRef="Task_HandleRejectionError" />
+    <bpmn:sequenceFlow id="Flow_FinalError" sourceRef="BoundaryEvent_FinalError" targetRef="Task_HandleRejectionError" />
+    <!-- Implementation Error Flow - ADDED -->
+    <bpmn:sequenceFlow id="Flow_ImplementationError" sourceRef="BoundaryEvent_ImplementationError" targetRef="Task_HandleImplementationError" />
+    <bpmn:sequenceFlow id="Flow_DeploymentError" sourceRef="BoundaryEvent_DeploymentError" targetRef="Task_HandleDeploymentError" />
+    
+    <bpmn:sequenceFlow id="Flow_ValidationErrorEnd" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationFailed" />
+    <bpmn:sequenceFlow id="Flow_RejectionErrorEnd" sourceRef="Task_HandleRejectionError" targetRef="EndEvent_RejectionFailed" />
+    <!-- Implementation Error End Flow - ADDED -->
+    <bpmn:sequenceFlow id="Flow_ImplementationErrorEnd" sourceRef="Task_HandleImplementationError" targetRef="EndEvent_ImplementationFailed" />
+    <bpmn:sequenceFlow id="Flow_DeploymentErrorEnd" sourceRef="Task_HandleDeploymentError" targetRef="EndEvent_DeploymentFailed" />
+    
+  </bpmn:process>
+  
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ActivityApproval">
+    <bpmndi:BPMNPlane id="BPMNPlane_ActivityApproval" bpmnElement="activity-approval-process">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_Approval" bpmnElement="StartEvent_Approval">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Service Task Shapes -->
+      <bpmndi:BPMNShape id="Task_ValidateProposal_di" bpmnElement="Task_ValidateProposal">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Validation -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ValidationError_di" bpmnElement="BoundaryEvent_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_TechReview_di" bpmnElement="Task_TechReview">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Tech Review -->
+      <bpmndi:BPMNShape id="BoundaryEvent_TechError_di" bpmnElement="BoundaryEvent_TechError">
+        <dc:Bounds x="422" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_SecurityReview_di" bpmnElement="Task_SecurityReview">
+        <dc:Bounds x="540" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Security Review -->
+      <bpmndi:BPMNShape id="BoundaryEvent_SecurityError_di" bpmnElement="BoundaryEvent_SecurityError">
+        <dc:Bounds x="572" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_FinalApproval_di" bpmnElement="Task_FinalApproval">
+        <dc:Bounds x="690" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Final Approval -->
+      <bpmndi:BPMNShape id="BoundaryEvent_FinalError_di" bpmnElement="BoundaryEvent_FinalError">
+        <dc:Bounds x="722" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Call Activity Shape -->
+      <bpmndi:BPMNShape id="CallActivity_Implement_di" bpmnElement="CallActivity_Implement">
+        <dc:Bounds x="840" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Implementation - ADDED -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ImplementationError_di" bpmnElement="BoundaryEvent_ImplementationError">
+        <dc:Bounds x="872" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_DeployToRegistry_di" bpmnElement="Task_DeployToRegistry">
+        <dc:Bounds x="990" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Deployment -->
+      <bpmndi:BPMNShape id="BoundaryEvent_DeploymentError_di" bpmnElement="BoundaryEvent_DeploymentError">
+        <dc:Bounds x="1022" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error Handler Shapes -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleRejectionError_di" bpmnElement="Task_HandleRejectionError">
+        <dc:Bounds x="510" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Implementation Error Handler Shape - ADDED -->
+      <bpmndi:BPMNShape id="Task_HandleImplementationError_di" bpmnElement="Task_HandleImplementationError">
+        <dc:Bounds x="750" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleDeploymentError_di" bpmnElement="Task_HandleDeploymentError">
+        <dc:Bounds x="990" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- End Event Shapes -->
+      <bpmndi:BPMNShape id="EndEvent_Approval_di" bpmnElement="EndEvent_Approval">
+        <dc:Bounds x="1142" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_ValidationFailed_di" bpmnElement="EndEvent_ValidationFailed">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_RejectionFailed_di" bpmnElement="EndEvent_RejectionFailed">
+        <dc:Bounds x="542" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Implementation Error End Event Shape - ADDED -->
+      <bpmndi:BPMNShape id="EndEvent_ImplementationFailed_di" bpmnElement="EndEvent_ImplementationFailed">
+        <dc:Bounds x="782" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_DeploymentFailed_di" bpmnElement="EndEvent_DeploymentFailed">
+        <dc:Bounds x="1022" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_StartApproval_di" bpmnElement="Flow_StartApproval">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToTechReview_di" bpmnElement="Flow_ToTechReview">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToSecurityReview_di" bpmnElement="Flow_ToSecurityReview">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="540" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToFinalApproval_di" bpmnElement="Flow_ToFinalApproval">
+        <di:waypoint x="640" y="120" />
+        <di:waypoint x="690" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToImplementation_di" bpmnElement="Flow_ToImplementation">
+        <di:waypoint x="790" y="120" />
+        <di:waypoint x="840" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToDeployment_di" bpmnElement="Flow_ToDeployment">
+        <di:waypoint x="940" y="120" />
+        <di:waypoint x="990" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndApproval_di" bpmnElement="Flow_EndApproval">
+        <di:waypoint x="1090" y="120" />
+        <di:waypoint x="1142" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <!-- Error Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_TechError_di" bpmnElement="Flow_TechError">
+        <di:waypoint x="440" y="178" />
+        <di:waypoint x="510" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SecurityError_di" bpmnElement="Flow_SecurityError">
+        <di:waypoint x="590" y="178" />
+        <di:waypoint x="560" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_FinalError_di" bpmnElement="Flow_FinalError">
+        <di:waypoint x="740" y="178" />
+        <di:waypoint x="610" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <!-- Implementation Error Flow - ADDED -->
+      <bpmndi:BPMNEdge id="Flow_ImplementationError_di" bpmnElement="Flow_ImplementationError">
+        <di:waypoint x="890" y="178" />
+        <di:waypoint x="800" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_DeploymentError_di" bpmnElement="Flow_DeploymentError">
+        <di:waypoint x="1040" y="178" />
+        <di:waypoint x="1040" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationErrorEnd_di" bpmnElement="Flow_ValidationErrorEnd">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_RejectionErrorEnd_di" bpmnElement="Flow_RejectionErrorEnd">
+        <di:waypoint x="560" y="300" />
+        <di:waypoint x="560" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <!-- Implementation Error End Flow - ADDED -->
+      <bpmndi:BPMNEdge id="Flow_ImplementationErrorEnd_di" bpmnElement="Flow_ImplementationErrorEnd">
+        <di:waypoint x="800" y="300" />
+        <di:waypoint x="800" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_DeploymentErrorEnd_di" bpmnElement="Flow_DeploymentErrorEnd">
+        <di:waypoint x="1040" y="300" />
+        <di:waypoint x="1040" y="342" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

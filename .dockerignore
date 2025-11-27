@@ -1,0 +1,71 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+docs/
+LICENSE
+
+# Test files
+*_test.go
+test/
+*.test
+coverage.out
+coverage.html
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+logs/
+
+# Node modules (if any frontend)
+node_modules/
+npm-debug.log
+
+# Docker files (don't need these in the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Kubernetes manifests
+deployments/kubernetes/
+
+# Scripts (not needed in runtime)
+scripts/
+
+# Go specific
+vendor/
+*.out

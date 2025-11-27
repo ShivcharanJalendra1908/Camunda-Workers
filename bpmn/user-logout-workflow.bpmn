@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_UserLogout" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.3.0">
+  
+  <!-- Error Definitions -->
+  <bpmn:error id="Error_LogoutFailed" name="LOGOUT_FAILED" errorCode="AUTH_003" />
+  <bpmn:error id="Error_EmailFailed" name="EMAIL_FAILED" errorCode="EMAIL_001" />
+  <bpmn:error id="Error_SessionNotFound" name="SESSION_NOT_FOUND" errorCode="AUTH_004" />
+  <bpmn:error id="Error_NetworkTimeout" name="NETWORK_TIMEOUT" errorCode="NET_002" />
+  <bpmn:error id="Error_ValidationFailed" name="VALIDATION_FAILED" errorCode="AUTH_005" />
+  
+  <bpmn:process id="user-logout-process" name="User Logout Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Logout" name="Logout Request">
+      <bpmn:outgoing>Flow_LogoutStart</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Input Validation -->
+    <bpmn:serviceTask id="Task_ValidateLogout" name="Validate Logout Input">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validation.logout" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=sessionId" target="sessionId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LogoutStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToLogout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateLogout">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_ValidationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Session Not Found Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_SessionNotFound" name="Session Not Found" attachedToRef="Task_ValidateLogout">
+      <bpmn:outgoing>Flow_SessionNotFound</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_SessionNotFound" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.validation" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndValidationError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Session Not Found Handler -->
+    <bpmn:serviceTask id="Task_HandleSessionNotFound" name="Handle Session Not Found">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.session-not-found" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SessionNotFound</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndSessionNotFound</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Logout Service Task -->
+    <bpmn:serviceTask id="Task_UserLogout" name="Process User Logout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.logout" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=sessionId" target="sessionId" />
+          <zeebe:output source="=logoutTime" target="logoutTimestamp" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToLogout</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToNotification</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Logout Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_LogoutError" name="Logout Error" attachedToRef="Task_UserLogout">
+      <bpmn:outgoing>Flow_LogoutError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_LogoutFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Logout Timeout Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_LogoutTimeout" name="Logout Timeout" attachedToRef="Task_UserLogout">
+      <bpmn:outgoing>Flow_LogoutTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDuration>PT15S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    
+    <!-- Logout Error Handler -->
+    <bpmn:serviceTask id="Task_HandleLogoutError" name="Handle Logout Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.logout" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LogoutError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndLogoutError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Timeout Handler -->
+    <bpmn:serviceTask id="Task_HandleTimeout" name="Handle Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.timeout" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LogoutTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndTimeout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Send Logout Notification Email -->
+    <bpmn:serviceTask id="Task_LogoutNotification" name="Send Logout Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.send" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userEmail" target="to" />
+          <zeebe:input source="=&#34;Logout Activity Detected&#34;" target="subject" />
+          <zeebe:input source="=&#34;Hi &#34; + firstName + &#34;,\n\nWe noticed you recently logged out of your account. If this wasn't you, please contact support immediately.\n\nBest regards,\nSecurity Team&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToNotification</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAudit</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Email Error Boundary (Non-blocking) - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_EmailError" name="Email Error" attachedToRef="Task_LogoutNotification">
+      <bpmn:outgoing>Flow_EmailError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_EmailFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Email Error Handler -->
+    <bpmn:serviceTask id="Task_HandleEmailError" name="Handle Email Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.email" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_EmailError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterEmailError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Audit Log Task -->
+    <bpmn:serviceTask id="Task_AuditLog" name="Log Logout Activity">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit.log" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=&#34;USER_LOGOUT&#34;" target="action" />
+          <zeebe:input source="=sessionId" target="sessionId" />
+          <zeebe:input source="=logoutTimestamp" target="timestamp" />
+          <zeebe:input source="=emailSent" target="emailSent" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAudit</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterEmailError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndLogout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_Logout" name="Logout Complete">
+      <bpmn:incoming>Flow_EndLogout</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events - FIXED: Removed error event definitions -->
+    <bpmn:endEvent id="EndEvent_ValidationError" name="Validation Failed">
+      <bpmn:incoming>Flow_EndValidationError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_SessionNotFound" name="Session Not Found">
+      <bpmn:incoming>Flow_EndSessionNotFound</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_LogoutError" name="Logout Failed">
+      <bpmn:incoming>Flow_EndLogoutError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_Timeout" name="Timeout Error">
+      <bpmn:incoming>Flow_EndTimeout</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_LogoutStart" sourceRef="StartEvent_Logout" targetRef="Task_ValidateLogout" />
+    <bpmn:sequenceFlow id="Flow_ToLogout" sourceRef="Task_ValidateLogout" targetRef="Task_UserLogout" />
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_EndValidationError" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    <bpmn:sequenceFlow id="Flow_SessionNotFound" sourceRef="Boundary_SessionNotFound" targetRef="Task_HandleSessionNotFound" />
+    <bpmn:sequenceFlow id="Flow_EndSessionNotFound" sourceRef="Task_HandleSessionNotFound" targetRef="EndEvent_SessionNotFound" />
+    
+    <bpmn:sequenceFlow id="Flow_ToNotification" sourceRef="Task_UserLogout" targetRef="Task_LogoutNotification" />
+    <bpmn:sequenceFlow id="Flow_LogoutError" sourceRef="Boundary_LogoutError" targetRef="Task_HandleLogoutError" />
+    <bpmn:sequenceFlow id="Flow_EndLogoutError" sourceRef="Task_HandleLogoutError" targetRef="EndEvent_LogoutError" />
+    <bpmn:sequenceFlow id="Flow_LogoutTimeout" sourceRef="Boundary_LogoutTimeout" targetRef="Task_HandleTimeout" />
+    <bpmn:sequenceFlow id="Flow_EndTimeout" sourceRef="Task_HandleTimeout" targetRef="EndEvent_Timeout" />
+    
+    <bpmn:sequenceFlow id="Flow_ToAudit" sourceRef="Task_LogoutNotification" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EmailError" sourceRef="Boundary_EmailError" targetRef="Task_HandleEmailError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterEmailError" sourceRef="Task_HandleEmailError" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EndLogout" sourceRef="Task_AuditLog" targetRef="EndEvent_Logout" />
+    
+  </bpmn:process>
+  
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_UserLogout">
+    <bpmndi:BPMNPlane id="BPMNPlane_UserLogout" bpmnElement="user-logout-process">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_Logout" bpmnElement="StartEvent_Logout">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Task -->
+      <bpmndi:BPMNShape id="Task_ValidateLogout_di" bpmnElement="Task_ValidateLogout">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Boundaries -->
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_SessionNotFound_di" bpmnElement="Boundary_SessionNotFound">
+        <dc:Bounds x="322" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Error Handlers -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleSessionNotFound_di" bpmnElement="Task_HandleSessionNotFound">
+        <dc:Bounds x="390" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Logout Service Task Shape -->
+      <bpmndi:BPMNShape id="Task_UserLogout_di" bpmnElement="Task_UserLogout">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Logout Error Boundaries -->
+      <bpmndi:BPMNShape id="Boundary_LogoutError_di" bpmnElement="Boundary_LogoutError">
+        <dc:Bounds x="422" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_LogoutTimeout_di" bpmnElement="Boundary_LogoutTimeout">
+        <dc:Bounds x="422" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Logout Error Handlers -->
+      <bpmndi:BPMNShape id="Task_HandleLogoutError_di" bpmnElement="Task_HandleLogoutError">
+        <dc:Bounds x="540" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleTimeout_di" bpmnElement="Task_HandleTimeout">
+        <dc:Bounds x="390" y="-20" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Logout Notification Shape -->
+      <bpmndi:BPMNShape id="Task_LogoutNotification_di" bpmnElement="Task_LogoutNotification">
+        <dc:Bounds x="540" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Email Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_EmailError_di" bpmnElement="Boundary_EmailError">
+        <dc:Bounds x="572" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Email Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleEmailError_di" bpmnElement="Task_HandleEmailError">
+        <dc:Bounds x="690" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Audit Log Task -->
+      <bpmndi:BPMNShape id="Task_AuditLog_di" bpmnElement="Task_AuditLog">
+        <dc:Bounds x="690" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Success End Event Shape -->
+      <bpmndi:BPMNShape id="EndEvent_Logout_di" bpmnElement="EndEvent_Logout">
+        <dc:Bounds x="842" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error End Events -->
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_SessionNotFound_di" bpmnElement="EndEvent_SessionNotFound">
+        <dc:Bounds x="422" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_LogoutError_di" bpmnElement="EndEvent_LogoutError">
+        <dc:Bounds x="572" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_Timeout_di" bpmnElement="EndEvent_Timeout">
+        <dc:Bounds x="422" y="-120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_LogoutStart_di" bpmnElement="Flow_LogoutStart">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToLogout_di" bpmnElement="Flow_ToLogout">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndValidationError_di" bpmnElement="Flow_EndValidationError">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SessionNotFound_di" bpmnElement="Flow_SessionNotFound">
+        <di:waypoint x="340" y="178" />
+        <di:waypoint x="340" y="200" />
+        <di:waypoint x="440" y="200" />
+        <di:waypoint x="440" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndSessionNotFound_di" bpmnElement="Flow_EndSessionNotFound">
+        <di:waypoint x="440" y="300" />
+        <di:waypoint x="440" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToNotification_di" bpmnElement="Flow_ToNotification">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="540" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_LogoutError_di" bpmnElement="Flow_LogoutError">
+        <di:waypoint x="440" y="178" />
+        <di:waypoint x="440" y="200" />
+        <di:waypoint x="590" y="200" />
+        <di:waypoint x="590" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndLogoutError_di" bpmnElement="Flow_EndLogoutError">
+        <di:waypoint x="590" y="300" />
+        <di:waypoint x="590" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_LogoutTimeout_di" bpmnElement="Flow_LogoutTimeout">
+        <di:waypoint x="440" y="62" />
+        <di:waypoint x="440" y="60" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndTimeout_di" bpmnElement="Flow_EndTimeout">
+        <di:waypoint x="440" y="-20" />
+        <di:waypoint x="440" y="-84" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToAudit_di" bpmnElement="Flow_ToAudit">
+        <di:waypoint x="640" y="120" />
+        <di:waypoint x="690" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EmailError_di" bpmnElement="Flow_EmailError">
+        <di:waypoint x="590" y="178" />
+        <di:waypoint x="590" y="200" />
+        <di:waypoint x="740" y="200" />
+        <di:waypoint x="740" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterEmailError_di" bpmnElement="Flow_ContinueAfterEmailError">
+        <di:waypoint x="740" y="220" />
+        <di:waypoint x="740" y="160" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndLogout_di" bpmnElement="Flow_EndLogout">
+        <di:waypoint x="790" y="120" />
+        <di:waypoint x="842" y="120" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

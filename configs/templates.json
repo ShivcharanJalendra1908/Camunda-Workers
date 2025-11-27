@@ -1,0 +1,108 @@
+{
+  "templates": [
+    {
+      "id": "franchise-list",
+      "type": "franchise-list",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["franchises", "totalHits"],
+        "properties": {
+          "franchises": { "type": "array" },
+          "totalHits": { "type": "integer" }
+        }
+      },
+      "template": {
+        "results": [],
+        "pagination": {
+          "currentPage": 1,
+          "totalPages": 1
+        }
+      }
+    },
+    {
+      "id": "franchise-detail",
+      "type": "franchise-detail",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["franchise"],
+        "properties": {
+          "franchise": { "type": "object" }
+        }
+      },
+      "template": {
+        "franchise": {}
+      }
+    },
+    {
+      "id": "ai-response",
+      "type": "ai-response",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["answer", "confidence"],
+        "properties": {
+          "answer": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      },
+      "template": {
+        "responseType": "ai",
+        "answer": "",
+        "sources": []
+      }
+    },
+    {
+      "id": "application-success",
+      "type": "application-success",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["applicationId"],
+        "properties": {
+          "applicationId": { "type": "string" }
+        }
+      },
+      "template": {
+        "message": "Application submitted successfully",
+        "applicationId": ""
+      }
+    },
+    {
+      "id": "welcome-email",
+      "type": "email",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["firstName", "email"],
+        "properties": {
+          "firstName": { "type": "string" },
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "template": {
+        "subject": "Welcome to FranchiseHub, {{.FirstName}}!",
+        "body": "<p>Hello {{.FirstName}},</p><p>Welcome to FranchiseHub! We're excited to have you.</p>"
+      }
+    },
+    {
+      "id": "sign-in-confirmation",
+      "type": "email",
+      "version": "1.0.0",
+      "schema": {
+        "type": "object",
+        "required": ["firstName", "email", "signInTime"],
+        "properties": {
+          "firstName": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "signInTime": { "type": "string", "format": "date-time" }
+        }
+      },
+      "template": {
+        "subject": "Sign-In Confirmation",
+        "body": "<p>Hello {{.FirstName}},</p><p>You signed in to FranchiseHub at {{.SignInTime}}.</p>"
+      }
+    }
+  ]
+}

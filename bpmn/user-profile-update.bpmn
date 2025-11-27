@@ -1,0 +1,455 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_ProfileUpdate" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.3.0">
+  
+  <!-- Error Definitions -->
+  <bpmn:error id="Error_ValidationFailed" name="VALIDATION_FAILED" errorCode="PROFILE_001" />
+  <bpmn:error id="Error_UpdateFailed" name="UPDATE_FAILED" errorCode="PROFILE_002" />
+  <bpmn:error id="Error_CRMSyncFailed" name="CRM_SYNC_FAILED" errorCode="PROFILE_003" />
+  <bpmn:error id="Error_EmailFailed" name="EMAIL_FAILED" errorCode="PROFILE_004" />
+  <bpmn:error id="Error_NetworkTimeout" name="NETWORK_TIMEOUT" errorCode="PROFILE_005" />
+  <bpmn:error id="Error_DuplicateEmail" name="DUPLICATE_EMAIL" errorCode="PROFILE_006" />
+  
+  <bpmn:process id="user-profile-update-process" name="User Profile Update Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_ProfileUpdate" name="Profile Update Request">
+      <bpmn:outgoing>Flow_UpdateStart</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validate Profile Data -->
+    <bpmn:serviceTask id="Task_ValidateProfile" name="Validate Profile Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="profile.validation" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=profileData" target="profileData" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UpdateStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProfileValidated</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateProfile">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_ValidationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.validation" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndValidationError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Update User Profile -->
+    <bpmn:serviceTask id="Task_UpdateProfile" name="Update User Profile">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user.profile.update" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=validatedProfileData" target="profileData" />
+          <zeebe:output source="=updateTimestamp" target="lastUpdated" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ProfileValidated</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProfileUpdated</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Update Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_UpdateError" name="Update Error" attachedToRef="Task_UpdateProfile">
+      <bpmn:outgoing>Flow_UpdateError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_UpdateFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Duplicate Email Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_DuplicateEmail" name="Duplicate Email Error" attachedToRef="Task_UpdateProfile">
+      <bpmn:outgoing>Flow_DuplicateEmail</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_DuplicateEmail" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Update Timeout Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_UpdateTimeout" name="Update Timeout" attachedToRef="Task_UpdateProfile">
+      <bpmn:outgoing>Flow_UpdateTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDuration>PT30S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    
+    <!-- Update Error Handler -->
+    <bpmn:serviceTask id="Task_HandleUpdateError" name="Handle Update Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.update" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UpdateError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndUpdateError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Duplicate Email Handler -->
+    <bpmn:serviceTask id="Task_HandleDuplicateEmail" name="Handle Duplicate Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.duplicate-email" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_DuplicateEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndDuplicateEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Timeout Handler -->
+    <bpmn:serviceTask id="Task_HandleTimeout" name="Handle Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.timeout" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UpdateTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndTimeout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Sync with CRM -->
+    <bpmn:serviceTask id="Task_SyncCRM" name="Sync with Zoho CRM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm.user.update" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=updatedProfileData" target="profileData" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ProfileUpdated</bpmn:incoming>
+      <bpmn:outgoing>Flow_CRMSynced</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- CRM Sync Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_CRMSyncError" name="CRM Sync Error" attachedToRef="Task_SyncCRM">
+      <bpmn:outgoing>Flow_CRMSyncError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_CRMSyncFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- CRM Sync Error Handler (Non-blocking) -->
+    <bpmn:serviceTask id="Task_HandleCRMSyncError" name="Handle CRM Sync Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.crm-sync" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CRMSyncError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterCRMSyncError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Send Update Confirmation -->
+    <bpmn:serviceTask id="Task_SendUpdateConfirmation" name="Send Update Confirmation">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.send" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userEmail" target="to" />
+          <zeebe:input source="=&#34;Profile Updated Successfully&#34;" target="subject" />
+          <zeebe:input source="=&#34;Hi &#34; + firstName + &#34;,\n\nYour profile has been successfully updated.\n\nIf you didn't make these changes, please contact support immediately.\n\nBest regards,\nSupport Team&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CRMSynced</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterCRMSyncError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAudit</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Email Error Boundary (Non-blocking) - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_EmailError" name="Email Error" attachedToRef="Task_SendUpdateConfirmation">
+      <bpmn:outgoing>Flow_EmailError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_5" errorRef="Error_EmailFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Email Error Handler -->
+    <bpmn:serviceTask id="Task_HandleEmailError" name="Handle Email Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.email" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_EmailError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterEmailError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Audit Log Task -->
+    <bpmn:serviceTask id="Task_AuditLog" name="Log Profile Update">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit.log" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=&#34;PROFILE_UPDATE&#34;" target="action" />
+          <zeebe:input source="=lastUpdated" target="timestamp" />
+          <zeebe:input source="=crmSyncStatus" target="crmSyncStatus" />
+          <zeebe:input source="=emailSent" target="emailSent" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAudit</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterEmailError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndUpdate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_ProfileUpdate" name="Profile Update Complete">
+      <bpmn:incoming>Flow_EndUpdate</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events - FIXED: Removed error event definitions -->
+    <bpmn:endEvent id="EndEvent_ValidationError" name="Validation Failed">
+      <bpmn:incoming>Flow_EndValidationError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_UpdateError" name="Update Failed">
+      <bpmn:incoming>Flow_EndUpdateError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_DuplicateEmail" name="Duplicate Email">
+      <bpmn:incoming>Flow_EndDuplicateEmail</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_Timeout" name="Timeout Error">
+      <bpmn:incoming>Flow_EndTimeout</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_UpdateStart" sourceRef="StartEvent_ProfileUpdate" targetRef="Task_ValidateProfile" />
+    <bpmn:sequenceFlow id="Flow_ProfileValidated" sourceRef="Task_ValidateProfile" targetRef="Task_UpdateProfile" />
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_EndValidationError" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    
+    <bpmn:sequenceFlow id="Flow_ProfileUpdated" sourceRef="Task_UpdateProfile" targetRef="Task_SyncCRM" />
+    <bpmn:sequenceFlow id="Flow_UpdateError" sourceRef="Boundary_UpdateError" targetRef="Task_HandleUpdateError" />
+    <bpmn:sequenceFlow id="Flow_EndUpdateError" sourceRef="Task_HandleUpdateError" targetRef="EndEvent_UpdateError" />
+    <bpmn:sequenceFlow id="Flow_DuplicateEmail" sourceRef="Boundary_DuplicateEmail" targetRef="Task_HandleDuplicateEmail" />
+    <bpmn:sequenceFlow id="Flow_EndDuplicateEmail" sourceRef="Task_HandleDuplicateEmail" targetRef="EndEvent_DuplicateEmail" />
+    <bpmn:sequenceFlow id="Flow_UpdateTimeout" sourceRef="Boundary_UpdateTimeout" targetRef="Task_HandleTimeout" />
+    <bpmn:sequenceFlow id="Flow_EndTimeout" sourceRef="Task_HandleTimeout" targetRef="EndEvent_Timeout" />
+    
+    <bpmn:sequenceFlow id="Flow_CRMSynced" sourceRef="Task_SyncCRM" targetRef="Task_SendUpdateConfirmation" />
+    <bpmn:sequenceFlow id="Flow_CRMSyncError" sourceRef="Boundary_CRMSyncError" targetRef="Task_HandleCRMSyncError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterCRMSyncError" sourceRef="Task_HandleCRMSyncError" targetRef="Task_SendUpdateConfirmation" />
+    
+    <bpmn:sequenceFlow id="Flow_ToAudit" sourceRef="Task_SendUpdateConfirmation" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EmailError" sourceRef="Boundary_EmailError" targetRef="Task_HandleEmailError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterEmailError" sourceRef="Task_HandleEmailError" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EndUpdate" sourceRef="Task_AuditLog" targetRef="EndEvent_ProfileUpdate" />
+    
+  </bpmn:process>
+  
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ProfileUpdate">
+    <bpmndi:BPMNPlane id="BPMNPlane_ProfileUpdate" bpmnElement="user-profile-update-process">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_ProfileUpdate" bpmnElement="StartEvent_ProfileUpdate">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Task -->
+      <bpmndi:BPMNShape id="Task_ValidateProfile_di" bpmnElement="Task_ValidateProfile">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Boundary -->
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Update Profile Task -->
+      <bpmndi:BPMNShape id="Task_UpdateProfile_di" bpmnElement="Task_UpdateProfile">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Update Error Boundaries -->
+      <bpmndi:BPMNShape id="Boundary_UpdateError_di" bpmnElement="Boundary_UpdateError">
+        <dc:Bounds x="422" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_DuplicateEmail_di" bpmnElement="Boundary_DuplicateEmail">
+        <dc:Bounds x="472" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_UpdateTimeout_di" bpmnElement="Boundary_UpdateTimeout">
+        <dc:Bounds x="422" y="62" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error Handlers -->
+      <bpmndi:BPMNShape id="Task_HandleUpdateError_di" bpmnElement="Task_HandleUpdateError">
+        <dc:Bounds x="390" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleDuplicateEmail_di" bpmnElement="Task_HandleDuplicateEmail">
+        <dc:Bounds x="540" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleTimeout_di" bpmnElement="Task_HandleTimeout">
+        <dc:Bounds x="390" y="-20" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- CRM Sync Task -->
+      <bpmndi:BPMNShape id="Task_SyncCRM_di" bpmnElement="Task_SyncCRM">
+        <dc:Bounds x="540" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- CRM Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_CRMSyncError_di" bpmnElement="Boundary_CRMSyncError">
+        <dc:Bounds x="572" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- CRM Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleCRMSyncError_di" bpmnElement="Task_HandleCRMSyncError">
+        <dc:Bounds x="690" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Email Task -->
+      <bpmndi:BPMNShape id="Task_SendUpdateConfirmation_di" bpmnElement="Task_SendUpdateConfirmation">
+        <dc:Bounds x="690" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Email Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_EmailError_di" bpmnElement="Boundary_EmailError">
+        <dc:Bounds x="722" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Email Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleEmailError_di" bpmnElement="Task_HandleEmailError">
+        <dc:Bounds x="840" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Audit Log Task -->
+      <bpmndi:BPMNShape id="Task_AuditLog_di" bpmnElement="Task_AuditLog">
+        <dc:Bounds x="840" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Success End Event -->
+      <bpmndi:BPMNShape id="EndEvent_ProfileUpdate_di" bpmnElement="EndEvent_ProfileUpdate">
+        <dc:Bounds x="992" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error End Events -->
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_UpdateError_di" bpmnElement="EndEvent_UpdateError">
+        <dc:Bounds x="422" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_DuplicateEmail_di" bpmnElement="EndEvent_DuplicateEmail">
+        <dc:Bounds x="572" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_Timeout_di" bpmnElement="EndEvent_Timeout">
+        <dc:Bounds x="422" y="-120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_UpdateStart_di" bpmnElement="Flow_UpdateStart">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ProfileValidated_di" bpmnElement="Flow_ProfileValidated">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndValidationError_di" bpmnElement="Flow_EndValidationError">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ProfileUpdated_di" bpmnElement="Flow_ProfileUpdated">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="540" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_UpdateError_di" bpmnElement="Flow_UpdateError">
+        <di:waypoint x="440" y="178" />
+        <di:waypoint x="440" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndUpdateError_di" bpmnElement="Flow_EndUpdateError">
+        <di:waypoint x="440" y="300" />
+        <di:waypoint x="440" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_DuplicateEmail_di" bpmnElement="Flow_DuplicateEmail">
+        <di:waypoint x="490" y="178" />
+        <di:waypoint x="490" y="200" />
+        <di:waypoint x="590" y="200" />
+        <di:waypoint x="590" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndDuplicateEmail_di" bpmnElement="Flow_EndDuplicateEmail">
+        <di:waypoint x="590" y="300" />
+        <di:waypoint x="590" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_UpdateTimeout_di" bpmnElement="Flow_UpdateTimeout">
+        <di:waypoint x="440" y="62" />
+        <di:waypoint x="440" y="60" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndTimeout_di" bpmnElement="Flow_EndTimeout">
+        <di:waypoint x="440" y="-20" />
+        <di:waypoint x="440" y="-84" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CRMSynced_di" bpmnElement="Flow_CRMSynced">
+        <di:waypoint x="640" y="120" />
+        <di:waypoint x="690" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CRMSyncError_di" bpmnElement="Flow_CRMSyncError">
+        <di:waypoint x="590" y="178" />
+        <di:waypoint x="590" y="200" />
+        <di:waypoint x="740" y="200" />
+        <di:waypoint x="740" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterCRMSyncError_di" bpmnElement="Flow_ContinueAfterCRMSyncError">
+        <di:waypoint x="740" y="220" />
+        <di:waypoint x="740" y="160" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToAudit_di" bpmnElement="Flow_ToAudit">
+        <di:waypoint x="790" y="120" />
+        <di:waypoint x="840" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EmailError_di" bpmnElement="Flow_EmailError">
+        <di:waypoint x="740" y="178" />
+        <di:waypoint x="740" y="200" />
+        <di:waypoint x="890" y="200" />
+        <di:waypoint x="890" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterEmailError_di" bpmnElement="Flow_ContinueAfterEmailError">
+        <di:waypoint x="890" y="220" />
+        <di:waypoint x="890" y="160" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndUpdate_di" bpmnElement="Flow_EndUpdate">
+        <di:waypoint x="940" y="120" />
+        <di:waypoint x="992" y="120" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

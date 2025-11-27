@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_Signin" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.3.0">
+  <bpmn:process id="user-signin-process" name="User Sign-In Process" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Sign-In Started">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_VerifyCaptcha" name="Verify Captcha">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="captcha.verify" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT30S" />
+          <zeebe:header key="maxAttempts" value="3" />
+          <zeebe:header key="backoff" value="2000" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_CaptchaError" name="Captcha Failed" attachedToRef="Task_VerifyCaptcha">
+      <bpmn:outgoing>Flow_CaptchaError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_CaptchaError" errorRef="Error_CaptchaFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:exclusiveGateway id="Gateway_SigninMethod" name="SignIn Method?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Google</bpmn:outgoing>
+      <bpmn:outgoing>Flow_LinkedIn</bpmn:outgoing>
+      <bpmn:outgoing>Flow_InvalidMethod</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_SigninGoogle" name="Google OAuth SignIn">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.signin.google" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT60S" />
+          <zeebe:header key="backoff" value="5000" />
+          <zeebe:header key="maxRetries" value="3" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Google</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_GoogleError" name="Google Auth Failed" attachedToRef="Task_SigninGoogle">
+      <bpmn:outgoing>Flow_GoogleError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_GoogleError" errorRef="Error_OAuthFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_SigninLinkedIn" name="LinkedIn OAuth SignIn">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.signin.linkedin" retries="3" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT60S" />
+          <zeebe:header key="backoff" value="5000" />
+          <zeebe:header key="maxRetries" value="3" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LinkedIn</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_LinkedInError" name="LinkedIn Auth Failed" attachedToRef="Task_SigninLinkedIn">
+      <bpmn:outgoing>Flow_LinkedInError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_LinkedInError" errorRef="Error_OAuthFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_HandleCaptchaError" name="Handle Captcha Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.captcha" retries="2" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT30S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CaptchaError</bpmn:incoming>
+      <bpmn:outgoing>Flow_CaptchaErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_HandleOAuthError" name="Handle OAuth Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.oauth" retries="2" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT30S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GoogleError</bpmn:incoming>
+      <bpmn:incoming>Flow_LinkedInError</bpmn:incoming>
+      <bpmn:outgoing>Flow_OAuthErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_HandleInvalidMethod" name="Handle Invalid Method">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.invalid-method" retries="1" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="timeout" value="PT20S" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_InvalidMethod</bpmn:incoming>
+      <bpmn:outgoing>Flow_InvalidMethodEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="Join Successful Auth">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_1" name="Sign-In Complete">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <!-- FIXED: Regular end events without error definitions -->
+    <bpmn:endEvent id="EndEvent_CaptchaError" name="Captcha Failed">
+      <bpmn:incoming>Flow_CaptchaErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_OAuthError" name="OAuth Failed">
+      <bpmn:incoming>Flow_OAuthErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_InvalidMethod" name="Invalid SignIn Method">
+      <bpmn:incoming>Flow_InvalidMethodEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_VerifyCaptcha" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_VerifyCaptcha" targetRef="Gateway_SigninMethod" />
+    <bpmn:sequenceFlow id="Flow_Google" name="Google" sourceRef="Gateway_SigninMethod" targetRef="Task_SigninGoogle">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=signinMethod = "google"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_LinkedIn" name="LinkedIn" sourceRef="Gateway_SigninMethod" targetRef="Task_SigninLinkedIn">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=signinMethod = "linkedin"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_InvalidMethod" name="Invalid Method" sourceRef="Gateway_SigninMethod" targetRef="Task_HandleInvalidMethod">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=signinMethod != "google" and signinMethod != "linkedin"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SigninGoogle" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_SigninLinkedIn" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Gateway_Join" targetRef="EndEvent_1" />
+    <bpmn:sequenceFlow id="Flow_CaptchaError" sourceRef="BoundaryEvent_CaptchaError" targetRef="Task_HandleCaptchaError" />
+    <bpmn:sequenceFlow id="Flow_CaptchaErrorEnd" sourceRef="Task_HandleCaptchaError" targetRef="EndEvent_CaptchaError" />
+    <bpmn:sequenceFlow id="Flow_GoogleError" sourceRef="BoundaryEvent_GoogleError" targetRef="Task_HandleOAuthError" />
+    <bpmn:sequenceFlow id="Flow_LinkedInError" sourceRef="BoundaryEvent_LinkedInError" targetRef="Task_HandleOAuthError" />
+    <bpmn:sequenceFlow id="Flow_OAuthErrorEnd" sourceRef="Task_HandleOAuthError" targetRef="EndEvent_OAuthError" />
+    <bpmn:sequenceFlow id="Flow_InvalidMethodEnd" sourceRef="Task_HandleInvalidMethod" targetRef="EndEvent_InvalidMethod" />
+  </bpmn:process>
+  <bpmn:error id="Error_CaptchaFailed" name="CAPTCHA_FAILED" errorCode="CAPTCHA_VALIDATION_FAILED" />
+  <bpmn:error id="Error_OAuthFailed" name="OAUTH_FAILED" errorCode="OAUTH_AUTHENTICATION_FAILED" />
+  <bpmn:error id="Error_InvalidMethod" name="INVALID_METHOD" errorCode="INVALID_SIGNIN_METHOD" />
+  <bpmn:error id="Error_NetworkTimeout" name="NETWORK_TIMEOUT" errorCode="NETWORK_TIMEOUT_ERROR" />
+  <bpmn:error id="Error_ServiceUnavailable" name="SERVICE_UNAVAILABLE" errorCode="EXTERNAL_SERVICE_UNAVAILABLE" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="user-signin-process">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_1" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="140" y="145" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_VerifyCaptcha_di" bpmnElement="Task_VerifyCaptcha">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SigninMethod_di" bpmnElement="Gateway_SigninMethod" isMarkerVisible="true">
+        <dc:Bounds x="395" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="380" y="70" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SigninGoogle_di" bpmnElement="Task_SigninGoogle">
+        <dc:Bounds x="500" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleCaptchaError_di" bpmnElement="Task_HandleCaptchaError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join" isMarkerVisible="true">
+        <dc:Bounds x="655" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="641" y="57.5" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="762" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="750" y="145" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_CaptchaError_di" bpmnElement="EndEvent_CaptchaError">
+        <dc:Bounds x="272" y="340" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="250" y="383" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SigninLinkedIn_di" bpmnElement="Task_SigninLinkedIn">
+        <dc:Bounds x="500" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleInvalidMethod_di" bpmnElement="Task_HandleInvalidMethod">
+        <dc:Bounds x="370" y="310" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_InvalidMethod_di" bpmnElement="EndEvent_InvalidMethod">
+        <dc:Bounds x="402" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="389" y="465" width="62" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleOAuthError_di" bpmnElement="Task_HandleOAuthError">
+        <dc:Bounds x="730" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_OAuthError_di" bpmnElement="EndEvent_OAuthError">
+        <dc:Bounds x="762" y="452" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="749" y="495" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_GoogleError_di" bpmnElement="BoundaryEvent_GoogleError">
+        <dc:Bounds x="532" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_CaptchaError_di" bpmnElement="BoundaryEvent_CaptchaError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_LinkedInError_di" bpmnElement="BoundaryEvent_LinkedInError">
+        <dc:Bounds x="532" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="518" y="328" width="64" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="395" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Google_di" bpmnElement="Flow_Google">
+        <di:waypoint x="445" y="120" />
+        <di:waypoint x="500" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="453" y="102" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LinkedIn_di" bpmnElement="Flow_LinkedIn">
+        <di:waypoint x="420" y="145" />
+        <di:waypoint x="420" y="270" />
+        <di:waypoint x="500" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="440" y="253" width="39" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_InvalidMethod_di" bpmnElement="Flow_InvalidMethod">
+        <di:waypoint x="420" y="145" />
+        <di:waypoint x="420" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="396" y="313.0000000000002" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="600" y="120" />
+        <di:waypoint x="655" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="600" y="270" />
+        <di:waypoint x="680" y="270" />
+        <di:waypoint x="680" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
+        <di:waypoint x="705" y="120" />
+        <di:waypoint x="762" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CaptchaError_di" bpmnElement="Flow_CaptchaError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CaptchaErrorEnd_di" bpmnElement="Flow_CaptchaErrorEnd">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_GoogleError_di" bpmnElement="Flow_GoogleError">
+        <di:waypoint x="550" y="178" />
+        <di:waypoint x="550" y="200" />
+        <di:waypoint x="780" y="200" />
+        <di:waypoint x="780" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LinkedInError_di" bpmnElement="Flow_LinkedInError">
+        <di:waypoint x="550" y="328" />
+        <di:waypoint x="550" y="370" />
+        <di:waypoint x="730" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_OAuthErrorEnd_di" bpmnElement="Flow_OAuthErrorEnd">
+        <di:waypoint x="780" y="410" />
+        <di:waypoint x="780" y="452" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_InvalidMethodEnd_di" bpmnElement="Flow_InvalidMethodEnd">
+        <di:waypoint x="420" y="390" />
+        <di:waypoint x="420" y="422" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

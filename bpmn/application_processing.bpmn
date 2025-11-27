@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                   id="Definitions_Application"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <!-- Error Definition -->
+  <bpmn:error id="Error_InvalidData" name="Invalid Data" errorCode="INVALID_DATA" />
+  
+  <bpmn:process id="application-processing-workflow" name="Application Processing Workflow" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartApplication" name="Start Application">
+      <bpmn:outgoing>Flow_ToValidateSubscription</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- VALIDATION Lane -->
+    <bpmn:serviceTask id="ValidateSubscription" name="Validate Subscription">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-subscription" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToValidateSubscription</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToValidateApplicationData</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="ValidateApplicationData" name="Validate Application Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-application-data" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToValidateApplicationData</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToValidationGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Gateway -->
+    <bpmn:exclusiveGateway id="ValidationGateway" name="Validation Result">
+      <bpmn:incoming>Flow_ToValidationGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToInvalidData</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToScoring</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Invalid Data Error End -->
+    <bpmn:endEvent id="InvalidDataEnd" name="Invalid Data Error">
+      <bpmn:incoming>Flow_ToInvalidData</bpmn:incoming>
+      <bpmn:errorEventDefinition errorRef="Error_InvalidData" />
+    </bpmn:endEvent>
+    
+    <!-- SCORING Lane -->
+    <bpmn:serviceTask id="CheckReadinessScore" name="Check Readiness Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="check-readiness-score" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToScoring</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCheckPriority</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="CheckPriorityRouting" name="Check Priority Routing">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="check-priority-routing" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCheckPriority</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCreateRecord</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- APPLICATION PROCESSING Lane -->
+    <bpmn:serviceTask id="CreateApplicationRecord" name="Create Application Record">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="create-application-record" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCreateRecord</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToNotifications</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- NOTIFICATION & RESPONSE Lane -->
+    <bpmn:parallelGateway id="SendNotifications" name="Send Notifications">
+      <bpmn:incoming>Flow_ToNotifications</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToNotifyFranchisor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToConfirmSeeker</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToBuildResponse</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <bpmn:serviceTask id="NotifyFranchisor" name="Notify Franchisor">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="recipientType" value="franchisor" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToNotifyFranchisor</bpmn:incoming>
+      <bpmn:outgoing>Flow_FranchisorToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="ConfirmToSeeker" name="Confirm to Seeker">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="recipientType" value="seeker" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToConfirmSeeker</bpmn:incoming>
+      <bpmn:outgoing>Flow_SeekerToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToBuildResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ResponseToJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Join Gateway -->
+    <bpmn:parallelGateway id="JoinNotifications" name="Join">
+      <bpmn:incoming>Flow_FranchisorToJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_SeekerToJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_ResponseToJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCallbackBFF</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <bpmn:serviceTask id="CallbackBFF" name="Callback to BFF">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="callback-to-bff" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCallbackBFF</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="ApplicationComplete" name="Application Complete">
+      <bpmn:incoming>Flow_ToComplete</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ToValidateSubscription" sourceRef="StartApplication" targetRef="ValidateSubscription" />
+    <bpmn:sequenceFlow id="Flow_ToValidateApplicationData" sourceRef="ValidateSubscription" targetRef="ValidateApplicationData" />
+    <bpmn:sequenceFlow id="Flow_ToValidationGateway" sourceRef="ValidateApplicationData" targetRef="ValidationGateway" />
+    <bpmn:sequenceFlow id="Flow_ToInvalidData" name="Invalid Data" sourceRef="ValidationGateway" targetRef="InvalidDataEnd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToScoring" name="Valid Data" sourceRef="ValidationGateway" targetRef="CheckReadinessScore">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToCheckPriority" sourceRef="CheckReadinessScore" targetRef="CheckPriorityRouting" />
+    <bpmn:sequenceFlow id="Flow_ToCreateRecord" sourceRef="CheckPriorityRouting" targetRef="CreateApplicationRecord" />
+    <bpmn:sequenceFlow id="Flow_ToNotifications" sourceRef="CreateApplicationRecord" targetRef="SendNotifications" />
+    <bpmn:sequenceFlow id="Flow_ToNotifyFranchisor" sourceRef="SendNotifications" targetRef="NotifyFranchisor" />
+    <bpmn:sequenceFlow id="Flow_ToConfirmSeeker" sourceRef="SendNotifications" targetRef="ConfirmToSeeker" />
+    <bpmn:sequenceFlow id="Flow_ToBuildResponse" sourceRef="SendNotifications" targetRef="BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_FranchisorToJoin" sourceRef="NotifyFranchisor" targetRef="JoinNotifications" />
+    <bpmn:sequenceFlow id="Flow_SeekerToJoin" sourceRef="ConfirmToSeeker" targetRef="JoinNotifications" />
+    <bpmn:sequenceFlow id="Flow_ResponseToJoin" sourceRef="BuildResponse" targetRef="JoinNotifications" />
+    <bpmn:sequenceFlow id="Flow_ToCallbackBFF" sourceRef="JoinNotifications" targetRef="CallbackBFF" />
+    <bpmn:sequenceFlow id="Flow_ToComplete" sourceRef="CallbackBFF" targetRef="ApplicationComplete" />
+    
+  </bpmn:process>
+  
+  <!-- BPMN Diagram -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Application">
+    <bpmndi:BPMNPlane id="BPMNPlane_Application" bpmnElement="application-processing-workflow">
+      
+      <!-- Start -->
+      <bpmndi:BPMNShape id="Shape_StartApplication" bpmnElement="StartApplication">
+        <dc:Bounds x="152" y="232" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validate Subscription -->
+      <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="ValidateSubscription">
+        <dc:Bounds x="240" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validate Application Data -->
+      <bpmndi:BPMNShape id="Shape_ValidateApplicationData" bpmnElement="ValidateApplicationData">
+        <dc:Bounds x="390" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Gateway -->
+      <bpmndi:BPMNShape id="Shape_ValidationGateway" bpmnElement="ValidationGateway">
+        <dc:Bounds x="545" y="225" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Invalid Data End -->
+      <bpmndi:BPMNShape id="Shape_InvalidDataEnd" bpmnElement="InvalidDataEnd">
+        <dc:Bounds x="652" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Check Readiness Score -->
+      <bpmndi:BPMNShape id="Shape_CheckReadinessScore" bpmnElement="CheckReadinessScore">
+        <dc:Bounds x="240" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Check Priority Routing -->
+      <bpmndi:BPMNShape id="Shape_CheckPriorityRouting" bpmnElement="CheckPriorityRouting">
+        <dc:Bounds x="390" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Create Application Record -->
+      <bpmndi:BPMNShape id="Shape_CreateApplicationRecord" bpmnElement="CreateApplicationRecord">
+        <dc:Bounds x="240" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Send Notifications Gateway -->
+      <bpmndi:BPMNShape id="Shape_SendNotifications" bpmnElement="SendNotifications">
+        <dc:Bounds x="395" y="695" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Notify Franchisor -->
+      <bpmndi:BPMNShape id="Shape_NotifyFranchisor" bpmnElement="NotifyFranchisor">
+        <dc:Bounds x="500" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Confirm to Seeker -->
+      <bpmndi:BPMNShape id="Shape_ConfirmToSeeker" bpmnElement="ConfirmToSeeker">
+        <dc:Bounds x="500" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Build Response -->
+      <bpmndi:BPMNShape id="Shape_BuildResponse" bpmnElement="BuildResponse">
+        <dc:Bounds x="500" y="920" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Join Gateway -->
+      <bpmndi:BPMNShape id="Shape_JoinNotifications" bpmnElement="JoinNotifications">
+        <dc:Bounds x="655" y="695" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Callback to BFF -->
+      <bpmndi:BPMNShape id="Shape_CallbackBFF" bpmnElement="CallbackBFF">
+        <dc:Bounds x="760" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Application Complete -->
+      <bpmndi:BPMNShape id="Shape_ApplicationComplete" bpmnElement="ApplicationComplete">
+        <dc:Bounds x="922" y="702" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Edge_ToValidateSubscription" bpmnElement="Flow_ToValidateSubscription">
+        <di:waypoint x="188" y="250" />
+        <di:waypoint x="240" y="250" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToValidateApplicationData" bpmnElement="Flow_ToValidateApplicationData">
+        <di:waypoint x="340" y="250" />
+        <di:waypoint x="390" y="250" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToValidationGateway" bpmnElement="Flow_ToValidationGateway">
+        <di:waypoint x="490" y="250" />
+        <di:waypoint x="545" y="250" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToInvalidData" bpmnElement="Flow_ToInvalidData">
+        <di:waypoint x="570" y="225" />
+        <di:waypoint x="620" y="160" />
+        <di:waypoint x="652" y="160" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToScoring" bpmnElement="Flow_ToScoring">
+        <di:waypoint x="570" y="275" />
+        <di:waypoint x="570" y="420" />
+        <di:waypoint x="340" y="420" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCheckPriority" bpmnElement="Flow_ToCheckPriority">
+        <di:waypoint x="340" y="420" />
+        <di:waypoint x="390" y="420" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCreateRecord" bpmnElement="Flow_ToCreateRecord">
+        <di:waypoint x="490" y="420" />
+        <di:waypoint x="490" y="580" />
+        <di:waypoint x="340" y="580" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToNotifications" bpmnElement="Flow_ToNotifications">
+        <di:waypoint x="290" y="620" />
+        <di:waypoint x="420" y="620" />
+        <di:waypoint x="420" y="695" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToNotifyFranchisor" bpmnElement="Flow_ToNotifyFranchisor">
+        <di:waypoint x="445" y="720" />
+        <di:waypoint x="500" y="720" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToConfirmSeeker" bpmnElement="Flow_ToConfirmSeeker">
+        <di:waypoint x="420" y="745" />
+        <di:waypoint x="420" y="840" />
+        <di:waypoint x="500" y="840" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToBuildResponse" bpmnElement="Flow_ToBuildResponse">
+        <di:waypoint x="420" y="745" />
+        <di:waypoint x="420" y="960" />
+        <di:waypoint x="500" y="960" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_FranchisorToJoin" bpmnElement="Flow_FranchisorToJoin">
+        <di:waypoint x="600" y="720" />
+        <di:waypoint x="655" y="720" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_SeekerToJoin" bpmnElement="Flow_SeekerToJoin">
+        <di:waypoint x="600" y="840" />
+        <di:waypoint x="680" y="840" />
+        <di:waypoint x="680" y="745" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ResponseToJoin" bpmnElement="Flow_ResponseToJoin">
+        <di:waypoint x="600" y="960" />
+        <di:waypoint x="680" y="960" />
+        <di:waypoint x="680" y="745" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToCallbackBFF" bpmnElement="Flow_ToCallbackBFF">
+        <di:waypoint x="705" y="720" />
+        <di:waypoint x="760" y="720" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Edge_ToComplete" bpmnElement="Flow_ToComplete">
+        <di:waypoint x="860" y="720" />
+        <di:waypoint x="922" y="720" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

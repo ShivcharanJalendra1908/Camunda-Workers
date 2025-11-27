@@ -1,0 +1,421 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_AccountDeletion"
+                  targetNamespace="http://lemici.example/bpmn">
+
+  <!-- ERROR DEFINITIONS -->
+  <bpmn:error id="Error_UserNotFound" name="USER_NOT_FOUND" />
+  <bpmn:error id="Error_AnonymizationFailed" name="ANONYMIZATION_FAILED" />
+  <bpmn:error id="Error_CRMDeleteFailed" name="CRM_DELETE_FAILED" />
+  <bpmn:error id="Error_NotificationFailed" name="NOTIFICATION_FAILED" />
+
+  <bpmn:process id="Process_AccountDeletion" name="Account Deletion Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Deletion" name="Account Deletion Request">
+      <bpmn:outgoing>Flow_Start_Gateway</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Event-Based Gateway -->
+    <bpmn:eventBasedGateway id="Gateway_WaitForDeletion" name="Wait for Confirmation or Timeout">
+      <bpmn:incoming>Flow_Start_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToMessage</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToTimer</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    
+    <!-- Message Event: Deletion Confirmed -->
+    <bpmn:intermediateCatchEvent id="Event_ConfirmDeletion" name="Deletion Confirmed">
+      <bpmn:incoming>Flow_ToMessage</bpmn:incoming>
+      <bpmn:outgoing>Flow_MessageReceived</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_DeletionConfirm" />
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- Timer Event: 7 Days Timeout -->
+    <bpmn:intermediateCatchEvent id="Event_Timeout" name="7 Days Timeout">
+      <bpmn:incoming>Flow_ToTimer</bpmn:incoming>
+      <bpmn:outgoing>Flow_TimerExpired</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- Converging Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Merge" name="Merge Events">
+      <bpmn:incoming>Flow_MessageReceived</bpmn:incoming>
+      <bpmn:incoming>Flow_TimerExpired</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeletionConfirmed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Validate User Before Deletion -->
+    <bpmn:serviceTask id="Task_ValidateUser" name="Validate User Exists">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user-validation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_DeletionConfirmed</bpmn:incoming>
+      <bpmn:outgoing>Flow_UserValidated</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Error Boundary -->
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateUser">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="Error_UserNotFound" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Anonymize User Data -->
+    <bpmn:serviceTask id="Task_AnonymizeData" name="Anonymize User Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user-data-anonymize" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UserValidated</bpmn:incoming>
+      <bpmn:outgoing>Flow_DataAnonymized</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Anonymization Error Boundary -->
+    <bpmn:boundaryEvent id="Boundary_AnonymizationError" name="Anonymization Error" attachedToRef="Task_AnonymizeData">
+      <bpmn:outgoing>Flow_AnonymizationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="Error_AnonymizationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Remove from CRM -->
+    <bpmn:serviceTask id="Task_RemoveFromCRM" name="Remove from CRM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm-user-delete" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_DataAnonymized</bpmn:incoming>
+      <bpmn:outgoing>Flow_CRMRemoved</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- CRM Error Boundary -->
+    <bpmn:boundaryEvent id="Boundary_CRMError" name="CRM Error" attachedToRef="Task_RemoveFromCRM">
+      <bpmn:outgoing>Flow_CRMError</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="Error_CRMDeleteFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Send Final Notification -->
+    <bpmn:serviceTask id="Task_SendFinalNotification" name="Send Account Closure Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CRMRemoved</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotificationSent</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Notification Error Boundary -->
+    <bpmn:boundaryEvent id="Boundary_NotificationError" name="Notification Error" attachedToRef="Task_SendFinalNotification">
+      <bpmn:outgoing>Flow_NotificationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="Error_NotificationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- ERROR HANDLERS -->
+    
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValidationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Anonymization Error Handler -->
+    <bpmn:serviceTask id="Task_HandleAnonymizationError" name="Handle Anonymization Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_AnonymizationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_AnonymizationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- CRM Error Handler -->
+    <bpmn:serviceTask id="Task_HandleCRMError" name="Handle CRM Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CRMError</bpmn:incoming>
+      <bpmn:outgoing>Flow_CRMErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Notification Error Handler -->
+    <bpmn:serviceTask id="Task_HandleNotificationError" name="Handle Notification Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NotificationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_NotificationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Events -->
+    <bpmn:endEvent id="EndEvent_Success" name="Account Deletion Complete">
+      <bpmn:incoming>Flow_NotificationSent</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events -->
+    <bpmn:endEvent id="EndEvent_ValidationError" name="User Not Found">
+      <bpmn:incoming>Flow_ValidationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_AnonymizationError" name="Anonymization Failed">
+      <bpmn:incoming>Flow_AnonymizationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_CRMError" name="CRM Deletion Failed">
+      <bpmn:incoming>Flow_CRMErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_NotificationError" name="Notification Failed">
+      <bpmn:incoming>Flow_NotificationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- SEQUENCE FLOWS -->
+    
+    <!-- Main Flow -->
+    <bpmn:sequenceFlow id="Flow_Start_Gateway" sourceRef="StartEvent_Deletion" targetRef="Gateway_WaitForDeletion" />
+    <bpmn:sequenceFlow id="Flow_ToMessage" sourceRef="Gateway_WaitForDeletion" targetRef="Event_ConfirmDeletion" />
+    <bpmn:sequenceFlow id="Flow_ToTimer" sourceRef="Gateway_WaitForDeletion" targetRef="Event_Timeout" />
+    <bpmn:sequenceFlow id="Flow_MessageReceived" sourceRef="Event_ConfirmDeletion" targetRef="Gateway_Merge" />
+    <bpmn:sequenceFlow id="Flow_TimerExpired" sourceRef="Event_Timeout" targetRef="Gateway_Merge" />
+    <bpmn:sequenceFlow id="Flow_DeletionConfirmed" sourceRef="Gateway_Merge" targetRef="Task_ValidateUser" />
+    <bpmn:sequenceFlow id="Flow_UserValidated" sourceRef="Task_ValidateUser" targetRef="Task_AnonymizeData" />
+    <bpmn:sequenceFlow id="Flow_DataAnonymized" sourceRef="Task_AnonymizeData" targetRef="Task_RemoveFromCRM" />
+    <bpmn:sequenceFlow id="Flow_CRMRemoved" sourceRef="Task_RemoveFromCRM" targetRef="Task_SendFinalNotification" />
+    <bpmn:sequenceFlow id="Flow_NotificationSent" sourceRef="Task_SendFinalNotification" targetRef="EndEvent_Success" />
+    
+    <!-- Error Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_ValidationErrorEnd" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    
+    <bpmn:sequenceFlow id="Flow_AnonymizationError" sourceRef="Boundary_AnonymizationError" targetRef="Task_HandleAnonymizationError" />
+    <bpmn:sequenceFlow id="Flow_AnonymizationErrorEnd" sourceRef="Task_HandleAnonymizationError" targetRef="EndEvent_AnonymizationError" />
+    
+    <bpmn:sequenceFlow id="Flow_CRMError" sourceRef="Boundary_CRMError" targetRef="Task_HandleCRMError" />
+    <bpmn:sequenceFlow id="Flow_CRMErrorEnd" sourceRef="Task_HandleCRMError" targetRef="EndEvent_CRMError" />
+    
+    <bpmn:sequenceFlow id="Flow_NotificationError" sourceRef="Boundary_NotificationError" targetRef="Task_HandleNotificationError" />
+    <bpmn:sequenceFlow id="Flow_NotificationErrorEnd" sourceRef="Task_HandleNotificationError" targetRef="EndEvent_NotificationError" />
+  </bpmn:process>
+
+  <!-- Message Definition -->
+  <bpmn:message id="Message_DeletionConfirm" name="accountDeletionConfirmed">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="${userId}" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <!-- BPMN DIAGRAM -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_AccountDeletion">
+    <bpmndi:BPMNPlane id="BPMNPlane_AccountDeletion" bpmnElement="Process_AccountDeletion">
+      
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_Deletion_di" bpmnElement="StartEvent_Deletion">
+        <dc:Bounds x="152" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Event-Based Gateway -->
+      <bpmndi:BPMNShape id="Gateway_WaitForDeletion_di" bpmnElement="Gateway_WaitForDeletion">
+        <dc:Bounds x="240" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Message Event -->
+      <bpmndi:BPMNShape id="Event_ConfirmDeletion_di" bpmnElement="Event_ConfirmDeletion">
+        <dc:Bounds x="340" y="152" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Timer Event -->
+      <bpmndi:BPMNShape id="Event_Timeout_di" bpmnElement="Event_Timeout">
+        <dc:Bounds x="340" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Merge Gateway -->
+      <bpmndi:BPMNShape id="Gateway_Merge_di" bpmnElement="Gateway_Merge">
+        <dc:Bounds x="425" y="195" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Service Tasks -->
+      <bpmndi:BPMNShape id="Task_ValidateUser_di" bpmnElement="Task_ValidateUser">
+        <dc:Bounds x="520" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Boundary -->
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="582" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_AnonymizeData_di" bpmnElement="Task_AnonymizeData">
+        <dc:Bounds x="670" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Anonymization Boundary -->
+      <bpmndi:BPMNShape id="Boundary_AnonymizationError_di" bpmnElement="Boundary_AnonymizationError">
+        <dc:Bounds x="732" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_RemoveFromCRM_di" bpmnElement="Task_RemoveFromCRM">
+        <dc:Bounds x="820" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- CRM Boundary -->
+      <bpmndi:BPMNShape id="Boundary_CRMError_di" bpmnElement="Boundary_CRMError">
+        <dc:Bounds x="882" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_SendFinalNotification_di" bpmnElement="Task_SendFinalNotification">
+        <dc:Bounds x="970" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Notification Boundary -->
+      <bpmndi:BPMNShape id="Boundary_NotificationError_di" bpmnElement="Boundary_NotificationError">
+        <dc:Bounds x="1032" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Success End Event -->
+      <bpmndi:BPMNShape id="EndEvent_Success_di" bpmnElement="EndEvent_Success">
+        <dc:Bounds x="1120" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error Handlers -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="520" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleAnonymizationError_di" bpmnElement="Task_HandleAnonymizationError">
+        <dc:Bounds x="670" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleCRMError_di" bpmnElement="Task_HandleCRMError">
+        <dc:Bounds x="820" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleNotificationError_di" bpmnElement="Task_HandleNotificationError">
+        <dc:Bounds x="970" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error End Events -->
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="552" y="450" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_AnonymizationError_di" bpmnElement="EndEvent_AnonymizationError">
+        <dc:Bounds x="702" y="450" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_CRMError_di" bpmnElement="EndEvent_CRMError">
+        <dc:Bounds x="852" y="450" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_NotificationError_di" bpmnElement="EndEvent_NotificationError">
+        <dc:Bounds x="1002" y="450" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- FLOW EDGES -->
+      
+      <!-- Main Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_Start_Gateway_di" bpmnElement="Flow_Start_Gateway">
+        <di:waypoint x="188" y="220" />
+        <di:waypoint x="240" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToMessage_di" bpmnElement="Flow_ToMessage">
+        <di:waypoint x="265" y="195" />
+        <di:waypoint x="265" y="170" />
+        <di:waypoint x="340" y="170" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToTimer_di" bpmnElement="Flow_ToTimer">
+        <di:waypoint x="265" y="245" />
+        <di:waypoint x="265" y="260" />
+        <di:waypoint x="340" y="260" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_MessageReceived_di" bpmnElement="Flow_MessageReceived">
+        <di:waypoint x="376" y="170" />
+        <di:waypoint x="450" y="170" />
+        <di:waypoint x="450" y="195" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_TimerExpired_di" bpmnElement="Flow_TimerExpired">
+        <di:waypoint x="376" y="260" />
+        <di:waypoint x="450" y="260" />
+        <di:waypoint x="450" y="245" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_DeletionConfirmed_di" bpmnElement="Flow_DeletionConfirmed">
+        <di:waypoint x="475" y="220" />
+        <di:waypoint x="520" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_UserValidated_di" bpmnElement="Flow_UserValidated">
+        <di:waypoint x="620" y="220" />
+        <di:waypoint x="670" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_DataAnonymized_di" bpmnElement="Flow_DataAnonymized">
+        <di:waypoint x="770" y="220" />
+        <di:waypoint x="820" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CRMRemoved_di" bpmnElement="Flow_CRMRemoved">
+        <di:waypoint x="920" y="220" />
+        <di:waypoint x="970" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_NotificationSent_di" bpmnElement="Flow_NotificationSent">
+        <di:waypoint x="1070" y="220" />
+        <di:waypoint x="1120" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <!-- Error Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="600" y="278" />
+        <di:waypoint x="600" y="300" />
+        <di:waypoint x="570" y="300" />
+        <di:waypoint x="570" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationErrorEnd_di" bpmnElement="Flow_ValidationErrorEnd">
+        <di:waypoint x="570" y="400" />
+        <di:waypoint x="570" y="450" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_AnonymizationError_di" bpmnElement="Flow_AnonymizationError">
+        <di:waypoint x="750" y="278" />
+        <di:waypoint x="750" y="300" />
+        <di:waypoint x="720" y="300" />
+        <di:waypoint x="720" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_AnonymizationErrorEnd_di" bpmnElement="Flow_AnonymizationErrorEnd">
+        <di:waypoint x="720" y="400" />
+        <di:waypoint x="720" y="450" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CRMError_di" bpmnElement="Flow_CRMError">
+        <di:waypoint x="900" y="278" />
+        <di:waypoint x="900" y="300" />
+        <di:waypoint x="870" y="300" />
+        <di:waypoint x="870" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CRMErrorEnd_di" bpmnElement="Flow_CRMErrorEnd">
+        <di:waypoint x="870" y="400" />
+        <di:waypoint x="870" y="450" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_NotificationError_di" bpmnElement="Flow_NotificationError">
+        <di:waypoint x="1050" y="278" />
+        <di:waypoint x="1050" y="300" />
+        <di:waypoint x="1020" y="300" />
+        <di:waypoint x="1020" y="320" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_NotificationErrorEnd_di" bpmnElement="Flow_NotificationErrorEnd">
+        <di:waypoint x="1020" y="400" />
+        <di:waypoint x="1020" y="450" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

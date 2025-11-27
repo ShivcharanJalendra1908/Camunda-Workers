@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.0.0">
+
+  <!-- Error Definitions -->
+  <bpmn:error id="Error_CampaignFailed" name="CAMPAIGN_FAILED" errorCode="CAMPAIGN_FAILED" />
+  <bpmn:error id="Error_InvalidCampaign" name="INVALID_CAMPAIGN" errorCode="INVALID_CAMPAIGN" />
+  <bpmn:error id="Error_CallActivityFailed" name="CALL_ACTIVITY_FAILED" errorCode="CALL_ACTIVITY_FAILED" />
+
+  <bpmn:process id="email-campaign-process" name="Email Campaign Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Campaign Started">
+      <bpmn:outgoing>SequenceFlow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Validate Campaign Input -->
+    <bpmn:serviceTask id="Task_ValidateCampaign" name="Validate Campaign">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="campaign.validation" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_1</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Validation Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateCampaign">
+      <bpmn:outgoing>SequenceFlow_3</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_InvalidCampaign" />
+    </bpmn:boundaryEvent>
+
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.validation" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_3</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Campaign Type -->
+    <bpmn:exclusiveGateway id="Gateway_CampaignType" name="Campaign Type?">
+      <bpmn:incoming>SequenceFlow_2</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_5</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_6</bpmn:outgoing>
+      <bpmn:outgoing>SequenceFlow_7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Welcome Email Series -->
+    <bpmn:sequenceFlow id="SequenceFlow_5" name="Welcome" sourceRef="Gateway_CampaignType" targetRef="CallActivity_WelcomeSeries">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=campaignType = "welcome"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:callActivity id="CallActivity_WelcomeSeries" name="Welcome Email Series">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="welcome-email-series" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_5</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_8</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- Welcome Series Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_WelcomeError" name="Welcome Error" attachedToRef="CallActivity_WelcomeSeries">
+      <bpmn:outgoing>SequenceFlow_9</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_CallActivityFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Onboarding Series -->
+    <bpmn:sequenceFlow id="SequenceFlow_6" name="Onboarding" sourceRef="Gateway_CampaignType" targetRef="CallActivity_OnboardingSeries">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=campaignType = "onboarding"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:callActivity id="CallActivity_OnboardingSeries" name="Onboarding Email Series">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="user-onboarding-process" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_6</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_10</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- Onboarding Series Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_OnboardingError" name="Onboarding Error" attachedToRef="CallActivity_OnboardingSeries">
+      <bpmn:outgoing>SequenceFlow_11</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_CallActivityFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Re-engagement Campaign -->
+    <bpmn:sequenceFlow id="SequenceFlow_7" name="Re-engagement" sourceRef="Gateway_CampaignType" targetRef="CallActivity_ReEngagement">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=campaignType = "reengagement"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:callActivity id="CallActivity_ReEngagement" name="Re-engagement Campaign">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="reengagement-campaign" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_7</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_12</bpmn:outgoing>
+    </bpmn:callActivity>
+
+    <!-- Re-engagement Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_ReEngagementError" name="Re-engagement Error" attachedToRef="CallActivity_ReEngagement">
+      <bpmn:outgoing>SequenceFlow_13</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_CallActivityFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Call Activity Error Handler -->
+    <bpmn:serviceTask id="Task_HandleCallActivityError" name="Handle Call Activity Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.call-activity" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_9</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_11</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_13</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_14</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Join Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_CampaignJoin" name="Join Campaigns">
+      <bpmn:incoming>SequenceFlow_8</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_10</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_12</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_14</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Campaign Analytics -->
+    <bpmn:serviceTask id="Task_CampaignAnalytics" name="Log Campaign Analytics">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="analytics.campaign" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_15</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_16</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Analytics Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_AnalyticsError" name="Analytics Error" attachedToRef="Task_CampaignAnalytics">
+      <bpmn:outgoing>SequenceFlow_17</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_5" errorRef="Error_CampaignFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Analytics Error Handler -->
+    <bpmn:serviceTask id="Task_HandleAnalyticsError" name="Handle Analytics Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.analytics" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>SequenceFlow_17</bpmn:incoming>
+      <bpmn:outgoing>SequenceFlow_18</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Campaign Complete">
+      <bpmn:incoming>SequenceFlow_16</bpmn:incoming>
+      <bpmn:incoming>SequenceFlow_18</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Error End Events -->
+    <bpmn:endEvent id="EndEvent_ValidationError" name="Validation Failed">
+      <bpmn:incoming>SequenceFlow_4</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="SequenceFlow_1" sourceRef="StartEvent_1" targetRef="Task_ValidateCampaign" />
+    <bpmn:sequenceFlow id="SequenceFlow_2" sourceRef="Task_ValidateCampaign" targetRef="Gateway_CampaignType" />
+    <bpmn:sequenceFlow id="SequenceFlow_3" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="SequenceFlow_4" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    <bpmn:sequenceFlow id="SequenceFlow_8" sourceRef="CallActivity_WelcomeSeries" targetRef="Gateway_CampaignJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_9" sourceRef="Boundary_WelcomeError" targetRef="Task_HandleCallActivityError" />
+    <bpmn:sequenceFlow id="SequenceFlow_10" sourceRef="CallActivity_OnboardingSeries" targetRef="Gateway_CampaignJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_11" sourceRef="Boundary_OnboardingError" targetRef="Task_HandleCallActivityError" />
+    <bpmn:sequenceFlow id="SequenceFlow_12" sourceRef="CallActivity_ReEngagement" targetRef="Gateway_CampaignJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_13" sourceRef="Boundary_ReEngagementError" targetRef="Task_HandleCallActivityError" />
+    <bpmn:sequenceFlow id="SequenceFlow_14" sourceRef="Task_HandleCallActivityError" targetRef="Gateway_CampaignJoin" />
+    <bpmn:sequenceFlow id="SequenceFlow_15" sourceRef="Gateway_CampaignJoin" targetRef="Task_CampaignAnalytics" />
+    <bpmn:sequenceFlow id="SequenceFlow_16" sourceRef="Task_CampaignAnalytics" targetRef="EndEvent_1" />
+    <bpmn:sequenceFlow id="SequenceFlow_17" sourceRef="Boundary_AnalyticsError" targetRef="Task_HandleAnalyticsError" />
+    <bpmn:sequenceFlow id="SequenceFlow_18" sourceRef="Task_HandleAnalyticsError" targetRef="EndEvent_1" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="email-campaign-process">
+      
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="162" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Validation Task -->
+      <bpmndi:BPMNShape id="Task_ValidateCampaign_di" bpmnElement="Task_ValidateCampaign">
+        <dc:Bounds x="250" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Validation Boundary -->
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="282" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Validation Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="250" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Gateway Campaign Type -->
+      <bpmndi:BPMNShape id="Gateway_CampaignType_di" bpmnElement="Gateway_CampaignType" isMarkerVisible="true">
+        <dc:Bounds x="415" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Welcome Series Call Activity -->
+      <bpmndi:BPMNShape id="CallActivity_WelcomeSeries_di" bpmnElement="CallActivity_WelcomeSeries">
+        <dc:Bounds x="530" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Welcome Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_WelcomeError_di" bpmnElement="Boundary_WelcomeError">
+        <dc:Bounds x="562" y="92" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Onboarding Series Call Activity -->
+      <bpmndi:BPMNShape id="CallActivity_OnboardingSeries_di" bpmnElement="CallActivity_OnboardingSeries">
+        <dc:Bounds x="530" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Onboarding Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_OnboardingError_di" bpmnElement="Boundary_OnboardingError">
+        <dc:Bounds x="562" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Re-engagement Call Activity -->
+      <bpmndi:BPMNShape id="CallActivity_ReEngagement_di" bpmnElement="CallActivity_ReEngagement">
+        <dc:Bounds x="530" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Re-engagement Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_ReEngagementError_di" bpmnElement="Boundary_ReEngagementError">
+        <dc:Bounds x="562" y="332" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Call Activity Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleCallActivityError_di" bpmnElement="Task_HandleCallActivityError">
+        <dc:Bounds x="680" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Join Gateway -->
+      <bpmndi:BPMNShape id="Gateway_CampaignJoin_di" bpmnElement="Gateway_CampaignJoin" isMarkerVisible="true">
+        <dc:Bounds x="835" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Campaign Analytics -->
+      <bpmndi:BPMNShape id="Task_CampaignAnalytics_di" bpmnElement="Task_CampaignAnalytics">
+        <dc:Bounds x="940" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Analytics Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_AnalyticsError_di" bpmnElement="Boundary_AnalyticsError">
+        <dc:Bounds x="972" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Analytics Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleAnalyticsError_di" bpmnElement="Task_HandleAnalyticsError">
+        <dc:Bounds x="940" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Success End Event -->
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1092" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Error End Event -->
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="282" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="SequenceFlow_1_di" bpmnElement="SequenceFlow_1">
+        <di:waypoint x="198" y="120" />
+        <di:waypoint x="250" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_2_di" bpmnElement="SequenceFlow_2">
+        <di:waypoint x="350" y="120" />
+        <di:waypoint x="415" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_3_di" bpmnElement="SequenceFlow_3">
+        <di:waypoint x="300" y="178" />
+        <di:waypoint x="300" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_4_di" bpmnElement="SequenceFlow_4">
+        <di:waypoint x="300" y="300" />
+        <di:waypoint x="300" y="342" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_5_di" bpmnElement="SequenceFlow_5">
+        <di:waypoint x="440" y="95" />
+        <di:waypoint x="440" y="70" />
+        <di:waypoint x="530" y="70" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_6_di" bpmnElement="SequenceFlow_6">
+        <di:waypoint x="440" y="145" />
+        <di:waypoint x="440" y="190" />
+        <di:waypoint x="530" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_7_di" bpmnElement="SequenceFlow_7">
+        <di:waypoint x="440" y="145" />
+        <di:waypoint x="440" y="310" />
+        <di:waypoint x="530" y="310" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_8_di" bpmnElement="SequenceFlow_8">
+        <di:waypoint x="630" y="70" />
+        <di:waypoint x="860" y="70" />
+        <di:waypoint x="860" y="95" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_9_di" bpmnElement="SequenceFlow_9">
+        <di:waypoint x="580" y="128" />
+        <di:waypoint x="580" y="140" />
+        <di:waypoint x="730" y="140" />
+        <di:waypoint x="730" y="150" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_10_di" bpmnElement="SequenceFlow_10">
+        <di:waypoint x="630" y="190" />
+        <di:waypoint x="860" y="190" />
+        <di:waypoint x="860" y="145" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_11_di" bpmnElement="SequenceFlow_11">
+        <di:waypoint x="580" y="248" />
+        <di:waypoint x="580" y="260" />
+        <di:waypoint x="730" y="260" />
+        <di:waypoint x="730" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_12_di" bpmnElement="SequenceFlow_12">
+        <di:waypoint x="630" y="310" />
+        <di:waypoint x="860" y="310" />
+        <di:waypoint x="860" y="145" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_13_di" bpmnElement="SequenceFlow_13">
+        <di:waypoint x="580" y="368" />
+        <di:waypoint x="580" y="380" />
+        <di:waypoint x="730" y="380" />
+        <di:waypoint x="730" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_14_di" bpmnElement="SequenceFlow_14">
+        <di:waypoint x="780" y="190" />
+        <di:waypoint x="860" y="190" />
+        <di:waypoint x="860" y="145" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_15_di" bpmnElement="SequenceFlow_15">
+        <di:waypoint x="885" y="120" />
+        <di:waypoint x="940" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_16_di" bpmnElement="SequenceFlow_16">
+        <di:waypoint x="1040" y="120" />
+        <di:waypoint x="1092" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_17_di" bpmnElement="SequenceFlow_17">
+        <di:waypoint x="990" y="178" />
+        <di:waypoint x="990" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="SequenceFlow_18_di" bpmnElement="SequenceFlow_18">
+        <di:waypoint x="1040" y="260" />
+        <di:waypoint x="1110" y="260" />
+        <di:waypoint x="1110" y="138" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

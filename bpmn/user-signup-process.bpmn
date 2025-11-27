@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_UserSignup" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.3.0">
+  
+  <!-- Error Definitions MUST be at the root level -->
+  <bpmn:error id="Error_ValidationFailed" name="validation_failed" errorCode="VALIDATION_FAILED" />
+  <bpmn:error id="Error_UserCreationFailed" name="user_creation_failed" errorCode="USER_CREATION_FAILED" />
+  <bpmn:error id="Error_EmailFailed" name="email_failed" errorCode="EMAIL_FAILED" />
+  
+  <bpmn:process id="user-signup-process" name="User Signup Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Signup" name="Signup Request">
+      <bpmn:outgoing>Flow_StartSignup</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validate User Data with Error Boundary Event -->
+    <bpmn:serviceTask id="Task_ValidateUserData" name="Validate User Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user.validation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_StartSignup</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreateUser</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Error Boundary Event for Validation - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ValidationError" name="Validation Error" attachedToRef="Task_ValidateUserData">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_ValidationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Create User Account with Error Boundary Event -->
+    <bpmn:serviceTask id="Task_CreateUser" name="Create User Account">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user.creation" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CreateUser</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendWelcomeSeries</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Error Boundary Event for User Creation - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_CreationError" name="Creation Error" attachedToRef="Task_CreateUser">
+      <bpmn:outgoing>Flow_CreationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_UserCreationFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Call Welcome Email Series -->
+    <bpmn:callActivity id="CallActivity_WelcomeEmail" name="Send Welcome Series">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="welcome-email-series" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendWelcomeSeries</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendVerification</bpmn:outgoing>
+    </bpmn:callActivity>
+    
+    <!-- Send Verification Email with Error Boundary Event -->
+    <bpmn:serviceTask id="Task_SendVerification" name="Send Verification Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.verification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendVerification</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndSignup</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Error Boundary Event for Email Verification - FIXED -->
+    <bpmn:boundaryEvent id="BoundaryEvent_EmailError" name="Email Error" attachedToRef="Task_SendVerification">
+      <bpmn:outgoing>Flow_EmailError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_EmailFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Error Handling Tasks -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.validation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValidationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="Task_HandleCreationError" name="Handle Creation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.creation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CreationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="Task_HandleEmailError" name="Handle Email Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.email" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_EmailError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EmailErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Signup" name="Signup Complete">
+      <bpmn:incoming>Flow_EndSignup</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events -->
+    <bpmn:endEvent id="EndEvent_ValidationFailed" name="Validation Failed">
+      <bpmn:incoming>Flow_ValidationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_CreationFailed" name="User Creation Failed">
+      <bpmn:incoming>Flow_CreationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_EmailFailed" name="Email Failed">
+      <bpmn:incoming>Flow_EmailErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartSignup" sourceRef="StartEvent_Signup" targetRef="Task_ValidateUserData" />
+    <bpmn:sequenceFlow id="Flow_CreateUser" sourceRef="Task_ValidateUserData" targetRef="Task_CreateUser" />
+    <bpmn:sequenceFlow id="Flow_SendWelcomeSeries" sourceRef="Task_CreateUser" targetRef="CallActivity_WelcomeEmail" />
+    <bpmn:sequenceFlow id="Flow_SendVerification" sourceRef="CallActivity_WelcomeEmail" targetRef="Task_SendVerification" />
+    <bpmn:sequenceFlow id="Flow_EndSignup" sourceRef="Task_SendVerification" targetRef="EndEvent_Signup" />
+    
+    <!-- Error Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="BoundaryEvent_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_CreationError" sourceRef="BoundaryEvent_CreationError" targetRef="Task_HandleCreationError" />
+    <bpmn:sequenceFlow id="Flow_EmailError" sourceRef="BoundaryEvent_EmailError" targetRef="Task_HandleEmailError" />
+    <bpmn:sequenceFlow id="Flow_ValidationErrorEnd" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationFailed" />
+    <bpmn:sequenceFlow id="Flow_CreationErrorEnd" sourceRef="Task_HandleCreationError" targetRef="EndEvent_CreationFailed" />
+    <bpmn:sequenceFlow id="Flow_EmailErrorEnd" sourceRef="Task_HandleEmailError" targetRef="EndEvent_EmailFailed" />
+    
+  </bpmn:process>
+  
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_UserSignup">
+    <bpmndi:BPMNPlane id="BPMNPlane_UserSignup" bpmnElement="user-signup-process">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_Signup" bpmnElement="StartEvent_Signup">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Service Task Shapes -->
+      <bpmndi:BPMNShape id="Task_ValidateUserData_di" bpmnElement="Task_ValidateUserData">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Validation -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ValidationError_di" bpmnElement="BoundaryEvent_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_CreateUser_di" bpmnElement="Task_CreateUser">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Creation -->
+      <bpmndi:BPMNShape id="BoundaryEvent_CreationError_di" bpmnElement="BoundaryEvent_CreationError">
+        <dc:Bounds x="422" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Call Activity Shape -->
+      <bpmndi:BPMNShape id="CallActivity_WelcomeEmail_di" bpmnElement="CallActivity_WelcomeEmail">
+        <dc:Bounds x="540" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_SendVerification_di" bpmnElement="Task_SendVerification">
+        <dc:Bounds x="690" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Boundary Event for Email -->
+      <bpmndi:BPMNShape id="BoundaryEvent_EmailError_di" bpmnElement="BoundaryEvent_EmailError">
+        <dc:Bounds x="722" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error Handler Shapes -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleCreationError_di" bpmnElement="Task_HandleCreationError">
+        <dc:Bounds x="390" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Task_HandleEmailError_di" bpmnElement="Task_HandleEmailError">
+        <dc:Bounds x="690" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- End Event Shapes -->
+      <bpmndi:BPMNShape id="EndEvent_Signup_di" bpmnElement="EndEvent_Signup">
+        <dc:Bounds x="842" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_ValidationFailed_di" bpmnElement="EndEvent_ValidationFailed">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_CreationFailed_di" bpmnElement="EndEvent_CreationFailed">
+        <dc:Bounds x="422" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_EmailFailed_di" bpmnElement="EndEvent_EmailFailed">
+        <dc:Bounds x="722" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_StartSignup_di" bpmnElement="Flow_StartSignup">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CreateUser_di" bpmnElement="Flow_CreateUser">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SendWelcomeSeries_di" bpmnElement="Flow_SendWelcomeSeries">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="540" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SendVerification_di" bpmnElement="Flow_SendVerification">
+        <di:waypoint x="640" y="120" />
+        <di:waypoint x="690" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndSignup_di" bpmnElement="Flow_EndSignup">
+        <di:waypoint x="790" y="120" />
+        <di:waypoint x="842" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <!-- Error Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CreationError_di" bpmnElement="Flow_CreationError">
+        <di:waypoint x="440" y="178" />
+        <di:waypoint x="440" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EmailError_di" bpmnElement="Flow_EmailError">
+        <di:waypoint x="740" y="178" />
+        <di:waypoint x="740" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationErrorEnd_di" bpmnElement="Flow_ValidationErrorEnd">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_CreationErrorEnd_di" bpmnElement="Flow_CreationErrorEnd">
+        <di:waypoint x="440" y="300" />
+        <di:waypoint x="440" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EmailErrorEnd_di" bpmnElement="Flow_EmailErrorEnd">
+        <di:waypoint x="740" y="300" />
+        <di:waypoint x="740" y="342" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

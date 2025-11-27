@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions 
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+  id="Definitions_UserLogin" 
+  targetNamespace="http://bpmn.io/schema/bpmn"
+  exporter="Camunda Modeler" 
+  exporterVersion="5.14.0" 
+  modeler:executionPlatform="Camunda Cloud" 
+  modeler:executionPlatformVersion="8.3.0">
+
+  <!-- ERROR DEFINITIONS -->
+  <bpmn:error id="Error_AuthFailed" name="AUTH_FAILED" errorCode="LOGIN_001" />
+  <bpmn:error id="Error_InvalidCredentials" name="INVALID_CREDENTIALS" errorCode="LOGIN_002" />
+
+  <bpmn:process id="user-login-process" name="User Login Process" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_Login" name="Login Request">
+      <bpmn:outgoing>Flow_LoginStart</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Input Validation -->
+    <bpmn:serviceTask id="Task_ValidateInput" name="Validate Input">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validation.login" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LoginStart</bpmn:incoming>
+      <bpmn:outgoing>Flow_InputValidated</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Validation Error Boundary -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ValidationError" name="Validation Error" attachedToRef="Task_ValidateInput">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_Validation" errorRef="Error_InvalidCredentials" />
+    </bpmn:boundaryEvent>
+
+    <!-- Login Method Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_LoginMethod" name="Login Method">
+      <bpmn:incoming>Flow_InputValidated</bpmn:incoming>
+      <bpmn:outgoing>Flow_GoogleLogin</bpmn:outgoing>
+      <bpmn:outgoing>Flow_LinkedInLogin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Google Login -->
+    <bpmn:serviceTask id="Task_GoogleLogin" name="Google Login">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="oauth.google" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GoogleLogin</bpmn:incoming>
+      <bpmn:outgoing>Flow_GoogleSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Google Error Boundary -->
+    <bpmn:boundaryEvent id="BoundaryEvent_GoogleError" name="Google Auth Failed" attachedToRef="Task_GoogleLogin">
+      <bpmn:outgoing>Flow_GoogleError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_Google" errorRef="Error_AuthFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- LinkedIn Login -->
+    <bpmn:serviceTask id="Task_LinkedInLogin" name="LinkedIn Login">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="oauth.linkedin" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LinkedInLogin</bpmn:incoming>
+      <bpmn:outgoing>Flow_LinkedInSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- LinkedIn Error Boundary -->
+    <bpmn:boundaryEvent id="BoundaryEvent_LinkedInError" name="LinkedIn Auth Failed" attachedToRef="Task_LinkedInLogin">
+      <bpmn:outgoing>Flow_LinkedInError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_LinkedIn" errorRef="Error_AuthFailed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Join Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_Join" name="Join">
+      <bpmn:incoming>Flow_GoogleSuccess</bpmn:incoming>
+      <bpmn:incoming>Flow_LinkedInSuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_PublishSuccess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Publish Success -->
+    <bpmn:serviceTask id="Task_PublishSuccess" name="Publish Success">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="message.publish" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PublishSuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoginComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ERROR HANDLERS -->
+
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.validation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ValidationErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Auth Error Handler -->
+    <bpmn:serviceTask id="Task_HandleAuthError" name="Handle Auth Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error.handler.auth" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GoogleError</bpmn:incoming>
+      <bpmn:incoming>Flow_LinkedInError</bpmn:incoming>
+      <bpmn:outgoing>Flow_AuthErrorEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- END EVENTS -->
+
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_LoginSuccess" name="Login Complete">
+      <bpmn:incoming>Flow_LoginComplete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Error End Events -->
+    <bpmn:endEvent id="EndEvent_ValidationFailed" name="Validation Failed">
+      <bpmn:incoming>Flow_ValidationErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="EndEvent_AuthFailed" name="Authentication Failed">
+      <bpmn:incoming>Flow_AuthErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- SEQUENCE FLOWS -->
+
+    <!-- Main Flow -->
+    <bpmn:sequenceFlow id="Flow_LoginStart" sourceRef="StartEvent_Login" targetRef="Task_ValidateInput" />
+    <bpmn:sequenceFlow id="Flow_InputValidated" sourceRef="Task_ValidateInput" targetRef="Gateway_LoginMethod" />
+    
+    <bpmn:sequenceFlow id="Flow_GoogleLogin" sourceRef="Gateway_LoginMethod" targetRef="Task_GoogleLogin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=loginMethod = "google"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_LinkedInLogin" sourceRef="Gateway_LoginMethod" targetRef="Task_LinkedInLogin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=loginMethod = "linkedin"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_GoogleSuccess" sourceRef="Task_GoogleLogin" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_LinkedInSuccess" sourceRef="Task_LinkedInLogin" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_PublishSuccess" sourceRef="Gateway_Join" targetRef="Task_PublishSuccess" />
+    <bpmn:sequenceFlow id="Flow_LoginComplete" sourceRef="Task_PublishSuccess" targetRef="EndEvent_LoginSuccess" />
+
+    <!-- Error Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="BoundaryEvent_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_ValidationErrorEnd" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationFailed" />
+
+    <bpmn:sequenceFlow id="Flow_GoogleError" sourceRef="BoundaryEvent_GoogleError" targetRef="Task_HandleAuthError" />
+    <bpmn:sequenceFlow id="Flow_LinkedInError" sourceRef="BoundaryEvent_LinkedInError" targetRef="Task_HandleAuthError" />
+    <bpmn:sequenceFlow id="Flow_AuthErrorEnd" sourceRef="Task_HandleAuthError" targetRef="EndEvent_AuthFailed" />
+
+  </bpmn:process>
+
+  <!-- DIAGRAM INFORMATION -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_UserLogin">
+    <bpmndi:BPMNPlane id="BPMNPlane_UserLogin" bpmnElement="user-login-process">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="StartEvent_Login_di" bpmnElement="StartEvent_Login">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Validate Input Task -->
+      <bpmndi:BPMNShape id="Task_ValidateInput_di" bpmnElement="Task_ValidateInput">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Validation Error Boundary -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ValidationError_di" bpmnElement="BoundaryEvent_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Login Method Gateway -->
+      <bpmndi:BPMNShape id="Gateway_LoginMethod_di" bpmnElement="Gateway_LoginMethod" isMarkerVisible="true">
+        <dc:Bounds x="390" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Google Login Task -->
+      <bpmndi:BPMNShape id="Task_GoogleLogin_di" bpmnElement="Task_GoogleLogin">
+        <dc:Bounds x="490" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Google Error Boundary -->
+      <bpmndi:BPMNShape id="BoundaryEvent_GoogleError_di" bpmnElement="BoundaryEvent_GoogleError">
+        <dc:Bounds x="522" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- LinkedIn Login Task -->
+      <bpmndi:BPMNShape id="Task_LinkedInLogin_di" bpmnElement="Task_LinkedInLogin">
+        <dc:Bounds x="490" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- LinkedIn Error Boundary -->
+      <bpmndi:BPMNShape id="BoundaryEvent_LinkedInError_di" bpmnElement="BoundaryEvent_LinkedInError">
+        <dc:Bounds x="522" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- Join Gateway -->
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join" isMarkerVisible="true">
+        <dc:Bounds x="640" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+
+      <!-- Publish Success Task -->
+      <bpmndi:BPMNShape id="Task_PublishSuccess_di" bpmnElement="Task_PublishSuccess">
+        <dc:Bounds x="740" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Error Handler Shapes -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_HandleAuthError_di" bpmnElement="Task_HandleAuthError">
+        <dc:Bounds x="490" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Event Shapes -->
+      <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
+        <dc:Bounds x="892" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_ValidationFailed_di" bpmnElement="EndEvent_ValidationFailed">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_AuthFailed_di" bpmnElement="EndEvent_AuthFailed">
+        <dc:Bounds x="522" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- FLOW EDGES -->
+
+      <!-- Main Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_LoginStart_di" bpmnElement="Flow_LoginStart">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_InputValidated_di" bpmnElement="Flow_InputValidated">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_GoogleLogin_di" bpmnElement="Flow_GoogleLogin">
+        <di:waypoint x="415" y="120" />
+        <di:waypoint x="440" y="120" />
+        <di:waypoint x="440" y="100" />
+        <di:waypoint x="490" y="100" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_LinkedInLogin_di" bpmnElement="Flow_LinkedInLogin">
+        <di:waypoint x="415" y="145" />
+        <di:waypoint x="440" y="145" />
+        <di:waypoint x="440" y="220" />
+        <di:waypoint x="490" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_GoogleSuccess_di" bpmnElement="Flow_GoogleSuccess">
+        <di:waypoint x="590" y="100" />
+        <di:waypoint x="640" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_LinkedInSuccess_di" bpmnElement="Flow_LinkedInSuccess">
+        <di:waypoint x="590" y="220" />
+        <di:waypoint x="640" y="145" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_PublishSuccess_di" bpmnElement="Flow_PublishSuccess">
+        <di:waypoint x="690" y="120" />
+        <di:waypoint x="740" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_LoginComplete_di" bpmnElement="Flow_LoginComplete">
+        <di:waypoint x="840" y="120" />
+        <di:waypoint x="892" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Error Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ValidationErrorEnd_di" bpmnElement="Flow_ValidationErrorEnd">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_GoogleError_di" bpmnElement="Flow_GoogleError">
+        <di:waypoint x="540" y="140" />
+        <di:waypoint x="540" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_LinkedInError_di" bpmnElement="Flow_LinkedInError">
+        <di:waypoint x="540" y="260" />
+        <di:waypoint x="540" y="300" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_AuthErrorEnd_di" bpmnElement="Flow_AuthErrorEnd">
+        <di:waypoint x="540" y="380" />
+        <di:waypoint x="540" y="422" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

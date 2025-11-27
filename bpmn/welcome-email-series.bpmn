@@ -1,0 +1,361 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_WelcomeEmail" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.3.0">
+  <bpmn:error id="Error_EmailFailed" name="EMAIL_FAILED" errorCode="EMAIL_002" />
+  <bpmn:error id="Error_UserNotFound" name="USER_NOT_FOUND" errorCode="EMAIL_003" />
+  <bpmn:error id="Error_RateLimitExceeded" name="RATE_LIMIT_EXCEEDED" errorCode="EMAIL_004" />
+  <bpmn:error id="Error_NetworkTimeout" name="NETWORK_TIMEOUT" errorCode="EMAIL_005" />
+  <bpmn:error id="Error_TemplateNotFound" name="TEMPLATE_NOT_FOUND" errorCode="EMAIL_006" />
+  <bpmn:process id="welcome-email-series" name="Welcome Email Series" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_WelcomeEmail" name="Welcome Email Start">
+      <bpmn:outgoing>Flow_ValidateUser</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_ValidateUser" name="Validate User Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="user.validation" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=userEmail" target="userEmail" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidateUser</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendWelcome</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateUser">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_Validation" errorRef="Error_UserNotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.validation" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndValidationError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendWelcomeEmail" name="Send Welcome Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.welcome" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userEmail" target="to" />
+          <zeebe:input source="=firstName" target="firstName" />
+          <zeebe:input source="=&#34;Welcome to Our Platform!&#34;" target="subject" />
+          <zeebe:input source="=&#34;welcome-template&#34;" target="template" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendWelcome</bpmn:incoming>
+      <bpmn:outgoing>Flow_WelcomeSent</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="Boundary_WelcomeError" name="Welcome Error" attachedToRef="Task_SendWelcomeEmail">
+      <bpmn:outgoing>Flow_WelcomeError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_WelcomeError" errorRef="Error_EmailFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Boundary_WelcomeTimeout" name="Welcome Timeout" attachedToRef="Task_SendWelcomeEmail">
+      <bpmn:outgoing>Flow_WelcomeTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_WelcomeTimeout">
+        <bpmn:timeDuration>PT30S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Boundary_TemplateError" name="Template Error" attachedToRef="Task_SendWelcomeEmail">
+      <bpmn:outgoing>Flow_TemplateError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_Template" errorRef="Error_TemplateNotFound" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_HandleWelcomeError" name="Handle Welcome Email Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.email" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_WelcomeError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterWelcomeError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_HandleWelcomeTimeout" name="Handle Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.timeout" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_WelcomeTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterWelcomeTimeout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_HandleTemplateError" name="Handle Template Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.template" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TemplateError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterTemplateError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_ContinueWelcome" name="Continue After Welcome">
+      <bpmn:incoming>Flow_WelcomeSent</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterWelcomeError</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterWelcomeTimeout</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterTemplateError</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendTips</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_SendTips" name="Send Tips Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.tips" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userEmail" target="to" />
+          <zeebe:input source="=firstName" target="firstName" />
+          <zeebe:input source="=&#34;Getting Started Tips&#34;" target="subject" />
+          <zeebe:input source="=&#34;tips-template&#34;" target="template" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendTips</bpmn:incoming>
+      <bpmn:outgoing>Flow_TipsSent</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="Boundary_TipsError" name="Tips Error" attachedToRef="Task_SendTips">
+      <bpmn:outgoing>Flow_TipsError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_TipsError" errorRef="Error_EmailFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Boundary_TipsTimeout" name="Tips Timeout" attachedToRef="Task_SendTips">
+      <bpmn:outgoing>Flow_TipsTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_TipsTimeout">
+        <bpmn:timeDuration>PT30S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_HandleTipsError" name="Handle Tips Email Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.email" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TipsError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterTipsError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_HandleTipsTimeout" name="Handle Tips Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.timeout" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TipsTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterTipsTimeout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_ContinueTips" name="Continue After Tips">
+      <bpmn:incoming>Flow_TipsSent</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterTipsError</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterTipsTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAudit</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_AuditLog" name="Log Email Series">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit.log" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=&#34;WELCOME_EMAIL_SERIES&#34;" target="action" />
+          <zeebe:input source="=welcomeEmailSent" target="welcomeSent" />
+          <zeebe:input source="=tipsEmailSent" target="tipsSent" />
+          <zeebe:input source="=timestamp" target="timestamp" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAudit</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndWelcome</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_WelcomeEmail" name="Welcome Series Complete">
+      <bpmn:incoming>Flow_EndWelcome</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_ValidationError" name="Validation Error">
+      <bpmn:incoming>Flow_EndValidationError</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ValidateUser" sourceRef="StartEvent_WelcomeEmail" targetRef="Task_ValidateUser" />
+    <bpmn:sequenceFlow id="Flow_SendWelcome" sourceRef="Task_ValidateUser" targetRef="Task_SendWelcomeEmail" />
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_EndValidationError" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    <bpmn:sequenceFlow id="Flow_WelcomeSent" sourceRef="Task_SendWelcomeEmail" targetRef="Gateway_ContinueWelcome" />
+    <bpmn:sequenceFlow id="Flow_WelcomeError" sourceRef="Boundary_WelcomeError" targetRef="Task_HandleWelcomeError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterWelcomeError" sourceRef="Task_HandleWelcomeError" targetRef="Gateway_ContinueWelcome" />
+    <bpmn:sequenceFlow id="Flow_WelcomeTimeout" sourceRef="Boundary_WelcomeTimeout" targetRef="Task_HandleWelcomeTimeout" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterWelcomeTimeout" sourceRef="Task_HandleWelcomeTimeout" targetRef="Gateway_ContinueWelcome" />
+    <bpmn:sequenceFlow id="Flow_TemplateError" sourceRef="Boundary_TemplateError" targetRef="Task_HandleTemplateError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterTemplateError" sourceRef="Task_HandleTemplateError" targetRef="Gateway_ContinueWelcome" />
+    <bpmn:sequenceFlow id="Flow_SendTips" sourceRef="Gateway_ContinueWelcome" targetRef="Task_SendTips" />
+    <bpmn:sequenceFlow id="Flow_TipsSent" sourceRef="Task_SendTips" targetRef="Gateway_ContinueTips" />
+    <bpmn:sequenceFlow id="Flow_TipsError" sourceRef="Boundary_TipsError" targetRef="Task_HandleTipsError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterTipsError" sourceRef="Task_HandleTipsError" targetRef="Gateway_ContinueTips" />
+    <bpmn:sequenceFlow id="Flow_TipsTimeout" sourceRef="Boundary_TipsTimeout" targetRef="Task_HandleTipsTimeout" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterTipsTimeout" sourceRef="Task_HandleTipsTimeout" targetRef="Gateway_ContinueTips" />
+    <bpmn:sequenceFlow id="Flow_ToAudit" sourceRef="Gateway_ContinueTips" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EndWelcome" sourceRef="Task_AuditLog" targetRef="EndEvent_WelcomeEmail" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_WelcomeEmail">
+    <bpmndi:BPMNPlane id="BPMNPlane_WelcomeEmail" bpmnElement="welcome-email-series">
+      <bpmndi:BPMNShape id="StartEvent_WelcomeEmail_di" bpmnElement="StartEvent_WelcomeEmail">
+        <dc:Bounds x="152" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="135" y="275" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ValidateUser_di" bpmnElement="Task_ValidateUser">
+        <dc:Bounds x="240" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="390" y="280" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendWelcomeEmail_di" bpmnElement="Task_SendWelcomeEmail">
+        <dc:Bounds x="540" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleWelcomeError_di" bpmnElement="Task_HandleWelcomeError">
+        <dc:Bounds x="690" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleTemplateError_di" bpmnElement="Task_HandleTemplateError">
+        <dc:Bounds x="690" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ContinueWelcome_di" bpmnElement="Gateway_ContinueWelcome" isMarkerVisible="true">
+        <dc:Bounds x="840" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="831" y="282" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendTips_di" bpmnElement="Task_SendTips">
+        <dc:Bounds x="940" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleTipsError_di" bpmnElement="Task_HandleTipsError">
+        <dc:Bounds x="1090" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ContinueTips_di" bpmnElement="Gateway_ContinueTips" isMarkerVisible="true">
+        <dc:Bounds x="1240" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1230" y="187.5" width="69" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AuditLog_di" bpmnElement="Task_AuditLog">
+        <dc:Bounds x="1340" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_WelcomeEmail_di" bpmnElement="EndEvent_WelcomeEmail">
+        <dc:Bounds x="1490" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1470" y="275" width="77" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="497" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="479" y="505" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleTipsTimeout_di" bpmnElement="Task_HandleTipsTimeout">
+        <dc:Bounds x="940" y="410" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleWelcomeTimeout_di" bpmnElement="Task_HandleWelcomeTimeout">
+        <dc:Bounds x="540" y="410" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_TipsTimeout_di" bpmnElement="Boundary_TipsTimeout">
+        <dc:Bounds x="972" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="920" y="303" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_TipsError_di" bpmnElement="Boundary_TipsError">
+        <dc:Bounds x="1022" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1056" y="303" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_WelcomeTimeout_di" bpmnElement="Boundary_WelcomeTimeout">
+        <dc:Bounds x="572" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="508" y="303" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_WelcomeError_di" bpmnElement="Boundary_WelcomeError">
+        <dc:Bounds x="622" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="657" y="303" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="302" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="334" y="303" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_TemplateError_di" bpmnElement="Boundary_TemplateError">
+        <dc:Bounds x="582" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="615" y="203" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_ValidateUser_di" bpmnElement="Flow_ValidateUser">
+        <di:waypoint x="188" y="250" />
+        <di:waypoint x="240" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendWelcome_di" bpmnElement="Flow_SendWelcome">
+        <di:waypoint x="340" y="250" />
+        <di:waypoint x="540" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="320" y="308" />
+        <di:waypoint x="320" y="320" />
+        <di:waypoint x="390" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_EndValidationError_di" bpmnElement="Flow_EndValidationError">
+        <di:waypoint x="490" y="320" />
+        <di:waypoint x="515" y="320" />
+        <di:waypoint x="515" y="462" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WelcomeSent_di" bpmnElement="Flow_WelcomeSent">
+        <di:waypoint x="640" y="250" />
+        <di:waypoint x="840" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WelcomeError_di" bpmnElement="Flow_WelcomeError">
+        <di:waypoint x="640" y="308" />
+        <di:waypoint x="640" y="330" />
+        <di:waypoint x="740" y="330" />
+        <di:waypoint x="740" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterWelcomeError_di" bpmnElement="Flow_ContinueAfterWelcomeError">
+        <di:waypoint x="790" y="390" />
+        <di:waypoint x="865" y="390" />
+        <di:waypoint x="865" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WelcomeTimeout_di" bpmnElement="Flow_WelcomeTimeout">
+        <di:waypoint x="590" y="308" />
+        <di:waypoint x="590" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterWelcomeTimeout_di" bpmnElement="Flow_ContinueAfterWelcomeTimeout">
+        <di:waypoint x="640" y="450" />
+        <di:waypoint x="865" y="450" />
+        <di:waypoint x="865" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TemplateError_di" bpmnElement="Flow_TemplateError">
+        <di:waypoint x="600" y="192" />
+        <di:waypoint x="600" y="120" />
+        <di:waypoint x="690" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterTemplateError_di" bpmnElement="Flow_ContinueAfterTemplateError">
+        <di:waypoint x="790" y="120" />
+        <di:waypoint x="865" y="120" />
+        <di:waypoint x="865" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendTips_di" bpmnElement="Flow_SendTips">
+        <di:waypoint x="890" y="250" />
+        <di:waypoint x="940" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TipsSent_di" bpmnElement="Flow_TipsSent">
+        <di:waypoint x="1040" y="250" />
+        <di:waypoint x="1240" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TipsError_di" bpmnElement="Flow_TipsError">
+        <di:waypoint x="1040" y="308" />
+        <di:waypoint x="1040" y="330" />
+        <di:waypoint x="1140" y="330" />
+        <di:waypoint x="1140" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterTipsError_di" bpmnElement="Flow_ContinueAfterTipsError">
+        <di:waypoint x="1190" y="390" />
+        <di:waypoint x="1265" y="390" />
+        <di:waypoint x="1265" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TipsTimeout_di" bpmnElement="Flow_TipsTimeout">
+        <di:waypoint x="990" y="308" />
+        <di:waypoint x="990" y="410" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterTipsTimeout_di" bpmnElement="Flow_ContinueAfterTipsTimeout">
+        <di:waypoint x="1040" y="450" />
+        <di:waypoint x="1265" y="450" />
+        <di:waypoint x="1265" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToAudit_di" bpmnElement="Flow_ToAudit">
+        <di:waypoint x="1290" y="250" />
+        <di:waypoint x="1340" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_EndWelcome_di" bpmnElement="Flow_EndWelcome">
+        <di:waypoint x="1440" y="250" />
+        <di:waypoint x="1490" y="250" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

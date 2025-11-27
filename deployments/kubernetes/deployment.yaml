@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camunda-workers
+  namespace: camunda-workers
+  labels:
+    app: camunda-workers
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: camunda-workers
+  template:
+    metadata:
+      labels:
+        app: camunda-workers
+    spec:
+      containers:
+      - name: worker
+        image: your-registry/camunda-workers:latest
+        ports:
+        - containerPort: 8080
+          name: health
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: APP_ENVIRONMENT
+          value: "production"
+        - name: CAMUNDA_BROKER_ADDRESS
+          value: "zeebe:26500"
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secrets
+              key: password
+        - name: WEB_SEARCH_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: web_search_api_key
+        - name: WEB_SEARCH_ENGINE_ID
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: web_search_engine_id
+        envFrom:
+        - configMapRef:
+            name: worker-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5

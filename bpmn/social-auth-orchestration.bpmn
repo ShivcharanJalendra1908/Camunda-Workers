@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_SocialAuth" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.3.0">
+  
+  <!-- Error Definitions -->
+  <bpmn:error id="Error_AuthFailed" name="AUTH_FAILED" errorCode="SOCIAL_001" />
+  <bpmn:error id="Error_NetworkTimeout" name="NETWORK_TIMEOUT" errorCode="SOCIAL_002" />
+  <bpmn:error id="Error_InvalidProvider" name="INVALID_PROVIDER" errorCode="SOCIAL_003" />
+  <bpmn:error id="Error_RateLimitExceeded" name="RATE_LIMIT_EXCEEDED" errorCode="SOCIAL_004" />
+  <bpmn:error id="Error_UserConflict" name="USER_CONFLICT" errorCode="SOCIAL_005" />
+  <bpmn:error id="Error_CallActivityFailed" name="CALL_ACTIVITY_FAILED" errorCode="SOCIAL_006" />
+  
+  <bpmn:process id="social-auth-orchestration" name="Social Authentication Orchestration" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_SocialAuth" name="Social Auth Request">
+      <bpmn:outgoing>Flow_ValidateRequest</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Validate Auth Request -->
+    <bpmn:serviceTask id="Task_ValidateRequest" name="Validate Auth Request">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.request.validation" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=authType" target="authType" />
+          <zeebe:input source="=provider" target="provider" />
+          <zeebe:input source="=oauthToken" target="oauthToken" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidateRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAuthType</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Validation Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_ValidationError" name="Validation Error" attachedToRef="Task_ValidateRequest">
+      <bpmn:outgoing>Flow_ValidationError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_InvalidProvider" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Validation Error Handler -->
+    <bpmn:serviceTask id="Task_HandleValidationError" name="Handle Validation Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.validation" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ValidationError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndValidationError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Gateway: Auth Type (Signup vs Login) -->
+    <bpmn:exclusiveGateway id="Gateway_AuthType" name="Auth Type?">
+      <bpmn:incoming>Flow_ToAuthType</bpmn:incoming>
+      <bpmn:outgoing>Flow_SignupPath</bpmn:outgoing>
+      <bpmn:outgoing>Flow_LoginPath</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- ===== SIGNUP PATH ===== -->
+    <bpmn:sequenceFlow id="Flow_SignupPath" name="Signup" sourceRef="Gateway_AuthType" targetRef="CallActivity_Signup">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=authType = "signup"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:callActivity id="CallActivity_Signup" name="User Signup Process">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="user-signup-process" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SignupPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterSignup</bpmn:outgoing>
+    </bpmn:callActivity>
+    
+    <!-- Signup Call Activity Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_SignupError" name="Signup Error" attachedToRef="CallActivity_Signup">
+      <bpmn:outgoing>Flow_SignupError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_CallActivityFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Signup Timeout Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_SignupTimeout" name="Signup Timeout" attachedToRef="CallActivity_Signup">
+      <bpmn:outgoing>Flow_SignupTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDuration>PT60S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    
+    <!-- ===== LOGIN PATH ===== -->
+    <bpmn:sequenceFlow id="Flow_LoginPath" name="Login" sourceRef="Gateway_AuthType" targetRef="CallActivity_Login">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=authType = "login"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:callActivity id="CallActivity_Login" name="User Login Process">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="user-login-process" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_LoginPath</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterLogin</bpmn:outgoing>
+    </bpmn:callActivity>
+    
+    <!-- Login Call Activity Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_LoginError" name="Login Error" attachedToRef="CallActivity_Login">
+      <bpmn:outgoing>Flow_LoginError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_CallActivityFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Login Timeout Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_LoginTimeout" name="Login Timeout" attachedToRef="CallActivity_Login">
+      <bpmn:outgoing>Flow_LoginTimeout</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_2">
+        <bpmn:timeDuration>PT60S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    
+    <!-- Call Activity Error Handler -->
+    <bpmn:serviceTask id="Task_HandleCallActivityError" name="Handle Call Activity Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.call-activity" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SignupError</bpmn:incoming>
+      <bpmn:incoming>Flow_LoginError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndCallActivityError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Timeout Handler -->
+    <bpmn:serviceTask id="Task_HandleTimeout" name="Handle Timeout">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.timeout" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SignupTimeout</bpmn:incoming>
+      <bpmn:incoming>Flow_LoginTimeout</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndTimeout</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Join Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_AuthJoin" name="Join Auth Paths">
+      <bpmn:incoming>Flow_AfterSignup</bpmn:incoming>
+      <bpmn:incoming>Flow_AfterLogin</bpmn:incoming>
+      <bpmn:outgoing>Flow_PostAuth</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Post-Auth Processing -->
+    <bpmn:serviceTask id="Task_PostAuthProcessing" name="Post-Auth Processing">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.post.process" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=authType" target="authType" />
+          <zeebe:input source="=provider" target="provider" />
+          <zeebe:output source="=sessionToken" target="sessionToken" />
+          <zeebe:output source="=refreshToken" target="refreshToken" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PostAuth</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAudit</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Post-Auth Error Boundary - FIXED -->
+    <bpmn:boundaryEvent id="Boundary_PostAuthError" name="Post-Auth Error" attachedToRef="Task_PostAuthProcessing">
+      <bpmn:outgoing>Flow_PostAuthError</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_AuthFailed" />
+    </bpmn:boundaryEvent>
+    
+    <!-- Post-Auth Error Handler -->
+    <bpmn:serviceTask id="Task_HandlePostAuthError" name="Handle Post-Auth Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="error-handler.post-auth" retries="1" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PostAuthError</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContinueAfterPostAuthError</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Audit Log Task -->
+    <bpmn:serviceTask id="Task_AuditLog" name="Log Auth Activity">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="audit.log" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=authType" target="authType" />
+          <zeebe:input source="=provider" target="provider" />
+          <zeebe:input source="=&#34;SOCIAL_AUTH&#34;" target="action" />
+          <zeebe:input source="=timestamp" target="timestamp" />
+          <zeebe:input source="=success" target="success" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAudit</bpmn:incoming>
+      <bpmn:incoming>Flow_ContinueAfterPostAuthError</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndSocialAuth</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Success End Event -->
+    <bpmn:endEvent id="EndEvent_SocialAuth" name="Social Auth Complete">
+      <bpmn:incoming>Flow_EndSocialAuth</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Error End Events - FIXED: Removed error event definitions -->
+    <bpmn:endEvent id="EndEvent_ValidationError" name="Validation Error">
+      <bpmn:incoming>Flow_EndValidationError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_CallActivityError" name="Call Activity Failed">
+      <bpmn:incoming>Flow_EndCallActivityError</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_Timeout" name="Timeout Error">
+      <bpmn:incoming>Flow_EndTimeout</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_ValidateRequest" sourceRef="StartEvent_SocialAuth" targetRef="Task_ValidateRequest" />
+    <bpmn:sequenceFlow id="Flow_ToAuthType" sourceRef="Task_ValidateRequest" targetRef="Gateway_AuthType" />
+    <bpmn:sequenceFlow id="Flow_ValidationError" sourceRef="Boundary_ValidationError" targetRef="Task_HandleValidationError" />
+    <bpmn:sequenceFlow id="Flow_EndValidationError" sourceRef="Task_HandleValidationError" targetRef="EndEvent_ValidationError" />
+    
+    <bpmn:sequenceFlow id="Flow_AfterSignup" sourceRef="CallActivity_Signup" targetRef="Gateway_AuthJoin" />
+    <bpmn:sequenceFlow id="Flow_AfterLogin" sourceRef="CallActivity_Login" targetRef="Gateway_AuthJoin" />
+    <bpmn:sequenceFlow id="Flow_SignupError" sourceRef="Boundary_SignupError" targetRef="Task_HandleCallActivityError" />
+    <bpmn:sequenceFlow id="Flow_LoginError" sourceRef="Boundary_LoginError" targetRef="Task_HandleCallActivityError" />
+    <bpmn:sequenceFlow id="Flow_EndCallActivityError" sourceRef="Task_HandleCallActivityError" targetRef="EndEvent_CallActivityError" />
+    <bpmn:sequenceFlow id="Flow_SignupTimeout" sourceRef="Boundary_SignupTimeout" targetRef="Task_HandleTimeout" />
+    <bpmn:sequenceFlow id="Flow_LoginTimeout" sourceRef="Boundary_LoginTimeout" targetRef="Task_HandleTimeout" />
+    <bpmn:sequenceFlow id="Flow_EndTimeout" sourceRef="Task_HandleTimeout" targetRef="EndEvent_Timeout" />
+    
+    <bpmn:sequenceFlow id="Flow_PostAuth" sourceRef="Gateway_AuthJoin" targetRef="Task_PostAuthProcessing" />
+    <bpmn:sequenceFlow id="Flow_ToAudit" sourceRef="Task_PostAuthProcessing" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_PostAuthError" sourceRef="Boundary_PostAuthError" targetRef="Task_HandlePostAuthError" />
+    <bpmn:sequenceFlow id="Flow_ContinueAfterPostAuthError" sourceRef="Task_HandlePostAuthError" targetRef="Task_AuditLog" />
+    <bpmn:sequenceFlow id="Flow_EndSocialAuth" sourceRef="Task_AuditLog" targetRef="EndEvent_SocialAuth" />
+    
+  </bpmn:process>
+  
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_SocialAuth">
+    <bpmndi:BPMNPlane id="BPMNPlane_SocialAuth" bpmnElement="social-auth-orchestration">
+      
+      <!-- Start Event Shape -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_SocialAuth" bpmnElement="StartEvent_SocialAuth">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Task -->
+      <bpmndi:BPMNShape id="Task_ValidateRequest_di" bpmnElement="Task_ValidateRequest">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Boundary -->
+      <bpmndi:BPMNShape id="Boundary_ValidationError_di" bpmnElement="Boundary_ValidationError">
+        <dc:Bounds x="272" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Validation Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleValidationError_di" bpmnElement="Task_HandleValidationError">
+        <dc:Bounds x="240" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Gateway Auth Type Shape -->
+      <bpmndi:BPMNShape id="Gateway_AuthType_di" bpmnElement="Gateway_AuthType" isMarkerVisible="true">
+        <dc:Bounds x="395" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Signup Call Activity Shape -->
+      <bpmndi:BPMNShape id="CallActivity_Signup_di" bpmnElement="CallActivity_Signup">
+        <dc:Bounds x="500" y="50" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Signup Error Boundaries -->
+      <bpmndi:BPMNShape id="Boundary_SignupError_di" bpmnElement="Boundary_SignupError">
+        <dc:Bounds x="532" y="112" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_SignupTimeout_di" bpmnElement="Boundary_SignupTimeout">
+        <dc:Bounds x="582" y="112" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Login Call Activity Shape -->
+      <bpmndi:BPMNShape id="CallActivity_Login_di" bpmnElement="CallActivity_Login">
+        <dc:Bounds x="500" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Login Error Boundaries -->
+      <bpmndi:BPMNShape id="Boundary_LoginError_di" bpmnElement="Boundary_LoginError">
+        <dc:Bounds x="532" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="Boundary_LoginTimeout_di" bpmnElement="Boundary_LoginTimeout">
+        <dc:Bounds x="582" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Call Activity Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandleCallActivityError_di" bpmnElement="Task_HandleCallActivityError">
+        <dc:Bounds x="660" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Timeout Handler -->
+      <bpmndi:BPMNShape id="Task_HandleTimeout_di" bpmnElement="Task_HandleTimeout">
+        <dc:Bounds x="660" y="-20" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Join Gateway Shape -->
+      <bpmndi:BPMNShape id="Gateway_AuthJoin_di" bpmnElement="Gateway_AuthJoin" isMarkerVisible="true">
+        <dc:Bounds x="685" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Post-Auth Processing Shape -->
+      <bpmndi:BPMNShape id="Task_PostAuthProcessing_di" bpmnElement="Task_PostAuthProcessing">
+        <dc:Bounds x="790" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Post-Auth Error Boundary -->
+      <bpmndi:BPMNShape id="Boundary_PostAuthError_di" bpmnElement="Boundary_PostAuthError">
+        <dc:Bounds x="822" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Post-Auth Error Handler -->
+      <bpmndi:BPMNShape id="Task_HandlePostAuthError_di" bpmnElement="Task_HandlePostAuthError">
+        <dc:Bounds x="790" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Audit Log Task -->
+      <bpmndi:BPMNShape id="Task_AuditLog_di" bpmnElement="Task_AuditLog">
+        <dc:Bounds x="940" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Success End Event -->
+      <bpmndi:BPMNShape id="EndEvent_SocialAuth_di" bpmnElement="EndEvent_SocialAuth">
+        <dc:Bounds x="1092" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Error End Events -->
+      <bpmndi:BPMNShape id="EndEvent_ValidationError_di" bpmnElement="EndEvent_ValidationError">
+        <dc:Bounds x="272" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_CallActivityError_di" bpmnElement="EndEvent_CallActivityError">
+        <dc:Bounds x="692" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNShape id="EndEvent_Timeout_di" bpmnElement="EndEvent_Timeout">
+        <dc:Bounds x="692" y="-120" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_ValidateRequest_di" bpmnElement="Flow_ValidateRequest">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToAuthType_di" bpmnElement="Flow_ToAuthType">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="395" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="Flow_ValidationError">
+        <di:waypoint x="290" y="178" />
+        <di:waypoint x="290" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndValidationError_di" bpmnElement="Flow_EndValidationError">
+        <di:waypoint x="290" y="300" />
+        <di:waypoint x="290" y="342" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SignupPath_di" bpmnElement="Flow_SignupPath">
+        <di:waypoint x="420" y="95" />
+        <di:waypoint x="420" y="90" />
+        <di:waypoint x="500" y="90" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_LoginPath_di" bpmnElement="Flow_LoginPath">
+        <di:waypoint x="420" y="145" />
+        <di:waypoint x="420" y="220" />
+        <di:waypoint x="500" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_AfterSignup_di" bpmnElement="Flow_AfterSignup">
+        <di:waypoint x="600" y="90" />
+        <di:waypoint x="710" y="90" />
+        <di:waypoint x="710" y="95" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_AfterLogin_di" bpmnElement="Flow_AfterLogin">
+        <di:waypoint x="600" y="220" />
+        <di:waypoint x="710" y="220" />
+        <di:waypoint x="710" y="145" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SignupError_di" bpmnElement="Flow_SignupError">
+        <di:waypoint x="550" y="148" />
+        <di:waypoint x="550" y="340" />
+        <di:waypoint x="660" y="340" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_LoginError_di" bpmnElement="Flow_LoginError">
+        <di:waypoint x="550" y="278" />
+        <di:waypoint x="550" y="340" />
+        <di:waypoint x="660" y="340" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndCallActivityError_di" bpmnElement="Flow_EndCallActivityError">
+        <di:waypoint x="710" y="380" />
+        <di:waypoint x="710" y="422" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_SignupTimeout_di" bpmnElement="Flow_SignupTimeout">
+        <di:waypoint x="600" y="112" />
+        <di:waypoint x="600" y="20" />
+        <di:waypoint x="660" y="20" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_LoginTimeout_di" bpmnElement="Flow_LoginTimeout">
+        <di:waypoint x="600" y="278" />
+        <di:waypoint x="630" y="300" />
+        <di:waypoint x="630" y="20" />
+        <di:waypoint x="660" y="20" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndTimeout_di" bpmnElement="Flow_EndTimeout">
+        <di:waypoint x="710" y="-20" />
+        <di:waypoint x="710" y="-84" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_PostAuth_di" bpmnElement="Flow_PostAuth">
+        <di:waypoint x="735" y="120" />
+        <di:waypoint x="790" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToAudit_di" bpmnElement="Flow_ToAudit">
+        <di:waypoint x="890" y="120" />
+        <di:waypoint x="940" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_PostAuthError_di" bpmnElement="Flow_PostAuthError">
+        <di:waypoint x="840" y="178" />
+        <di:waypoint x="840" y="220" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ContinueAfterPostAuthError_di" bpmnElement="Flow_ContinueAfterPostAuthError">
+        <di:waypoint x="890" y="260" />
+        <di:waypoint x="990" y="260" />
+        <di:waypoint x="990" y="160" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_EndSocialAuth_di" bpmnElement="Flow_EndSocialAuth">
+        <di:waypoint x="1040" y="120" />
+        <di:waypoint x="1092" y="120" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

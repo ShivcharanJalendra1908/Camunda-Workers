@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:error id="Error_CRMConnection" name="CRM_CONNECTION_FAILED" errorCode="CRM_CONNECTION_FAILED" />
+  <bpmn:error id="Error_UserNotFound" name="USER_NOT_FOUND" errorCode="USER_NOT_FOUND" />
+  <bpmn:error id="Error_Validation" name="VALIDATION_FAILED" errorCode="VALIDATION_FAILED" />
+  <bpmn:error id="Error_Email" name="EMAIL_FAILED" errorCode="EMAIL_FAILED" />
+  <bpmn:process id="crm-user-sync" name="CRM User Sync" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Sync Triggered">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_Validate" name="Validate Input">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validation.sync-input" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_SyncType" name="Sync Type?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Create</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Delete</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Update</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_Create" name="Create User">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm.user.create" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Create</bpmn:incoming>
+      <bpmn:outgoing>Flow_Create_Done</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Update" name="Update User">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm.user.update" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Update</bpmn:incoming>
+      <bpmn:outgoing>Flow_Update_Done</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Delete" name="Delete User">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm.user.delete" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Delete</bpmn:incoming>
+      <bpmn:outgoing>Flow_Delete_Done</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="Join Operations">
+      <bpmn:incoming>Flow_Create_Done</bpmn:incoming>
+      <bpmn:incoming>Flow_Update_Done</bpmn:incoming>
+      <bpmn:incoming>Flow_Delete_Done</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_Notify" name="Send Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email.send" retries="2" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Success" name="Sync Complete">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- FIXED: All boundary events with correct element ordering -->
+    <bpmn:boundaryEvent id="Boundary_Validation" name="Validation Error" attachedToRef="Task_Validate">
+      <bpmn:outgoing>Flow_Error_Validation</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_Validation" />
+    </bpmn:boundaryEvent>
+    
+    <bpmn:boundaryEvent id="Boundary_Create_Conn" name="Create Connection Error" attachedToRef="Task_Create">
+      <bpmn:outgoing>Flow_Error_CRM_Conn</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_CRMConnection" />
+    </bpmn:boundaryEvent>
+    
+    <!-- FIXED: Changed from intermediate catch to boundary event -->
+    <bpmn:boundaryEvent id="Boundary_Update_Conn" name="Update Connection Error" attachedToRef="Task_Update">
+      <bpmn:outgoing>Flow_Error_CRM_Conn2</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_3" errorRef="Error_CRMConnection" />
+    </bpmn:boundaryEvent>
+    
+    <!-- FIXED: Changed from intermediate catch to boundary event -->
+    <bpmn:boundaryEvent id="Boundary_Update_NotFound" name="Update User Not Found" attachedToRef="Task_Update">
+      <bpmn:outgoing>Flow_Error_NotFound</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_4" errorRef="Error_UserNotFound" />
+    </bpmn:boundaryEvent>
+    
+    <bpmn:boundaryEvent id="Boundary_Delete_Conn" name="Delete Connection Error" attachedToRef="Task_Delete">
+      <bpmn:outgoing>Flow_Error_CRM_Conn3</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_5" errorRef="Error_CRMConnection" />
+    </bpmn:boundaryEvent>
+    
+    <bpmn:boundaryEvent id="Boundary_Delete_NotFound" name="Delete User Not Found" attachedToRef="Task_Delete">
+      <bpmn:outgoing>Flow_Error_NotFound2</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_6" errorRef="Error_UserNotFound" />
+    </bpmn:boundaryEvent>
+    
+    <bpmn:boundaryEvent id="Boundary_Email" name="Email Error" attachedToRef="Task_Notify">
+      <bpmn:outgoing>Flow_Error_Email</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_7" errorRef="Error_Email" />
+    </bpmn:boundaryEvent>
+    
+    <!-- FIXED: Regular end events instead of error end events -->
+    <bpmn:endEvent id="EndEvent_Validation" name="Validation Error">
+      <bpmn:incoming>Flow_Error_Validation</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_CRM_Conn" name="CRM Connection Error">
+      <bpmn:incoming>Flow_Error_CRM_Conn</bpmn:incoming>
+      <bpmn:incoming>Flow_Error_CRM_Conn2</bpmn:incoming>
+      <bpmn:incoming>Flow_Error_CRM_Conn3</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_NotFound" name="User Not Found">
+      <bpmn:incoming>Flow_Error_NotFound</bpmn:incoming>
+      <bpmn:incoming>Flow_Error_NotFound2</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <bpmn:endEvent id="EndEvent_Email" name="Email Error">
+      <bpmn:incoming>Flow_Error_Email</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_Validate" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Validate" targetRef="Gateway_SyncType" />
+    <bpmn:sequenceFlow id="Flow_Create" name="Create" sourceRef="Gateway_SyncType" targetRef="Task_Create">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=syncType = "create"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Update" name="Update" sourceRef="Gateway_SyncType" targetRef="Task_Update">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=syncType = "update"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Delete" name="Delete" sourceRef="Gateway_SyncType" targetRef="Task_Delete">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=syncType = "delete"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Create_Done" sourceRef="Task_Create" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Update_Done" sourceRef="Task_Update" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Delete_Done" sourceRef="Task_Delete" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Gateway_Join" targetRef="Task_Notify" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_Notify" targetRef="EndEvent_Success" />
+    <bpmn:sequenceFlow id="Flow_Error_Validation" sourceRef="Boundary_Validation" targetRef="EndEvent_Validation" />
+    <bpmn:sequenceFlow id="Flow_Error_CRM_Conn" sourceRef="Boundary_Create_Conn" targetRef="EndEvent_CRM_Conn" />
+    <bpmn:sequenceFlow id="Flow_Error_CRM_Conn2" sourceRef="Boundary_Update_Conn" targetRef="EndEvent_CRM_Conn" />
+    <bpmn:sequenceFlow id="Flow_Error_CRM_Conn3" sourceRef="Boundary_Delete_Conn" targetRef="EndEvent_CRM_Conn" />
+    <bpmn:sequenceFlow id="Flow_Error_NotFound" sourceRef="Boundary_Update_NotFound" targetRef="EndEvent_NotFound" />
+    <bpmn:sequenceFlow id="Flow_Error_NotFound2" sourceRef="Boundary_Delete_NotFound" targetRef="EndEvent_NotFound" />
+    <bpmn:sequenceFlow id="Flow_Error_Email" sourceRef="Boundary_Email" targetRef="EndEvent_Email" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="crm-user-sync">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="162" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="143" y="305" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Validate_di" bpmnElement="Task_Validate">
+        <dc:Bounds x="240" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SyncType_di" bpmnElement="Gateway_SyncType" isMarkerVisible="true">
+        <dc:Bounds x="395" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="393" y="231" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Create_di" bpmnElement="Task_Create">
+        <dc:Bounds x="500" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Update_di" bpmnElement="Task_Update">
+        <dc:Bounds x="500" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Delete_di" bpmnElement="Task_Delete">
+        <dc:Bounds x="500" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join" isMarkerVisible="true">
+        <dc:Bounds x="665" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="648" y="312" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Notify_di" bpmnElement="Task_Notify">
+        <dc:Bounds x="770" y="240" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Success_di" bpmnElement="EndEvent_Success">
+        <dc:Bounds x="922" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="904" y="305" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Validation_di" bpmnElement="EndEvent_Validation">
+        <dc:Bounds x="272" y="372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="254" y="415" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_CRM_Conn_di" bpmnElement="EndEvent_CRM_Conn">
+        <dc:Bounds x="672" y="82" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="656" y="52" width="68" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_NotFound_di" bpmnElement="EndEvent_NotFound">
+        <dc:Bounds x="672" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="653" y="525" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Email_di" bpmnElement="EndEvent_Email">
+        <dc:Bounds x="802" y="372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="795" y="415" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Validation_di" bpmnElement="Boundary_Validation">
+        <dc:Bounds x="272" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Create_Conn_di" bpmnElement="Boundary_Create_Conn">
+        <dc:Bounds x="532" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Update_Conn_di" bpmnElement="Boundary_Update_Conn">
+        <dc:Bounds x="532" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Update_NotFound_di" bpmnElement="Boundary_Update_NotFound">
+        <dc:Bounds x="582" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Delete_Conn_di" bpmnElement="Boundary_Delete_Conn">
+        <dc:Bounds x="532" y="402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Delete_NotFound_di" bpmnElement="Boundary_Delete_NotFound">
+        <dc:Bounds x="582" y="402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Boundary_Email_di" bpmnElement="Boundary_Email">
+        <dc:Bounds x="802" y="302" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="198" y="280" />
+        <di:waypoint x="240" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="340" y="280" />
+        <di:waypoint x="395" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Create_di" bpmnElement="Flow_Create">
+        <di:waypoint x="420" y="255" />
+        <di:waypoint x="420" y="180" />
+        <di:waypoint x="500" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="437" y="163" width="33" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Update_di" bpmnElement="Flow_Update">
+        <di:waypoint x="445" y="280" />
+        <di:waypoint x="500" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="453" y="262" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Delete_di" bpmnElement="Flow_Delete">
+        <di:waypoint x="420" y="305" />
+        <di:waypoint x="420" y="380" />
+        <di:waypoint x="500" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="441" y="363" width="33" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Create_Done_di" bpmnElement="Flow_Create_Done">
+        <di:waypoint x="600" y="180" />
+        <di:waypoint x="690" y="180" />
+        <di:waypoint x="690" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Update_Done_di" bpmnElement="Flow_Update_Done">
+        <di:waypoint x="600" y="280" />
+        <di:waypoint x="665" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Delete_Done_di" bpmnElement="Flow_Delete_Done">
+        <di:waypoint x="600" y="380" />
+        <di:waypoint x="690" y="380" />
+        <di:waypoint x="690" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
+        <di:waypoint x="715" y="280" />
+        <di:waypoint x="770" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="Flow_4">
+        <di:waypoint x="870" y="280" />
+        <di:waypoint x="922" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_Validation_di" bpmnElement="Flow_Error_Validation">
+        <di:waypoint x="290" y="338" />
+        <di:waypoint x="290" y="372" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_CRM_Conn_di" bpmnElement="Flow_Error_CRM_Conn">
+        <di:waypoint x="550" y="202" />
+        <di:waypoint x="550" y="100" />
+        <di:waypoint x="672" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_CRM_Conn2_di" bpmnElement="Flow_Error_CRM_Conn2">
+        <di:waypoint x="550" y="302" />
+        <di:waypoint x="550" y="140" />
+        <di:waypoint x="690" y="140" />
+        <di:waypoint x="690" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_CRM_Conn3_di" bpmnElement="Flow_Error_CRM_Conn3">
+        <di:waypoint x="550" y="402" />
+        <di:waypoint x="550" y="450" />
+        <di:waypoint x="708" y="450" />
+        <di:waypoint x="708" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_NotFound_di" bpmnElement="Flow_Error_NotFound">
+        <di:waypoint x="600" y="338" />
+        <di:waypoint x="600" y="500" />
+        <di:waypoint x="672" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_NotFound2_di" bpmnElement="Flow_Error_NotFound2">
+        <di:waypoint x="600" y="438" />
+        <di:waypoint x="600" y="500" />
+        <di:waypoint x="672" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Error_Email_di" bpmnElement="Flow_Error_Email">
+        <di:waypoint x="820" y="338" />
+        <di:waypoint x="820" y="372" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

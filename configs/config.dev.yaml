@@ -1,0 +1,50 @@
+# configs/config.dev.yaml
+app:
+  environment: development
+
+camunda:
+  oauth:
+    enabled: true
+    client_id: "worker-client" 
+    client_secret: "worker-secret"
+    token_url: "http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token"
+    audience: "zeebe-api"
+
+auth:
+  keycloak:
+    realm: "camunda-platform"  
+
+logging:
+  level: debug
+  format: console
+
+database:
+  postgres:
+    host: postgres
+    port: 5432
+    database: franchises
+    user: postgres
+    password: postgres
+    max_connections: 20
+    max_idle: 5
+  elasticsearch:
+    addresses: ["http://elasticsearch:9200"]
+    username: ""
+    password: ""
+  redis:
+    address: redis:6379
+
+apis:
+  genai:
+    base_url: "http://localhost:8080"
+  web_search:
+    api_key: "dev-api-key"
+    engine_id: "dev-engine-id"
+
+smtp:
+  host: "localhost"        # For development with MailHog
+  port: 1025               # MailHog default port
+  username: "test"         # Not needed for MailHog
+  password: "test"         # Not needed for MailHog
+  from: "noreply@franchisehub.dev"
+  use_tls: false           # Disable TLS for local development

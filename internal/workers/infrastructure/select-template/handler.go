@@ -1,0 +1,322 @@
+package selecttemplate
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"camunda-workers/internal/common/logger"
+
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+)
+
+const (
+	TaskType = "select-template"
+)
+
+type Handler struct {
+	config *Config
+	logger logger.Logger // Changed from *zap.Logger to logger.Logger
+}
+
+func NewHandler(config *Config, log logger.Logger) *Handler {
+	return &Handler{
+		config: config,
+		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
+	}
+}
+
+func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	h.logger.Info("processing job",
+		map[string]interface{}{
+			"jobKey":      job.Key,
+			"workflowKey": job.ProcessInstanceKey,
+		})
+
+	var input Input
+	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
+		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err))
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	output, err := h.Execute(ctx, &input)
+	if err != nil {
+		h.failJob(client, job, "TEMPLATE_SELECTION_FAILED", err.Error())
+		return
+	}
+
+	h.completeJob(client, job, output)
+}
+
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	var selected string
+
+	// Route-based selection
+	if input.RoutePath != "" {
+		routeRules, exists := h.config.TemplateRules["route"]
+		if !exists {
+			return nil, fmt.Errorf("missing route template rules in config")
+		}
+
+		routeKey := input.RoutePath
+		switch input.SubscriptionTier {
+		case "free":
+			routeKey += ":free"
+		case "premium":
+			routeKey += ":premium"
+		default:
+			// Unknown tier, try fallback
+			routeKey += ":fallback"
+		}
+
+		if template, ok := routeRules[routeKey]; ok {
+			selected = template
+			h.logger.Info("selected route template",
+				map[string]interface{}{
+					"route":    input.RoutePath,
+					"tier":     input.SubscriptionTier,
+					"template": selected,
+				})
+			return &Output{SelectedTemplateId: selected}, nil
+		}
+	}
+
+	// Fallback: try generic route
+	if input.RoutePath != "" {
+		fallbackKey := input.RoutePath + ":fallback"
+		if template, ok := h.config.TemplateRules["route"][fallbackKey]; ok {
+			selected = template
+			h.logger.Warn("used fallback template",
+				map[string]interface{}{
+					"route":    input.RoutePath,
+					"template": selected,
+				})
+			return &Output{SelectedTemplateId: selected}, nil
+		}
+	}
+
+	// Confidence-based selection (AI responses)
+	if input.TemplateType == "ai-response" {
+		// Clamp negative confidence to 0
+		confidence := input.Confidence
+		if confidence < 0 {
+			confidence = 0
+		}
+
+		if confidence >= 0.8 {
+			selected = "ai-detailed"
+		} else {
+			selected = "ai-tentative"
+		}
+		h.logger.Info("selected AI template",
+			map[string]interface{}{
+				"confidence": input.Confidence,
+				"template":   selected,
+			})
+		return &Output{SelectedTemplateId: selected}, nil
+	}
+
+	// Final fallback
+	selected = "default-template"
+	h.logger.Warn("used default fallback template",
+		map[string]interface{}{
+			"input": input,
+		})
+	return &Output{SelectedTemplateId: selected}, nil
+}
+
+func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+	cmd, err := client.NewCompleteJobCommand().
+		JobKey(job.Key).
+		VariablesFromObject(output)
+	if err != nil {
+		h.logger.Error("failed to create complete job command", map[string]interface{}{"error": err})
+		return
+	}
+	_, err = cmd.Send(context.Background())
+	if err != nil {
+		h.logger.Error("failed to send complete job command", map[string]interface{}{"error": err})
+	}
+}
+
+func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string) {
+	h.logger.Error("job failed",
+		map[string]interface{}{
+			"jobKey":       job.Key,
+			"errorCode":    errorCode,
+			"errorMessage": errorMessage,
+		})
+
+	_, err := client.NewThrowErrorCommand().
+		JobKey(job.Key).
+		ErrorCode(errorCode).
+		ErrorMessage(errorMessage).
+		Send(context.Background())
+	if err != nil {
+		h.logger.Error("failed to throw error", map[string]interface{}{"error": err})
+	}
+}
+
+// // internal/workers/infrastructure/select-template/handler.go
+// package selecttemplate
+
+// import (
+// 	"context"
+// 	"encoding/json"
+// 	"fmt"
+// 	"time"
+
+// 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+// 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+// 	"go.uber.org/zap"
+// )
+
+// const (
+// 	TaskType = "select-template"
+// )
+
+// type Handler struct {
+// 	config *Config
+// 	logger *zap.Logger
+// }
+
+// func NewHandler(config *Config, logger *zap.Logger) *Handler {
+// 	return &Handler{
+// 		config: config,
+// 		logger: logger.With(zap.String("taskType", TaskType)),
+// 	}
+// }
+
+// func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+// 	h.logger.Info("processing job",
+// 		zap.Int64("jobKey", job.Key),
+// 		zap.Int64("workflowKey", job.ProcessInstanceKey),
+// 	)
+
+// 	var input Input
+// 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
+// 		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err))
+// 		return
+// 	}
+
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+
+// 	output, err := h.execute(ctx, &input)
+// 	if err != nil {
+// 		h.failJob(client, job, "TEMPLATE_SELECTION_FAILED", err.Error())
+// 		return
+// 	}
+
+// 	h.completeJob(client, job, output)
+// }
+
+// func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
+// 	var selected string
+
+// 	// Route-based selection
+// 	if input.RoutePath != "" {
+// 		routeRules, exists := h.config.TemplateRules["route"]
+// 		if !exists {
+// 			return nil, fmt.Errorf("missing route template rules in config")
+// 		}
+
+// 		routeKey := input.RoutePath
+// 		switch input.SubscriptionTier {
+// 		case "free":
+// 			routeKey += ":free"
+// 		case "premium":
+// 			routeKey += ":premium"
+// 		default:
+// 			// Unknown tier, try fallback
+// 			routeKey += ":fallback"
+// 		}
+
+// 		if template, ok := routeRules[routeKey]; ok {
+// 			selected = template
+// 			h.logger.Info("selected route template",
+// 				zap.String("route", input.RoutePath),
+// 				zap.String("tier", input.SubscriptionTier),
+// 				zap.String("template", selected))
+// 			return &Output{SelectedTemplateId: selected}, nil
+// 		}
+// 	}
+
+// 	// Fallback: try generic route
+// 	if input.RoutePath != "" {
+// 		fallbackKey := input.RoutePath + ":fallback"
+// 		if template, ok := h.config.TemplateRules["route"][fallbackKey]; ok {
+// 			selected = template
+// 			h.logger.Warn("used fallback template",
+// 				zap.String("route", input.RoutePath),
+// 				zap.String("template", selected))
+// 			return &Output{SelectedTemplateId: selected}, nil
+// 		}
+// 	}
+
+// 	// Confidence-based selection (AI responses)
+// 	if input.TemplateType == "ai-response" {
+// 		// Clamp negative confidence to 0
+// 		confidence := input.Confidence
+// 		if confidence < 0 {
+// 			confidence = 0
+// 		}
+
+// 		if confidence >= 0.8 {
+// 			selected = "ai-detailed"
+// 		} else {
+// 			selected = "ai-tentative"
+// 		}
+// 		h.logger.Info("selected AI template",
+// 			zap.Float64("confidence", input.Confidence),
+// 			zap.String("template", selected))
+// 		return &Output{SelectedTemplateId: selected}, nil
+// 	}
+
+// 	// Final fallback
+// 	selected = "default-template"
+// 	h.logger.Warn("used default fallback template",
+// 		zap.Any("input", input))
+// 	return &Output{SelectedTemplateId: selected}, nil
+// }
+
+// func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+// 	cmd, err := client.NewCompleteJobCommand().
+// 		JobKey(job.Key).
+// 		VariablesFromObject(output)
+// 	if err != nil {
+// 		h.logger.Error("failed to create complete job command", zap.Error(err))
+// 		return
+// 	}
+// 	_, err = cmd.Send(context.Background())
+// 	if err != nil {
+// 		h.logger.Error("failed to send complete job command", zap.Error(err))
+// 	}
+// }
+
+// func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string) {
+// 	h.logger.Error("job failed",
+// 		zap.Int64("jobKey", job.Key),
+// 		zap.String("errorCode", errorCode),
+// 		zap.String("errorMessage", errorMessage),
+// 	)
+
+// 	_, err := client.NewThrowErrorCommand().
+// 		JobKey(job.Key).
+// 		ErrorCode(errorCode).
+// 		ErrorMessage(errorMessage).
+// 		//Retries(0).
+// 		Send(context.Background())
+// 	if err != nil {
+// 		h.logger.Error("failed to throw error", zap.Error(err))
+// 	}
+// }
+
+// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+//     return h.execute(ctx, input)
+// }
