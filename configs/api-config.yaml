@@ -1,0 +1,177 @@
+# configs/api-config.yaml
+app:
+  name: "Camunda Workflow API Gateway"
+  version: "1.0.0"
+  environment: "development" # development, staging, production
+
+api:
+  port: 8080
+  readTimeout: 30
+  writeTimeout: 30
+  idleTimeout: 120
+  
+  rateLimit:
+    enabled: true
+    requestsPerSecond: 100
+    burst: 200
+  
+  cors:
+    allowOrigins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+      - "https://lemici.com"
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "PATCH"
+      - "DELETE"
+      - "OPTIONS"
+    allowHeaders:
+      - "Origin"
+      - "Content-Type"
+      - "Accept"
+      - "Authorization"
+      - "X-Request-ID"
+      - "X-Session-ID"
+    exposeHeaders:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+    allowCredentials: true
+    maxAge: 86400
+
+auth:
+  jwt:
+    secret: "${JWT_SECRET}" # Set via environment variable
+    issuer: "lemici-platform"
+    expiryHours: 24
+    refreshExpiryHours: 168 # 7 days
+    algorithm: "HS256"
+    
+  oauth:
+    google:
+      clientId: "${GOOGLE_CLIENT_ID}"
+      clientSecret: "${GOOGLE_CLIENT_SECRET}"
+      redirectUrl: "http://localhost:8080/api/v1/auth/google/callback"
+    
+    linkedin:
+      clientId: "${LINKEDIN_CLIENT_ID}"
+      clientSecret: "${LINKEDIN_CLIENT_SECRET}"
+      redirectUrl: "http://localhost:8080/api/v1/auth/linkedin/callback"
+
+camunda:
+  gatewayAddress: "localhost:26500"
+  usePlainTextAuth: true
+  keepAlive: 45
+  requestTimeout: 30
+  insecureSkipVerify: false
+  caCertPath: ""
+
+database:
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "lemici_db"
+    username: "postgres"
+    password: "${POSTGRES_PASSWORD}"
+    sslMode: "disable"
+    maxOpenConns: 25
+    maxIdleConns: 5
+    connMaxLifetime: 300
+  
+  redis:
+    address: "localhost:6379"
+    password: "${REDIS_PASSWORD}"
+    db: 0
+    poolSize: 10
+    maxRetries: 3
+    dialTimeout: 5
+    readTimeout: 3
+    writeTimeout: 3
+  
+  elasticsearch:
+    addresses:
+      - "http://localhost:9200"
+    username: "elastic"
+    password: "${ELASTICSEARCH_PASSWORD}"
+    maxRetries: 3
+    enableMetrics: true
+
+integrations:
+  zoho:
+    apiKey: "${ZOHO_API_KEY}"
+    authToken: "${ZOHO_AUTH_TOKEN}"
+    baseUrl: "https://www.zohoapis.com"
+    timeout: 30
+  
+  smtp:
+    host: "${SMTP_HOST}"
+    port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"
+    useTLS: true
+    defaultFrom: "noreply@lemici.com"
+  
+  aws:
+    region: "us-east-1"
+    accessKeyId: "${AWS_ACCESS_KEY_ID}"
+    secretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+    ses:
+      enabled: true
+      fromEmail: "noreply@lemici.com"
+    sns:
+      enabled: true
+
+logging:
+  level: "info" # debug, info, warn, error
+  format: "json" # json, text
+  output: "stdout" # stdout, file
+  file:
+    path: "logs/api-gateway.log"
+    maxSize: 100 # MB
+    maxBackups: 3
+    maxAge: 30 # days
+    compress: true
+
+monitoring:
+  metrics:
+    enabled: true
+    path: "/metrics"
+    port: 9090
+  
+  tracing:
+    enabled: false
+    serviceName: "api-gateway"
+    endpoint: "http://localhost:14268/api/traces"
+  
+  healthCheck:
+    enabled: true
+    path: "/health"
+    interval: 30
+
+security:
+  tls:
+    enabled: false
+    certFile: ""
+    keyFile: ""
+  
+  requestValidation:
+    maxBodySize: 5242880 # 5MB in bytes
+    maxHeaderSize: 1048576 # 1MB in bytes
+  
+  ipWhitelist:
+    enabled: false
+    allowedIPs:
+      - "127.0.0.1"
+      - "::1"
+
+workflows:
+  defaultTimeout: 300 # seconds
+  maxRetries: 3
+  retryBackoff: 2 # exponential backoff multiplier
+  
+  contextStorage:
+    enabled: true
+    backend: "redis" # redis, postgres, memory
+    ttl: 3600 # seconds

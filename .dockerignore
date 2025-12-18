@@ -1,31 +1,19 @@
-# Git files
+# ============================================================================
+# .dockerignore - Exclude files from Docker build context
+# ============================================================================
+
+# Git
 .git
 .gitignore
 .gitattributes
 
 # Documentation
 *.md
-README.md
+!README.md
 docs/
-LICENSE
+.github/
 
-# Test files
-*_test.go
-test/
-*.test
-coverage.out
-coverage.html
-
-# Build artifacts
-*.exe
-*.dll
-*.so
-*.dylib
-bin/
-dist/
-build/
-
-# IDE and editor files
+# IDE & Editors
 .vscode/
 .idea/
 *.swp
@@ -33,39 +21,67 @@ build/
 *~
 .DS_Store
 
+# Build artifacts
+bin/
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+coverage.out
+coverage.html
+*.coverprofile
+
+# Dependency directories
+vendor/
+node_modules/
+
 # Environment files
 .env
 .env.*
 !.env.example
 
+# Logs
+logs/
+*.log
+
 # Temporary files
 tmp/
 temp/
 *.tmp
-*.log
-logs/
 
-# Node modules (if any frontend)
-node_modules/
-npm-debug.log
-
-# Docker files (don't need these in the image)
+# Development files
+docker-compose.yml
+docker-compose.*.yml
 Dockerfile*
-docker-compose*.yml
-.dockerignore
+!deployments/docker/Dockerfile.worker
+!deployments/docker/Dockerfile.gateway
+.air.toml
 
 # CI/CD
-.github/
 .gitlab-ci.yml
 .travis.yml
 Jenkinsfile
 
-# Kubernetes manifests
-deployments/kubernetes/
+# Test data
+test/
+testdata/
+*_test.go
 
-# Scripts (not needed in runtime)
+# Scripts (unless specifically needed)
 scripts/
+!scripts/migrate/
 
-# Go specific
-vendor/
-*.out
+# Kubernetes (not needed in image)
+deployments/kubernetes/
+k8s/
+
+# Miscellaneous
+*.bak
+*.backup
+*.old

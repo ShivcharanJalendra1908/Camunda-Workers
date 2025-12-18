@@ -48,6 +48,7 @@ func GetInputSchema() validation.JSONSchema {
 func GetOutputSchema() validation.JSONSchema {
 	return validation.JSONSchema{
 		Type: "object",
+		Required: []string{"valid", "message"},  // Added
 		Properties: map[string]validation.Property{
 			"valid": {
 				Type:        "boolean",

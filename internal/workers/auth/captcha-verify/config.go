@@ -12,6 +12,11 @@ type Config struct {
 	MaxAttempts    int           `mapstructure:"max_attempts"`
 	VerifyClientIP bool          `mapstructure:"verify_client_ip"`
 	ExpiryMinutes  int           `mapstructure:"expiry_minutes"`
+	// Redis configuration fields
+	RedisHost     string `mapstructure:"redis_host"`
+	RedisPort     int    `mapstructure:"redis_port"`
+	RedisPassword string `mapstructure:"redis_password"`
+	RedisDB       int    `mapstructure:"redis_db"`
 }
 
 func DefaultConfig() *Config {
@@ -22,6 +27,10 @@ func DefaultConfig() *Config {
 		MaxAttempts:    3,
 		VerifyClientIP: false,
 		ExpiryMinutes:  5,
+		RedisHost:      "localhost",
+		RedisPort:      6379,
+		RedisPassword:  "",
+		RedisDB:        0,
 	}
 }
 
@@ -38,5 +47,13 @@ func (c *Config) Validate() error {
 	if c.ExpiryMinutes <= 0 {
 		return fmt.Errorf("expiry_minutes must be positive")
 	}
+	// Redis validation
+	if c.RedisHost == "" {
+		return fmt.Errorf("redis_host must not be empty")
+	}
+	if c.RedisPort <= 0 || c.RedisPort > 65535 {
+		return fmt.Errorf("redis_port must be between 1 and 65535")
+	}
 	return nil
 }
+

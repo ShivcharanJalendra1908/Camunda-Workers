@@ -2,11 +2,7 @@ package authsignuplinkedin
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -14,110 +10,147 @@ import (
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/zoho"
-	"camunda-workers/internal/models"
 )
 
 type Service struct {
-	config     *Config
-	logger     logger.Logger
-	keycloak   *auth.KeycloakClient
-	zohoCRM    *zoho.CRMClient
-	httpClient *http.Client
+	config   *Config
+	logger   logger.Logger
+	keycloak *auth.KeycloakClient
+	zohoCRM  *zoho.CRMClient
 }
 
 func NewService(deps ServiceDependencies, config *Config) *Service {
 	return &Service{
-		config:     config,
-		logger:     deps.Logger,
-		keycloak:   deps.Keycloak,
-		zohoCRM:    deps.ZohoCRM,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		config:   config,
+		logger:   deps.Logger,
+		keycloak: deps.Keycloak,
+		zohoCRM:  deps.ZohoCRM,
 	}
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
+	
+// 🔴 REQUIRED SAFETY CHECKS (SAME AS SIGNIN WORKERS)
+	if s.keycloak == nil {
+		return nil, &errors.StandardError{
+			Code:      "KEYCLOAK_NOT_CONFIGURED",
+			Message:   "Keycloak client is not initialized",
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
+
+	if s.config == nil {
+		return nil, &errors.StandardError{
+			Code:      "CONFIG_NOT_INITIALIZED",
+			Message:   "Auth signup google config is missing",
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
+
 	s.logger.Info("Executing LinkedIn signup flow", map[string]interface{}{
 		"email":          input.Email,
 		"hasRedirectURI": input.RedirectURI != "",
 		"hasState":       input.State != "",
 	})
 
-	// Step 1: Exchange authorization code for tokens
-	tokens, err := s.exchangeCodeForTokens(ctx, input.AuthCode, input.RedirectURI)
+	// CRITICAL FIX: Exchange code with Keycloak (not LinkedIn directly)
+	// Keycloak handles the LinkedIn OAuth flow internally via Identity Provider
+	keycloakTokens, err := s.keycloak.ExchangeCodeForToken(ctx, input.AuthCode, input.RedirectURI)
 	if err != nil {
 		return nil, &errors.StandardError{
-			Code:      "LINKEDIN_OAUTH_ERROR",
-			Message:   "Failed to exchange authorization code for access token",
+			Code:      "KEYCLOAK_TOKEN_EXCHANGE_FAILED",
+			Message:   "Failed to exchange authorization code with Keycloak",
 			Details:   err.Error(),
 			Retryable: true,
 			Timestamp: time.Now(),
 		}
 	}
 
-	// Step 2: Get user profile from LinkedIn
-	profile, err := s.getUserProfile(ctx, tokens.AccessToken)
+	// Get user info from Keycloak (which includes LinkedIn profile data)
+	userInfo, err := s.keycloak.GetUserInfo(ctx, keycloakTokens.AccessToken)
 	if err != nil {
 		return nil, &errors.StandardError{
-			Code:      "LINKEDIN_API_ERROR",
-			Message:   "Failed to retrieve user profile from LinkedIn API",
+			Code:      "KEYCLOAK_USERINFO_ERROR",
+			Message:   "Failed to retrieve user info from Keycloak",
 			Details:   err.Error(),
 			Retryable: true,
 			Timestamp: time.Now(),
 		}
 	}
 
-	// Step 3: Get user email from LinkedIn
-	email, err := s.getUserEmail(ctx, tokens.AccessToken)
-	if err != nil {
+	// Validate email matches input
+	if input.Email != "" && userInfo.Email != input.Email {
 		return nil, &errors.StandardError{
-			Code:      "LINKEDIN_API_ERROR",
-			Message:   "Failed to retrieve user email from LinkedIn API",
-			Details:   err.Error(),
-			Retryable: true,
-			Timestamp: time.Now(),
-		}
-	}
-	profile.Email = email
-
-	// Step 4: Validate signup
-	if err := s.validateSignup(profile, input); err != nil {
-		return nil, &errors.StandardError{
-			Code:      "VALIDATION_FAILED",
-			Message:   "Signup validation failed",
-			Details:   err.Error(),
+			Code:      "EMAIL_MISMATCH",
+			Message:   "Email mismatch between LinkedIn account and provided email",
+			Details:   fmt.Sprintf("Expected: %s, Got: %s", input.Email, userInfo.Email),
 			Retryable: false,
 			Timestamp: time.Now(),
 		}
 	}
 
-	// Step 5: Check if user already exists
-	existingUser, err := s.keycloak.GetUserByEmail(ctx, input.Email)
-	if err == nil && existingUser != nil {
+	// Check if this is a new user or existing user
+	existingUser, err := s.keycloak.GetUserByEmail(ctx, userInfo.Email)
+	if err != nil {
+		// If user not found error, this is a new signup - continue
+		if stdErr, ok := err.(*errors.StandardError); ok {
+			if stdErr.Code != "USER_NOT_FOUND" {
+				return nil, &errors.StandardError{
+					Code:      "KEYCLOAK_ERROR",
+					Message:   "Failed to check existing user",
+					Details:   err.Error(),
+					Retryable: true,
+					Timestamp: time.Now(),
+				}
+			}
+		}
+	}
+
+	// If user exists but trying to signup, return error
+	if existingUser != nil {
 		return nil, &errors.StandardError{
 			Code:      "USER_ALREADY_EXISTS",
 			Message:   "User with this email already exists",
-			Details:   fmt.Sprintf("Email: %s", input.Email),
+			Details:   fmt.Sprintf("Email: %s", userInfo.Email),
 			Retryable: false,
 			Timestamp: time.Now(),
 		}
 	}
 
-	// Step 6: Create new user in Keycloak
-	user, err := s.createUser(ctx, profile, input)
+	// For new users created via LinkedIn OAuth, Keycloak automatically creates them
+	// So we just need to fetch the newly created user details
+	user, err := s.keycloak.GetUserByEmail(ctx, userInfo.Email)
 	if err != nil {
 		return nil, &errors.StandardError{
-			Code:      "KEYCLOAK_ERROR",
-			Message:   "Failed to create user in identity provider",
+			Code:      "USER_CREATION_FAILED",
+			Message:   "Failed to retrieve newly created user",
 			Details:   err.Error(),
 			Retryable: true,
 			Timestamp: time.Now(),
 		}
 	}
 
-	// Step 7: Create CRM contact
+	// Extract names from user info
+	firstName, lastName := s.extractNamesFromUserInfo(userInfo, input)
+
+	// Update user with additional info if provided via input
+	if input.FirstName != "" || input.LastName != "" || len(input.Metadata) > 0 {
+		err := s.updateUserDetails(ctx, user.ID, input, firstName, lastName)
+		if err != nil {
+			// Log but don't fail - user is already created
+			s.logger.Warn("Failed to update user details", map[string]interface{}{
+				"userId": user.ID,
+				"error":  err.Error(),
+			})
+		}
+	}
+
+	// Create CRM contact if enabled
 	var crmContactID string
 	if s.config.CreateCRMContact && s.zohoCRM != nil {
-		contactID, err := s.createCRMContact(ctx, user, profile)
+		contactID, err := s.createCRMContact(ctx, user, firstName, lastName)
 		if err != nil {
 			s.logger.Warn("Failed to create CRM contact, continuing without it", map[string]interface{}{
 				"userId": user.ID,
@@ -131,10 +164,9 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	s.logger.Info("LinkedIn signup completed successfully", map[string]interface{}{
 		"userId":            user.ID,
 		"email":             user.Email,
+		"emailVerified":     userInfo.EmailVerified,
 		"crmContactCreated": crmContactID != "",
 	})
-
-	firstName, lastName := s.extractNames(input, profile)
 
 	return &Output{
 		Success:       true,
@@ -142,181 +174,99 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		Email:         user.Email,
 		FirstName:     firstName,
 		LastName:      lastName,
-		Token:         tokens.AccessToken,
-		EmailVerified: true, // LinkedIn emails are verified
-		PasswordSet:   false,
+		Token:         keycloakTokens.AccessToken,
+		AccessToken:   keycloakTokens.AccessToken,
+		RefreshToken:  keycloakTokens.RefreshToken,
+		ExpiresIn:     keycloakTokens.ExpiresIn,
+		TokenType:     keycloakTokens.TokenType,
+		EmailVerified: userInfo.EmailVerified,
+		PasswordSet:   false, // OAuth signup doesn't set password
 		CRMContactID:  crmContactID,
 	}, nil
 }
 
-func (s *Service) exchangeCodeForTokens(ctx context.Context, authCode, redirectURI string) (*LinkedInTokenResponse, error) {
-	tokenURL := "https://www.linkedin.com/oauth/v2/accessToken"
-
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", authCode)
-	data.Set("client_id", s.config.ClientID)
-	data.Set("client_secret", s.config.ClientSecret)
-	data.Set("redirect_uri", redirectURI)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create token request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+func (s *Service) extractNamesFromUserInfo(userInfo *auth.TokenInfo, input *Input) (string, string) {
+	// Priority 1: Use input names if explicitly provided
+	if input.FirstName != "" || input.LastName != "" {
+		return input.FirstName, input.LastName
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(body))
+	// Priority 2: Use Keycloak's given_name and family_name
+	if userInfo.GivenName != "" || userInfo.FamilyName != "" {
+		return userInfo.GivenName, userInfo.FamilyName
 	}
 
-	var tokenResp LinkedInTokenResponse
-	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("failed to decode token response: %w", err)
+	// Priority 3: Split the full name from Keycloak
+	if userInfo.Name != "" {
+		parts := strings.Fields(userInfo.Name)
+		if len(parts) == 0 {
+			return "", ""
+		}
+		if len(parts) == 1 {
+			return parts[0], ""
+		}
+		return parts[0], strings.Join(parts[1:], " ")
 	}
 
-	if tokenResp.AccessToken == "" {
-		return nil, fmt.Errorf("empty access token in response")
+	// Priority 4: Use preferred_username as fallback
+	if userInfo.PreferredUsername != "" {
+		return userInfo.PreferredUsername, ""
 	}
 
-	return &tokenResp, nil
+	return "", ""
 }
 
-func (s *Service) getUserProfile(ctx context.Context, accessToken string) (*LinkedInUserProfile, error) {
-	profileURL := "https://api.linkedin.com/v2/me"
-
-	req, err := http.NewRequestWithContext(ctx, "GET", profileURL, nil)
+func (s *Service) updateUserDetails(ctx context.Context, userID string, input *Input, firstName, lastName string) error {
+	user, err := s.keycloak.GetUser(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute profile request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read profile response: %w", err)
+		return fmt.Errorf("failed to get user for update: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("profile request failed with status %d: %s", resp.StatusCode, string(body))
+	updated := false
+
+	// Update names if provided in input
+	if input.FirstName != "" && user.FirstName != input.FirstName {
+		user.FirstName = input.FirstName
+		updated = true
+	}
+	if input.LastName != "" && user.LastName != input.LastName {
+		user.LastName = input.LastName
+		updated = true
 	}
 
-	var profile LinkedInUserProfile
-	if err := json.Unmarshal(body, &profile); err != nil {
-		return nil, fmt.Errorf("failed to decode profile response: %w", err)
+	// Add metadata as attributes
+	if len(input.Metadata) > 0 {
+		if user.Attributes == nil {
+			user.Attributes = make(map[string][]string)
+		}
+		for key, value := range input.Metadata {
+			if strVal, ok := value.(string); ok {
+				user.Attributes[key] = []string{strVal}
+				updated = true
+			}
+		}
 	}
 
-	return &profile, nil
-}
-
-func (s *Service) getUserEmail(ctx context.Context, accessToken string) (string, error) {
-	emailURL := "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))"
-
-	req, err := http.NewRequestWithContext(ctx, "GET", emailURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create email request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute email request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read email response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("email request failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var emailResp LinkedInEmailResponse
-	if err := json.Unmarshal(body, &emailResp); err != nil {
-		return "", fmt.Errorf("failed to decode email response: %w", err)
-	}
-
-	if len(emailResp.Elements) == 0 {
-		return "", fmt.Errorf("no email found in response")
-	}
-
-	return emailResp.Elements[0].Handle.EmailAddress, nil
-}
-
-func (s *Service) validateSignup(profile *LinkedInUserProfile, input *Input) error {
-	// Validate email matches
-	if profile.Email != input.Email {
-		return fmt.Errorf("email mismatch: LinkedIn email (%s) does not match provided email (%s)",
-			profile.Email, input.Email)
-	}
-
-	// Validate email format
-	if !strings.Contains(input.Email, "@") {
-		return fmt.Errorf("invalid email format")
+	if updated {
+		err := s.keycloak.UpdateUser(ctx, userID, user)
+		if err != nil {
+			return fmt.Errorf("failed to update user: %w", err)
+		}
+		s.logger.Info("Updated user details", map[string]interface{}{
+			"userId": userID,
+		})
 	}
 
 	return nil
 }
 
-func (s *Service) createUser(ctx context.Context, profile *LinkedInUserProfile, input *Input) (*models.AuthUser, error) {
-	firstName, lastName := s.extractNames(input, profile)
-
-	newUser := &auth.User{
-		Email:         input.Email,
-		FirstName:     firstName,
-		LastName:      lastName,
-		Username:      input.Email,
-		Enabled:       true,
-		EmailVerified: true, // LinkedIn emails are verified
+func (s *Service) createCRMContact(ctx context.Context, user *auth.User, firstName, lastName string) (string, error) {
+	// Use provided names or user's names
+	if firstName == "" {
+		firstName = user.FirstName
 	}
-
-	createdUser, err := s.keycloak.CreateUser(ctx, newUser)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user in Keycloak: %w", err)
-	}
-
-	s.logger.Info("Successfully created new user in Keycloak", map[string]interface{}{
-		"userId": createdUser.ID,
-		"email":  input.Email,
-	})
-
-	return &models.AuthUser{
-		ID:            createdUser.ID,
-		Email:         createdUser.Email,
-		Name:          fmt.Sprintf("%s %s", firstName, lastName),
-		Provider:      models.ProviderLinkedIn,
-		ProviderID:    profile.ID,
-		EmailVerified: createdUser.EmailVerified,
-		Status:        "active",
-		CreatedAt:     time.Now(),
-	}, nil
-}
-
-func (s *Service) createCRMContact(ctx context.Context, user *models.AuthUser, profile *LinkedInUserProfile) (string, error) {
-	firstName := user.Name
-	lastName := ""
-
-	parts := strings.Fields(user.Name)
-	if len(parts) > 1 {
-		firstName = parts[0]
-		lastName = strings.Join(parts[1:], " ")
+	if lastName == "" {
+		lastName = user.LastName
 	}
 
 	contact := &zoho.Contact{
@@ -343,14 +293,4 @@ func (s *Service) createCRMContact(ctx context.Context, user *models.AuthUser, p
 	})
 
 	return contactID, nil
-}
-
-func (s *Service) extractNames(input *Input, profile *LinkedInUserProfile) (string, string) {
-	// Prioritize input names if provided
-	if input.FirstName != "" || input.LastName != "" {
-		return input.FirstName, input.LastName
-	}
-
-	// Use LinkedIn profile names
-	return profile.FirstName, profile.LastName
 }

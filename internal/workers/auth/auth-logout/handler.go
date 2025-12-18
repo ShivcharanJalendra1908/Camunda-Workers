@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/errors"
@@ -23,6 +24,7 @@ type Handler struct {
 	config    *Config
 	logger    logger.Logger
 	camunda   *camunda.Client
+	keycloak  *auth.KeycloakClient
 	service   *Service
 	jobWorker worker.JobWorker
 }
@@ -30,6 +32,7 @@ type Handler struct {
 type HandlerOptions struct {
 	AppConfig    *config.Config
 	Camunda      *camunda.Client
+	Keycloak     *auth.KeycloakClient
 	CustomConfig *Config
 	Logger       logger.Logger
 }
@@ -49,13 +52,15 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 	}
 
 	handler := &Handler{
-		config:  workerConfig,
-		logger:  loggerInstance,
-		camunda: opts.Camunda,
+		config:   workerConfig,
+		logger:   loggerInstance,
+		camunda:  opts.Camunda,
+		keycloak: opts.Keycloak,
 	}
 
 	handler.service = NewService(ServiceDependencies{
-		Logger: loggerInstance,
+		Keycloak: handler.keycloak,
+		Logger:   loggerInstance,
 	}, handler.config)
 
 	return handler, nil
@@ -81,7 +86,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		})
 		h.completeJob(ctx, client, job, &Output{
 			Success: false,
-			Message: "Auth logout disabled",
+			Message: "Auth logout worker is disabled",
 		})
 		return
 	}
@@ -94,7 +99,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	output, err := h.Execute(ctx, input)
+	output, err := h.service.Execute(ctx, input)
 	if err != nil {
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
@@ -133,7 +138,16 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 	input := &Input{
 		UserID: variables["userId"].(string),
-		Token:  variables["token"].(string),
+	}
+
+	// RefreshToken is optional but recommended for single session logout
+	if refreshToken, ok := variables["refreshToken"].(string); ok && refreshToken != "" {
+		input.RefreshToken = refreshToken
+	}
+
+	// AccessToken is optional - used for adding to revocation list
+	if accessToken, ok := variables["accessToken"].(string); ok && accessToken != "" {
+		input.AccessToken = accessToken
 	}
 
 	if sessionID, ok := variables["sessionId"].(string); ok {
@@ -163,6 +177,7 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 	variables := map[string]interface{}{
 		"logoutSuccess": output.Success,
 		"logoutMessage": output.Message,
+		"logoutAt":      output.LogoutAt.Format(time.RFC3339),
 	}
 
 	if output.SessionsInvalidated > 0 {
@@ -195,6 +210,7 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 			"jobKey":              job.GetKey(),
 			"success":             output.Success,
 			"sessionsInvalidated": output.SessionsInvalidated,
+			"tokenRevoked":        output.TokenRevoked,
 			"worker":              TaskType,
 		})
 	}
@@ -292,7 +308,6 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("camunda health check failed: %w", err)
 	}
 
-	// Test auth service connection if needed
 	if err := h.service.TestConnection(ctx); err != nil {
 		return fmt.Errorf("auth service health check failed: %w", err)
 	}
@@ -315,6 +330,12 @@ func (h *Handler) IsEnabled() bool {
 func (h *Handler) GetConfig() *Config {
 	return h.config
 }
+
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	return h.service.Execute(ctx, input)
+}
+
+// Helper functions
 
 func extractErrorCode(err error) string {
 	if stdErr, ok := err.(*errors.StandardError); ok {
@@ -354,32 +375,9 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			}
 		}
 
-		// // Load Redis configuration for session management
-		// if appConfig.Database.Redis.Address != "" {
-		// 	cfg.RedisHost = appConfig.Database.Redis.Address
-		// 	cfg.RedisPort = 6379 // Default port, parse from Address if needed
-		// 	cfg.RedisPassword = appConfig.Database.Redis.Password
-		// 	cfg.RedisDB = appConfig.Database.Redis.DB
-		// }
-
 		// Load Redis configuration for session management
 		if appConfig.Database.Redis.Address != "" {
-			// Parse host:port from address
-			addr := appConfig.Database.Redis.Address
-			host := addr
-			port := 6379
-
-			// If address contains port (e.g., "localhost:6379")
-			if colonIdx := len(addr) - 1; colonIdx > 0 {
-				for i := len(addr) - 1; i >= 0; i-- {
-					if addr[i] == ':' {
-						host = addr[:i]
-						fmt.Sscanf(addr[i+1:], "%d", &port)
-						break
-					}
-				}
-			}
-
+			host, port := parseRedisAddress(appConfig.Database.Redis.Address)
 			cfg.RedisHost = host
 			cfg.RedisPort = port
 			cfg.RedisPassword = appConfig.Database.Redis.Password
@@ -390,7 +388,18 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 	return cfg
 }
 
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	// Delegate to the service layer for business logic
-	return h.service.Execute(ctx, input)
+func parseRedisAddress(address string) (string, int) {
+	host := address
+	port := 6379 // default
+
+	// Find the last colon to split host:port
+	for i := len(address) - 1; i >= 0; i-- {
+		if address[i] == ':' {
+			host = address[:i]
+			fmt.Sscanf(address[i+1:], "%d", &port)
+			break
+		}
+	}
+
+	return host, port
 }

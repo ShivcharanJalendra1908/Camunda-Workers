@@ -94,7 +94,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	output, err := h.Execute(ctx, input)
+	output, err := h.service.Execute(ctx, input)
 	if err != nil {
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
@@ -137,6 +137,7 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		Body:    variables["body"].(string),
 	}
 
+	// Use provided 'from' or default
 	if from, ok := variables["from"].(string); ok && from != "" {
 		input.From = from
 	} else {
@@ -164,13 +165,24 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	}
 
 	if attachments, ok := variables["attachments"].([]interface{}); ok {
-		input.Attachments = make([]Attachment, len(attachments))
-		for i, att := range attachments {
+		input.Attachments = make([]Attachment, 0, len(attachments))
+		for _, att := range attachments {
 			if attMap, ok := att.(map[string]interface{}); ok {
-				input.Attachments[i] = Attachment{
-					Filename:    attMap["filename"].(string),
-					ContentType: attMap["contentType"].(string),
-					Content:     attMap["content"].(string),
+				attachment := Attachment{}
+
+				if filename, ok := attMap["filename"].(string); ok {
+					attachment.Filename = filename
+				}
+				if contentType, ok := attMap["contentType"].(string); ok {
+					attachment.ContentType = contentType
+				}
+				if content, ok := attMap["content"].(string); ok {
+					attachment.Content = content
+				}
+
+				// Only add if we have at least filename and content
+				if attachment.Filename != "" && attachment.Content != "" {
+					input.Attachments = append(input.Attachments, attachment)
 				}
 			}
 		}
@@ -195,6 +207,10 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 
 	if output.Provider != "" {
 		variables["emailProvider"] = output.Provider
+	}
+
+	if !output.SentAt.IsZero() {
+		variables["sentAt"] = output.SentAt.Format(time.RFC3339)
 	}
 
 	request, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromMap(variables)
@@ -296,6 +312,8 @@ func (h *Handler) Register() error {
 		"maxJobsActive": h.config.MaxJobsActive,
 		"timeout":       h.config.Timeout.String(),
 		"enabled":       h.config.Enabled,
+		"smtpHost":      h.config.SMTPHost,
+		"smtpPort":      h.config.SMTPPort,
 	})
 
 	return nil
@@ -340,6 +358,12 @@ func (h *Handler) GetConfig() *Config {
 	return h.config
 }
 
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	return h.service.Execute(ctx, input)
+}
+
+// Helper functions
+
 func extractErrorCode(err error) string {
 	if stdErr, ok := err.(*errors.StandardError); ok {
 		return string(stdErr.Code)
@@ -360,38 +384,6 @@ func convertToStandardError(err error) *errors.StandardError {
 	}
 }
 
-// func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
-// 	if customConfig != nil {
-// 		return customConfig
-// 	}
-
-// 	cfg := DefaultConfig()
-
-// 	if appConfig != nil {
-// 		if workerCfg, exists := appConfig.Workers["email-send"]; exists {
-// 			cfg.Enabled = workerCfg.Enabled
-// 			if workerCfg.MaxJobsActive > 0 {
-// 				cfg.MaxJobsActive = workerCfg.MaxJobsActive
-// 			}
-// 			if workerCfg.Timeout > 0 {
-// 				cfg.Timeout = time.Duration(workerCfg.Timeout) * time.Millisecond
-// 			}
-// 		}
-
-// 		// Load SMTP configuration if available
-// 		if appConfig.Integrations.SMTP.Host != "" {
-// 			cfg.SMTPHost = appConfig.Integrations.SMTP.Host
-// 			cfg.SMTPPort = appConfig.Integrations.SMTP.Port
-// 			cfg.SMTPUsername = appConfig.Integrations.SMTP.Username
-// 			cfg.SMTPPassword = appConfig.Integrations.SMTP.Password
-// 			cfg.UseTLS = appConfig.Integrations.SMTP.UseTLS
-// 			cfg.DefaultFrom = appConfig.Integrations.SMTP.DefaultFrom
-// 		}
-// 	}
-
-// 	return cfg
-// }
-
 func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
 	if customConfig != nil {
 		return customConfig
@@ -410,13 +402,7 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			}
 		}
 
-		// DEBUG: Check what SMTP config is being loaded
-		fmt.Printf("DEBUG: SMTP Host from config: '%s'\n", appConfig.Integrations.SMTP.Host)
-		fmt.Printf("DEBUG: SMTP Port from config: %d\n", appConfig.Integrations.SMTP.Port)
-		fmt.Printf("DEBUG: SMTP Username from config: '%s'\n", appConfig.Integrations.SMTP.Username)
-		fmt.Printf("DEBUG: SMTP UseTLS from config: %v\n", appConfig.Integrations.SMTP.UseTLS)
-
-		// Load SMTP configuration if available
+		// Load SMTP configuration
 		if appConfig.Integrations.SMTP.Host != "" {
 			cfg.SMTPHost = appConfig.Integrations.SMTP.Host
 			cfg.SMTPPort = appConfig.Integrations.SMTP.Port
@@ -424,15 +410,8 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			cfg.SMTPPassword = appConfig.Integrations.SMTP.Password
 			cfg.UseTLS = appConfig.Integrations.SMTP.UseTLS
 			cfg.DefaultFrom = appConfig.Integrations.SMTP.DefaultFrom
-		} else {
-			fmt.Println("DEBUG: SMTP Host is empty in appConfig.Integrations.SMTP")
 		}
 	}
 
 	return cfg
-}
-
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	// Delegate to the service layer for business logic
-	return h.service.Execute(ctx, input)
 }

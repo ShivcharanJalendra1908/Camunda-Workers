@@ -3,8 +3,11 @@ package emailsend
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"mime"
 	"net/smtp"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,11 +29,23 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	s.logger.Info("Executing email send", map[string]interface{}{
-		"to":      input.To,
-		"subject": input.Subject,
-		"from":    input.From,
-		"isHtml":  input.IsHTML,
+		"to":          input.To,
+		"subject":     input.Subject,
+		"from":        input.From,
+		"isHtml":      input.IsHTML,
+		"attachments": len(input.Attachments),
 	})
+
+	// Validate SMTP configuration
+	if err := s.validateSMTPConfig(); err != nil {
+		return nil, &errors.StandardError{
+			Code:      "SMTP_NOT_CONFIGURED",
+			Message:   "SMTP service not properly configured",
+			Details:   err.Error(),
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
 
 	// Validate email addresses
 	if err := s.validateEmailAddresses(input); err != nil {
@@ -44,12 +59,21 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 
 	// Build email message
-	message := s.buildEmailMessage(input)
+	message, err := s.buildEmailMessage(input)
+	if err != nil {
+		return nil, &errors.StandardError{
+			Code:      "MESSAGE_BUILD_ERROR",
+			Message:   "Failed to build email message",
+			Details:   err.Error(),
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
 
-	// Send email via SMTP
+	// Send email via SMTP with context
 	if err := s.sendSMTP(ctx, input, message); err != nil {
 		return nil, &errors.StandardError{
-			Code:      "SMTP_ERROR",
+			Code:      "SMTP_SEND_ERROR",
 			Message:   "Failed to send email via SMTP",
 			Details:   err.Error(),
 			Retryable: true,
@@ -71,6 +95,19 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		Provider:  "SMTP",
 		SentAt:    time.Now(),
 	}, nil
+}
+
+func (s *Service) validateSMTPConfig() error {
+	if s.config.SMTPHost == "" {
+		return fmt.Errorf("SMTP host is not configured")
+	}
+	if s.config.SMTPPort <= 0 {
+		return fmt.Errorf("SMTP port is not configured")
+	}
+	if s.config.DefaultFrom == "" {
+		return fmt.Errorf("default from address is not configured")
+	}
+	return nil
 }
 
 func (s *Service) validateEmailAddresses(input *Input) error {
@@ -131,10 +168,15 @@ func (s *Service) isValidEmail(email string) bool {
 	return true
 }
 
-func (s *Service) buildEmailMessage(input *Input) string {
+func (s *Service) buildEmailMessage(input *Input) (string, error) {
 	var builder strings.Builder
 
+	// Generate message ID
+	messageID := s.generateMessageID(input)
+
 	// Headers
+	builder.WriteString(fmt.Sprintf("Message-ID: %s\r\n", messageID))
+	builder.WriteString(fmt.Sprintf("Date: %s\r\n", time.Now().Format(time.RFC1123Z)))
 	builder.WriteString(fmt.Sprintf("From: %s\r\n", input.From))
 	builder.WriteString(fmt.Sprintf("To: %s\r\n", input.To))
 
@@ -146,7 +188,9 @@ func (s *Service) buildEmailMessage(input *Input) string {
 		builder.WriteString(fmt.Sprintf("Reply-To: %s\r\n", input.ReplyTo))
 	}
 
-	builder.WriteString(fmt.Sprintf("Subject: %s\r\n", input.Subject))
+	// Encode subject for non-ASCII characters
+	encodedSubject := mime.QEncoding.Encode("UTF-8", input.Subject)
+	builder.WriteString(fmt.Sprintf("Subject: %s\r\n", encodedSubject))
 
 	// Priority header
 	if input.Priority != "" {
@@ -165,22 +209,95 @@ func (s *Service) buildEmailMessage(input *Input) string {
 	// MIME headers
 	builder.WriteString("MIME-Version: 1.0\r\n")
 
-	if input.IsHTML {
-		builder.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+	// Handle attachments
+	if len(input.Attachments) > 0 {
+		boundary := fmt.Sprintf("boundary_%d", time.Now().UnixNano())
+		builder.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n", boundary))
+		builder.WriteString("\r\n")
+
+		// Body part
+		builder.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+		if input.IsHTML {
+			builder.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+		} else {
+			builder.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		}
+		builder.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
+		builder.WriteString("\r\n")
+		builder.WriteString(input.Body)
+		builder.WriteString("\r\n\r\n")
+
+		// Attachment parts
+		for _, att := range input.Attachments {
+			if err := s.addAttachment(&builder, boundary, att); err != nil {
+				return "", fmt.Errorf("failed to add attachment %s: %w", att.Filename, err)
+			}
+		}
+
+		builder.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
 	} else {
-		builder.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		// Simple email without attachments
+		if input.IsHTML {
+			builder.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+		} else {
+			builder.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+		}
+		builder.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
+		builder.WriteString("\r\n")
+		builder.WriteString(input.Body)
+	}
+
+	return builder.String(), nil
+}
+
+func (s *Service) addAttachment(builder *strings.Builder, boundary string, att Attachment) error {
+	builder.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+
+	// Determine content type
+	contentType := att.ContentType
+	if contentType == "" {
+		// Try to guess from filename extension
+		ext := filepath.Ext(att.Filename)
+		contentType = mime.TypeByExtension(ext)
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+	}
+
+	builder.WriteString(fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", contentType, att.Filename))
+	builder.WriteString("Content-Transfer-Encoding: base64\r\n")
+	builder.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", att.Filename))
+	builder.WriteString("\r\n")
+
+	// Content should already be base64 encoded, but verify
+	if !s.isBase64(att.Content) {
+		// If not base64, encode it
+		att.Content = base64.StdEncoding.EncodeToString([]byte(att.Content))
+	}
+
+	// Write base64 content in 76-character lines (RFC 2045)
+	content := att.Content
+	for len(content) > 76 {
+		builder.WriteString(content[:76])
+		builder.WriteString("\r\n")
+		content = content[76:]
+	}
+	if len(content) > 0 {
+		builder.WriteString(content)
+		builder.WriteString("\r\n")
 	}
 
 	builder.WriteString("\r\n")
+	return nil
+}
 
-	// Body
-	builder.WriteString(input.Body)
-
-	return builder.String()
+func (s *Service) isBase64(str string) bool {
+	_, err := base64.StdEncoding.DecodeString(str)
+	return err == nil
 }
 
 func (s *Service) sendSMTP(ctx context.Context, input *Input, message string) error {
-
+	// Check context before sending
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("context cancelled before sending email: %w", err)
 	}
@@ -212,18 +329,23 @@ func (s *Service) sendSMTP(ctx context.Context, input *Input, message string) er
 	// Send email
 	if s.config.UseTLS {
 		// TLS connection
-		return s.sendWithTLS(addr, auth, input.From, recipients, []byte(message))
+		return s.sendWithTLS(ctx, addr, auth, input.From, recipients, []byte(message))
 	}
 
 	// Plain SMTP
 	return smtp.SendMail(addr, auth, input.From, recipients, []byte(message))
 }
 
-func (s *Service) sendWithTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+func (s *Service) sendWithTLS(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("context cancelled: %w", err)
+	}
+
 	// Connect to server
 	client, err := smtp.Dial(addr)
 	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
+		return fmt.Errorf("failed to connect to SMTP server %s: %w", addr, err)
 	}
 	defer client.Close()
 
@@ -246,7 +368,7 @@ func (s *Service) sendWithTLS(addr string, auth smtp.Auth, from string, to []str
 
 	// Set sender
 	if err = client.Mail(from); err != nil {
-		return fmt.Errorf("failed to set sender: %w", err)
+		return fmt.Errorf("failed to set sender %s: %w", from, err)
 	}
 
 	// Set recipients
@@ -277,8 +399,8 @@ func (s *Service) sendWithTLS(addr string, auth smtp.Auth, from string, to []str
 
 func (s *Service) generateMessageID(input *Input) string {
 	timestamp := time.Now().UnixNano()
-	return fmt.Sprintf("<%d.%s@%s>", timestamp, sanitizeEmail(input.To), s.config.SMTPHost)
-	//return fmt.Sprintf("<%d@%s>", timestamp, s.config.SMTPHost)
+	sanitized := sanitizeEmail(input.To)
+	return fmt.Sprintf("<%d.%s@%s>", timestamp, sanitized, s.config.SMTPHost)
 }
 
 func sanitizeEmail(email string) string {
@@ -296,29 +418,52 @@ func sanitizeEmail(email string) string {
 		if len(local) > 10 {
 			local = local[:10]
 		}
-		return local
+		if local != "" {
+			return local
+		}
 	}
 	return "user"
 }
 
 func (s *Service) TestConnection(ctx context.Context) error {
+	if s.config.SMTPHost == "" {
+		return fmt.Errorf("SMTP host not configured")
+	}
+
 	addr := fmt.Sprintf("%s:%d", s.config.SMTPHost, s.config.SMTPPort)
 
-	client, err := smtp.Dial(addr)
-	if err != nil {
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer client.Close()
+	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 
-	if s.config.UseTLS {
-		tlsConfig := &tls.Config{
-			ServerName:         s.config.SMTPHost,
-			InsecureSkipVerify: false,
-		}
-		if err = client.StartTLS(tlsConfig); err != nil {
-			return fmt.Errorf("failed to start TLS: %w", err)
-		}
-	}
+	// Create a channel to signal completion
+	done := make(chan error, 1)
 
-	return client.Quit()
+	go func() {
+		client, err := smtp.Dial(addr)
+		if err != nil {
+			done <- fmt.Errorf("failed to connect to SMTP server %s: %w", addr, err)
+			return
+		}
+		defer client.Close()
+
+		if s.config.UseTLS {
+			tlsConfig := &tls.Config{
+				ServerName:         s.config.SMTPHost,
+				InsecureSkipVerify: false,
+			}
+			if err = client.StartTLS(tlsConfig); err != nil {
+				done <- fmt.Errorf("failed to start TLS: %w", err)
+				return
+			}
+		}
+
+		done <- client.Quit()
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-testCtx.Done():
+		return fmt.Errorf("SMTP connection timeout")
+	}
 }

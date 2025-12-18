@@ -101,7 +101,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	output, err := h.Execute(ctx, input)
+	output, err := h.service.Execute(ctx, input)
 	if err != nil {
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
@@ -140,7 +140,11 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 	input := &Input{
 		AuthCode: variables["authCode"].(string),
-		Email:    variables["email"].(string),
+	}
+
+	// Email is optional but recommended for validation
+	if email, ok := variables["email"].(string); ok && email != "" {
+		input.Email = email
 	}
 
 	if redirectURI, ok := variables["redirectUri"].(string); ok && redirectURI != "" {
@@ -170,17 +174,25 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	variables := map[string]interface{}{
-		"success":   output.Success,
-		"userId":    output.UserID,
-		"email":     output.Email,
-		"firstName": output.FirstName,
-		"lastName":  output.LastName,
-		"token":     output.Token,
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"accessToken":   output.AccessToken,  // FIXED: Return Keycloak tokens
+		"refreshToken":  output.RefreshToken, // FIXED: Return Keycloak tokens
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"emailVerified": output.EmailVerified,
+		"passwordSet":   output.PasswordSet,
 	}
 
 	if output.CRMContactID != "" {
 		variables["crmContactId"] = output.CRMContactID
 	}
+
+	// Also include the single token field for backward compatibility (optional)
+	variables["token"] = output.Token
 
 	request, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromMap(variables)
 	if err != nil {
@@ -205,7 +217,6 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 			"userId":        output.UserID,
 			"crmContactId":  output.CRMContactID,
 			"emailVerified": output.EmailVerified,
-			"passwordSet":   output.PasswordSet,
 			"worker":        TaskType,
 		})
 	}
@@ -306,6 +317,7 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	// Test Keycloak connectivity
 	testUser, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
 	if err != nil {
 		if stdErr, ok := err.(*errors.StandardError); ok {
@@ -389,6 +401,5 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 }
 
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	// Delegate to the service layer for business logic
 	return h.service.Execute(ctx, input)
 }

@@ -5,42 +5,48 @@ import "camunda-workers/internal/common/validation"
 func GetInputSchema() validation.JSONSchema {
 	return validation.JSONSchema{
 		Type:     "object",
-		Required: []string{"userId", "token"},
+		Required: []string{"userId"},
 		Properties: map[string]validation.Property{
 			"userId": {
 				Type:        "string",
-				Description: "User identifier",
+				Description: "Keycloak user identifier (required for all logout operations)",
 				MinLength:   intPtr(3),
 				MaxLength:   intPtr(255),
 			},
-			"token": {
+			"refreshToken": {
 				Type:        "string",
-				Description: "Authentication token to revoke",
+				Description: "Keycloak refresh token to revoke (required for single session logout)",
+				MinLength:   intPtr(10),
+				MaxLength:   intPtr(2000),
+			},
+			"accessToken": {
+				Type:        "string",
+				Description: "Keycloak access token to add to revocation list (optional)",
 				MinLength:   intPtr(10),
 				MaxLength:   intPtr(2000),
 			},
 			"sessionId": {
 				Type:        "string",
-				Description: "Session identifier to invalidate",
+				Description: "Local session identifier to invalidate (optional)",
 				MaxLength:   intPtr(255),
 			},
 			"deviceId": {
 				Type:        "string",
-				Description: "Device identifier",
+				Description: "Device identifier for audit logging (optional)",
 				MaxLength:   intPtr(255),
 			},
 			"logoutAll": {
 				Type:        "boolean",
-				Description: "Whether to logout from all sessions",
+				Description: "Whether to logout from all sessions (global logout)",
 			},
 			"reason": {
 				Type:        "string",
-				Description: "Reason for logout",
+				Description: "Reason for logout (for audit trail)",
 				MaxLength:   intPtr(500),
 			},
 			"metadata": {
 				Type:        "object",
-				Description: "Additional metadata",
+				Description: "Additional metadata for audit logging",
 			},
 		},
 		AdditionalProperties: false,
@@ -57,19 +63,19 @@ func GetOutputSchema() validation.JSONSchema {
 			},
 			"message": {
 				Type:        "string",
-				Description: "Result message",
+				Description: "Result message describing what happened",
 			},
 			"sessionsInvalidated": {
 				Type:        "integer",
-				Description: "Number of sessions invalidated",
+				Description: "Number of sessions that were invalidated",
 			},
 			"tokenRevoked": {
 				Type:        "boolean",
-				Description: "Whether token was revoked",
+				Description: "Whether Keycloak tokens were successfully revoked",
 			},
 			"logoutAt": {
 				Type:        "string",
-				Description: "Timestamp of logout",
+				Description: "ISO 8601 timestamp of when logout occurred",
 			},
 		},
 		AdditionalProperties: false,

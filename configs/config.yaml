@@ -1,101 +1,274 @@
+# ============================================================================
+# APPLICATION CONFIGURATION
+# ============================================================================
 app:
   name: camunda-workers
   version: 1.0.0
   environment: development
 
-camunda:
-  broker_address: zeebe:26500
-  oauth:
+# ============================================================================
+# API GATEWAY CONFIGURATION
+# ============================================================================
+api:
+  port: 8080
+  readTimeout: 30
+  writeTimeout: 30
+  idleTimeout: 120
+  
+  rateLimit:
     enabled: true
-    client_id: "worker-client"
-    client_secret: "worker-secret"
-    token_url: "http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token"
-    audience: "zeebe-api"
-  max_jobs_active: 10
-  timeout: 30000
-  request_timeout: 5000
+    requestsPerSecond: 100
+    burst: 200
+  
+  cors:
+    allowOrigins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+      - "https://lemici.com"
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "PATCH"
+      - "DELETE"
+      - "OPTIONS"
+    allowHeaders:
+      - "Origin"
+      - "Content-Type"
+      - "Accept"
+      - "Authorization"
+      - "X-Request-ID"
+      - "X-Session-ID"
+    exposeHeaders:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+    allowCredentials: true
+    maxAge: 86400
 
-database:
-  postgres:
-    host: postgres
-    port: 5432
-    database: franchises
-    user: postgres
-    password: postgres
-    max_connections: 20
-    max_idle: 5
-    sslmode: disable
-  elasticsearch:
-    addresses: 
-      - http://elasticsearch:9200
-    username: ""
-    password: ""
-    ssl_enabled: false
-  redis:
-    address: redis:6379
-    password: ""
-    db: 0
-
+# ============================================================================
+# AUTHENTICATION & AUTHORIZATION
+# ============================================================================
 auth:
+  # JWT Configuration
+  jwt:
+    secret: "your-super-secret-jwt-key-change-this-in-production-min-32-chars"
+    issuer: "lemici-platform"
+    expiryHours: 24
+    refreshExpiryHours: 168
+    algorithm: "HS256"
+  
+  # Keycloak Configuration
   keycloak:
     url: "http://keycloak:8080"
     realm: "camunda-platform"
+    client_id: "camunda-worker-client"
+    client_secret: "worker-client-secret"
     admin_client_id: "admin-cli"
-    admin_client_secret: "${KEYCLOAK_ADMIN_CLIENT_SECRET}"
+    admin_client_secret: "admin-client-secret"
+  
+  # OAuth Providers
   oauth_providers:
     google:
-      client_id: "${GOOGLE_CLIENT_ID}"
-      client_secret: "${GOOGLE_CLIENT_SECRET}"
-      # redirect_uri: "http://localhost:3000/auth/callback/google"
-      redirect_uri: "http://localhost/dummy"    
+      client_id: "mock-google-client-id.apps.googleusercontent.com"
+      client_secret: "mock_google_client_secret_dev123456"
+      redirect_uri: "http://localhost:3000/auth/callback/google"
     linkedin:
-      client_id: "${LINKEDIN_CLIENT_ID}"
-      client_secret: "${LINKEDIN_CLIENT_SECRET}"
-      # redirect_uri: "http://localhost:3000/auth/callback/linkedin"
-      redirect_uri: "http://localhost/dummy"
+      client_id: "mock_linkedin_client_id_dev78901234"
+      client_secret: "mock_linkedin_client_secret_dev567890"
+      redirect_uri: "http://localhost:3000/auth/callback/linkedin"
 
+# ============================================================================
+# CAMUNDA/ZEEBE CONFIGURATION
+# ============================================================================
+camunda:
+  broker_address: "localhost:26500"
+  gateway_address: "localhost:26500"
+  max_jobs_active: 10
+  timeout: 30000
+  request_timeout: 30000
+  use_plaintext_auth: true
+  keep_alive: 45
+  insecure_skip_verify: false
+  ca_cert_path: ""
+  
+  # Worker Configuration
+  worker:
+    max_jobs_active: 5
+    concurrency: 3
+    poll_interval: "100ms"
+    timeout: "60s"
+  
+  # OAuth Configuration for Zeebe
+  oauth:
+    enabled: false
+    client_id: "worker-client"
+    client_secret: "worker-secret"
+    token_url: "http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token"
+    audience: "zeebe-api"
 
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+database:
+  # PostgreSQL
+  postgres:
+    host: "postgres"
+    port: 5432
+    database: "franchises"
+    user: "postgres"
+    password: "postgres"
+    max_connections: 20
+    max_idle: 5
+    sslmode: "disable"
+  
+  # Elasticsearch
+  elasticsearch:
+    addresses: 
+      - "http://elasticsearch:9200"
+    username: "elastic"
+    password: "elastic"
+    ssl_enabled: false
+    indices:
+      food: "food_beverage_franchises"
+      education: "education_franchises"
+      fashion: "fashion_franchises"
+      all: "franchises_all"
+    timeout: "30s"
+    sniff: false
+  
+  # Redis
+  redis:
+    address: "redis:6379"
+    password: ""
+    db: 0
+
+# ============================================================================
+# EXTERNAL INTEGRATIONS
+# ============================================================================
 integrations:
+  # Zoho CRM
   zoho:
-    api_key: "${ZOHO_CRM_API_KEY}"
-    oauth_token: "${ZOHO_CRM_OAUTH_TOKEN}"
+    api_key: "mock_zoho_dev_key_1234567890abcdefghij"
+    oauth_token: "mock_zoho_oauth_dev_token_abcdef1234567890"
+  
+  # AWS Services
   aws:
     ses:
       enabled: true
-      from_email: "noreply@franchisehub.com"
+      from_email: "noreply@franchisehub-dev.com"
       region: "us-east-1"
     sns:
       enabled: true
       default_sms_sender_id: "FranchiseHub"
       region: "us-east-1"
-
+  
+  # SMTP (Fallback/Development)
   smtp:
     host: "localhost"
     port: 1025
     username: "test"
     password: "test"
     use_tls: false
-    default_from: "noreply@franchisehub.dev" 
+    default_from: "noreply@franchisehub.dev"
 
+# ============================================================================
+# EXTERNAL APIs
+# ============================================================================
 apis:
+  # GenAI Service
   genai:
-    base_url: "http://genai-service:8080"
+    base_url: "http://localhost:8081"
     timeout: 10000
-    api_key: "${GENAI_API_KEY}"
+    api_key: "mock_genai_dev_key_a1b2c3d4e5f6g7h8i9j0"
+  
+  # Web Search
   web_search:
     base_url: "https://www.googleapis.com/customsearch/v1"
-    api_key: "${WEB_SEARCH_API_KEY}"
-    engine_id: "${WEB_SEARCH_ENGINE_ID}"
+    api_key: "mock_search_dev_key_k1l2m3n4o5p6q7r8s9t0"
+    engine_id: "mock_engine_id_u1v2w3x4y5z6"
     timeout: 10000
 
+# ============================================================================
+# FRANCHISE SEARCH CONFIGURATION
+# ============================================================================
+franchise_search:
+  default_limit: 10
+  max_limit: 100
+  fuzziness: "AUTO"
+  min_score: 0.5
+  enable_suggestions: true
+  enable_aggregations: true
+  enable_spell_check: true
+  default_sort: "relevance"
+  cache_ttl: 300
+
+# ============================================================================
+# SECURITY CONFIGURATION
+# ============================================================================
 security:
+  # reCAPTCHA
   recaptcha:
-    secret_key: "dummy-key"
-    verify_url: "http://localhost/recaptcha"
+    secret_key: "mock_recaptcha_secret_key_dev_6LcAbcDeFgHiJkLmNoPqRsTuVwXyZ"
+    verify_url: "https://www.google.com/recaptcha/api/siteverify"
+  
+  # TLS/SSL
+  tls:
+    enabled: false
+    certFile: ""
+    keyFile: ""
+  
+  # Request Validation
+  requestValidation:
+    maxBodySize: 5242880
+    maxHeaderSize: 1048576
+  
+  # IP Whitelist
+  ipWhitelist:
+    enabled: false
+    allowedIPs:
+      - "127.0.0.1"
+      - "::1"
 
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+monitoring:
+  # Metrics (Prometheus)
+  metrics:
+    enabled: true
+    path: "/metrics"
+    port: 9090
+  
+  # Distributed Tracing (Jaeger)
+  tracing:
+    enabled: false
+    serviceName: "lemici-api-gateway"
+    endpoint: "http://localhost:14268/api/traces"
+  
+  # Health Checks
+  healthCheck:
+    enabled: true
+    path: "/health"
+    interval: 30
 
+# ============================================================================
+# WORKFLOW CONFIGURATION
+# ============================================================================
+workflows:
+  defaultTimeout: 300
+  maxRetries: 3
+  retryBackoff: 2
+  
+  contextStorage:
+    enabled: true
+    backend: "redis"
+    ttl: 3600
+
+# ============================================================================
+# WORKER CONFIGURATION
+# ============================================================================
 workers:
-  # Infrastructure Workers
   validate-subscription:
     enabled: true
     max_jobs_active: 5
@@ -111,7 +284,6 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
-  # Data Access Workers
   query-postgresql:
     enabled: true
     max_jobs_active: 10
@@ -122,7 +294,6 @@ workers:
     max_jobs_active: 10
     timeout: 30000
 
-  # Business Logic Workers - Franchise
   parse-search-filters:
     enabled: true
     max_jobs_active: 5
@@ -138,7 +309,13 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
-  # Business Logic Workers - Application
+  search-franchises:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 60000
+    job_type: "search-franchises"
+    concurrency: 3
+
   validate-application-data:
     enabled: true
     max_jobs_active: 5
@@ -164,7 +341,6 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
-  # AI/ML Workers
   parse-user-intent:
     enabled: true
     max_jobs_active: 5
@@ -185,7 +361,6 @@ workers:
     max_jobs_active: 5
     timeout: 5000
 
-  # Authentication & Utility Workers
   auth-signin-google:
     enabled: true
     max_jobs_active: 5
@@ -226,11 +401,17 @@ workers:
     max_jobs_active: 5
     timeout: 15000
 
+# ============================================================================
+# LOGGING CONFIGURATION
+# ============================================================================
 logging:
-  level: debug
-  format: console
-  output: stdout
+  level: "debug"
+  format: "console"
+  output: "stdout"
 
+# ============================================================================
+# TEMPLATE CONFIGURATION
+# ============================================================================
 template:
   template_rules:
     route:
@@ -245,23 +426,463 @@ template:
       signin: sign-in-confirmation
   registry_path: "configs/templates.json"
 
+# # ============================================================================
+# # APPLICATION CONFIGURATION
+# # ============================================================================
+# app:
+#   name: camunda-workers
+#   version: 1.0.0
+#   environment: development
 
-  # configs/config.yaml
-# BASE configuration - Environment-agnostic defaults
-# Secrets are referenced as ${ENV_VAR} and loaded from .env
+# # ============================================================================
+# # SERVER CONFIGURATION
+# # ============================================================================
+# server:
+#   port: 8080
+#   env: development
+
+# # ============================================================================
+# # API GATEWAY CONFIGURATION
+# # ============================================================================
+# api:
+#   port: 8080
+#   readTimeout: 30
+#   writeTimeout: 30
+#   idleTimeout: 120
+  
+#   rateLimit:
+#     enabled: true
+#     requestsPerSecond: 100
+#     burst: 200
+  
+#   cors:
+#     allowOrigins:
+#       - "http://localhost:3000"
+#       - "http://localhost:5173"
+#       - "https://lemici.com"
+#     allowMethods:
+#       - "GET"
+#       - "POST"
+#       - "PUT"
+#       - "PATCH"
+#       - "DELETE"
+#       - "OPTIONS"
+#     allowHeaders:
+#       - "Origin"
+#       - "Content-Type"
+#       - "Accept"
+#       - "Authorization"
+#       - "X-Request-ID"
+#       - "X-Session-ID"
+#     exposeHeaders:
+#       - "X-Request-ID"
+#       - "X-RateLimit-Limit"
+#       - "X-RateLimit-Remaining"
+#     allowCredentials: true
+#     maxAge: 86400
+
+# # ============================================================================
+# # AUTHENTICATION & AUTHORIZATION
+# # ============================================================================
+# auth:
+#   # JWT Configuration
+#   jwt:
+#     secret: "${JWT_SECRET}"
+#     issuer: "lemici-platform"
+#     expiryHours: 24
+#     refreshExpiryHours: 168
+#     algorithm: "HS256"
+  
+#   # Keycloak Configuration
+#   keycloak:
+#     url: "${KEYCLOAK_URL:http://keycloak:8080}"
+#     realm: "${KEYCLOAK_REALM:camunda-platform}"
+#     client_id: "${KEYCLOAK_CLIENT_ID}"
+#     client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+#     admin_client_id: "${KEYCLOAK_ADMIN_CLIENT_ID:admin-cli}"
+#     admin_client_secret: "${KEYCLOAK_ADMIN_CLIENT_SECRET}"
+  
+#   # OAuth Providers
+#   oauth_providers:
+#     google:
+#       client_id: "${GOOGLE_CLIENT_ID}"
+#       client_secret: "${GOOGLE_CLIENT_SECRET}"
+#       redirect_uri: "${GOOGLE_REDIRECT_URI:http://localhost:3000/auth/callback/google}"
+#     linkedin:
+#       client_id: "${LINKEDIN_CLIENT_ID}"
+#       client_secret: "${LINKEDIN_CLIENT_SECRET}"
+#       redirect_uri: "${LINKEDIN_REDIRECT_URI:http://localhost:3000/auth/callback/linkedin}"
+
+# # ============================================================================
+# # CAMUNDA/ZEEBE CONFIGURATION
+# # ============================================================================
+# camunda:
+#   broker_address: "${ZEEBE_ADDRESS:zeebe:26500}"
+#   gateway_address: "${ZEEBE_ADDRESS:zeebe:26500}"
+#   max_jobs_active: 10
+#   timeout: 30000
+#   request_timeout: 30000
+#   use_plaintext_auth: true
+#   keep_alive: 45
+#   insecure_skip_verify: false
+#   ca_cert_path: ""
+  
+#   # Worker Configuration
+#   worker:
+#     max_jobs_active: 5
+#     concurrency: 3
+#     poll_interval: "100ms"
+#     timeout: "60s"
+  
+#   # OAuth Configuration for Zeebe
+#   oauth:
+#     enabled: false
+#     client_id: "${ZEEBE_CLIENT_ID:worker-client}"
+#     client_secret: "${ZEEBE_CLIENT_SECRET:worker-secret}"
+#     token_url: "${ZEEBE_TOKEN_URL:http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token}"
+#     audience: "${ZEEBE_AUDIENCE:zeebe-api}"
+
+# # ============================================================================
+# # DATABASE CONFIGURATION
+# # ============================================================================
+# database:
+#   # PostgreSQL
+#   postgres:
+#     host: "${POSTGRES_HOST:postgres}"
+#     port: ${POSTGRES_PORT:5432}
+#     database: "${POSTGRES_DB:franchises}"
+#     user: "${POSTGRES_USER:postgres}"
+#     password: "${POSTGRES_PASSWORD:postgres}"
+#     max_connections: 20
+#     max_idle: 5
+#     sslmode: "${POSTGRES_SSLMODE:disable}"
+  
+#   # Elasticsearch
+#   elasticsearch:
+#     addresses: 
+#       - "${ELASTICSEARCH_URL:http://elasticsearch:9200}"
+#     username: "${ELASTICSEARCH_USER:}"
+#     password: "${ELASTICSEARCH_PASSWORD:}"
+#     ssl_enabled: false
+#     indices:
+#       food: "food_beverage_franchises"
+#       education: "education_franchises"
+#       fashion: "fashion_franchises"
+#       all: "franchises_all"
+#     timeout: "30s"
+#     sniff: false
+  
+#   # Redis
+#   redis:
+#     address: "${REDIS_ADDRESS:redis:6379}"
+#     password: "${REDIS_PASSWORD:}"
+#     db: ${REDIS_DB:0}
+
+# # ============================================================================
+# # EXTERNAL INTEGRATIONS
+# # ============================================================================
+# integrations:
+#   # Zoho CRM
+#   zoho:
+#     api_key: "${ZOHO_CRM_API_KEY}"
+#     oauth_token: "${ZOHO_CRM_OAUTH_TOKEN}"
+  
+#   # AWS Services
+#   aws:
+#     ses:
+#       enabled: true
+#       from_email: "${AWS_SES_FROM_EMAIL:noreply@franchisehub.com}"
+#       region: "${AWS_REGION:us-east-1}"
+#     sns:
+#       enabled: true
+#       default_sms_sender_id: "FranchiseHub"
+#       region: "${AWS_REGION:us-east-1}"
+  
+#   # SMTP (Fallback/Development)
+#   smtp:
+#     host: "${SMTP_HOST:localhost}"
+#     port: ${SMTP_PORT:1025}
+#     username: "${SMTP_USER:test}"
+#     password: "${SMTP_PASSWORD:test}"
+#     use_tls: false
+#     default_from: "${SMTP_FROM:noreply@franchisehub.dev}"
+
+# # ============================================================================
+# # EXTERNAL APIs
+# # ============================================================================
+# apis:
+#   # GenAI Service
+#   genai:
+#     base_url: "${GENAI_SERVICE_URL:http://genai-service:8080}"
+#     timeout: 10000
+#     api_key: "${GENAI_API_KEY}"
+  
+#   # Web Search
+#   web_search:
+#     base_url: "https://www.googleapis.com/customsearch/v1"
+#     api_key: "${WEB_SEARCH_API_KEY}"
+#     engine_id: "${WEB_SEARCH_ENGINE_ID}"
+#     timeout: 10000
+
+
+# # ============================================================================
+# # FRANCHISE SEARCH CONFIGURATION
+# # ============================================================================
+# franchise_search:
+#   default_limit: 10
+#   max_limit: 100
+#   fuzziness: "AUTO"
+#   min_score: 0.5
+#   enable_suggestions: true
+#   enable_aggregations: true
+#   enable_spell_check: true
+#   default_sort: "relevance" # relevance, rating, investment
+#   cache_ttl: 300 # seconds
+
+# # ============================================================================
+# # SECURITY CONFIGURATION
+# # ============================================================================
+# security:
+#   # reCAPTCHA
+#   recaptcha:
+#     secret_key: "${RECAPTCHA_SECRET_KEY:dummy-key}"
+#     verify_url: "https://www.google.com/recaptcha/api/siteverify"
+  
+#   # TLS/SSL
+#   tls:
+#     enabled: false
+#     certFile: "${TLS_CERT_FILE:}"
+#     keyFile: "${TLS_KEY_FILE:}"
+  
+#   # Request Validation
+#   requestValidation:
+#     maxBodySize: 5242880   # 5MB
+#     maxHeaderSize: 1048576 # 1MB
+  
+#   # IP Whitelist (Optional)
+#   ipWhitelist:
+#     enabled: false
+#     allowedIPs:
+#       - "127.0.0.1"
+#       - "::1"
+
+# # ============================================================================
+# # MONITORING & OBSERVABILITY
+# # ============================================================================
+# monitoring:
+#   # Metrics (Prometheus)
+#   metrics:
+#     enabled: true
+#     path: "/metrics"
+#     port: 9090
+  
+#   # Distributed Tracing (Jaeger)
+#   tracing:
+#     enabled: false
+#     serviceName: "lemici-api-gateway"
+#     endpoint: "${JAEGER_ENDPOINT:http://localhost:14268/api/traces}"
+  
+#   # Health Checks
+#   healthCheck:
+#     enabled: true
+#     path: "/health"
+#     interval: 30
+
+# # ============================================================================
+# # WORKFLOW CONFIGURATION
+# # ============================================================================
+# workflows:
+#   defaultTimeout: 300
+#   maxRetries: 3
+#   retryBackoff: 2
+  
+#   contextStorage:
+#     enabled: true
+#     backend: "redis"
+#     ttl: 3600
+
+# # ============================================================================
+# # WORKER CONFIGURATION (26 WORKERS)
+# # ============================================================================
+# workers:
+#   # Infrastructure Workers
+#   validate-subscription:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   build-response:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   select-template:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   # Data Access Workers
+#   query-postgresql:
+#     enabled: true
+#     max_jobs_active: 10
+#     timeout: 30000
+
+#   query-elasticsearch:
+#     enabled: true
+#     max_jobs_active: 10
+#     timeout: 30000
+
+#   # Business Logic Workers - Franchise
+#   parse-search-filters:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   apply-relevance-ranking:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   calculate-match-score:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   search-franchises:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 60000
+#     job_type: "search-franchises"
+#     concurrency: 3
+
+#   # Business Logic Workers - Application
+#   validate-application-data:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   check-readiness-score:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   check-priority-routing:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   create-application-record:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   send-notification:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   # AI/ML Workers
+#   parse-user-intent:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   query-internal-data:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   enrich-web-search:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   llm-synthesis:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 5000
+
+#   # Authentication & Utility Workers
+#   auth-signin-google:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   auth-signin-linkedin:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   auth-signup-google:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   auth-signup-linkedin:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   auth-logout:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 5000
+
+#   captcha-verify:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 10000
+
+#   crm-user-create:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 20000
+
+#   email-send:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 15000
+
+# # ============================================================================
+# # LOGGING CONFIGURATION
+# # ============================================================================
+# logging:
+#   level: "${LOG_LEVEL:debug}"
+#   format: "${LOG_FORMAT:console}"
+#   output: "${LOG_OUTPUT:stdout}"
+
+# # ============================================================================
+# # TEMPLATE CONFIGURATION
+# # ============================================================================
+# template:
+#   template_rules:
+#     route:
+#       /franchises/detail:free: franchise-detail-basic
+#       /franchises/detail:premium: franchise-detail-premium
+#       /franchises/explore:free: franchise-list-limited
+#       /franchises/explore:premium: franchise-list-full
+#       /franchises/detail:fallback: franchise-detail-basic
+#       /franchises/explore:fallback: franchise-list-limited
+#     flow:
+#       signup: welcome-email
+#       signin: sign-in-confirmation
+#   registry_path: "${TEMPLATE_REGISTRY_PATH:configs/templates.json}"
+
+
+
 
 # app:
 #   name: camunda-workers
 #   version: 1.0.0
-#   environment: production  # Default
+#   environment: development
 
 # camunda:
 #   broker_address: zeebe:26500
 #   oauth:
 #     enabled: true
-#     client_id: "${ZEEBE_CLIENT_ID}"
-#     client_secret: "${ZEEBE_CLIENT_SECRET}"
-#     token_url: "${ZEEBE_AUTHORIZATION_SERVER_URL}/protocol/openid-connect/token"
+#     client_id: "worker-client"
+#     client_secret: "worker-secret"
+#     token_url: "http://keycloak:8080/realms/camunda-platform/protocol/openid-connect/token"
 #     audience: "zeebe-api"
 #   max_jobs_active: 10
 #   timeout: 30000
@@ -272,66 +893,68 @@ template:
 #     host: postgres
 #     port: 5432
 #     database: franchises
-#     user: "${DB_USER}"
-#     password: "${DB_PASSWORD}"
+#     user: postgres
+#     password: postgres
 #     max_connections: 20
 #     max_idle: 5
-#     sslmode: require
+#     sslmode: disable
 #   elasticsearch:
 #     addresses: 
-#       - "${ES_URLS}"
-#     username: "${ES_USERNAME}"
-#     password: "${ES_PASSWORD}"
-#     ssl_enabled: true
+#       - http://elasticsearch:9200
+#     username: ""
+#     password: ""
+#     ssl_enabled: false
 #   redis:
 #     address: redis:6379
-#     password: "${REDIS_PASSWORD}"
+#     password: ""
 #     db: 0
 
 # auth:
 #   keycloak:
-#     url: "${KEYCLOAK_URL}"
-#     realm: "${KEYCLOAK_REALM}"
-#     admin_client_id: "${KEYCLOAK_CLIENT_ID}"
-#     admin_client_secret: "${KEYCLOAK_CLIENT_SECRET}"
-  
+#     url: "http://keycloak:8080"
+#     realm: "camunda-platform"
+#     admin_client_id: "admin-cli"
+#     admin_client_secret: "${KEYCLOAK_ADMIN_CLIENT_SECRET}"
 #   oauth_providers:
 #     google:
 #       client_id: "${GOOGLE_CLIENT_ID}"
 #       client_secret: "${GOOGLE_CLIENT_SECRET}"
-#       redirect_uri: "${GOOGLE_REDIRECT_URI}"
+#       # redirect_uri: "http://localhost:3000/auth/callback/google"
+#       redirect_uri: "http://localhost/dummy"    
 #     linkedin:
 #       client_id: "${LINKEDIN_CLIENT_ID}"
 #       client_secret: "${LINKEDIN_CLIENT_SECRET}"
-#       redirect_uri: "${LINKEDIN_REDIRECT_URI}"
+#       # redirect_uri: "http://localhost:3000/auth/callback/linkedin"
+#       redirect_uri: "http://localhost/dummy"
+
 
 # integrations:
 #   zoho:
 #     api_key: "${ZOHO_CRM_API_KEY}"
 #     oauth_token: "${ZOHO_CRM_OAUTH_TOKEN}"
-  
 #   aws:
-#     region: "${AWS_REGION}"
 #     ses:
 #       enabled: true
-#       from_email: "${AWS_SES_FROM_EMAIL}"
+#       from_email: "noreply@franchisehub.com"
+#       region: "us-east-1"
 #     sns:
 #       enabled: true
 #       default_sms_sender_id: "FranchiseHub"
-  
+#       region: "us-east-1"
+
 #   smtp:
-#     host: "${SMTP_HOST}"
-#     port: 587
-#     username: "${SMTP_USERNAME}"
-#     password: "${SMTP_PASSWORD}"
-#     use_tls: true
-#     default_from: "${SMTP_FROM}"
+#     host: "localhost"
+#     port: 1025
+#     username: "test"
+#     password: "test"
+#     use_tls: false
+#     default_from: "noreply@franchisehub.dev" 
 
 # apis:
 #   genai:
-#     base_url: "${GENAI_BASE_URL}"
-#     api_key: "${GENAI_API_KEY}"
+#     base_url: "http://genai-service:8080"
 #     timeout: 10000
+#     api_key: "${GENAI_API_KEY}"
 #   web_search:
 #     base_url: "https://www.googleapis.com/customsearch/v1"
 #     api_key: "${WEB_SEARCH_API_KEY}"
@@ -340,175 +963,146 @@ template:
 
 # security:
 #   recaptcha:
-#     secret_key: "${RECAPTCHA_SECRET_KEY}"
-#     verify_url: "https://www.google.com/recaptcha/api/siteverify"
+#     secret_key: "dummy-key"
+#     verify_url: "http://localhost/recaptcha"
 
-# # Worker configurations with sensible defaults
+
 # workers:
+#   # Infrastructure Workers
 #   validate-subscription:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 3
 
 #   build-response:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
 
 #   select-template:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 1
 
+#   # Data Access Workers
 #   query-postgresql:
 #     enabled: true
 #     max_jobs_active: 10
 #     timeout: 30000
-#     max_retries: 3
 
 #   query-elasticsearch:
 #     enabled: true
 #     max_jobs_active: 10
 #     timeout: 30000
-#     max_retries: 3
 
+#   # Business Logic Workers - Franchise
 #   parse-search-filters:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
 
 #   apply-relevance-ranking:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
 #   calculate-match-score:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
+#   # Business Logic Workers - Application
 #   validate-application-data:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
 
 #   check-readiness-score:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
 #   check-priority-routing:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
 
 #   create-application-record:
 #     enabled: true
-#     max_jobs_active: 3
-#     timeout: 20000
-#     max_retries: 5
+#     max_jobs_active: 5
+#     timeout: 10000
 
 #   send-notification:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
+#   # AI/ML Workers
 #   parse-user-intent:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
 #   query-internal-data:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 20000
-#     max_retries: 3
+#     timeout: 10000
 
 #   enrich-web-search:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
 
 #   llm-synthesis:
 #     enabled: true
-#     max_jobs_active: 3
-#     timeout: 20000
-#     max_retries: 1
+#     max_jobs_active: 5
+#     timeout: 5000
 
+#   # Authentication & Utility Workers
 #   auth-signin-google:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
 #   auth-signin-linkedin:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 15000
-#     max_retries: 3
+#     timeout: 10000
 
 #   auth-signup-google:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 20000
-#     max_retries: 3
+#     timeout: 10000
 
 #   auth-signup-linkedin:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 20000
-#     max_retries: 3
+#     timeout: 10000
 
 #   auth-logout:
 #     enabled: true
 #     max_jobs_active: 5
-#     timeout: 10000
-#     max_retries: 1
+#     timeout: 5000
 
 #   captcha-verify:
 #     enabled: true
-#     max_jobs_active: 10
+#     max_jobs_active: 5
 #     timeout: 10000
-#     max_retries: 2
+
+#   crm-user-create:
+#     enabled: true
+#     max_jobs_active: 5
+#     timeout: 20000
 
 #   email-send:
 #     enabled: true
 #     max_jobs_active: 5
 #     timeout: 15000
-#     max_retries: 3
-
-#   crm-user-create:
-#     enabled: true
-#     max_jobs_active: 3
-#     timeout: 20000
-#     max_retries: 5
 
 # logging:
-#   level: info
-#   format: json
+#   level: debug
+#   format: console
 #   output: stdout
-
-# notifications:
-#   email:
-#     enabled: true
-#     from_email: "${AWS_SES_FROM_EMAIL}"
-#   sms:
-#     enabled: true
-#     priority_threshold: "high"
-#   aws:
-#     region: "${AWS_REGION}"
 
 # template:
 #   template_rules:
@@ -523,3 +1117,4 @@ template:
 #       signup: welcome-email
 #       signin: sign-in-confirmation
 #   registry_path: "configs/templates.json"
+

@@ -1,6 +1,79 @@
 # Auth Logout Worker
 
 ## Description
+Handles user logout operations with support for single-session and global (all devices) logout.
+
+## Activity Type
+`auth.logout`
+
+## Features
+- ✅ Single session logout (revoke specific refresh token)
+- ✅ Global logout (revoke all user sessions)
+- ✅ Keycloak integration for token revocation
+- ✅ Redis session cleanup
+- ✅ Access token revocation list
+- ✅ Audit trail logging (90-day retention)
+
+## Dependencies
+- **Keycloak**: For OAuth token revocation
+- **Redis**: For session management and audit logging (optional)
+- **Camunda**: For workflow orchestration
+
+## Input Schema
+
+### Required Fields
+- `userId` (string): Keycloak user ID
+
+### Optional Fields
+- `refreshToken` (string): Refresh token to revoke (required for single session logout)
+- `accessToken` (string): Access token to add to revocation list
+- `sessionId` (string): Local session ID to invalidate
+- `deviceId` (string): Device identifier for audit logging
+- `logoutAll` (boolean): If true, logout from all sessions
+- `reason` (string): Logout reason (e.g., "user_initiated", "password_changed")
+- `metadata` (object): Additional audit metadata
+
+## Output Schema
+```json
+{
+  "success": true,
+  "message": "Logged out successfully",
+  "sessionsInvalidated": 1,
+  "tokenRevoked": true,
+  "logoutAt": "2025-12-11T10:30:00Z"
+}
+```
+
+## Usage Examples
+
+### Single Session Logout
+```json
+{
+  "userId": "user-123",
+  "refreshToken": "rt_abc123...",
+  "accessToken": "at_xyz789...",
+  "sessionId": "sess-456",
+  "deviceId": "device-iphone-12",
+  "reason": "user_initiated"
+}
+```
+
+### Global Logout (All Devices)
+```json
+{
+  "userId": "user-123",
+  "logoutAll": true,
+  "reason": "password_changed"
+}
+```
+
+## Architecture
+
+### Logout Flow
+
+<!-- # Auth Logout Worker
+
+## Description
 Handles user logout and session invalidation in Keycloak.
 
 ## Activity Type
@@ -113,4 +186,4 @@ docker logs worker-auth-logout 2>&1 | grep ERROR
 - auth-signup-google
 - auth-signin-google
 - auth-signup-linkedin
-- auth-signin-linkedin
+- auth-signin-linkedin -->

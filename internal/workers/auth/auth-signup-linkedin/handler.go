@@ -170,17 +170,25 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	variables := map[string]interface{}{
-		"success":   output.Success,
-		"userId":    output.UserID,
-		"email":     output.Email,
-		"firstName": output.FirstName,
-		"lastName":  output.LastName,
-		"token":     output.Token,
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"accessToken":   output.AccessToken,
+		"refreshToken":  output.RefreshToken,
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"emailVerified": output.EmailVerified,
+		"passwordSet":   output.PasswordSet,
 	}
 
 	if output.CRMContactID != "" {
 		variables["crmContactId"] = output.CRMContactID
 	}
+
+	// Also include the single token field for backward compatibility
+	variables["token"] = output.Token
 
 	request, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromMap(variables)
 	if err != nil {

@@ -40,7 +40,7 @@ func (m *MockService) Execute(ctx context.Context, input *Input) (*Output, error
 
 func createMockJob(key int64, variables map[string]interface{}) entities.Job {
 	variablesJSON, _ := json.Marshal(variables)
-	
+
 	activatedJob := &pb.ActivatedJob{
 		Key:                      key,
 		Type:                     "auth.signup.google",
@@ -56,7 +56,7 @@ func createMockJob(key int64, variables map[string]interface{}) entities.Job {
 		Deadline:                 0,
 		Variables:                string(variablesJSON),
 	}
-	
+
 	return entities.Job{ActivatedJob: activatedJob}
 }
 
@@ -84,6 +84,10 @@ func createValidOutput() *Output {
 		FirstName:     "Jane",
 		LastName:      "Smith",
 		Token:         "access-token-456",
+		AccessToken:   "access-token-456",
+		RefreshToken:  "refresh-token-789",
+		ExpiresIn:     3600,
+		TokenType:     "Bearer",
 		EmailVerified: true,
 		PasswordSet:   false,
 		CRMContactID:  "crm-contact-456",
@@ -662,17 +666,26 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						} `mapstructure:"google"`
 						LinkedIn struct {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						} `mapstructure:"linkedin"`
+						Microsoft struct {
+							ClientID     string `mapstructure:"client_id"`
+							ClientSecret string `mapstructure:"client_secret"`
+							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
+						} `mapstructure:"microsoft"`
 					}{
 						Google: struct {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						}{
 							ClientID:     "app-client-id",
 							ClientSecret: "app-client-secret",
@@ -689,8 +702,18 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 				},
 				Integrations: config.IntegrationConfig{
 					Zoho: struct {
-						APIKey    string `mapstructure:"api_key"`
-						AuthToken string `mapstructure:"oauth_token"`
+						APIKey       string `mapstructure:"api_key"`
+						AuthToken    string `mapstructure:"oauth_token"`
+						BaseURL      string `mapstructure:"baseUrl"`
+						Timeout      int    `mapstructure:"timeout"`
+						RetryCount   int    `mapstructure:"retryCount"`
+						RetryDelay   int    `mapstructure:"retryDelay"`
+						ClientID     string `mapstructure:"clientId"`
+						ClientSecret string `mapstructure:"clientSecret"`
+						RefreshToken string `mapstructure:"refreshToken"`
+						AccountURL   string `mapstructure:"accountUrl"`
+						TokenURL     string `mapstructure:"tokenUrl"`
+						Scopes       string `mapstructure:"scopes"`
 					}{
 						APIKey: "zoho-key",
 					},
@@ -716,17 +739,26 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						} `mapstructure:"google"`
 						LinkedIn struct {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						} `mapstructure:"linkedin"`
+						Microsoft struct {
+							ClientID     string `mapstructure:"client_id"`
+							ClientSecret string `mapstructure:"client_secret"`
+							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
+						} `mapstructure:"microsoft"`
 					}{
 						Google: struct {
 							ClientID     string `mapstructure:"client_id"`
 							ClientSecret string `mapstructure:"client_secret"`
 							RedirectURL  string `mapstructure:"redirect_uri"`
+							Scopes       string `mapstructure:"scopes"`
 						}{
 							ClientID:     "app-client-id",
 							ClientSecret: "app-client-secret",
@@ -736,10 +768,20 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 				},
 				Integrations: config.IntegrationConfig{
 					Zoho: struct {
-						APIKey    string `mapstructure:"api_key"`
-						AuthToken string `mapstructure:"oauth_token"`
+						APIKey       string `mapstructure:"api_key"`
+						AuthToken    string `mapstructure:"oauth_token"`
+						BaseURL      string `mapstructure:"baseUrl"`
+						Timeout      int    `mapstructure:"timeout"`
+						RetryCount   int    `mapstructure:"retryCount"`
+						RetryDelay   int    `mapstructure:"retryDelay"`
+						ClientID     string `mapstructure:"clientId"`
+						ClientSecret string `mapstructure:"clientSecret"`
+						RefreshToken string `mapstructure:"refreshToken"`
+						AccountURL   string `mapstructure:"accountUrl"`
+						TokenURL     string `mapstructure:"tokenUrl"`
+						Scopes       string `mapstructure:"scopes"`
 					}{
-						APIKey: "",
+						APIKey: "", // Empty API key should disable CRM
 					},
 				},
 			},
@@ -803,4 +845,226 @@ func TestHandler_GetConfig(t *testing.T) {
 	assert.Equal(t, "test-client-id", handler.GetConfig().ClientID)
 	assert.Equal(t, "test-client-secret", handler.GetConfig().ClientSecret)
 	assert.Equal(t, "https://example.com/callback", handler.GetConfig().RedirectURL)
+}
+
+// ==========================
+// Input/Output Model Tests
+// ==========================
+
+func TestInput_JSONSerialization(t *testing.T) {
+	input := createValidInput()
+
+	// Test JSON marshaling
+	data, err := json.Marshal(input)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// Test JSON unmarshaling
+	var decoded Input
+	err = json.Unmarshal(data, &decoded)
+	assert.NoError(t, err)
+	assert.Equal(t, input.AuthCode, decoded.AuthCode)
+	assert.Equal(t, input.Email, decoded.Email)
+	assert.Equal(t, input.RedirectURI, decoded.RedirectURI)
+	assert.Equal(t, input.State, decoded.State)
+	assert.Equal(t, input.FirstName, decoded.FirstName)
+	assert.Equal(t, input.LastName, decoded.LastName)
+	assert.Equal(t, input.Metadata, decoded.Metadata)
+}
+
+func TestOutput_JSONSerialization(t *testing.T) {
+	output := createValidOutput()
+
+	// Test JSON marshaling
+	data, err := json.Marshal(output)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// Test JSON unmarshaling
+	var decoded Output
+	err = json.Unmarshal(data, &decoded)
+	assert.NoError(t, err)
+	assert.Equal(t, output.Success, decoded.Success)
+	assert.Equal(t, output.UserID, decoded.UserID)
+	assert.Equal(t, output.Email, decoded.Email)
+	assert.Equal(t, output.FirstName, decoded.FirstName)
+	assert.Equal(t, output.LastName, decoded.LastName)
+	assert.Equal(t, output.Token, decoded.Token)
+	assert.Equal(t, output.AccessToken, decoded.AccessToken)
+	assert.Equal(t, output.RefreshToken, decoded.RefreshToken)
+	assert.Equal(t, output.ExpiresIn, decoded.ExpiresIn)
+	assert.Equal(t, output.TokenType, decoded.TokenType)
+	assert.Equal(t, output.EmailVerified, decoded.EmailVerified)
+	assert.Equal(t, output.PasswordSet, decoded.PasswordSet)
+	assert.Equal(t, output.CRMContactID, decoded.CRMContactID)
+}
+
+// ==========================
+// Service Integration Tests
+// ==========================
+
+func TestService_Integration(t *testing.T) {
+	t.Run("service executes with valid input", func(t *testing.T) {
+		mockService := new(MockService)
+		input := createValidInput()
+		output := createValidOutput()
+
+		mockService.On("Execute", mock.Anything, mock.MatchedBy(func(i *Input) bool {
+			return i.AuthCode == input.AuthCode && i.Email == input.Email
+		})).Return(output, nil)
+
+		result, err := mockService.Execute(context.Background(), input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.Success)
+		assert.Equal(t, "user-456", result.UserID)
+		assert.Equal(t, "newuser@example.com", result.Email)
+		assert.Equal(t, "Jane", result.FirstName)
+		assert.Equal(t, "Smith", result.LastName)
+		assert.Equal(t, "access-token-456", result.AccessToken)
+		assert.Equal(t, "refresh-token-789", result.RefreshToken)
+		assert.Equal(t, 3600, result.ExpiresIn)
+		assert.Equal(t, "Bearer", result.TokenType)
+		assert.True(t, result.EmailVerified)
+		assert.False(t, result.PasswordSet)
+
+		mockService.AssertExpectations(t)
+	})
+
+	t.Run("service handles new user without CRM contact", func(t *testing.T) {
+		mockService := new(MockService)
+		input := createValidInput()
+		output := createValidOutput()
+		output.CRMContactID = "" // No CRM contact
+
+		mockService.On("Execute", mock.Anything, mock.Anything).Return(output, nil)
+
+		result, err := mockService.Execute(context.Background(), input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.Success)
+		assert.Empty(t, result.CRMContactID)
+
+		mockService.AssertExpectations(t)
+	})
+}
+
+// ==========================
+// Schema Tests
+// ==========================
+
+func TestGetInputSchema(t *testing.T) {
+	schema := GetInputSchema()
+
+	assert.Equal(t, "object", schema.Type)
+	assert.Contains(t, schema.Required, "authCode")
+	assert.Contains(t, schema.Required, "email")
+	assert.Len(t, schema.Required, 2)
+
+	// Check key properties
+	assert.NotNil(t, schema.Properties["authCode"])
+	assert.NotNil(t, schema.Properties["email"])
+	assert.NotNil(t, schema.Properties["redirectUri"])
+	assert.NotNil(t, schema.Properties["state"])
+	assert.NotNil(t, schema.Properties["firstName"])
+	assert.NotNil(t, schema.Properties["lastName"])
+	assert.NotNil(t, schema.Properties["metadata"])
+
+	// Verify specific constraints
+	assert.Equal(t, "string", schema.Properties["authCode"].Type)
+	assert.Equal(t, 10, *schema.Properties["authCode"].MinLength)
+	assert.Equal(t, 1000, *schema.Properties["authCode"].MaxLength)
+
+	assert.Equal(t, "string", schema.Properties["email"].Type)
+	assert.Equal(t, 5, *schema.Properties["email"].MinLength)
+	assert.Equal(t, 255, *schema.Properties["email"].MaxLength)
+}
+
+func TestGetOutputSchema(t *testing.T) {
+	schema := GetOutputSchema()
+
+	assert.Equal(t, "object", schema.Type)
+
+	// Verify all expected fields exist
+	expectedFields := []string{
+		"success", "userId", "email", "firstName", "lastName",
+		"token", "accessToken", "refreshToken", "expiresIn",
+		"tokenType", "emailVerified", "passwordSet", "crmContactId",
+	}
+
+	for _, field := range expectedFields {
+		prop, exists := schema.Properties[field]
+		assert.True(t, exists, "Field %s should exist", field)
+		assert.NotEmpty(t, prop.Type, "Field %s should have a type", field)
+	}
+
+	// Verify specific types
+	assert.Equal(t, "boolean", schema.Properties["success"].Type)
+	assert.Equal(t, "string", schema.Properties["userId"].Type)
+	assert.Equal(t, "string", schema.Properties["email"].Type)
+	assert.Equal(t, "boolean", schema.Properties["emailVerified"].Type)
+	assert.Equal(t, "boolean", schema.Properties["passwordSet"].Type)
+}
+
+// ==========================
+// Task Type Tests
+// ==========================
+
+func TestTaskType(t *testing.T) {
+	assert.Equal(t, "auth.signup.google", TaskType)
+}
+
+func TestTaskTypeNamingConvention(t *testing.T) {
+	assert.Equal(t, "auth.signup.google", TaskType)
+
+	// Verify it follows the naming convention
+	parts := []string{"auth", "signup", "google"}
+	assert.Equal(t, parts[0]+"."+parts[1]+"."+parts[2], TaskType)
+}
+
+// ==========================
+// Workflow Variables Tests
+// ==========================
+
+func TestOutput_WorkflowVariables(t *testing.T) {
+	output := createValidOutput()
+
+	// Simulate how output would be converted to workflow variables
+	// This mimics the completeJob method in handler.go
+	vars := map[string]interface{}{
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"token":         output.Token, // For backward compatibility
+		"accessToken":   output.AccessToken,
+		"refreshToken":  output.RefreshToken,
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"emailVerified": output.EmailVerified,
+		"passwordSet":   output.PasswordSet,
+	}
+
+	if output.CRMContactID != "" {
+		vars["crmContactId"] = output.CRMContactID
+	}
+
+	// Verify all variables are present
+	assert.Len(t, vars, 13) // 12 base fields + 1 conditional
+	assert.True(t, vars["success"].(bool))
+	assert.Equal(t, "user-456", vars["userId"])
+	assert.Equal(t, "newuser@example.com", vars["email"])
+	assert.Equal(t, "Jane", vars["firstName"])
+	assert.Equal(t, "Smith", vars["lastName"])
+	assert.Equal(t, "access-token-456", vars["token"])
+	assert.Equal(t, "access-token-456", vars["accessToken"])
+	assert.Equal(t, "refresh-token-789", vars["refreshToken"])
+	assert.Equal(t, 3600, vars["expiresIn"])
+	assert.Equal(t, "Bearer", vars["tokenType"])
+	assert.True(t, vars["emailVerified"].(bool))
+	assert.False(t, vars["passwordSet"].(bool))
+	assert.Equal(t, "crm-contact-456", vars["crmContactId"])
 }

@@ -71,13 +71,14 @@ func createMockJob(key int64, variables map[string]interface{}) entities.Job {
 
 func createValidInput() *Input {
 	return &Input{
-		UserID:    "user-123",
-		Token:     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test",
-		SessionID: "session-456",
-		DeviceID:  "device-789",
-		LogoutAll: false,
-		Reason:    "user_initiated",
-		Metadata:  map[string]interface{}{"ip": "192.168.1.1"},
+		UserID:       "user-123",
+		RefreshToken: "refresh-token-abc-123",
+		AccessToken:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test",
+		SessionID:    "session-456",
+		DeviceID:     "device-789",
+		LogoutAll:    false,
+		Reason:       "user_initiated",
+		Metadata:     map[string]interface{}{"ip": "192.168.1.1"},
 	}
 }
 
@@ -240,12 +241,13 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "valid input with all fields",
 			variables: map[string]interface{}{
-				"userId":    "user-123",
-				"token":     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test",
-				"sessionId": "session-456",
-				"deviceId":  "device-789",
-				"logoutAll": true,
-				"reason":    "security_concern",
+				"userId":       "user-123",
+				"refreshToken": "refresh-token-abc-123",
+				"accessToken":  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test",
+				"sessionId":    "session-456",
+				"deviceId":     "device-789",
+				"logoutAll":    true,
+				"reason":       "security_concern",
 				"metadata": map[string]interface{}{
 					"ip":        "192.168.1.1",
 					"userAgent": "Mozilla/5.0",
@@ -254,7 +256,8 @@ func TestHandler_ParseInput(t *testing.T) {
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
 				assert.Equal(t, "user-123", input.UserID)
-				assert.Equal(t, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test", input.Token)
+				assert.Equal(t, "refresh-token-abc-123", input.RefreshToken)
+				assert.Equal(t, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test", input.AccessToken)
 				assert.Equal(t, "session-456", input.SessionID)
 				assert.Equal(t, "device-789", input.DeviceID)
 				assert.True(t, input.LogoutAll)
@@ -264,15 +267,16 @@ func TestHandler_ParseInput(t *testing.T) {
 			},
 		},
 		{
-			name: "valid input minimal fields",
+			name: "valid input minimal required fields",
 			variables: map[string]interface{}{
-				"userId": "user-456",
-				"token":  "token-abc-123",
+				"userId":       "user-456",
+				"refreshToken": "refresh-token-xyz-789",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
 				assert.Equal(t, "user-456", input.UserID)
-				assert.Equal(t, "token-abc-123", input.Token)
+				assert.Equal(t, "refresh-token-xyz-789", input.RefreshToken)
+				assert.Empty(t, input.AccessToken)
 				assert.Empty(t, input.SessionID)
 				assert.Empty(t, input.DeviceID)
 				assert.False(t, input.LogoutAll)
@@ -281,17 +285,22 @@ func TestHandler_ParseInput(t *testing.T) {
 			},
 		},
 		{
-			name: "missing userId",
+			name: "valid input with only userId and accessToken (no refreshToken)",
 			variables: map[string]interface{}{
-				"token": "token-abc-123",
+				"userId":      "user-789",
+				"accessToken": "access-token-only",
 			},
-			wantErr: true,
-			errCode: "VALIDATION_FAILED",
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "user-789", input.UserID)
+				assert.Empty(t, input.RefreshToken)
+				assert.Equal(t, "access-token-only", input.AccessToken)
+			},
 		},
 		{
-			name: "missing token",
+			name: "missing userId",
 			variables: map[string]interface{}{
-				"userId": "user-123",
+				"refreshToken": "refresh-token-abc-123",
 			},
 			wantErr: true,
 			errCode: "VALIDATION_FAILED",
@@ -299,17 +308,26 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "userId too short",
 			variables: map[string]interface{}{
-				"userId": "ab",
-				"token":  "token-abc-123",
+				"userId":       "ab",
+				"refreshToken": "refresh-token-abc-123",
 			},
 			wantErr: true,
 			errCode: "VALIDATION_FAILED",
 		},
 		{
-			name: "token too short",
+			name: "refreshToken too short (when provided)",
 			variables: map[string]interface{}{
-				"userId": "user-123",
-				"token":  "short",
+				"userId":       "user-123",
+				"refreshToken": "short",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "accessToken too short (when provided)",
+			variables: map[string]interface{}{
+				"userId":      "user-123",
+				"accessToken": "short",
 			},
 			wantErr: true,
 			errCode: "VALIDATION_FAILED",
@@ -317,17 +335,8 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "empty userId string",
 			variables: map[string]interface{}{
-				"userId": "",
-				"token":  "token-abc-123",
-			},
-			wantErr: true,
-			errCode: "VALIDATION_FAILED",
-		},
-		{
-			name: "empty token string",
-			variables: map[string]interface{}{
-				"userId": "user-123",
-				"token":  "",
+				"userId":       "",
+				"refreshToken": "refresh-token-abc-123",
 			},
 			wantErr: true,
 			errCode: "VALIDATION_FAILED",
@@ -335,21 +344,21 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "valid minimum length fields",
 			variables: map[string]interface{}{
-				"userId": "abc",
-				"token":  "1234567890",
+				"userId":       "abc",
+				"refreshToken": "1234567890",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
 				assert.Equal(t, "abc", input.UserID)
-				assert.Equal(t, "1234567890", input.Token)
+				assert.Equal(t, "1234567890", input.RefreshToken)
 			},
 		},
 		{
 			name: "logout all sessions",
 			variables: map[string]interface{}{
-				"userId":    "user-123",
-				"token":     "token-abc-123",
-				"logoutAll": true,
+				"userId":       "user-123",
+				"refreshToken": "refresh-token-abc-123",
+				"logoutAll":    true,
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
@@ -359,10 +368,10 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "logout single session",
 			variables: map[string]interface{}{
-				"userId":    "user-123",
-				"token":     "token-abc-123",
-				"sessionId": "session-456",
-				"logoutAll": false,
+				"userId":       "user-123",
+				"refreshToken": "refresh-token-abc-123",
+				"sessionId":    "session-456",
+				"logoutAll":    false,
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
@@ -373,9 +382,9 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "various logout reasons",
 			variables: map[string]interface{}{
-				"userId": "user-123",
-				"token":  "token-abc-123",
-				"reason": "user_initiated",
+				"userId":       "user-123",
+				"refreshToken": "refresh-token-abc-123",
+				"reason":       "user_initiated",
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
@@ -385,8 +394,8 @@ func TestHandler_ParseInput(t *testing.T) {
 		{
 			name: "complex metadata",
 			variables: map[string]interface{}{
-				"userId": "user-123",
-				"token":  "token-abc-123",
+				"userId":       "user-123",
+				"refreshToken": "refresh-token-abc-123",
 				"metadata": map[string]interface{}{
 					"ip":              "192.168.1.1",
 					"userAgent":       "Chrome",
@@ -803,12 +812,12 @@ func TestGetInputSchema(t *testing.T) {
 
 	assert.Equal(t, "object", schema.Type)
 	assert.Contains(t, schema.Required, "userId")
-	assert.Contains(t, schema.Required, "token")
-	assert.Len(t, schema.Required, 2)
+	assert.Len(t, schema.Required, 1) // Only userId is required based on the handler code
 
 	// Verify key properties exist
 	assert.Contains(t, schema.Properties, "userId")
-	assert.Contains(t, schema.Properties, "token")
+	assert.Contains(t, schema.Properties, "refreshToken")
+	assert.Contains(t, schema.Properties, "accessToken")
 	assert.Contains(t, schema.Properties, "sessionId")
 	assert.Contains(t, schema.Properties, "deviceId")
 	assert.Contains(t, schema.Properties, "logoutAll")
@@ -817,15 +826,14 @@ func TestGetInputSchema(t *testing.T) {
 
 	// Verify type constraints
 	assert.Equal(t, "string", schema.Properties["userId"].Type)
-	assert.Equal(t, "string", schema.Properties["token"].Type)
+	assert.Equal(t, "string", schema.Properties["refreshToken"].Type)
+	assert.Equal(t, "string", schema.Properties["accessToken"].Type)
 	assert.Equal(t, "boolean", schema.Properties["logoutAll"].Type)
 	assert.Equal(t, "object", schema.Properties["metadata"].Type)
 
 	// Verify length constraints
 	assert.NotNil(t, schema.Properties["userId"].MinLength)
 	assert.Equal(t, 3, *schema.Properties["userId"].MinLength)
-	assert.NotNil(t, schema.Properties["token"].MinLength)
-	assert.Equal(t, 10, *schema.Properties["token"].MinLength)
 
 	assert.False(t, schema.AdditionalProperties)
 }
@@ -869,7 +877,8 @@ func TestInput_JSONSerialization(t *testing.T) {
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
 	assert.Equal(t, input.UserID, decoded.UserID)
-	assert.Equal(t, input.Token, decoded.Token)
+	assert.Equal(t, input.RefreshToken, decoded.RefreshToken)
+	assert.Equal(t, input.AccessToken, decoded.AccessToken)
 	assert.Equal(t, input.SessionID, decoded.SessionID)
 	assert.Equal(t, input.DeviceID, decoded.DeviceID)
 	assert.Equal(t, input.LogoutAll, decoded.LogoutAll)

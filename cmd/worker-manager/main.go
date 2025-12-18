@@ -34,10 +34,11 @@ import (
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
 
-	// Business Logic Workers (5 from franchise + 5 from application = 10)
+	// Business Logic Workers (4 from franchise + 5 from application = 9)
 	arr "camunda-workers/internal/workers/franchise/apply-relevance-ranking"
 	cms "camunda-workers/internal/workers/franchise/calculate-match-score"
 	psf "camunda-workers/internal/workers/franchise/parse-search-filters"
+	sf "camunda-workers/internal/workers/franchise/search-franchises"
 
 	cpr "camunda-workers/internal/workers/application/check-priority-routing"
 	crs "camunda-workers/internal/workers/application/check-readiness-score"
@@ -188,7 +189,7 @@ func main() {
 
 	zapLog.Info("All external service clients initialized")
 
-	// --- START: Register ALL 25 Workers ---
+	// --- START: Register ALL 26 Workers ---
 
 	// --- 1. Infrastructure Workers (3) ---
 	if cfg.Workers[vs.TaskType].Enabled {
@@ -247,6 +248,24 @@ func main() {
 	}
 
 	// --- 3. Business Logic Workers (5 + 5 = 10) ---
+
+	// First check for search-franchises worker
+	if taskType := "search-franchises"; cfg.Workers[taskType].Enabled {
+		handler := sf.NewHandler(
+			&sf.Config{
+				DefaultLimit:       20,
+				MaxLimit:           100,
+				Fuzziness:          "AUTO",
+				EnableSuggestions:  true,
+				EnableAggregations: true,
+			},
+			esClient, // database.ElasticsearchClient
+			log,
+		)
+
+		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.HandleJob, zapLog)
+	}
+
 	if cfg.Workers[psf.TaskType].Enabled {
 		handler := psf.NewHandler(&psf.Config{}, log)
 		startWorker(zeebeClient, psf.TaskType, cfg.Workers[psf.TaskType], handler.Handle, zapLog)

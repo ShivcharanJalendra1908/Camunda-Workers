@@ -3,6 +3,7 @@ package authsigninlinkedin
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -75,14 +76,19 @@ func createValidInput() *Input {
 
 func createValidOutput() *Output {
 	return &Output{
-		Success:      true,
-		UserID:       "user-123",
-		Email:        "test@example.com",
-		FirstName:    "John",
-		LastName:     "Doe",
-		Token:        "access-token-123",
-		IsNewUser:    false,
-		CRMContactID: "",
+		Success:       true,
+		UserID:        "user-123",
+		Email:         "test@example.com",
+		FirstName:     "John",
+		LastName:      "Doe",
+		Token:         "access-token-123",
+		AccessToken:   "access-token-123",
+		RefreshToken:  "refresh-token-456",
+		ExpiresIn:     3600,
+		TokenType:     "Bearer",
+		IsNewUser:     false,
+		EmailVerified: true,
+		CRMContactID:  "",
 	}
 }
 
@@ -293,6 +299,28 @@ func TestHandler_ParseInput(t *testing.T) {
 			wantErr: false,
 			validate: func(t *testing.T, input *Input) {
 				assert.Equal(t, "1234567890", input.AuthCode)
+			},
+		},
+		{
+			name: "valid with custom redirect URI",
+			variables: map[string]interface{}{
+				"authCode":    "test-auth-code-12345",
+				"redirectUri": "https://custom.com/callback",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "https://custom.com/callback", input.RedirectURI)
+			},
+		},
+		{
+			name: "valid with state parameter",
+			variables: map[string]interface{}{
+				"authCode": "test-auth-code-12345",
+				"state":    "csrf-token-xyz",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "csrf-token-xyz", input.State)
 			},
 		},
 	}
@@ -565,7 +593,12 @@ func TestOutput_JSONSerialization(t *testing.T) {
 	assert.Equal(t, output.FirstName, decoded.FirstName)
 	assert.Equal(t, output.LastName, decoded.LastName)
 	assert.Equal(t, output.Token, decoded.Token)
+	assert.Equal(t, output.AccessToken, decoded.AccessToken)
+	assert.Equal(t, output.RefreshToken, decoded.RefreshToken)
+	assert.Equal(t, output.ExpiresIn, decoded.ExpiresIn)
+	assert.Equal(t, output.TokenType, decoded.TokenType)
 	assert.Equal(t, output.IsNewUser, decoded.IsNewUser)
+	assert.Equal(t, output.EmailVerified, decoded.EmailVerified)
 	assert.Equal(t, output.CRMContactID, decoded.CRMContactID)
 }
 
@@ -574,13 +607,18 @@ func TestOutput_WorkflowVariables(t *testing.T) {
 
 	// Simulate how output would be converted to workflow variables
 	vars := map[string]interface{}{
-		"success":   output.Success,
-		"userId":    output.UserID,
-		"email":     output.Email,
-		"firstName": output.FirstName,
-		"lastName":  output.LastName,
-		"token":     output.Token,
-		"isNewUser": output.IsNewUser,
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"token":         output.Token,
+		"accessToken":   output.AccessToken,
+		"refreshToken":  output.RefreshToken,
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"isNewUser":     output.IsNewUser,
+		"emailVerified": output.EmailVerified,
 	}
 
 	if output.CRMContactID != "" {
@@ -593,7 +631,12 @@ func TestOutput_WorkflowVariables(t *testing.T) {
 	assert.Equal(t, "John", vars["firstName"])
 	assert.Equal(t, "Doe", vars["lastName"])
 	assert.Equal(t, "access-token-123", vars["token"])
+	assert.Equal(t, "access-token-123", vars["accessToken"])
+	assert.Equal(t, "refresh-token-456", vars["refreshToken"])
+	assert.Equal(t, 3600, vars["expiresIn"])
+	assert.Equal(t, "Bearer", vars["tokenType"])
 	assert.False(t, vars["isNewUser"].(bool))
+	assert.True(t, vars["emailVerified"].(bool))
 }
 
 // ==========================
@@ -617,6 +660,9 @@ func TestService_Integration(t *testing.T) {
 		assert.True(t, result.Success)
 		assert.Equal(t, "user-123", result.UserID)
 		assert.Equal(t, "test@example.com", result.Email)
+		assert.Equal(t, "access-token-123", result.AccessToken)
+		assert.Equal(t, "refresh-token-456", result.RefreshToken)
+		assert.Equal(t, 3600, result.ExpiresIn)
 
 		mockService.AssertExpectations(t)
 	})
@@ -637,6 +683,25 @@ func TestService_Integration(t *testing.T) {
 		assert.True(t, result.Success)
 		assert.True(t, result.IsNewUser)
 		assert.Equal(t, "crm-contact-123", result.CRMContactID)
+
+		mockService.AssertExpectations(t)
+	})
+
+	t.Run("service handles new user without CRM contact when disabled", func(t *testing.T) {
+		mockService := new(MockService)
+		input := createValidInput()
+		output := createValidOutput()
+		output.IsNewUser = true
+		output.CRMContactID = ""
+
+		mockService.On("Execute", mock.Anything, mock.Anything).Return(output, nil)
+
+		result, err := mockService.Execute(context.Background(), input)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.True(t, result.IsNewUser)
+		assert.Empty(t, result.CRMContactID)
 
 		mockService.AssertExpectations(t)
 	})
@@ -703,7 +768,8 @@ func TestGetOutputSchema(t *testing.T) {
 
 	expectedFields := []string{
 		"success", "userId", "email", "firstName",
-		"lastName", "token", "isNewUser", "crmContactId",
+		"lastName", "token", "accessToken", "refreshToken",
+		"expiresIn", "tokenType", "isNewUser", "emailVerified", "crmContactId",
 	}
 
 	for _, field := range expectedFields {
@@ -716,6 +782,7 @@ func TestGetOutputSchema(t *testing.T) {
 	assert.Equal(t, "string", schema.Properties["userId"].Type)
 	assert.Equal(t, "string", schema.Properties["email"].Type)
 	assert.Equal(t, "boolean", schema.Properties["isNewUser"].Type)
+	assert.Equal(t, "boolean", schema.Properties["emailVerified"].Type)
 }
 
 // ==========================
@@ -730,17 +797,26 @@ func TestIntegration_ConfigValidation(t *testing.T) {
 					ClientID     string `mapstructure:"client_id"`
 					ClientSecret string `mapstructure:"client_secret"`
 					RedirectURL  string `mapstructure:"redirect_uri"`
+					Scopes       string `mapstructure:"scopes"`
 				} `mapstructure:"google"`
 				LinkedIn struct {
 					ClientID     string `mapstructure:"client_id"`
 					ClientSecret string `mapstructure:"client_secret"`
 					RedirectURL  string `mapstructure:"redirect_uri"`
+					Scopes       string `mapstructure:"scopes"`
 				} `mapstructure:"linkedin"`
+				Microsoft struct {
+					ClientID     string `mapstructure:"client_id"`
+					ClientSecret string `mapstructure:"client_secret"`
+					RedirectURL  string `mapstructure:"redirect_uri"`
+					Scopes       string `mapstructure:"scopes"`
+				} `mapstructure:"microsoft"`
 			}{
 				LinkedIn: struct {
 					ClientID     string `mapstructure:"client_id"`
 					ClientSecret string `mapstructure:"client_secret"`
 					RedirectURL  string `mapstructure:"redirect_uri"`
+					Scopes       string `mapstructure:"scopes"`
 				}{
 					ClientID:     "app-config-client-id",
 					ClientSecret: "app-config-client-secret",
@@ -764,4 +840,120 @@ func TestIntegration_ConfigValidation(t *testing.T) {
 	assert.Equal(t, "https://app.com/callback", cfg.RedirectURL)
 	assert.Equal(t, 10, cfg.MaxJobsActive)
 	assert.Equal(t, 15*time.Second, cfg.Timeout)
+}
+
+// ==========================
+// Error Handling Tests
+// ==========================
+
+func TestExtractErrorCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name: "standard error - validation failed",
+			err: &errors.StandardError{
+				Code:    "VALIDATION_FAILED",
+				Message: "Invalid input",
+			},
+			expected: "VALIDATION_FAILED",
+		},
+		{
+			name: "standard error - LinkedIn OAuth error",
+			err: &errors.StandardError{
+				Code:    "LINKEDIN_OAUTH_ERROR",
+				Message: "Failed to exchange authorization code",
+			},
+			expected: "LINKEDIN_OAUTH_ERROR",
+		},
+		{
+			name:     "generic error",
+			err:      fmt.Errorf("generic error"),
+			expected: "UNKNOWN_ERROR",
+		},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: "UNKNOWN_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code := extractErrorCode(tt.err)
+			assert.Equal(t, tt.expected, code)
+		})
+	}
+}
+
+func TestConvertToStandardError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		validate func(*testing.T, *errors.StandardError)
+	}{
+		{
+			name: "already standard error",
+			err: &errors.StandardError{
+				Code:      "TEST_ERROR",
+				Message:   "Test message",
+				Details:   "Test details",
+				Retryable: false,
+				Timestamp: time.Now(),
+			},
+			validate: func(t *testing.T, stdErr *errors.StandardError) {
+				assert.Equal(t, errors.ErrorCode("TEST_ERROR"), stdErr.Code)
+				assert.Equal(t, "Test message", stdErr.Message)
+				assert.Equal(t, "Test details", stdErr.Details)
+				assert.False(t, stdErr.Retryable)
+			},
+		},
+		{
+			name: "generic error converted",
+			err:  fmt.Errorf("test error"),
+			validate: func(t *testing.T, stdErr *errors.StandardError) {
+				assert.Equal(t, errors.ErrorCode("LINKEDIN_SIGNIN_ERROR"), stdErr.Code)
+				assert.Equal(t, "LinkedIn signin failed", stdErr.Message)
+				assert.True(t, stdErr.Retryable)
+				assert.Contains(t, stdErr.Details, "test error")
+				assert.False(t, stdErr.Timestamp.IsZero())
+			},
+		},
+		{
+			name: "retryable error preserved",
+			err: &errors.StandardError{
+				Code:      "NETWORK_ERROR",
+				Message:   "Network timeout",
+				Retryable: true,
+				Timestamp: time.Now(),
+			},
+			validate: func(t *testing.T, stdErr *errors.StandardError) {
+				assert.True(t, stdErr.Retryable)
+				assert.Equal(t, "NETWORK_ERROR", string(stdErr.Code))
+			},
+		},
+		{
+			name: "non-retryable error preserved",
+			err: &errors.StandardError{
+				Code:      "VALIDATION_FAILED",
+				Message:   "Invalid data",
+				Retryable: false,
+				Timestamp: time.Now(),
+			},
+			validate: func(t *testing.T, stdErr *errors.StandardError) {
+				assert.False(t, stdErr.Retryable)
+				assert.Equal(t, "VALIDATION_FAILED", string(stdErr.Code))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdErr := convertToStandardError(tt.err)
+			require.NotNil(t, stdErr)
+			tt.validate(t, stdErr)
+		})
+	}
 }

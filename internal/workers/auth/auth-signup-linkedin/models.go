@@ -22,7 +22,11 @@ type Output struct {
 	Email         string `json:"email"`
 	FirstName     string `json:"firstName"`
 	LastName      string `json:"lastName"`
-	Token         string `json:"token"`
+	Token         string `json:"token"`           // Single token field for backward compatibility
+	AccessToken   string `json:"accessToken"`     // Additional token details
+	RefreshToken  string `json:"refreshToken"`    // Refresh token
+	ExpiresIn     int    `json:"expiresIn"`       // Token expiration in seconds
+	TokenType     string `json:"tokenType"`       // Token type (e.g., "Bearer")
 	EmailVerified bool   `json:"emailVerified"`
 	PasswordSet   bool   `json:"passwordSet"`
 	CRMContactID  string `json:"crmContactId,omitempty"`
@@ -55,3 +59,4 @@ type ServiceDependencies struct {
 	ZohoCRM  *zoho.CRMClient
 	Logger   logger.Logger
 }
+

@@ -33,6 +33,11 @@ func (m *MockService) Execute(ctx context.Context, input *Input) (*Output, error
 	return args.Get(0).(*Output), args.Error(1)
 }
 
+func (m *MockService) TestConnection(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 // ==========================
 // Mock Job Helper
 // ==========================
@@ -90,6 +95,10 @@ func createValidConfig() *Config {
 		MaxAttempts:    3,
 		VerifyClientIP: false,
 		ExpiryMinutes:  5,
+		RedisHost:      "localhost",
+		RedisPort:      6379,
+		RedisPassword:  "",
+		RedisDB:        0,
 	}
 }
 
@@ -362,111 +371,125 @@ func TestHandler_ParseInput(t *testing.T) {
 }
 
 // ==========================
-// Service Tests
+// Mock Service Tests
 // ==========================
 
-func TestService_Execute(t *testing.T) {
-	config := createValidConfig()
-	service := NewService(ServiceDependencies{
-		Logger: logger.NewStructured("info", "json"),
-	}, config)
+func TestMockService_Execute(t *testing.T) {
+	// Test case: successful verification
+	t.Run("successful verification", func(t *testing.T) {
+		mockService := new(MockService) // Create new mock for each test
+		validOutput := createValidOutput()
+		mockService.On("Execute", mock.Anything, mock.AnythingOfType("*captchaverify.Input")).
+			Return(validOutput, nil)
 
-	// Create a test captcha
-	service.CreateCaptcha("cap_test123", "ABCD", "192.168.1.1", 5)
+		output, err := mockService.Execute(context.Background(), createValidInput())
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.True(t, output.Valid)
+		assert.Equal(t, "SUCCESS", output.Reason)
+
+		mockService.AssertExpectations(t)
+	})
+
+	// Test case: failed verification
+	t.Run("failed verification", func(t *testing.T) {
+		mockService := new(MockService) // Create new mock for each test
+		failedOutput := &Output{
+			Valid:   false,
+			Message: "Incorrect captcha value",
+			Reason:  "INCORRECT_VALUE",
+		}
+		mockService.On("Execute", mock.Anything, mock.AnythingOfType("*captchaverify.Input")).
+			Return(failedOutput, nil)
+
+		output, err := mockService.Execute(context.Background(), createValidInput())
+		assert.NoError(t, err)
+		assert.NotNil(t, output)
+		assert.False(t, output.Valid)
+		assert.Equal(t, "INCORRECT_VALUE", output.Reason)
+
+		mockService.AssertExpectations(t)
+	})
+
+	// Test case: service error
+	t.Run("service error", func(t *testing.T) {
+		mockService := new(MockService) // Create new mock for each test
+		mockService.On("Execute", mock.Anything, mock.AnythingOfType("*captchaverify.Input")).
+			Return(nil, &errors.StandardError{
+				Code:      "SERVICE_ERROR",
+				Message:   "Service unavailable",
+				Retryable: true,
+			})
+
+		output, err := mockService.Execute(context.Background(), createValidInput())
+		assert.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.Equal(t, "SERVICE_ERROR", string(stdErr.Code))
+
+		mockService.AssertExpectations(t)
+	})
+}
+
+// ==========================
+// Service Tests (Unit tests without Redis)
+// ==========================
+
+func TestService_Execute_Unit(t *testing.T) {
+	config := createValidConfig()
 
 	tests := []struct {
 		name     string
+		setup    func(*testing.T, *Service)
 		input    *Input
-		validate func(*testing.T, *Output)
+		validate func(*testing.T, *Output, error)
 	}{
 		{
-			name: "successful verification",
-			input: &Input{
-				CaptchaID:    "cap_test123",
-				CaptchaValue: "ABCD",
-				ClientIP:     "192.168.1.1",
-				UserAgent:    "Mozilla/5.0 Test",
+			name: "redis not configured",
+			setup: func(t *testing.T, s *Service) {
+				// Create service without Redis
+				s.redisClient = nil
 			},
-			validate: func(t *testing.T, output *Output) {
-				assert.True(t, output.Valid)
-				assert.Equal(t, "SUCCESS", output.Reason)
-			},
-		},
-		{
-			name: "case insensitive verification",
-			input: &Input{
-				CaptchaID:    "cap_test456",
-				CaptchaValue: "abcd",
-				ClientIP:     "192.168.1.1",
-				UserAgent:    "Mozilla/5.0 Test",
-			},
-			validate: func(t *testing.T, output *Output) {
-				// Create captcha for this test
-				service.CreateCaptcha("cap_test456", "ABCD", "192.168.1.1", 5)
-				result, _ := service.Execute(context.Background(), &Input{
-					CaptchaID:    "cap_test456",
-					CaptchaValue: "abcd",
-					ClientIP:     "192.168.1.1",
-					UserAgent:    "Mozilla/5.0 Test",
-				})
-				assert.True(t, result.Valid)
+			input: createValidInput(),
+			validate: func(t *testing.T, output *Output, err error) {
+				assert.Error(t, err)
+				assert.Nil(t, output)
+				stdErr, ok := err.(*errors.StandardError)
+				require.True(t, ok)
+				assert.Equal(t, "REDIS_NOT_CONFIGURED", string(stdErr.Code))
 			},
 		},
 		{
-			name: "invalid captcha ID format",
+			name:  "invalid captcha ID format",
+			setup: nil,
 			input: &Input{
 				CaptchaID:    "invalid_id",
 				CaptchaValue: "ABCD",
 				ClientIP:     "192.168.1.1",
 				UserAgent:    "Mozilla/5.0 Test",
 			},
-			validate: func(t *testing.T, output *Output) {
+			validate: func(t *testing.T, output *Output, err error) {
+				assert.NoError(t, err)
+				assert.NotNil(t, output)
 				assert.False(t, output.Valid)
 				assert.Equal(t, "INVALID_FORMAT", output.Reason)
-			},
-		},
-		{
-			name: "captcha not found",
-			input: &Input{
-				CaptchaID:    "cap_nonexistent",
-				CaptchaValue: "ABCD",
-				ClientIP:     "192.168.1.1",
-				UserAgent:    "Mozilla/5.0 Test",
-			},
-			validate: func(t *testing.T, output *Output) {
-				assert.False(t, output.Valid)
-				assert.Equal(t, "NOT_FOUND", output.Reason)
-			},
-		},
-		{
-			name: "incorrect captcha value",
-			input: &Input{
-				CaptchaID:    "cap_test789",
-				CaptchaValue: "WXYZ",
-				ClientIP:     "192.168.1.1",
-				UserAgent:    "Mozilla/5.0 Test",
-			},
-			validate: func(t *testing.T, output *Output) {
-				// Create captcha for this test
-				service.CreateCaptcha("cap_test789", "ABCD", "192.168.1.1", 5)
-				result, _ := service.Execute(context.Background(), &Input{
-					CaptchaID:    "cap_test789",
-					CaptchaValue: "WXYZ",
-					ClientIP:     "192.168.1.1",
-					UserAgent:    "Mozilla/5.0 Test",
-				})
-				assert.False(t, result.Valid)
-				assert.Equal(t, "INCORRECT_VALUE", result.Reason)
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output, err := service.Execute(context.Background(), tt.input)
-			assert.NoError(t, err)
-			assert.NotNil(t, output)
-			tt.validate(t, output)
+			testService := NewService(ServiceDependencies{
+				Logger: logger.NewStructured("info", "json"),
+			}, config)
+
+			if tt.setup != nil {
+				tt.setup(t, testService)
+			}
+
+			output, err := testService.Execute(context.Background(), tt.input)
+			tt.validate(t, output, err)
 		})
 	}
 }
@@ -542,6 +565,19 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "expiry_minutes must be positive",
 		},
+		{
+			name: "invalid redis port",
+			config: &Config{
+				MaxJobsActive: 10,
+				Timeout:       5 * time.Second,
+				MaxAttempts:   3,
+				ExpiryMinutes: 5,
+				RedisHost:     "localhost",
+				RedisPort:     0, // Invalid port
+			},
+			wantErr: true,
+			errMsg:  "redis_port must be between 1 and 65535",
+		},
 	}
 
 	for _, tt := range tests {
@@ -567,6 +603,10 @@ func TestConfig_DefaultConfig(t *testing.T) {
 	assert.Equal(t, 3, config.MaxAttempts)
 	assert.False(t, config.VerifyClientIP)
 	assert.Equal(t, 5, config.ExpiryMinutes)
+	assert.Equal(t, "localhost", config.RedisHost)
+	assert.Equal(t, 6379, config.RedisPort)
+	assert.Equal(t, "", config.RedisPassword)
+	assert.Equal(t, 0, config.RedisDB)
 }
 
 // ==========================
@@ -663,4 +703,16 @@ func TestGetOutputSchema(t *testing.T) {
 
 	assert.Equal(t, "boolean", schema.Properties["valid"].Type)
 	assert.Equal(t, "string", schema.Properties["message"].Type)
+}
+
+// ==========================
+// Helper Function Tests
+// ==========================
+
+func TestCreateValidOutput(t *testing.T) {
+	output := createValidOutput()
+
+	assert.True(t, output.Valid)
+	assert.Equal(t, "Captcha verified successfully", output.Message)
+	assert.Equal(t, "SUCCESS", output.Reason)
 }

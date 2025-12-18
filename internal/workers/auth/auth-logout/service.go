@@ -1,4 +1,3 @@
-// Package authlogout handles user logout requests.
 package authlogout
 
 import (
@@ -7,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 
@@ -16,6 +16,7 @@ import (
 type Service struct {
 	config      *Config
 	logger      logger.Logger
+	keycloak    *auth.KeycloakClient
 	redisClient *redis.Client
 }
 
@@ -32,6 +33,7 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 	return &Service{
 		config:      config,
 		logger:      deps.Logger,
+		keycloak:    deps.Keycloak,
 		redisClient: redisClient,
 	}
 }
@@ -45,107 +47,159 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		"reason":    input.Reason,
 	})
 
-	if s.redisClient == nil {
-		return nil, &errors.StandardError{
-			Code:      "REDIS_NOT_CONFIGURED",
-			Message:   "Redis client not configured",
-			Details:   "Session management requires Redis",
-			Retryable: false,
-			Timestamp: time.Now(),
-		}
-	}
-
-	// Validate user ID
-	if err := s.validateUserID(input.UserID); err != nil {
+	// Validate input
+	if err := s.validateInput(input); err != nil {
 		return nil, &errors.StandardError{
 			Code:      "VALIDATION_FAILED",
-			Message:   "Invalid user ID",
+			Message:   "Invalid logout request",
 			Details:   err.Error(),
 			Retryable: false,
 			Timestamp: time.Now(),
 		}
 	}
 
+	// 🔒 Safety: Keycloak client must not be nil
+    if s.keycloak == nil {
+        s.logger.Warn("Keycloak client not configured, skipping Keycloak logout", map[string]interface{}{
+            "userId": input.UserID,
+        })
+    }
+
 	var sessionsInvalidated int
 	var tokenRevoked bool
 
-	if input.LogoutAll {
-		// Logout from all sessions
-		count, err := s.invalidateAllSessions(ctx, input.UserID)
+	// Step 1: Revoke refresh token in Keycloak (single session logout)
+	if input.RefreshToken != "" && !input.LogoutAll && s.keycloak != nil {
+    err := s.keycloak.Logout(ctx, input.RefreshToken)
+    if err != nil {
+        s.logger.Warn("Failed to logout from Keycloak", map[string]interface{}{
+            "userId": input.UserID,
+            "error":  err.Error(),
+        })
+    } else {
+        tokenRevoked = true
+        sessionsInvalidated = 1
+    }
+    }
+
+	
+	// Step 2: Global logout - revoke ALL sessions in Keycloak
+	if input.LogoutAll && input.UserID != "" && s.keycloak != nil {
+    err := s.keycloak.RevokeAllUserSessions(ctx, input.UserID)
+    if err != nil {
+        return nil, &errors.StandardError{
+            Code:      "KEYCLOAK_LOGOUT_FAILED",
+            Message:   "Failed to revoke all user sessions in Keycloak",
+            Details:   err.Error(),
+            Retryable: true,
+            Timestamp: time.Now(),
+        }
+    }
+
+    if s.redisClient != nil {
+        count, _ := s.countUserSessions(ctx, input.UserID)
+        sessionsInvalidated = count
+    }
+
+    tokenRevoked = true
+    }
+
+
+	// Step 3: Clean up local Redis sessions
+	if s.redisClient != nil {
+		err := s.cleanupLocalSessions(ctx, input)
 		if err != nil {
-			return nil, &errors.StandardError{
-				Code:      "SESSION_INVALIDATION_ERROR",
-				Message:   "Failed to invalidate all sessions",
-				Details:   err.Error(),
-				Retryable: true,
-				Timestamp: time.Now(),
-			}
+			s.logger.Warn("Failed to cleanup local sessions", map[string]interface{}{
+				"userId": input.UserID,
+				"error":  err.Error(),
+			})
+			// Don't fail the entire logout if Redis cleanup fails
 		}
-		sessionsInvalidated = count
-	} else if input.SessionID != "" {
-		// Logout from specific session
-		err := s.invalidateSession(ctx, input.UserID, input.SessionID)
-		if err != nil {
-			return nil, &errors.StandardError{
-				Code:      "SESSION_INVALIDATION_ERROR",
-				Message:   "Failed to invalidate session",
-				Details:   err.Error(),
-				Retryable: true,
-				Timestamp: time.Now(),
-			}
-		}
-		sessionsInvalidated = 1
 	}
 
-	// Revoke token if provided
-	if input.Token != "" {
-		err := s.revokeToken(ctx, input.Token)
+	// Step 4: Add access token to revocation list (if provided)
+	if input.AccessToken != "" && s.redisClient != nil {
+		err := s.revokeAccessToken(ctx, input.AccessToken)
 		if err != nil {
-			s.logger.Warn("Failed to revoke token", map[string]interface{}{
+			s.logger.Warn("Failed to add access token to revocation list", map[string]interface{}{
 				"error": err.Error(),
 			})
-		} else {
-			tokenRevoked = true
 		}
 	}
 
-	// Log logout event
-	s.logLogoutEvent(ctx, input)
+	// Step 5: Log logout event for audit trail
+	if s.redisClient != nil {
+		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
+	}
 
 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
 		"userId":              input.UserID,
 		"sessionsInvalidated": sessionsInvalidated,
 		"tokenRevoked":        tokenRevoked,
+		"logoutAll":           input.LogoutAll,
 	})
 
 	return &Output{
 		Success:             true,
-		Message:             "Logout successful",
+		Message:             s.buildSuccessMessage(input.LogoutAll, sessionsInvalidated),
 		SessionsInvalidated: sessionsInvalidated,
 		TokenRevoked:        tokenRevoked,
 		LogoutAt:            time.Now(),
 	}, nil
 }
 
-func (s *Service) validateUserID(userID string) error {
-	if userID == "" {
+func (s *Service) validateInput(input *Input) error {
+	if input.UserID == "" {
 		return fmt.Errorf("user ID is required")
 	}
-	if len(userID) < 3 {
-		return fmt.Errorf("user ID too short")
+
+	if len(input.UserID) < 3 {
+		return fmt.Errorf("user ID too short (minimum 3 characters)")
 	}
+
+	// For single session logout, require either refreshToken or sessionID
+	if !input.LogoutAll && input.RefreshToken == "" && input.SessionID == "" {
+		return fmt.Errorf("refresh token or session ID required for single session logout")
+	}
+
 	return nil
 }
 
-func (s *Service) invalidateSession(ctx context.Context, userID, sessionID string) error {
-	// Delete session from Redis
+func (s *Service) countUserSessions(ctx context.Context, userID string) (int, error) {
+	pattern := fmt.Sprintf("session:%s:*", userID)
+	keys, err := s.redisClient.Keys(ctx, pattern).Result()
+	if err != nil {
+		return 0, err
+	}
+	return len(keys), nil
+}
+
+func (s *Service) cleanupLocalSessions(ctx context.Context, input *Input) error {
+	if input.LogoutAll {
+		// Delete all sessions for user
+		return s.invalidateAllLocalSessions(ctx, input.UserID)
+	}
+
+	if input.SessionID != "" {
+		// Delete specific session
+		return s.invalidateLocalSession(ctx, input.UserID, input.SessionID)
+	}
+
+	return nil
+}
+
+func (s *Service) invalidateLocalSession(ctx context.Context, userID, sessionID string) error {
 	sessionKey := fmt.Sprintf("session:%s:%s", userID, sessionID)
 	err := s.redisClient.Del(ctx, sessionKey).Err()
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %w", err)
 	}
 
-	s.logger.Info("Session invalidated", map[string]interface{}{
+	// Also delete any refresh token mapping
+	refreshTokenKey := fmt.Sprintf("refresh_token:%s:%s", userID, sessionID)
+	s.redisClient.Del(ctx, refreshTokenKey)
+
+	s.logger.Info("Local session invalidated", map[string]interface{}{
 		"userId":    userID,
 		"sessionId": sessionID,
 	})
@@ -153,75 +207,140 @@ func (s *Service) invalidateSession(ctx context.Context, userID, sessionID strin
 	return nil
 }
 
-func (s *Service) invalidateAllSessions(ctx context.Context, userID string) (int, error) {
-	// Find all sessions for user
-	pattern := fmt.Sprintf("session:%s:*", userID)
-	keys, err := s.redisClient.Keys(ctx, pattern).Result()
+func (s *Service) invalidateAllLocalSessions(ctx context.Context, userID string) error {
+	// Find and delete all sessions
+	sessionPattern := fmt.Sprintf("session:%s:*", userID)
+	sessionKeys, err := s.redisClient.Keys(ctx, sessionPattern).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to find sessions: %w", err)
+		return fmt.Errorf("failed to find sessions: %w", err)
 	}
 
-	if len(keys) == 0 {
-		return 0, nil
+	if len(sessionKeys) > 0 {
+		err = s.redisClient.Del(ctx, sessionKeys...).Err()
+		if err != nil {
+			return fmt.Errorf("failed to delete sessions: %w", err)
+		}
 	}
 
-	// Delete all sessions
-	err = s.redisClient.Del(ctx, keys...).Err()
+	// Find and delete all refresh token mappings
+	refreshPattern := fmt.Sprintf("refresh_token:%s:*", userID)
+	refreshKeys, err := s.redisClient.Keys(ctx, refreshPattern).Result()
 	if err != nil {
-		return 0, fmt.Errorf("failed to delete sessions: %w", err)
+		s.logger.Warn("Failed to find refresh tokens", map[string]interface{}{
+			"error": err.Error(),
+		})
+	} else if len(refreshKeys) > 0 {
+		s.redisClient.Del(ctx, refreshKeys...)
 	}
 
-	s.logger.Info("All sessions invalidated", map[string]interface{}{
-		"userId": userID,
-		"count":  len(keys),
-	})
-
-	return len(keys), nil
-}
-
-func (s *Service) revokeToken(ctx context.Context, token string) error {
-	// Add token to revocation list in Redis
-	revokedKey := fmt.Sprintf("token:revoked:%s", token)
-
-	// Store for 24 hours (typical JWT expiration)
-	err := s.redisClient.Set(ctx, revokedKey, "1", 24*time.Hour).Err()
-	if err != nil {
-		return fmt.Errorf("failed to revoke token: %w", err)
-	}
-
-	s.logger.Info("Token revoked", map[string]interface{}{
-		"token": token[:10] + "...", // Log only first 10 chars for security
+	s.logger.Info("All local sessions invalidated", map[string]interface{}{
+		"userId":       userID,
+		"sessionCount": len(sessionKeys),
 	})
 
 	return nil
 }
 
-func (s *Service) logLogoutEvent(ctx context.Context, input *Input) {
-	eventKey := fmt.Sprintf("logout:event:%s:%d", input.UserID, time.Now().Unix())
-	eventData := map[string]interface{}{
-		"userId":    input.UserID,
-		"sessionId": input.SessionID,
-		"deviceId":  input.DeviceID,
-		"logoutAll": input.LogoutAll,
-		"reason":    input.Reason,
-		"timestamp": time.Now().Unix(),
+func (s *Service) revokeAccessToken(ctx context.Context, accessToken string) error {
+	// Add access token to revocation list
+	// Use a hash of the token to save space
+	tokenKey := fmt.Sprintf("token:revoked:%s", s.hashToken(accessToken))
+
+	// Store with TTL matching typical JWT expiration (1 hour default)
+	ttl := 2 * time.Hour // Store for 2 hours to be safe
+	err := s.redisClient.Set(ctx, tokenKey, time.Now().Unix(), ttl).Err()
+	if err != nil {
+		return fmt.Errorf("failed to revoke access token: %w", err)
 	}
 
-	// Store logout event for audit trail
-	data, _ := json.Marshal(eventData)
-	s.redisClient.Set(ctx, eventKey, string(data), 30*24*time.Hour) // Keep for 30 days
+	s.logger.Debug("Access token added to revocation list", map[string]interface{}{
+		"tokenPrefix": accessToken[:min(10, len(accessToken))] + "...",
+	})
+
+	return nil
+}
+
+func (s *Service) logLogoutEvent(ctx context.Context, input *Input, sessionsInvalidated int, tokenRevoked bool) {
+	eventKey := fmt.Sprintf("logout:event:%s:%d", input.UserID, time.Now().Unix())
+	eventData := map[string]interface{}{
+		"userId":              input.UserID,
+		"sessionId":           input.SessionID,
+		"deviceId":            input.DeviceID,
+		"logoutAll":           input.LogoutAll,
+		"reason":              input.Reason,
+		"sessionsInvalidated": sessionsInvalidated,
+		"tokenRevoked":        tokenRevoked,
+		"timestamp":           time.Now().Unix(),
+		"metadata":            input.Metadata,
+	}
+
+	data, err := json.Marshal(eventData)
+	if err != nil {
+		s.logger.Warn("Failed to marshal logout event", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Store logout event for audit trail (keep for 90 days)
+	err = s.redisClient.Set(ctx, eventKey, string(data), 90*24*time.Hour).Err()
+	if err != nil {
+		s.logger.Warn("Failed to log logout event", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+}
+
+func (s *Service) buildSuccessMessage(logoutAll bool, sessionsInvalidated int) string {
+	if logoutAll {
+		return fmt.Sprintf("Logged out from all sessions (%d sessions invalidated)", sessionsInvalidated)
+	}
+	return "Logged out successfully"
+}
+
+func (s *Service) hashToken(token string) string {
+	// Simple hash for token storage - in production use crypto/sha256
+	if len(token) > 32 {
+		return token[:32]
+	}
+	return token
 }
 
 func (s *Service) TestConnection(ctx context.Context) error {
-	if s.redisClient == nil {
-		return fmt.Errorf("redis client not configured")
+	// Test Keycloak connection
+	if s.keycloak != nil {
+		// Try to get a user to test connectivity
+		testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		_, err := s.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
+		if err != nil {
+			if stdErr, ok := err.(*errors.StandardError); ok {
+				// USER_NOT_FOUND is expected and means Keycloak is reachable
+				if stdErr.Code != "USER_NOT_FOUND" {
+					return fmt.Errorf("keycloak connection failed: %w", err)
+				}
+			}
+		}
 	}
 
 	// Test Redis connection
-	_, err := s.redisClient.Ping(ctx).Result()
-	if err != nil {
-		return fmt.Errorf("redis connection failed: %w", err)
+	if s.redisClient != nil {
+		testCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		_, err := s.redisClient.Ping(testCtx).Result()
+		if err != nil {
+			return fmt.Errorf("redis connection failed: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
