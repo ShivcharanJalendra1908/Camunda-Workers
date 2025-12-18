@@ -14,14 +14,19 @@ type Input struct {
 }
 
 type Output struct {
-	Success      bool   `json:"success"`
-	UserID       string `json:"userId"`
-	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
-	LastName     string `json:"lastName"`
-	Token        string `json:"token"`
-	IsNewUser    bool   `json:"isNewUser,omitempty"`
-	CRMContactID string `json:"crmContactId,omitempty"`
+	Success       bool   `json:"success"`
+	UserID        string `json:"userId"`
+	Email         string `json:"email"`
+	FirstName     string `json:"firstName"`
+	LastName      string `json:"lastName"`
+	Token         string `json:"token"`           // Single token field for backward compatibility
+	AccessToken   string `json:"accessToken"`     // Additional token details
+	RefreshToken  string `json:"refreshToken"`    // Refresh token
+	ExpiresIn     int    `json:"expiresIn"`       // Token expiration in seconds
+	TokenType     string `json:"tokenType"`       // Token type (e.g., "Bearer")
+	IsNewUser     bool   `json:"isNewUser,omitempty"`
+	EmailVerified bool   `json:"emailVerified,omitempty"`
+	CRMContactID  string `json:"crmContactId,omitempty"`
 }
 
 type LinkedInTokenResponse struct {
@@ -51,3 +56,4 @@ type ServiceDependencies struct {
 	ZohoCRM  *zoho.CRMClient
 	Logger   logger.Logger
 }
+

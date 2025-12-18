@@ -202,7 +202,7 @@
   <!-- Message Definition -->
   <bpmn:message id="Message_DeletionConfirm" name="accountDeletionConfirmed">
     <bpmn:extensionElements>
-      <zeebe:subscription correlationKey="${userId}" />
+      <zeebe:subscription correlationKey="=userId" />
     </bpmn:extensionElements>
   </bpmn:message>
 

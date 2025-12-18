@@ -14,12 +14,13 @@ type Input struct {
 }
 
 type Output struct {
-	Valid             bool   `json:"valid"`
-	Message           string `json:"message"`
+	Valid             bool   `json:"captchaValid"`
+	Message           string `json:"captchaMessage"`
 	Reason            string `json:"reason,omitempty"`
 	AttemptsRemaining int    `json:"attemptsRemaining,omitempty"`
 }
 
 type ServiceDependencies struct {
 	Logger logger.Logger
+	Config *Config
 }

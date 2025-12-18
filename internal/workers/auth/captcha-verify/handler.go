@@ -94,7 +94,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	output, err := h.Execute(ctx, input)
+	output, err := h.service.Execute(ctx, input)
 	if err != nil {
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
@@ -282,6 +282,11 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("camunda health check failed: %w", err)
 	}
 
+	// Test Redis connection
+	if err := h.service.TestConnection(ctx); err != nil {
+		return fmt.Errorf("captcha service health check failed: %w", err)
+	}
+
 	h.logger.Info("Health check passed", map[string]interface{}{
 		"worker": TaskType,
 	})
@@ -300,6 +305,12 @@ func (h *Handler) IsEnabled() bool {
 func (h *Handler) GetConfig() *Config {
 	return h.config
 }
+
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	return h.service.Execute(ctx, input)
+}
+
+// Helper functions
 
 func extractErrorCode(err error) string {
 	if stdErr, ok := err.(*errors.StandardError); ok {
@@ -321,29 +332,109 @@ func convertToStandardError(err error) *errors.StandardError {
 	}
 }
 
+// func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
+// 	if customConfig != nil {
+// 		return customConfig
+// 	}
+
+// 	cfg := DefaultConfig()
+
+// 	if appConfig != nil {
+// 		if workerCfg, exists := appConfig.Workers["captcha-verify"]; exists {
+// 			cfg.Enabled = workerCfg.Enabled
+// 			if workerCfg.MaxJobsActive > 0 {
+// 				cfg.MaxJobsActive = workerCfg.MaxJobsActive
+// 			}
+// 			if workerCfg.Timeout > 0 {
+// 				cfg.Timeout = time.Duration(workerCfg.Timeout) * time.Millisecond
+// 			}
+// 		}
+
+// 		// Load Redis configuration
+// 		if appConfig.Database.Redis.Address != "" {
+// 			host, port := parseRedisAddress(appConfig.Database.Redis.Address)
+// 			cfg.RedisHost = host
+// 			cfg.RedisPort = port
+// 			cfg.RedisPassword = appConfig.Database.Redis.Password
+// 			cfg.RedisDB = appConfig.Database.Redis.DB
+// 		}
+// 	}
+
+// 	return cfg
+// }
 func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
+	cfg := DefaultConfig() // 🔥 ALWAYS start from defaults
+
+	// ✅ merge customConfig (if provided)
 	if customConfig != nil {
-		return customConfig
+		if customConfig.Enabled {
+			cfg.Enabled = customConfig.Enabled
+		}
+		if customConfig.MaxJobsActive > 0 {
+			cfg.MaxJobsActive = customConfig.MaxJobsActive
+		}
+		if customConfig.Timeout > 0 {
+			cfg.Timeout = customConfig.Timeout
+		}
+		if customConfig.MaxAttempts > 0 {
+			cfg.MaxAttempts = customConfig.MaxAttempts
+		}
+		if customConfig.ExpiryMinutes > 0 {
+			cfg.ExpiryMinutes = customConfig.ExpiryMinutes
+		}
+		if customConfig.RedisHost != "" {
+			cfg.RedisHost = customConfig.RedisHost
+		}
+		if customConfig.RedisPort > 0 {
+			cfg.RedisPort = customConfig.RedisPort
+		}
+		cfg.RedisPassword = customConfig.RedisPassword
+		cfg.RedisDB = customConfig.RedisDB
 	}
 
-	cfg := DefaultConfig()
+	if appConfig == nil {
+		return cfg
+	}
 
-	if appConfig != nil {
-		if workerCfg, exists := appConfig.Workers["captcha-verify"]; exists {
-			cfg.Enabled = workerCfg.Enabled
-			if workerCfg.MaxJobsActive > 0 {
-				cfg.MaxJobsActive = workerCfg.MaxJobsActive
-			}
-			if workerCfg.Timeout > 0 {
-				cfg.Timeout = time.Duration(workerCfg.Timeout) * time.Millisecond
-			}
+	// ✅ Read REDIS_ADDRESS correctly
+	if appConfig.Database.Redis.Address != "" {
+		host, port := parseRedisAddress(appConfig.Database.Redis.Address)
+		if host != "" {
+			cfg.RedisHost = host
+		}
+		if port > 0 {
+			cfg.RedisPort = port
+		}
+		cfg.RedisPassword = appConfig.Database.Redis.Password
+		cfg.RedisDB = appConfig.Database.Redis.DB
+	}
+
+	// worker override
+	if workerCfg, ok := appConfig.Workers["captcha-verify"]; ok {
+		cfg.Enabled = workerCfg.Enabled
+		if workerCfg.MaxJobsActive > 0 {
+			cfg.MaxJobsActive = workerCfg.MaxJobsActive
+		}
+		if workerCfg.Timeout > 0 {
+			cfg.Timeout = time.Duration(workerCfg.Timeout) * time.Millisecond
 		}
 	}
 
 	return cfg
 }
 
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	// Delegate to the service layer for business logic
-	return h.service.Execute(ctx, input)
+func parseRedisAddress(address string) (string, int) {
+	host := address
+	port := 6379 // default
+
+	// Find the last colon to split host:port
+	for i := len(address) - 1; i >= 0; i-- {
+		if address[i] == ':' {
+			host = address[:i]
+			fmt.Sscanf(address[i+1:], "%d", &port)
+			break
+		}
+	}
+
+	return host, port
 }

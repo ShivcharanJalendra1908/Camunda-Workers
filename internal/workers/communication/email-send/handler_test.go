@@ -853,6 +853,52 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 						Timeout:       45000,
 					},
 				},
+				Integrations: config.IntegrationConfig{
+					SMTP: struct {
+						Host           string `mapstructure:"host"`
+						Port           int    `mapstructure:"port"`
+						Username       string `mapstructure:"username"`
+						Password       string `mapstructure:"password"`
+						UseTLS         bool   `mapstructure:"use_tls"`
+						UseSSL         bool   `mapstructure:"use_ssl"`
+						DefaultFrom    string `mapstructure:"default_from"`
+						FromName       string `mapstructure:"fromName"`
+						AuthType       string `mapstructure:"authType"`
+						Timeout        int    `mapstructure:"timeout"`
+						MaxConnections int    `mapstructure:"maxConnections"`
+					}{
+						Host:        "smtp.mailgun.org",
+						Port:        465,
+						Username:    "mailgun-user",
+						Password:    "mailgun-pass",
+						UseTLS:      true,
+						DefaultFrom: "system@example.com",
+					},
+				},
+			},
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "smtp.mailgun.org", cfg.SMTPHost)
+				assert.Equal(t, 465, cfg.SMTPPort)
+				assert.Equal(t, "mailgun-user", cfg.SMTPUsername)
+				assert.Equal(t, "mailgun-pass", cfg.SMTPPassword)
+				assert.True(t, cfg.UseTLS)
+				assert.Equal(t, "system@example.com", cfg.DefaultFrom)
+				assert.Equal(t, 10, cfg.MaxJobsActive)
+				assert.Equal(t, 45*time.Second, cfg.Timeout)
+				assert.True(t, cfg.Enabled)
+			},
+		},
+		{
+			name: "loads from app config",
+			appConfig: &config.Config{
+				Workers: map[string]config.WorkerConfig{
+					"email-send": {
+						Enabled:       true,
+						MaxJobsActive: 10,
+						Timeout:       45000,
+					},
+				},
 				Integrations: func() config.IntegrationConfig {
 					ic := config.IntegrationConfig{}
 					ic.SMTP.Host = "smtp.mailgun.org"

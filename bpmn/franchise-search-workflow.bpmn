@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" targetNamespace="http://lemici.io/bpmn/franchise-search">
+  
+  <bpmn:error id="ValidationError" name="Validation Error" errorCode="VALIDATION_ERROR" />
+  <bpmn:error id="SearchError" name="Search Error" errorCode="SEARCH_ERROR" />
+
+  <bpmn:process id="franchise-search-workflow" name="Franchise Search Workflow" isExecutable="true">
+    <bpmn:startEvent id="start_search" name="Start Search">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <bpmn:serviceTask id="validate_search_input" name="Validate Search Input">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-search-input" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="parse_search_filters" name="Parse Search Filters">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-search-filters" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_2</bpmn:incoming>
+      <bpmn:outgoing>flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="search_franchises" name="Search Franchises">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="search-franchises" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_3</bpmn:incoming>
+      <bpmn:outgoing>flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="calculate_match_score" name="Calculate Match Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="calculate-match-score" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_4</bpmn:incoming>
+      <bpmn:outgoing>flow_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="apply_relevance_ranking" name="Apply Relevance Ranking">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="apply-relevance-ranking" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_5</bpmn:incoming>
+      <bpmn:outgoing>flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="build_response" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_6</bpmn:incoming>
+      <bpmn:outgoing>flow_7</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="search_success_end" name="Search Completed">
+      <bpmn:incoming>flow_7</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:boundaryEvent id="validation_error" attachedToRef="validate_search_input" cancelActivity="true">
+      <bpmn:outgoing>flow_validation_error</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="ValidationError" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="search_error" attachedToRef="search_franchises" cancelActivity="true">
+      <bpmn:outgoing>flow_search_error</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="SearchError" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="handle_error" name="Handle Error">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="handle-error" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validation_error</bpmn:incoming>
+      <bpmn:incoming>flow_search_error</bpmn:incoming>
+      <bpmn:outgoing>flow_error_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="error_end" name="Error End">
+      <bpmn:incoming>flow_error_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start_search" targetRef="validate_search_input" />
+    <bpmn:sequenceFlow id="flow_2" sourceRef="validate_search_input" targetRef="parse_search_filters" />
+    <bpmn:sequenceFlow id="flow_3" sourceRef="parse_search_filters" targetRef="search_franchises" />
+    <bpmn:sequenceFlow id="flow_4" sourceRef="search_franchises" targetRef="calculate_match_score" />
+    <bpmn:sequenceFlow id="flow_5" sourceRef="calculate_match_score" targetRef="apply_relevance_ranking" />
+    <bpmn:sequenceFlow id="flow_6" sourceRef="apply_relevance_ranking" targetRef="build_response" />
+    <bpmn:sequenceFlow id="flow_7" sourceRef="build_response" targetRef="search_success_end" />
+    <bpmn:sequenceFlow id="flow_validation_error" sourceRef="validation_error" targetRef="handle_error" />
+    <bpmn:sequenceFlow id="flow_search_error" sourceRef="search_error" targetRef="handle_error" />
+    <bpmn:sequenceFlow id="flow_error_end" sourceRef="handle_error" targetRef="error_end" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-search-workflow">
+      <bpmndi:BPMNShape id="_BPMNShape_StartNode" bpmnElement="start_search">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1_di" bpmnElement="validate_search_input">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_2_di" bpmnElement="parse_search_filters">
+        <dc:Bounds x="400" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_3_di" bpmnElement="search_franchises">
+        <dc:Bounds x="560" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_4_di" bpmnElement="calculate_match_score">
+        <dc:Bounds x="720" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_5_di" bpmnElement="apply_relevance_ranking">
+        <dc:Bounds x="880" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_6_di" bpmnElement="build_response">
+        <dc:Bounds x="1040" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_Success_di" bpmnElement="search_success_end">
+        <dc:Bounds x="1202" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_Error_di" bpmnElement="handle_error">
+        <dc:Bounds x="560" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_ErrorEnd_di" bpmnElement="error_end">
+        <dc:Bounds x="722" y="252" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_ValidationBoundary_di" bpmnElement="validation_error">
+        <dc:Bounds x="292" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_SearchBoundary_di" bpmnElement="search_error">
+        <dc:Bounds x="612" y="142" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="flow_1">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="flow_2">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="400" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="flow_3">
+        <di:waypoint x="500" y="120" />
+        <di:waypoint x="560" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4_di" bpmnElement="flow_4">
+        <di:waypoint x="660" y="120" />
+        <di:waypoint x="720" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="flow_5">
+        <di:waypoint x="820" y="120" />
+        <di:waypoint x="880" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="flow_6">
+        <di:waypoint x="980" y="120" />
+        <di:waypoint x="1040" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_7_di" bpmnElement="flow_7">
+        <di:waypoint x="1140" y="120" />
+        <di:waypoint x="1202" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ValidationError_di" bpmnElement="flow_validation_error">
+        <di:waypoint x="310" y="178" />
+        <di:waypoint x="310" y="270" />
+        <di:waypoint x="560" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SearchError_di" bpmnElement="flow_search_error">
+        <di:waypoint x="630" y="178" />
+        <di:waypoint x="630" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ErrorEnd_di" bpmnElement="flow_error_end">
+        <di:waypoint x="660" y="270" />
+        <di:waypoint x="722" y="270" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

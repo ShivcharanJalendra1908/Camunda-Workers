@@ -18,15 +18,26 @@ type CRMClient struct {
 }
 
 type Contact struct {
-	ID        string `json:"id,omitempty"`
-	Email     string `json:"Email"`
-	FirstName string `json:"First_Name"`
-	LastName  string `json:"Last_Name"`
-	Phone     string `json:"Phone,omitempty"`
-	Source    string `json:"Lead_Source,omitempty"`
+	ID          string `json:"id,omitempty"`
+	Email       string `json:"Email"`
+	FirstName   string `json:"First_Name"`
+	LastName    string `json:"Last_Name"`
+	Phone       string `json:"Phone,omitempty"`
+	Source      string `json:"Lead_Source,omitempty"`
+	Title       string `json:"Title,omitempty"`
+	AccountName string `json:"Account_Name,omitempty"`
 }
 
-type CreateContactResponse struct {
+type Account struct {
+	ID          string `json:"id,omitempty"`
+	AccountName string `json:"Account_Name"`
+	Website     string `json:"Website,omitempty"`
+	Phone       string `json:"Phone,omitempty"`
+	Industry    string `json:"Industry,omitempty"`
+	Description string `json:"Description,omitempty"`
+}
+
+type CreateResponse struct {
 	Data []struct {
 		Code    string `json:"code"`
 		Details struct {
@@ -83,7 +94,7 @@ func (c *CRMClient) CreateContact(ctx context.Context, contact *Contact) (string
 		return "", fmt.Errorf("failed to create contact (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var createResp CreateContactResponse
+	var createResp CreateResponse
 	if err := json.Unmarshal(body, &createResp); err != nil {
 		return "", fmt.Errorf("failed to unmarshal response: %w", err)
 	}
@@ -218,6 +229,188 @@ func (c *CRMClient) SearchContacts(ctx context.Context, email string) ([]Contact
 
 	var result struct {
 		Data []Contact `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return result.Data, nil
+}
+
+// CreateAccount method to create an account
+func (c *CRMClient) CreateAccount(ctx context.Context, account *Account) (string, error) {
+	url := fmt.Sprintf("%s/Accounts", c.baseURL)
+
+	payload := map[string]interface{}{
+		"data": []Account{*account},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal account: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Zoho-oauthtoken "+c.oauthToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to create account (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var createResp CreateResponse
+	if err := json.Unmarshal(body, &createResp); err != nil {
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if len(createResp.Data) == 0 {
+		return "", fmt.Errorf("no data in response")
+	}
+
+	if createResp.Data[0].Status != "success" {
+		return "", fmt.Errorf("account creation failed: %s", createResp.Data[0].Message)
+	}
+
+	return createResp.Data[0].Details.ID, nil
+}
+
+// GetAccount method to get an account
+func (c *CRMClient) GetAccount(ctx context.Context, accountID string) (*Account, error) {
+	url := fmt.Sprintf("%s/Accounts/%s", c.baseURL, accountID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Zoho-oauthtoken "+c.oauthToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get account (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Data []Account `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(result.Data) == 0 {
+		return nil, fmt.Errorf("account not found")
+	}
+
+	return &result.Data[0], nil
+}
+
+// UpdateAccount method to update an account
+func (c *CRMClient) UpdateAccount(ctx context.Context, accountID string, account *Account) error {
+	url := fmt.Sprintf("%s/Accounts/%s", c.baseURL, accountID)
+
+	payload := map[string]interface{}{
+		"data": []Account{*account},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal account: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Zoho-oauthtoken "+c.oauthToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to update account (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// DeleteAccount method to delete an account
+func (c *CRMClient) DeleteAccount(ctx context.Context, accountID string) error {
+	url := fmt.Sprintf("%s/Accounts/%s", c.baseURL, accountID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Zoho-oauthtoken "+c.oauthToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to delete account (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// SearchAccounts method to search accounts by name
+func (c *CRMClient) SearchAccounts(ctx context.Context, accountName string) ([]Account, error) {
+	url := fmt.Sprintf("%s/Accounts/search?criteria=Account_Name:equals:%s", c.baseURL, accountName)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Zoho-oauthtoken "+c.oauthToken)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to search accounts (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Data []Account `json:"data"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

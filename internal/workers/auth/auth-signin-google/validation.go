@@ -18,7 +18,6 @@ func GetInputSchema() validation.JSONSchema {
 				Type:        "string",
 				Description: "Redirect URI used in the OAuth flow",
 				MaxLength:   intPtr(500),
-				// Removed: Format field (not supported in Property struct)
 			},
 			"state": {
 				Type:        "string",
@@ -28,7 +27,6 @@ func GetInputSchema() validation.JSONSchema {
 			"metadata": {
 				Type:        "object",
 				Description: "Additional metadata for the authentication request",
-				// Removed: AdditionalProperties field (not supported in Property struct)
 			},
 		},
 		AdditionalProperties: false,
@@ -51,7 +49,6 @@ func GetOutputSchema() validation.JSONSchema {
 			"email": {
 				Type:        "string",
 				Description: "User's email address",
-				// Removed: Format field (not supported in Property struct)
 			},
 			"firstName": {
 				Type:        "string",
@@ -67,9 +64,29 @@ func GetOutputSchema() validation.JSONSchema {
 				Type:        "string",
 				Description: "Authentication token for the user session",
 			},
+			"accessToken": {
+				Type:        "string",
+				Description: "Access token for the user session",
+			},
+			"refreshToken": {
+				Type:        "string",
+				Description: "Refresh token for the user session",
+			},
+			"expiresIn": {
+				Type:        "integer",
+				Description: "Token expiration in seconds",
+			},
+			"tokenType": {
+				Type:        "string",
+				Description: "Type of token (e.g., 'Bearer')",
+			},
 			"isNewUser": {
 				Type:        "boolean",
 				Description: "Whether this is a newly created user",
+			},
+			"emailVerified": {
+				Type:        "boolean",
+				Description: "Whether the user's email is verified",
 			},
 			"crmContactId": {
 				Type:        "string",

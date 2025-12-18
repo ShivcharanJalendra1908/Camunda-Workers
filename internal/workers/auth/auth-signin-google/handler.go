@@ -47,12 +47,10 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		return nil, fmt.Errorf("invalid configuration for auth-signin-google: %w", err)
 	}
 
-	// Use provided logger or create a default one
 	var loggerInstance logger.Logger
 	if opts.Logger != nil {
 		loggerInstance = opts.Logger
 	} else {
-		// Create a default structured logger
 		loggerInstance = logger.NewStructured("info", "json")
 	}
 
@@ -67,7 +65,7 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 	handler.service = NewService(ServiceDependencies{
 		Keycloak: handler.keycloak,
 		ZohoCRM:  handler.zohoCRM,
-		Logger:   loggerInstance, // Fixed: pass Logger interface, not pointer
+		Logger:   loggerInstance,
 	}, handler.config)
 
 	return handler, nil
@@ -103,7 +101,21 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	output, err := h.Execute(ctx, input)
+	if h.service == nil {
+	err := &errors.StandardError{
+		Code:      "SERVICE_NOT_INITIALIZED",
+		Message:   "Auth signin google service not initialized",
+		Retryable: false,
+		Timestamp: time.Now(),
+	}
+
+	errorCode := extractErrorCode(err)
+	metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
+	h.failJob(ctx, client, job, err)
+	return
+    }
+
+	output, err := h.service.Execute(ctx, input)
 	if err != nil {
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
@@ -163,13 +175,17 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	variables := map[string]interface{}{
-		"success":   output.Success,
-		"userId":    output.UserID,
-		"email":     output.Email,
-		"firstName": output.FirstName,
-		"lastName":  output.LastName,
-		"token":     output.Token,
-		"isNewUser": output.IsNewUser,
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"accessToken":   output.AccessToken,  // FIXED: Return Keycloak tokens
+		"refreshToken":  output.RefreshToken, // FIXED: Return Keycloak tokens
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"isNewUser":     output.IsNewUser,
+		"emailVerified": output.EmailVerified,
 	}
 
 	if output.CRMContactID != "" {
@@ -195,10 +211,12 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		})
 	} else {
 		h.logger.Info("Successfully completed Google signin", map[string]interface{}{
-			"jobKey":    job.GetKey(),
-			"userId":    output.UserID,
-			"isNewUser": output.IsNewUser,
-			"worker":    TaskType,
+			"jobKey":        job.GetKey(),
+			"userId":        output.UserID,
+			"isNewUser":     output.IsNewUser,
+			"crmContactId":  output.CRMContactID,
+			"emailVerified": output.EmailVerified,
+			"worker":        TaskType,
 		})
 	}
 }
@@ -216,13 +234,11 @@ func (h *Handler) failJob(ctx context.Context, client worker.JobClient, job enti
 		"worker":       TaskType,
 	})
 
-	// Create fail command with retries and error message
 	failCmd := client.NewFailJobCommand().
 		JobKey(job.GetKey()).
 		Retries(int32(bpmnErr.Retries)).
 		ErrorMessage(fmt.Sprintf("[%s] %s", bpmnErr.Code, bpmnErr.Message))
 
-	// Add error variables if present
 	var finalCmd interface {
 		Send(context.Context) (*pb.FailJobResponse, error)
 	}
@@ -242,7 +258,6 @@ func (h *Handler) failJob(ctx context.Context, client worker.JobClient, job enti
 		finalCmd = failCmd
 	}
 
-	// Send the command
 	_, failErr := finalCmd.Send(ctx)
 	if failErr != nil {
 		h.logger.Error("Failed to send BPMN error to Camunda", map[string]interface{}{
@@ -253,8 +268,13 @@ func (h *Handler) failJob(ctx context.Context, client worker.JobClient, job enti
 	}
 }
 
-// Register registers the worker with Camunda and starts processing jobs
 func (h *Handler) Register() error {
+	
+	if h.camunda == nil {
+	return fmt.Errorf("camunda client is nil, cannot register worker")
+    }
+
+	
 	if !h.config.Enabled {
 		h.logger.Info("Worker is disabled, skipping registration", map[string]interface{}{
 			"worker": TaskType,
@@ -264,7 +284,6 @@ func (h *Handler) Register() error {
 
 	zeebeClient := h.camunda.GetClient()
 
-	// Create and register the job worker
 	jobWorker := zeebeClient.NewJobWorker().
 		JobType(TaskType).
 		Handler(h.Handle).
@@ -285,7 +304,6 @@ func (h *Handler) Register() error {
 	return nil
 }
 
-// Close gracefully shuts down the worker
 func (h *Handler) Close() {
 	if h.jobWorker != nil {
 		h.logger.Info("Shutting down worker gracefully", map[string]interface{}{
@@ -296,19 +314,53 @@ func (h *Handler) Close() {
 	}
 }
 
-// HealthCheck performs a health check for the worker's dependencies
+// func (h *Handler) HealthCheck(ctx context.Context) error {
+// 	if err := h.camunda.HealthCheck(ctx); err != nil {
+// 		return fmt.Errorf("camunda health check failed: %w", err)
+// 	}
+
+// 	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+// 	defer cancel()
+
+// 	// Test Keycloak connectivity
+// 	testUser, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
+// 	if err != nil {
+// 		if stdErr, ok := err.(*errors.StandardError); ok {
+// 			if stdErr.Code != "USER_NOT_FOUND" {
+// 				return fmt.Errorf("keycloak health check failed: %w", err)
+// 			}
+// 		}
+// 	}
+// 	_ = testUser
+
+// 	h.logger.Info("Health check passed", map[string]interface{}{
+// 		"worker": TaskType,
+// 	})
+
+// 	return nil
+// }
+
 func (h *Handler) HealthCheck(ctx context.Context) error {
-	// Check Camunda connection
+	if h.camunda == nil {
+		return fmt.Errorf("camunda client is nil")
+	}
+
 	if err := h.camunda.HealthCheck(ctx); err != nil {
 		return fmt.Errorf("camunda health check failed: %w", err)
 	}
 
-	// Check Keycloak connection (attempt to get access token)
+	// 🔴 CRITICAL FIX
+	if h.keycloak == nil {
+		h.logger.Warn("Keycloak not configured, skipping keycloak health check", map[string]interface{}{
+			"worker": TaskType,
+		})
+		return nil
+	}
+
 	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	testUser, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
-	// We expect this to fail with "user not found", which means Keycloak is reachable
+	_, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
 	if err != nil {
 		if stdErr, ok := err.(*errors.StandardError); ok {
 			if stdErr.Code != "USER_NOT_FOUND" {
@@ -316,7 +368,6 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 			}
 		}
 	}
-	_ = testUser // Ignore result
 
 	h.logger.Info("Health check passed", map[string]interface{}{
 		"worker": TaskType,
@@ -324,6 +375,7 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 
 	return nil
 }
+
 
 func (h *Handler) GetTaskType() string {
 	return TaskType
@@ -337,8 +389,6 @@ func (h *Handler) GetConfig() *Config {
 	return h.config
 }
 
-// Helper functions
-
 func extractErrorCode(err error) string {
 	if stdErr, ok := err.(*errors.StandardError); ok {
 		return string(stdErr.Code)
@@ -351,8 +401,8 @@ func convertToStandardError(err error) *errors.StandardError {
 		return stdErr
 	}
 	return &errors.StandardError{
-		Code:      "GOOGLE_OAUTH_ERROR",
-		Message:   "Google OAuth authentication failed",
+		Code:      "GOOGLE_SIGNIN_ERROR",
+		Message:   "Google signin failed",
 		Details:   err.Error(),
 		Retryable: true,
 		Timestamp: time.Now(),
@@ -384,7 +434,6 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			}
 		}
 
-		// Disable CRM contact creation if Zoho is not configured
 		if appConfig.Integrations.Zoho.APIKey == "" {
 			cfg.CreateCRMContact = false
 		}
@@ -394,6 +443,5 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 }
 
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	// Delegate to the service layer for business logic
 	return h.service.Execute(ctx, input)
 }

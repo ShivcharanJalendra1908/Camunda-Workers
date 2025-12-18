@@ -161,18 +161,25 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	variables := map[string]interface{}{
-		"success":   output.Success,
-		"userId":    output.UserID,
-		"email":     output.Email,
-		"firstName": output.FirstName,
-		"lastName":  output.LastName,
-		"token":     output.Token,
-		"isNewUser": output.IsNewUser,
+		"success":       output.Success,
+		"userId":        output.UserID,
+		"email":         output.Email,
+		"firstName":     output.FirstName,
+		"lastName":      output.LastName,
+		"accessToken":   output.AccessToken,
+		"refreshToken":  output.RefreshToken,
+		"expiresIn":     output.ExpiresIn,
+		"tokenType":     output.TokenType,
+		"isNewUser":     output.IsNewUser,
+		"emailVerified": output.EmailVerified,
 	}
 
 	if output.CRMContactID != "" {
 		variables["crmContactId"] = output.CRMContactID
 	}
+
+	// Also include the single token field for backward compatibility
+	variables["token"] = output.Token
 
 	request, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromMap(variables)
 	if err != nil {
@@ -193,10 +200,12 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		})
 	} else {
 		h.logger.Info("Successfully completed LinkedIn signin", map[string]interface{}{
-			"jobKey":    job.GetKey(),
-			"userId":    output.UserID,
-			"isNewUser": output.IsNewUser,
-			"worker":    TaskType,
+			"jobKey":        job.GetKey(),
+			"userId":        output.UserID,
+			"isNewUser":     output.IsNewUser,
+			"crmContactId":  output.CRMContactID,
+			"emailVerified": output.EmailVerified,
+			"worker":        TaskType,
 		})
 	}
 }
@@ -288,15 +297,28 @@ func (h *Handler) Close() {
 	}
 }
 
+// func (h *Handler) HealthCheck(ctx context.Context) error {
 func (h *Handler) HealthCheck(ctx context.Context) error {
+	if h.camunda == nil {
+		return fmt.Errorf("camunda client is nil")
+	}
+
 	if err := h.camunda.HealthCheck(ctx); err != nil {
 		return fmt.Errorf("camunda health check failed: %w", err)
+	}
+
+	// 🔴 CRITICAL FIX
+	if h.keycloak == nil {
+		h.logger.Warn("Keycloak not configured, skipping keycloak health check", map[string]interface{}{
+			"worker": TaskType,
+		})
+		return nil
 	}
 
 	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	testUser, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
+	_, err := h.keycloak.GetUserByEmail(testCtx, "healthcheck@test.com")
 	if err != nil {
 		if stdErr, ok := err.(*errors.StandardError); ok {
 			if stdErr.Code != "USER_NOT_FOUND" {
@@ -304,7 +326,6 @@ func (h *Handler) HealthCheck(ctx context.Context) error {
 			}
 		}
 	}
-	_ = testUser
 
 	h.logger.Info("Health check passed", map[string]interface{}{
 		"worker": TaskType,
@@ -337,8 +358,8 @@ func convertToStandardError(err error) *errors.StandardError {
 		return stdErr
 	}
 	return &errors.StandardError{
-		Code:      "LINKEDIN_OAUTH_ERROR",
-		Message:   "LinkedIn OAuth authentication failed",
+		Code:      "LINKEDIN_SIGNIN_ERROR",
+		Message:   "LinkedIn signin failed",
 		Details:   err.Error(),
 		Retryable: true,
 		Timestamp: time.Now(),

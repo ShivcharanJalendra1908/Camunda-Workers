@@ -970,6 +970,44 @@
       "retries": 3,
       "workflows": [],
       "tags": ["integration", "email", "aws", "ses"]
+    },
+    {
+      "id": "search-franchises",
+      "name": "Search Franchises",
+      "type": "franchise-search",
+      "description": "Search for franchises using Elasticsearch with various filters",
+      "category": "franchise",
+      "version": "1.0.0",
+      "input_variables": [
+        {"name": "query", "type": "string", "required": false},
+        {"name": "category", "type": "string", "required": false},
+        {"name": "location", "type": "string", "required": false},
+        {"name": "min_investment", "type": "number", "required": false},
+        {"name": "max_investment", "type": "number", "required": false},
+        {"name": "min_space", "type": "number", "required": false},
+        {"name": "max_space", "type": "number", "required": false},
+        {"name": "min_rating", "type": "number", "required": false},
+        {"name": "tags", "type": "string", "required": false},
+        {"name": "page", "type": "number", "required": false, "default": 1},
+        {"name": "limit", "type": "number", "required": false, "default": 10},
+        {"name": "sort_by", "type": "string", "required": false},
+        {"name": "sort_order", "type": "string", "required": false},
+        {"name": "user_id", "type": "string", "required": false},
+        {"name": "session_id", "type": "string", "required": false}
+      ],
+      "output_variables": [
+        {"name": "search_results", "type": "object"},
+        {"name": "success", "type": "boolean"},
+        {"name": "total_count", "type": "number"},
+        {"name": "query_time_ms", "type": "number"},
+        {"name": "suggestions", "type": "string"},
+        {"name": "error_message", "type": "string"}
+      ],
+      "worker_config": {
+        "job_type": "search-franchises",
+        "max_jobs_active": 5,
+        "timeout": 60000
+      }
     }
   ]
 }

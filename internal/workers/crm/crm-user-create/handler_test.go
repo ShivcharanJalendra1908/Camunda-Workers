@@ -633,53 +633,153 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 		validate     func(*testing.T, *Config)
 	}{
 		{
-			name:         "custom config takes precedence",
-			appConfig:    &config.Config{},
-			customConfig: createValidConfig(),
-			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "test-api-key", cfg.ZohoAPIKey)
-				assert.Equal(t, "test-oauth-token", cfg.ZohoOAuthToken)
-			},
-		},
-		{
-			name: "loads from app config",
-			appConfig: &config.Config{
-				Workers: map[string]config.WorkerConfig{
-					"crm-user-create": {
-						Enabled:       true,
-						MaxJobsActive: 10,
-						Timeout:       45000,
-					},
-				},
-				Integrations: config.IntegrationConfig{
-					Zoho: struct {
-						APIKey    string `mapstructure:"api_key"`
-						AuthToken string `mapstructure:"oauth_token"`
-					}{
-						APIKey:    "app-api-key",
-						AuthToken: "app-oauth-token",
-					},
-				},
-			},
-			customConfig: nil,
-			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "app-api-key", cfg.ZohoAPIKey)
-				assert.Equal(t, "app-oauth-token", cfg.ZohoOAuthToken)
-				assert.Equal(t, 10, cfg.MaxJobsActive)
-				assert.Equal(t, 45*time.Second, cfg.Timeout)
-				assert.True(t, cfg.Enabled)
-			},
-		},
-		{
-			name:         "uses defaults when no configs provided",
+			name:         "nil inputs returns default config",
 			appConfig:    nil,
 			customConfig: nil,
 			validate: func(t *testing.T, cfg *Config) {
 				assert.True(t, cfg.Enabled)
 				assert.Equal(t, 5, cfg.MaxJobsActive)
 				assert.Equal(t, 30*time.Second, cfg.Timeout)
-				assert.Empty(t, cfg.ZohoAPIKey)
-				assert.Empty(t, cfg.ZohoOAuthToken)
+			},
+		},
+		{
+			name:      "custom config used when provided",
+			appConfig: nil,
+			customConfig: &Config{
+				Enabled:       false,
+				MaxJobsActive: 2,
+				Timeout:       5 * time.Second,
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				assert.False(t, cfg.Enabled)
+				assert.Equal(t, 2, cfg.MaxJobsActive)
+				assert.Equal(t, 5*time.Second, cfg.Timeout)
+			},
+		},
+		{
+			name: "worker settings loaded from app config",
+			appConfig: &config.Config{
+				Workers: map[string]config.WorkerConfig{
+					"crm-user-create": {
+						Enabled:       false,
+						MaxJobsActive: 12,
+						Timeout:       40000,
+					},
+				},
+			},
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.False(t, cfg.Enabled)
+				assert.Equal(t, 12, cfg.MaxJobsActive)
+				assert.Equal(t, 40*time.Second, cfg.Timeout)
+			},
+		},
+		{
+			name: "Zoho config loaded from app config",
+			appConfig: &config.Config{
+				Integrations: config.IntegrationConfig{
+					Zoho: struct {
+						APIKey       string `mapstructure:"api_key"`
+						AuthToken    string `mapstructure:"oauth_token"`
+						BaseURL      string `mapstructure:"baseUrl"`
+						Timeout      int    `mapstructure:"timeout"`
+						RetryCount   int    `mapstructure:"retryCount"`
+						RetryDelay   int    `mapstructure:"retryDelay"`
+						ClientID     string `mapstructure:"clientId"`
+						ClientSecret string `mapstructure:"clientSecret"`
+						RefreshToken string `mapstructure:"refreshToken"`
+						AccountURL   string `mapstructure:"accountUrl"`
+						TokenURL     string `mapstructure:"tokenUrl"`
+						Scopes       string `mapstructure:"scopes"`
+					}{
+						APIKey:    "app-api-key",
+						AuthToken: "app-auth-token",
+						BaseURL:   "https://app.zoho.com",
+						Timeout:   30,
+					},
+				},
+			},
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "app-api-key", cfg.ZohoAPIKey)
+				assert.Equal(t, "app-auth-token", cfg.ZohoOAuthToken)
+			},
+		},
+		{
+			name: "custom config overrides app config Zoho settings",
+			appConfig: &config.Config{
+				Integrations: config.IntegrationConfig{
+					Zoho: struct {
+						APIKey       string `mapstructure:"api_key"`
+						AuthToken    string `mapstructure:"oauth_token"`
+						BaseURL      string `mapstructure:"baseUrl"`
+						Timeout      int    `mapstructure:"timeout"`
+						RetryCount   int    `mapstructure:"retryCount"`
+						RetryDelay   int    `mapstructure:"retryDelay"`
+						ClientID     string `mapstructure:"clientId"`
+						ClientSecret string `mapstructure:"clientSecret"`
+						RefreshToken string `mapstructure:"refreshToken"`
+						AccountURL   string `mapstructure:"accountUrl"`
+						TokenURL     string `mapstructure:"tokenUrl"`
+						Scopes       string `mapstructure:"scopes"`
+					}{
+						APIKey:    "app-key",
+						AuthToken: "app-token",
+					},
+				},
+			},
+			customConfig: &Config{
+				ZohoAPIKey:     "custom-key",
+				ZohoOAuthToken: "custom-token",
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				// Custom config should override
+				assert.Equal(t, "custom-key", cfg.ZohoAPIKey)
+				assert.Equal(t, "custom-token", cfg.ZohoOAuthToken)
+			},
+		},
+		{
+			name: "complete config merge",
+			appConfig: &config.Config{
+				Workers: map[string]config.WorkerConfig{
+					"crm-user-create": {
+						Enabled:       true,
+						MaxJobsActive: 15,
+						Timeout:       60000,
+					},
+				},
+				Integrations: config.IntegrationConfig{
+					Zoho: struct {
+						APIKey       string `mapstructure:"api_key"`
+						AuthToken    string `mapstructure:"oauth_token"`
+						BaseURL      string `mapstructure:"baseUrl"`
+						Timeout      int    `mapstructure:"timeout"`
+						RetryCount   int    `mapstructure:"retryCount"`
+						RetryDelay   int    `mapstructure:"retryDelay"`
+						ClientID     string `mapstructure:"clientId"`
+						ClientSecret string `mapstructure:"clientSecret"`
+						RefreshToken string `mapstructure:"refreshToken"`
+						AccountURL   string `mapstructure:"accountUrl"`
+						TokenURL     string `mapstructure:"tokenUrl"`
+						Scopes       string `mapstructure:"scopes"`
+					}{
+						APIKey:    "merge-api-key",
+						AuthToken: "merge-auth-token",
+					},
+				},
+			},
+			customConfig: &Config{
+				Enabled: false,
+			},
+			validate: func(t *testing.T, cfg *Config) {
+				// Worker settings from app config
+				assert.Equal(t, 15, cfg.MaxJobsActive)
+				assert.Equal(t, 60*time.Second, cfg.Timeout)
+				// Zoho settings from app config
+				assert.Equal(t, "merge-api-key", cfg.ZohoAPIKey)
+				assert.Equal(t, "merge-auth-token", cfg.ZohoOAuthToken)
+				// Enabled from custom config (overrides)
+				assert.False(t, cfg.Enabled)
 			},
 		},
 	}

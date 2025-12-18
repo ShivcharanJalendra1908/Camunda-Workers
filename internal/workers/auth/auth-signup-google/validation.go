@@ -78,6 +78,22 @@ func GetOutputSchema() validation.JSONSchema {
 				Type:        "string",
 				Description: "Authentication token for the user session",
 			},
+			"accessToken": {
+				Type:        "string",
+				Description: "Access token for the user session",
+			},
+			"refreshToken": {
+				Type:        "string",
+				Description: "Refresh token for the user session",
+			},
+			"expiresIn": {
+				Type:        "integer",
+				Description: "Token expiration in seconds",
+			},
+			"tokenType": {
+				Type:        "string",
+				Description: "Type of token (e.g., 'Bearer')",
+			},
 			"emailVerified": {
 				Type:        "boolean",
 				Description: "Whether the email is verified",

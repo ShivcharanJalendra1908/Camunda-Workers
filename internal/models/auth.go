@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 // AuthProvider represents OAuth provider types
 type AuthProvider string
@@ -10,6 +12,18 @@ const (
 	ProviderLinkedIn AuthProvider = "linkedin"
 	ProviderEmail    AuthProvider = "email"
 )
+
+// JWTClaims represents JWT token claims structure
+type JWTClaims struct {
+	UserID    string                 `json:"userId"`
+	SessionID string                 `json:"sessionId"`
+	Email     string                 `json:"email"`
+	Name      string                 `json:"name"`
+	Provider  AuthProvider           `json:"provider"`
+	Exp       int64                  `json:"exp"`
+	Iat       int64                  `json:"iat"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+}
 
 // AuthUser represents authenticated user information
 type AuthUser struct {
@@ -25,6 +39,9 @@ type AuthUser struct {
 	UpdatedAt     time.Time              `json:"updatedAt" db:"updated_at"`
 	LastLogin     *time.Time             `json:"lastLogin,omitempty" db:"last_login"`
 	Metadata      map[string]interface{} `json:"metadata,omitempty" db:"metadata"`
+	// ADDED: Role/permission fields
+	Role        string   `json:"role,omitempty" db:"role"`
+	Permissions []string `json:"permissions,omitempty" db:"permissions"`
 }
 
 // OAuthToken represents OAuth token information
@@ -83,6 +100,20 @@ type EmailAttachment struct {
 	Filename    string `json:"filename"`
 	Content     []byte `json:"content"`
 	ContentType string `json:"contentType"`
+}
+
+// TokenResponse represents API token response
+type TokenResponse struct {
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+	TokenType    string    `json:"tokenType"`
+	ExpiresIn    int64     `json:"expiresIn"`
+	User         *AuthUser `json:"user"`
+}
+
+// RefreshTokenRequest represents refresh token request
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refreshToken" validate:"required"`
 }
 
 // AuthRepository defines user authentication data access
