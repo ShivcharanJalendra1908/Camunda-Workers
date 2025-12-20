@@ -49,7 +49,8 @@ func Logger(log logger.Logger) gin.HandlerFunc {
 		clientIP := c.ClientIP()
 		requestID := c.GetString("requestId")
 
-		log.Info("API Request", map[string]interface{}{
+		// Log level based on status code
+		logData := map[string]interface{}{
 			"method":     method,
 			"path":       path,
 			"status":     statusCode,
@@ -57,7 +58,51 @@ func Logger(log logger.Logger) gin.HandlerFunc {
 			"clientIP":   clientIP,
 			"requestId":  requestID,
 			"userAgent":  c.Request.UserAgent(),
-		})
+		}
+
+		if statusCode >= 500 {
+			// Log errors from context if any
+			if len(c.Errors) > 0 {
+				logData["error"] = c.Errors.Last().Error()
+			}
+			log.Error("API Request Failed", logData)
+		} else if statusCode >= 400 {
+			log.Warn("API Request Client Error", logData)
+		} else {
+			log.Info("API Request", logData)
+		}
+	}
+}
+
+// ============================================================================
+// CUSTOM RECOVERY MIDDLEWARE
+// ============================================================================
+
+func Recovery(log logger.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			if err := recover(); err != nil {
+				// Log the panic
+				log.Error("Panic recovered", map[string]interface{}{
+					"error":     fmt.Sprintf("%v", err),
+					"path":      c.Request.URL.Path,
+					"method":    c.Request.Method,
+					"requestId": c.GetString("requestId"),
+				})
+
+				// Return error response
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"error":   "Internal server error",
+					"message": "An unexpected error occurred",
+					"requestId": c.GetString("requestId"),
+				})
+
+				// Abort to prevent further middleware execution
+				c.Abort()
+			}
+		}()
+		c.Next()
 	}
 }
 
@@ -186,6 +231,7 @@ func RateLimiter(rateLimitConfig config.RateLimitConfig) gin.HandlerFunc {
 		
 		if !limiter.getVisitor(ip).Allow() {
 			c.JSON(http.StatusTooManyRequests, gin.H{
+				"success": false,
 				"error": "rate limit exceeded",
 				"code":  "RATE_LIMIT_EXCEEDED",
 				"message": fmt.Sprintf("Maximum %d requests per second allowed", rateLimitConfig.RequestsPerSecond),
@@ -231,10 +277,14 @@ func ErrorHandler(log logger.Logger) gin.HandlerFunc {
 				"requestId": c.GetString("requestId"),
 			})
 
-			c.JSON(-1, gin.H{
-				"error":     "internal server error",
-				"requestId": c.GetString("requestId"),
-			})
+			// Only write response if not already written
+			if !c.Writer.Written() {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"error":     "internal server error",
+					"requestId": c.GetString("requestId"),
+				})
+			}
 		}
 	}
 }
@@ -249,23 +299,7 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 		defer cancel()
 
 		c.Request = c.Request.WithContext(ctx)
-
-		finished := make(chan struct{})
-		go func() {
-			c.Next()
-			finished <- struct{}{}
-		}()
-
-		select {
-		case <-finished:
-			return
-		case <-ctx.Done():
-			c.JSON(http.StatusRequestTimeout, gin.H{
-				"error": "request timeout",
-				"code":  "REQUEST_TIMEOUT",
-			})
-			c.Abort()
-		}
+		c.Next()
 	}
 }
 
@@ -284,14 +318,11 @@ func joinStrings(strs []string, sep string) string {
 	return result
 }
 
-
-
-
 // // internal/api/middleware/middleware.go
 // package middleware
 
 // import (
-// 	"context" 
+// 	"context"
 // 	"fmt"
 // 	"net/http"
 // 	"sync"
@@ -299,7 +330,7 @@ func joinStrings(strs []string, sep string) string {
 
 // 	"camunda-workers/internal/common/config"
 // 	"camunda-workers/internal/common/logger"
-	
+
 // 	"github.com/gin-gonic/gin"
 // 	"github.com/google/uuid"
 // 	"golang.org/x/time/rate"
@@ -354,7 +385,6 @@ func joinStrings(strs []string, sep string) string {
 // // CORS MIDDLEWARE
 // // ============================================================================
 
-// // ✅ FIXED - Now accepts config.CORSConfig directly
 // func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
 // 	return func(c *gin.Context) {
 // 		origin := c.Request.Header.Get("Origin")
@@ -413,15 +443,15 @@ func joinStrings(strs []string, sep string) string {
 // 	lastSeen time.Time
 // }
 
-// type RateLimiter struct {
+// type RateLimiterImpl struct {
 // 	visitors map[string]*visitor
 // 	mu       sync.RWMutex
 // 	rps      int
 // 	burst    int
 // }
 
-// func NewRateLimiter(rps, burst int) *RateLimiter {
-// 	rl := &RateLimiter{
+// func NewRateLimiter(rps, burst int) *RateLimiterImpl {
+// 	rl := &RateLimiterImpl{
 // 		visitors: make(map[string]*visitor),
 // 		rps:      rps,
 // 		burst:    burst,
@@ -433,7 +463,7 @@ func joinStrings(strs []string, sep string) string {
 // 	return rl
 // }
 
-// func (rl *RateLimiter) getVisitor(ip string) *rate.Limiter {
+// func (rl *RateLimiterImpl) getVisitor(ip string) *rate.Limiter {
 // 	rl.mu.Lock()
 // 	defer rl.mu.Unlock()
 
@@ -448,7 +478,7 @@ func joinStrings(strs []string, sep string) string {
 // 	return v.limiter
 // }
 
-// func (rl *RateLimiter) cleanupVisitors() {
+// func (rl *RateLimiterImpl) cleanupVisitors() {
 // 	for {
 // 		time.Sleep(5 * time.Minute)
 
@@ -462,7 +492,6 @@ func joinStrings(strs []string, sep string) string {
 // 	}
 // }
 
-// // ✅ FIXED - Now accepts config.RateLimitConfig directly
 // func RateLimiter(rateLimitConfig config.RateLimitConfig) gin.HandlerFunc {
 // 	if !rateLimitConfig.Enabled {
 // 		return func(c *gin.Context) {
@@ -534,31 +563,41 @@ func joinStrings(strs []string, sep string) string {
 // // TIMEOUT MIDDLEWARE
 // // ============================================================================
 
+// // func Timeout(timeout time.Duration) gin.HandlerFunc {
+// // 	return func(c *gin.Context) {
+// // 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+// // 		defer cancel()
+
+// // 		c.Request = c.Request.WithContext(ctx)
+
+// // 		finished := make(chan struct{})
+// // 		go func() {
+// // 			c.Next()
+// // 			finished <- struct{}{}
+// // 		}()
+
+// // 		select {
+// // 		case <-finished:
+// // 			return
+// // 		case <-ctx.Done():
+// // 			c.JSON(http.StatusRequestTimeout, gin.H{
+// // 				"error": "request timeout",
+// // 				"code":  "REQUEST_TIMEOUT",
+// // 			})
+// // 			c.Abort()
+// // 		}
+// // 	}
+// // }
 // func Timeout(timeout time.Duration) gin.HandlerFunc {
 // 	return func(c *gin.Context) {
 // 		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 // 		defer cancel()
 
 // 		c.Request = c.Request.WithContext(ctx)
-
-// 		finished := make(chan struct{})
-// 		go func() {
-// 			c.Next()
-// 			finished <- struct{}{}
-// 		}()
-
-// 		select {
-// 		case <-finished:
-// 			return
-// 		case <-ctx.Done():
-// 			c.JSON(http.StatusRequestTimeout, gin.H{
-// 				"error": "request timeout",
-// 				"code":  "REQUEST_TIMEOUT",
-// 			})
-// 			c.Abort()
-// 		}
+// 		c.Next()
 // 	}
 // }
+
 
 // // ============================================================================
 // // HELPER FUNCTIONS
@@ -574,3 +613,5 @@ func joinStrings(strs []string, sep string) string {
 // 	}
 // 	return result
 // }
+
+

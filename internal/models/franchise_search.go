@@ -1,7 +1,7 @@
 package models
 
 type FranchiseSearchFilters struct {
-	Query         string   `form:"q"`
+	Query         string   `form:"q" json:"query"`
 	Category      string   `form:"category"`
 	Location      string   `form:"location"`
 	MinInvestment int      `form:"min_investment"`

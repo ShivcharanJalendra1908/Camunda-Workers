@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"camunda-workers/internal/common/database"
 	"camunda-workers/internal/common/logger"
@@ -27,16 +28,16 @@ func NewFranchiseHandler(esClient *database.ElasticsearchClient, pgClient *datab
 }
 
 // Helper function to handle errors consistently
-func (h *FranchiseHandler) handleError(c *gin.Context, status int, message string, err error) {
-	h.logger.Error(message, map[string]interface{}{
-		"error": err.Error(),
-	})
-	c.JSON(status, gin.H{
-		"success": false,
-		"error":   message,
-		"details": err.Error(),
-	})
-}
+// func (h *FranchiseHandler) handleError(c *gin.Context, status int, message string, err error) {
+// 	h.logger.Error(message, map[string]interface{}{
+// 		"error": err.Error(),
+// 	})
+// 	c.JSON(status, gin.H{
+// 		"success": false,
+// 		"error":   message,
+// 		"details": err.Error(),
+// 	})
+// }
 
 // Helper function for validation errors
 func (h *FranchiseHandler) validationError(c *gin.Context, message string) {
@@ -88,26 +89,38 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		filters.Limit = 100
 	}
 
-	// Determine which index to search based on category
-	indexName := "franchises_all" // default composite index
+	// Determine which indices to search based on category
+	indices := []string{"food_franchises", "education_franchises", "fashion_franchises"}
+
 	if filters.Category != "" {
-		switch filters.Category {
-		case "food", "food & beverage":
-			indexName = "food_beverage_franchises"
+		switch strings.ToLower(filters.Category) {
+		case "food":
+			indices = []string{"food_franchises"}
 		case "education":
-			indexName = "education_franchises"
+			indices = []string{"education_franchises"}
 		case "fashion":
-			indexName = "fashion_franchises"
+			indices = []string{"fashion_franchises"}
 		}
 	}
 
 	// Build Elasticsearch query
 	query := h.buildSearchQuery(filters)
 
-	// Execute search
-	result, err := h.esClient.Search(c.Request.Context(), indexName, query)
+	// Execute search using multiple indices
+	//result, err := h.esClient.SearchMultipleIndices(c.Request.Context(), indices, query)
+	result, err := h.esClient.Search(c.Request.Context(), indices, query)
 	if err != nil {
-		h.internalError(c, "Search failed", err)
+		h.logger.Error("🔥 Elasticsearch Search Failed", map[string]interface{}{
+			"error":   err.Error(),
+			"indices": indices,
+			"query":   query,
+		})
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Search failed",
+			"message": err.Error(),
+		})
 		return
 	}
 
@@ -143,7 +156,7 @@ func (h *FranchiseHandler) GetByID(c *gin.Context) {
 
 	// Try to find franchise in all indices
 	indices := []string{
-		"food_beverage_franchises",
+		"food_franchises",
 		"education_franchises",
 		"fashion_franchises",
 	}
@@ -197,7 +210,7 @@ func (h *FranchiseHandler) GetStats(c *gin.Context) {
 	}
 
 	// Get actual counts from Elasticsearch
-	indices := []string{"food_beverage_franchises", "education_franchises", "fashion_franchises"}
+	indices := []string{"food_franchises", "education_franchises", "fashion_franchises"}
 
 	for _, index := range indices {
 		count, err := h.esClient.Count(c.Request.Context(), index, map[string]interface{}{
@@ -208,7 +221,7 @@ func (h *FranchiseHandler) GetStats(c *gin.Context) {
 
 		if err == nil {
 			switch index {
-			case "food_beverage_franchises":
+			case "food_franchises":
 				stats["by_category"].(map[string]int)["food"] = int(count)
 			case "education_franchises":
 				stats["by_category"].(map[string]int)["education"] = int(count)
@@ -255,27 +268,22 @@ func (h *FranchiseHandler) GetSuggestions(c *gin.Context) {
 	}
 
 	// Search across all indices
-	indices := []string{
-		"food_beverage_franchises",
-		"education_franchises",
-		"fashion_franchises",
-	}
+	indices := []string{"food_franchises", "education_franchises", "fashion_franchises"}
 
 	var suggestions []string
 
-	for _, index := range indices {
-		result, err := h.esClient.Search(c.Request.Context(), index, suggestQuery)
-		if err == nil {
-			if suggests, ok := result["suggest"].(map[string]interface{}); ok {
-				if brandSuggests, ok := suggests["brand_suggest"].([]interface{}); ok {
-					for _, suggestion := range brandSuggests {
-						if sMap, ok := suggestion.(map[string]interface{}); ok {
-							if options, ok := sMap["options"].([]interface{}); ok {
-								for _, option := range options {
-									if optMap, ok := option.(map[string]interface{}); ok {
-										if text, ok := optMap["text"].(string); ok && text != "" {
-											suggestions = append(suggestions, text)
-										}
+	// Use SearchMultipleIndices instead of looping
+	result, err := h.esClient.SearchMultipleIndices(c.Request.Context(), indices, suggestQuery)
+	if err == nil {
+		if suggests, ok := result["suggest"].(map[string]interface{}); ok {
+			if brandSuggests, ok := suggests["brand_suggest"].([]interface{}); ok {
+				for _, suggestion := range brandSuggests {
+					if sMap, ok := suggestion.(map[string]interface{}); ok {
+						if options, ok := sMap["options"].([]interface{}); ok {
+							for _, option := range options {
+								if optMap, ok := option.(map[string]interface{}); ok {
+									if text, ok := optMap["text"].(string); ok && text != "" {
+										suggestions = append(suggestions, text)
 									}
 								}
 							}
@@ -349,36 +357,32 @@ func (h *FranchiseHandler) GetFeatured(c *gin.Context) {
 		},
 	}
 
-	indices := []string{
-		"food_beverage_franchises",
-		"education_franchises",
-		"fashion_franchises",
+	indices := []string{"food_franchises", "education_franchises", "fashion_franchises"}
+
+	// Use SearchMultipleIndices
+	result, err := h.esClient.SearchMultipleIndices(c.Request.Context(), indices, query)
+	if err != nil {
+		h.logger.Error("Failed to fetch featured franchises", map[string]interface{}{
+			"error":   err.Error(),
+			"indices": indices,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    []map[string]interface{}{},
+		})
+		return
 	}
 
-	var allFeatured []map[string]interface{}
-
-	for _, index := range indices {
-		result, err := h.esClient.Search(c.Request.Context(), index, query)
-		if err != nil {
-			h.logger.Error("Failed to fetch featured franchises", map[string]interface{}{
-				"error": err.Error(),
-				"index": index,
-			})
-			continue
-		}
-
-		franchises, _, _ := h.processSearchResults(result, models.FranchiseSearchFilters{})
-		allFeatured = append(allFeatured, franchises...)
-	}
+	franchises, _, _ := h.processSearchResults(result, models.FranchiseSearchFilters{})
 
 	// Limit to 10 total
-	if len(allFeatured) > 10 {
-		allFeatured = allFeatured[:10]
+	if len(franchises) > 10 {
+		franchises = franchises[:10]
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    allFeatured,
+		"data":    franchises,
 	})
 }
 
@@ -482,7 +486,7 @@ func (h *FranchiseHandler) GetFavorites(c *gin.Context) {
 	for _, id := range franchiseIDs {
 		// Try each index
 		indices := []string{
-			"food_beverage_franchises",
+			"food_franchises",
 			"education_franchises",
 			"fashion_franchises",
 		}
@@ -622,11 +626,59 @@ func (h *FranchiseHandler) buildSearchQuery(filters models.FranchiseSearchFilter
 
 	// Category filter
 	if filters.Category != "" {
-		mustQueries = append(mustQueries, map[string]interface{}{
-			"term": map[string]interface{}{
-				"category.keyword": filters.Category,
-			},
-		})
+		categoryQueries := []map[string]interface{}{}
+
+		switch strings.ToLower(filters.Category) {
+		case "food":
+			categoryQueries = append(categoryQueries,
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Food*",
+					},
+				},
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Beverage*",
+					},
+				},
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Yogurt*",
+					},
+				},
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Dessert*",
+					},
+				},
+			)
+		case "education":
+			categoryQueries = append(categoryQueries,
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Education*",
+					},
+				},
+			)
+		case "fashion":
+			categoryQueries = append(categoryQueries,
+				map[string]interface{}{
+					"wildcard": map[string]interface{}{
+						"category": "*Fashion*",
+					},
+				},
+			)
+		}
+
+		if len(categoryQueries) > 0 {
+			mustQueries = append(mustQueries, map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               categoryQueries,
+					"minimum_should_match": 1,
+				},
+			
+			})
+		}
 	}
 
 	// Location filter
@@ -730,7 +782,7 @@ func (h *FranchiseHandler) buildSearchQuery(filters models.FranchiseSearchFilter
 }
 
 // Helper method to process search results
-func (h *FranchiseHandler) processSearchResults(result map[string]interface{}, filters models.FranchiseSearchFilters) ([]map[string]interface{}, int, error) {
+func (h *FranchiseHandler) processSearchResults(result map[string]interface{}, _ models.FranchiseSearchFilters) ([]map[string]interface{}, int, error) {
 	var franchises []map[string]interface{}
 	var total int
 
@@ -775,4 +827,3 @@ func (h *FranchiseHandler) removeDuplicates(slice []string) []string {
 	}
 	return list
 }
-
