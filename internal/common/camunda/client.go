@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+    "os"
 
 	"camunda-workers/internal/common/errors"
 
@@ -205,4 +206,29 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("zeebe health check failed: %w", err)
 	}
 	return nil
+}
+
+// NewClientFromEnv creates a client using environment variables
+// This is useful for Docker/production deployments
+func NewClientFromEnv() (*Client, error) {
+	address := os.Getenv("CAMUNDA_BROKER_ADDRESS")
+	if address == "" {
+		address = os.Getenv("ZEEBE_ADDRESS")
+	}
+	if address == "" {
+		address = "localhost:26500" // fallback
+	}
+
+	insecure := os.Getenv("CAMUNDA_INSECURE") == "true" || 
+	            os.Getenv("APP_ENVIRONMENT") == "development"
+
+	config := &ClientConfig{
+		GatewayAddress:         address,
+		UsePlaintextConnection: insecure,
+		ConnectionTimeout:      10 * time.Second,
+		RequestTimeout:         30 * time.Second,
+		RetryConfig:            DefaultRetryConfig,
+	}
+
+	return NewClientWithConfig(config)
 }

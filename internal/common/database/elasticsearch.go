@@ -76,8 +76,53 @@ func (c *ElasticsearchClient) Info(ctx context.Context) error {
 }
 
 // Search is an alias for SearchDocuments for backward compatibility
-func (c *ElasticsearchClient) Search(ctx context.Context, index string, query map[string]interface{}) (map[string]interface{}, error) {
-	return c.SearchDocuments(ctx, index, query)
+//
+//	func (c *ElasticsearchClient) Search(ctx context.Context, index string, query map[string]interface{}) (map[string]interface{}, error) {
+//		return c.SearchDocuments(ctx, index, query)
+//	}
+//
+// Search performs a search query on one or more indices
+func (c *ElasticsearchClient) Search(ctx context.Context, indices interface{}, query map[string]interface{}) (map[string]interface{}, error) {
+	// Convert query to JSON
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	// Convert indices to string
+	var indexStr string
+	switch v := indices.(type) {
+	case string:
+		indexStr = v
+	case []string:
+		indexStr = strings.Join(v, ",")
+	default:
+		return nil, fmt.Errorf("invalid indices type: %T", indices)
+	}
+
+	// Perform search
+	res, err := c.Client.Search(
+		c.Client.Search.WithContext(ctx),
+		c.Client.Search.WithIndex(indexStr),
+		c.Client.Search.WithBody(strings.NewReader(string(queryJSON))),
+		c.Client.Search.WithTrackTotalHits(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return nil, fmt.Errorf("search error: %s", res.String())
+	}
+
+	// Parse response
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result, nil
 }
 
 // SearchDocuments performs a search query on the specified index
@@ -92,6 +137,42 @@ func (c *ElasticsearchClient) SearchDocuments(ctx context.Context, index string,
 	res, err := c.Client.Search(
 		c.Client.Search.WithContext(ctx),
 		c.Client.Search.WithIndex(index),
+		c.Client.Search.WithBody(strings.NewReader(string(queryJSON))),
+		c.Client.Search.WithTrackTotalHits(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search request failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return nil, fmt.Errorf("search error: %s", res.String())
+	}
+
+	// Parse response
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return result, nil
+}
+
+// SearchMultipleIndices performs a search query on multiple indices
+func (c *ElasticsearchClient) SearchMultipleIndices(ctx context.Context, indices []string, query map[string]interface{}) (map[string]interface{}, error) {
+	// Convert query to JSON
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	// Join indices with comma for Elasticsearch API
+	indexStr := strings.Join(indices, ",")
+
+	// Perform search
+	res, err := c.Client.Search(
+		c.Client.Search.WithContext(ctx),
+		c.Client.Search.WithIndex(indexStr),
 		c.Client.Search.WithBody(strings.NewReader(string(queryJSON))),
 		c.Client.Search.WithTrackTotalHits(true),
 	)
@@ -357,9 +438,10 @@ func (c *ElasticsearchClient) IndexExists(ctx context.Context, index string) (bo
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode == 200 {
+	switch res.StatusCode {
+	case 200:
 		return true, nil
-	} else if res.StatusCode == 404 {
+	case 404:
 		return false, nil
 	}
 
