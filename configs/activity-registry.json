@@ -1008,6 +1008,28 @@
         "max_jobs_active": 5,
         "timeout": 60000
       }
+    },
+
+    {
+      "id": "franchise-postgres",
+      "name": "Franchise PostgreSQL Worker",
+      "description": "Handles all PostgreSQL operations for franchise data",
+      "job_type": "franchise-postgres",
+      "operations": [
+        "CREATE_FRANCHISE",
+        "UPDATE_FRANCHISE",
+        "GET_FRANCHISE",
+        "DELETE_FRANCHISE",
+        "CREATE_BUSINESS_OVERVIEW",
+        "UPDATE_BUSINESS_OVERVIEW",
+        "CREATE_INVESTMENT",
+        "UPDATE_INVESTMENT",
+        "CREATE_OPERATIONS",
+        "UPDATE_OPERATIONS",
+        "GET_FULL_FRANCHISE"
+      ],
+      "status": "active",
+      "version": "1.0.0"
     }
   ]
 }

@@ -50,8 +50,8 @@ func main() {
 	})
 
 	// Initialize Camunda client
-    fmt.Printf("🔧 Connecting to Camunda at: %s\n", cfg.Camunda.BrokerAddress)
-    camundaClient, err := camunda.NewClientFromEnv()
+	fmt.Printf("🔧 Connecting to Camunda at: %s\n", cfg.Camunda.BrokerAddress)
+	camundaClient, err := camunda.NewClientFromEnv()
 	//camundaClient, err := camunda.NewClient(cfg.Camunda.BrokerAddress)
 	if err != nil {
 		log.Error("Failed to initialize Camunda client", map[string]interface{}{
@@ -128,7 +128,7 @@ func main() {
 
 	// Public routes (no authentication required)
 	router.GET("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
-    router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
+	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 
 	router.GET("/metrics", metricsHandler())
 
@@ -238,6 +238,16 @@ func main() {
 			franchiseGroup.POST("/save-search", franchiseHandler.SaveSearch)
 			franchiseGroup.GET("/saved-searches", franchiseHandler.GetSavedSearches)
 			franchiseGroup.DELETE("/saved-searches/:id", franchiseHandler.DeleteSavedSearch)
+
+			// ========== ADD THESE NEW ROUTES BELOW ==========
+
+			// Franchise CRUD Operations (via franchise-postgres worker)
+			franchiseGroup.POST("/create", workflowHandler.CreateFranchise)     // User creates franchise
+			franchiseGroup.PUT("/:id", workflowHandler.UpdateFranchise)         // Admin updates franchise
+			franchiseGroup.DELETE("/:id", workflowHandler.DeleteFranchise)      // Admin deletes franchise
+			franchiseGroup.GET("/full/:slug", workflowHandler.GetFullFranchise) // Get franchise with all details
+
+			// ========== END OF ADDITION ==========
 		}
 
 		// ========================================================================
@@ -453,6 +463,14 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/categories", port),
 		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/featured", port),
 		"",
+		// ========== ADD THESE LINES ==========
+		"  🏗️  Franchise CRUD (Workflow-based):",
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/create (create)", port),
+		fmt.Sprintf("    PUT  http://localhost:%d/api/v1/franchises/:id (admin update)", port),
+		fmt.Sprintf("    DEL  http://localhost:%d/api/v1/franchises/:id (admin delete)", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/full/:slug (get full)", port),
+		// ========== END OF ADDITION ==========
+
 		"🔒 PROTECTED ROUTES (Requires JWT Token):",
 		"",
 		"  🤖 AI Workflows (API → Camunda → Workers):",

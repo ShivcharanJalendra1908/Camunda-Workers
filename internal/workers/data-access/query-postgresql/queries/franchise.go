@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"time"
+	"fmt"
 )
 
 func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
@@ -134,7 +135,7 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 	placeholders := make([]string, len(franchiseIDs))
 	args := make([]interface{}, len(franchiseIDs))
 	for i, id := range franchiseIDs {
-		placeholders[i] = "$" + string(rune('1'+i))
+		placeholders[i] = fmt.Sprintf("$%d", i+1) // ← FIXED: Use fmt.Sprintf instead of rune arithmetic
 		args[i] = id
 	}
 

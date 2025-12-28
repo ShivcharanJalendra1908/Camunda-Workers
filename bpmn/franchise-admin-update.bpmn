@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_2"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:process id="franchise-admin-update" name="Franchise Admin Update" isExecutable="true">
+    
+    <bpmn:startEvent id="StartUpdate_1" name="Start Update">
+      <bpmn:outgoing>FlowUpdate_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Update Franchise -->
+    <bpmn:serviceTask id="UpdateFranchise" name="Update Franchise">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=admin_id" target="updated_by" />
+          <zeebe:input source="=name" target="name" />
+          <zeebe:input source="=description" target="description" />
+          <zeebe:input source="=trusted_seller" target="trusted_seller" />
+          <zeebe:input source="=total_outlets" target="total_outlets" />
+          <zeebe:input source="=industry" target="industry" />
+          <zeebe:output source="=success" target="update_success" />
+          <zeebe:output source="=updated_at" target="updated_at" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>FlowUpdate_1</bpmn:incoming>
+      <bpmn:outgoing>FlowUpdate_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndUpdate_1" name="Update Complete">
+      <bpmn:incoming>FlowUpdate_2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="FlowUpdate_1" sourceRef="StartUpdate_1" targetRef="UpdateFranchise" />
+    <bpmn:sequenceFlow id="FlowUpdate_2" sourceRef="UpdateFranchise" targetRef="EndUpdate_1" />
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_2">
+    <bpmndi:BPMNPlane id="BPMNPlane_2" bpmnElement="franchise-admin-update">
+      <bpmndi:BPMNShape id="StartUpdate_1_di" bpmnElement="StartUpdate_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UpdateFranchise_di" bpmnElement="UpdateFranchise">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndUpdate_1_di" bpmnElement="EndUpdate_1">
+        <dc:Bounds x="432" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="FlowUpdate_1_di" bpmnElement="FlowUpdate_1">
+        <dc:Point x="215" y="117" />
+        <dc:Point x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="FlowUpdate_2_di" bpmnElement="FlowUpdate_2">
+        <dc:Point x="370" y="117" />
+        <dc:Point x="432" y="117" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

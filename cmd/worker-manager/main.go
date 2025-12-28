@@ -30,7 +30,8 @@ import (
 	st "camunda-workers/internal/workers/infrastructure/select-template"
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
-	// Data Access Workers (2)
+	// Data Access Workers (3)
+	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
 
@@ -189,7 +190,7 @@ func main() {
 
 	zapLog.Info("All external service clients initialized")
 
-	// --- START: Register ALL 26 Workers ---
+	// --- START: Register ALL 27 Workers ---
 
 	// --- 1. Infrastructure Workers (3) ---
 	if cfg.Workers[vs.TaskType].Enabled {
@@ -226,7 +227,7 @@ func main() {
 		startWorker(zeebeClient, st.TaskType, cfg.Workers[st.TaskType], handler.Handle, zapLog)
 	}
 
-	// --- 2. Data Access Workers (2) ---
+	// --- 2. Data Access Workers (3) ---
 	if cfg.Workers[qp.TaskType].Enabled {
 		handler := qp.NewHandler(
 			&qp.Config{
@@ -246,6 +247,31 @@ func main() {
 		)
 		startWorker(zeebeClient, qe.TaskType, cfg.Workers[qe.TaskType], handler.Handle, zapLog)
 	}
+
+	// ========== ADD THIS BLOCK BELOW ==========
+
+	// Franchise PostgreSQL Worker
+	if taskType := "franchise-postgres"; cfg.Workers[taskType].Enabled {
+    // ✅ BETTER: Set all config values explicitly
+        fpConfig := &franchisepostgres.Config{
+            RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
+            MaxJobsActive:  cfg.Workers[taskType].MaxJobsActive,  // ← ADD THIS
+        }
+        handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig)
+        startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+
+        zapLog.Info("Franchise PostgreSQL worker registered successfully",
+            zap.String("taskType", taskType),
+            zap.Int("supportedOperations", 22),
+            zap.Int("tables", 8),
+            zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
+            zap.Duration("requestTimeout", fpConfig.RequestTimeout),
+        )
+    }
+
+
+
+	// ========== END OF ADDITION ==========
 
 	// --- 3. Business Logic Workers (5 + 5 = 10) ---
 
@@ -495,7 +521,7 @@ func main() {
 		}
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
-	zapLog.Info("All 25 workers registered successfully")
+	zapLog.Info("All 27 workers registered successfully")
 
 	// --- Health & Metrics Server ---
 	go func() {
