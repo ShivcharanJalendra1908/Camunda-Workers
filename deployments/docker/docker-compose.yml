@@ -82,6 +82,50 @@ services:
       retries: 30
       start_period: 120s
 
+  template-worker:
+    build: .
+    depends_on:
+      - zeebe
+    environment:
+      # Zeebe connection
+      - ZEEBE_ADDRESS=zeebe:26500
+      - ZEEBE_INSECURE=true
+      
+      # Worker configuration
+      - WORKER_ID=template-worker-1
+      - TASK_TYPE=template-processor
+      - MAX_JOBS_ACTIVE=10
+      - TIMEOUT=30
+      
+      # Security limits
+      - MAX_TEMPLATE_SIZE=10485760
+      - MAX_INPUT_SIZE=10485760
+      - MAX_NESTING_DEPTH=20
+      - MAX_MAPPINGS=1000
+      - MAX_EXPRESSION_LENGTH=1000
+      - MAX_REGEX_PATTERN_LENGTH=500
+      
+      # Templates
+      - TEMPLATES_BASE_DIR=/app/templates
+      - ENABLE_CACHE=true
+      - MAX_CACHE_SIZE=100
+      
+      # Logging & Monitoring
+      - LOG_LEVEL=info
+      - ENABLE_METRICS=true
+    volumes:
+      - ./templates:/app/templates:ro
+    ports:
+      - "8081:8080"  # Health checks
+      - "9091:9090"  # Metrics
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
   # ============================================================================
   # KEYCLOAK
   # ============================================================================
@@ -286,4 +330,6 @@ services:
       retries: 3
       start_period: 90s
     restart: on-failure:3
+  
 
+  

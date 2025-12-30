@@ -21,3 +21,28 @@ data:
   NOTIFICATIONS_EMAIL_ENABLED: "true"
   NOTIFICATIONS_SMS_ENABLED: "true"
   NOTIFICATIONS_SMS_PRIORITY_THRESHOLD: "high"
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: template-configs
+  namespace: camunda
+data:
+  user-transform.json: |
+    {
+      "metadata": {
+        "name": "user-transform",
+        "version": "1.0.0"
+      },
+      "processing": {
+        "mappings": [
+          {
+            "target": "fullName",
+            "type": "template",
+            "config": {
+              "template": "{{firstName}} {{lastName}}"
+            }
+          }
+        ]
+      }
+    }

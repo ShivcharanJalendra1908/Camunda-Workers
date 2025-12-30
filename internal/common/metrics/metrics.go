@@ -38,4 +38,26 @@ var (
 		},
 		[]string{"task_type"},
 	)
+
+	// Template-driven worker metrics
+	TemplateCacheHits = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "template_cache_hits_total",
+			Help: "Total template cache hits",
+		},
+	)
+
+	TemplateCacheMisses = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "template_cache_misses_total",
+			Help: "Total template cache misses",
+		},
+	)
+
+	TemplateRegexTimeouts = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "template_regex_timeouts_total",
+			Help: "Total regex timeouts",
+		},
+	)
 )

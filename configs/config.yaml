@@ -415,6 +415,11 @@ workers:
     max_jobs_active: 5
     timeout: 15000
 
+  template-driven:
+    enabled: true
+    maxJobsActive: 10
+    timeout: 30000
+
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
