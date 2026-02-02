@@ -62,7 +62,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 180s
-    restart: on-failure:5
+    restart: on-failure
 
 # ============================================================================
 # OLLAMA SERVICE
@@ -240,7 +240,7 @@ services:
         condition: service_healthy
     networks:
       - camunda-network
-    restart: on-failure:3
+    restart: on-failure
 
 # ============================================================================
 # KEYCLOAK
@@ -339,7 +339,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    restart: on-failure:3
+    restart: on-failure
 
   camunda-workers:
     build:
@@ -400,4 +400,4 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
-    restart: on-failure:3
+    restart: on-failure
