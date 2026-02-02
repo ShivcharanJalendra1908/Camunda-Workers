@@ -2,9 +2,279 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
-                  id="Definitions_1"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_FranchiseManagement"
                   targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <!-- ========================================
+       PROCESS 1: UPDATE FRANCHISE
+       ======================================== -->
+  <bpmn:process id="franchise-update" name="Update Franchise" isExecutable="true">
+    
+    <bpmn:startEvent id="StartUpdate_1" name="Start Update">
+      <bpmn:outgoing>Flow_Update_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="UpdateFranchise" name="Update Franchise">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=name" target="name" />
+          <zeebe:input source="=description" target="description" />
+          <zeebe:input source="=trusted_seller" target="trusted_seller" />
+          <zeebe:input source="=verified" target="verified" />
+          <zeebe:input source="=user_id" target="updated_by" />
+          <zeebe:output source="=success" target="update_success" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Update_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Update_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="ReindexAfterUpdate" name="Re-index to ES">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-es-indexer" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=&#34;UPDATE&#34;" target="operation" />
+          <zeebe:output source="=indexed" target="es_reindexed" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Update_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Update_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndUpdate_1" name="Update Complete">
+      <bpmn:incoming>Flow_Update_3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Update_1" sourceRef="StartUpdate_1" targetRef="UpdateFranchise" />
+    <bpmn:sequenceFlow id="Flow_Update_2" sourceRef="UpdateFranchise" targetRef="ReindexAfterUpdate" />
+    <bpmn:sequenceFlow id="Flow_Update_3" sourceRef="ReindexAfterUpdate" targetRef="EndUpdate_1" />
+
+  </bpmn:process>
+
+  <!-- ========================================
+       PROCESS 2: DELETE FRANCHISE
+       ======================================== -->
+  <bpmn:process id="franchise-delete" name="Delete Franchise" isExecutable="true">
+    
+    <bpmn:startEvent id="StartDelete_1" name="Start Delete">
+      <bpmn:outgoing>Flow_Delete_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- First delete from ES (to avoid orphan documents) -->
+    <bpmn:serviceTask id="DeleteFromES" name="Delete from ES">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-es-indexer" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=&#34;DELETE&#34;" target="operation" />
+          <zeebe:output source="=deleted" target="es_deleted" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Delete_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Delete_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Then delete from Postgres -->
+    <bpmn:serviceTask id="DeleteFromPostgres" name="Delete from Postgres">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;DELETE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:output source="=success" target="delete_success" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Delete_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Delete_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndDelete_1" name="Delete Complete">
+      <bpmn:incoming>Flow_Delete_3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Delete_1" sourceRef="StartDelete_1" targetRef="DeleteFromES" />
+    <bpmn:sequenceFlow id="Flow_Delete_2" sourceRef="DeleteFromES" targetRef="DeleteFromPostgres" />
+    <bpmn:sequenceFlow id="Flow_Delete_3" sourceRef="DeleteFromPostgres" targetRef="EndDelete_1" />
+
+  </bpmn:process>
+
+  <!-- ========================================
+       PROCESS 3: ADMIN APPROVE/VERIFY
+       ======================================== -->
+  <bpmn:process id="franchise-admin-approve" name="Admin Approve Franchise" isExecutable="true">
+    
+    <bpmn:startEvent id="StartApprove_1" name="Start Approval">
+      <bpmn:outgoing>Flow_Approve_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="ApproveInPostgres" name="Approve in Postgres">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=true" target="verified" />
+          <zeebe:input source="=admin_id" target="updated_by" />
+          <zeebe:output source="=success" target="approval_success" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approve_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="ReindexAfterApproval" name="Re-index to ES">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-es-indexer" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=&#34;UPDATE&#34;" target="operation" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approve_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndApprove_1" name="Approval Complete">
+      <bpmn:incoming>Flow_Approve_3</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Approve_1" sourceRef="StartApprove_1" targetRef="ApproveInPostgres" />
+    <bpmn:sequenceFlow id="Flow_Approve_2" sourceRef="ApproveInPostgres" targetRef="ReindexAfterApproval" />
+    <bpmn:sequenceFlow id="Flow_Approve_3" sourceRef="ReindexAfterApproval" targetRef="EndApprove_1" />
+
+  </bpmn:process>
+
+  <!-- ========================================
+       BPMN DIAGRAMS
+       ======================================== -->
+
+  <!-- Diagram for UPDATE process -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Update">
+    <bpmndi:BPMNPlane id="BPMNPlane_Update" bpmnElement="franchise-update">
+      <bpmndi:BPMNShape id="StartUpdate_1_di" bpmnElement="StartUpdate_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="162" y="142" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UpdateFranchise_di" bpmnElement="UpdateFranchise">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReindexAfterUpdate_di" bpmnElement="ReindexAfterUpdate">
+        <dc:Bounds x="430" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndUpdate_1_di" bpmnElement="EndUpdate_1">
+        <dc:Bounds x="592" y="99" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="568" y="142" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Update_1_di" bpmnElement="Flow_Update_1">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Update_2_di" bpmnElement="Flow_Update_2">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="430" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Update_3_di" bpmnElement="Flow_Update_3">
+        <di:waypoint x="530" y="117" />
+        <di:waypoint x="592" y="117" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+  <!-- Diagram for DELETE process -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Delete">
+    <bpmndi:BPMNPlane id="BPMNPlane_Delete" bpmnElement="franchise-delete">
+      <bpmndi:BPMNShape id="StartDelete_1_di" bpmnElement="StartDelete_1">
+        <dc:Bounds x="179" y="259" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="162" y="302" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DeleteFromES_di" bpmnElement="DeleteFromES">
+        <dc:Bounds x="270" y="237" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="DeleteFromPostgres_di" bpmnElement="DeleteFromPostgres">
+        <dc:Bounds x="430" y="237" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndDelete_1_di" bpmnElement="EndDelete_1">
+        <dc:Bounds x="592" y="259" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="568" y="302" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Delete_1_di" bpmnElement="Flow_Delete_1">
+        <di:waypoint x="215" y="277" />
+        <di:waypoint x="270" y="277" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Delete_2_di" bpmnElement="Flow_Delete_2">
+        <di:waypoint x="370" y="277" />
+        <di:waypoint x="430" y="277" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Delete_3_di" bpmnElement="Flow_Delete_3">
+        <di:waypoint x="530" y="277" />
+        <di:waypoint x="592" y="277" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+  <!-- Diagram for APPROVE process -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Approve">
+    <bpmndi:BPMNPlane id="BPMNPlane_Approve" bpmnElement="franchise-admin-approve">
+      <bpmndi:BPMNShape id="StartApprove_1_di" bpmnElement="StartApprove_1">
+        <dc:Bounds x="179" y="419" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="158" y="462" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ApproveInPostgres_di" bpmnElement="ApproveInPostgres">
+        <dc:Bounds x="270" y="397" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReindexAfterApproval_di" bpmnElement="ReindexAfterApproval">
+        <dc:Bounds x="430" y="397" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndApprove_1_di" bpmnElement="EndApprove_1">
+        <dc:Bounds x="592" y="419" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="568" y="462" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Approve_1_di" bpmnElement="Flow_Approve_1">
+        <di:waypoint x="215" y="437" />
+        <di:waypoint x="270" y="437" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_2_di" bpmnElement="Flow_Approve_2">
+        <di:waypoint x="370" y="437" />
+        <di:waypoint x="430" y="437" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_3_di" bpmnElement="Flow_Approve_3">
+        <di:waypoint x="530" y="437" />
+        <di:waypoint x="592" y="437" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
+
+<!-- <?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  xsi:schemaLocation="http://www.omg.org/spec/BPMN/20100524/MODEL BPMN20.xsd">
   
   <bpmn:process id="franchise-complete-registration" name="Franchise Complete Registration" isExecutable="true">
     
@@ -131,4 +401,48 @@
 
   </bpmn:process>
 
-</bpmn:definitions>
+  <!-- ADD THIS DIAGRAM SECTION - Yeh missing tha -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-complete-registration">
+      <bpmndi:BPMNShape id="StartEvent_1di" bpmnElement="StartEvent">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CreateFranchise_1di" bpmnElement="CreateFranchise">
+        <dc:Bounds x="250" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CreateBusinessOverview_1di" bpmnElement="CreateBusinessOverview">
+        <dc:Bounds x="400" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CreateInvestment_1di" bpmnElement="CreateInvestment">
+        <dc:Bounds x="550" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CreateOperations_1di" bpmnElement="CreateOperations">
+        <dc:Bounds x="700" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1di" bpmnElement="EndEvent">
+        <dc:Bounds x="850" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1di" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="250" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_2di" bpmnElement="Flow_2">
+        <di:waypoint x="350" y="120" />
+        <di:waypoint x="400" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_3di" bpmnElement="Flow_3">
+        <di:waypoint x="500" y="120" />
+        <di:waypoint x="550" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_4di" bpmnElement="Flow_4">
+        <di:waypoint x="650" y="120" />
+        <di:waypoint x="700" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_5di" bpmnElement="Flow_5">
+        <di:waypoint x="800" y="120" />
+        <di:waypoint x="850" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions> -->

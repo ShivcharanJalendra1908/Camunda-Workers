@@ -231,6 +231,92 @@ health:  ## Check health of all services
 	@echo -n "Redis: " && docker exec redis redis-cli ping > /dev/null 2>&1 && echo "$(COLOR_GREEN)✓$(COLOR_RESET)" || echo "$(COLOR_YELLOW)✗$(COLOR_RESET)"
 	@echo -n "Elasticsearch: " && curl -sf http://localhost:9200/_cluster/health > /dev/null && echo "$(COLOR_GREEN)✓$(COLOR_RESET)" || echo "$(COLOR_YELLOW)✗$(COLOR_RESET)"
 
+
+# ============================================================================
+# DATABASE MIGRATIONS
+# ============================================================================
+
+.PHONY: migrate-up migrate-down migrate-create migrate-status
+
+migrate-up:  ## Run database migrations
+	@echo "$(COLOR_BLUE)Running database migrations...$(COLOR_RESET)"
+	@docker-compose up -d postgres
+	@sleep 5
+	@echo "$(COLOR_YELLOW)Waiting for PostgreSQL to be ready...$(COLOR_RESET)"
+	@until docker-compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do \
+		sleep 2; \
+		echo -n "."; \
+	done
+	@echo ""
+	@docker run --network camunda-workers_default \
+		-e PGHOST=postgres \
+		-e PGPORT=5432 \
+		-e PGDATABASE=franchises \
+		-e PGUSER=postgres \
+		-e PGPASSWORD=postgres \
+		-v $(PWD)/deployments/docker/postgres/migrations:/migrations \
+		postgres:15-alpine \
+		sh -c "\
+			echo 'Running migrations in order...'; \
+			for migration in \$$(ls /migrations/*.sql | sort); do \
+				echo 'Running \$${migration}...'; \
+				psql -f \$${migration}; \
+			done; \
+			echo '✅ All migrations completed successfully!'; \
+		"
+	@echo "$(COLOR_GREEN)✓ Migrations applied$(COLOR_RESET)"
+
+migrate-down:  ## Rollback all database migrations (DANGEROUS)
+	@echo "$(COLOR_YELLOW)⚠️  Warning: This will drop ALL tables. Continue? [y/N]$(COLOR_RESET)" && read ans && [ $${ans:-N} = y ]
+	@docker-compose exec postgres psql -U postgres -d franchises -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@echo "$(COLOR_GREEN)✓ Database reset$(COLOR_RESET)"
+
+migrate-create:  ## Create a new migration file
+	@echo "$(COLOR_BLUE)Creating new migration file...$(COLOR_RESET)"
+	@echo "Enter migration name (e.g., add_new_feature):" && read name; \
+	timestamp=$$(date +%Y%m%d%H%M%S); \
+	file="deployments/docker/postgres/migrations/$${timestamp}_$${name}.sql"; \
+	echo "-- ============================================================" > $$file; \
+	echo "-- Migration: $${name}" >> $$file; \
+	echo "-- Date: $$(date +'%Y-%m-%d')" >> $$file; \
+	echo "-- ============================================================" >> $$file; \
+	echo "" >> $$file; \
+	echo "BEGIN;" >> $$file; \
+	echo "" >> $$file; \
+	echo "-- Your migration SQL here" >> $$file; \
+	echo "" >> $$file; \
+	echo "COMMIT;" >> $$file; \
+	echo "$(COLOR_GREEN)✓ Created migration: $$file$(COLOR_RESET)"
+
+migrate-status:  ## Show migration status
+	@echo "$(COLOR_BLUE)Checking migration status...$(COLOR_RESET)"
+	@docker-compose exec postgres psql -U postgres -d franchises -c "
+		SELECT table_name, table_type 
+		FROM information_schema.tables 
+		WHERE table_schema = 'public' 
+		ORDER BY table_name;
+	" || echo "$(COLOR_YELLOW)Cannot connect to database$(COLOR_RESET)"
+
+migrate-verify:  ## Verify idempotency tables exist
+	@echo "$(COLOR_BLUE)Verifying idempotency setup...$(COLOR_RESET)"
+	@docker-compose exec postgres psql -U postgres -d franchises -c "
+		SELECT '✅ idempotency_keys table' as status 
+		FROM information_schema.tables 
+		WHERE table_name = 'idempotency_keys'
+		UNION ALL
+		SELECT '✅ franchise_applications table' 
+		FROM information_schema.tables 
+		WHERE table_name = 'franchise_applications'
+		UNION ALL
+		SELECT '✅ notifications table' 
+		FROM information_schema.tables 
+		WHERE table_name = 'notifications'
+		UNION ALL
+		SELECT '✅ application_history table' 
+		FROM information_schema.tables 
+		WHERE table_name = 'application_history';
+	" || echo "$(COLOR_YELLOW)Cannot verify$(COLOR_RESET)"
+
 # --- Code Quality ---
 .PHONY: lint
 lint:  ## Run linter
@@ -371,3 +457,61 @@ deploy-franchise-bpmn:  ## Deploy franchise BPMN workflows
 	@zbctl deploy bpmn/franchise-complete-registration.bpmn
 	@zbctl deploy bpmn/franchise-admin-update.bpmn
 	@echo "$(COLOR_GREEN)✓ Workflows deployed$(COLOR_RESET)"
+
+# ============================================================================
+# AI SEARCH WORKER
+# ============================================================================
+
+setup-ollama:
+	@./scripts/setup-ollama.sh
+
+# ============================================================================
+# IDEMPOTENCY TESTING
+# ============================================================================
+
+.PHONY: test-idempotency-api test-idempotency-worker test-idempotency-all
+
+test-idempotency-api:  ## Test API idempotency with curl
+	@echo "$(COLOR_BLUE)Testing API idempotency...$(COLOR_RESET)"
+	@echo "Sending first request with idempotency key..."
+	@curl -X POST http://localhost:8080/api/v1/public/auth/signup \
+		-H "Content-Type: application/json" \
+		-H "X-Idempotency-Key: test-key-123" \
+		-d '{"email":"test@example.com", "name":"Test User"}' \
+		-s | jq '.status // .error'
+	@echo ""
+	@echo "Sending second request with SAME idempotency key..."
+	@curl -X POST http://localhost:8080/api/v1/public/auth/signup \
+		-H "Content-Type: application/json" \
+		-H "X-Idempotency-Key: test-key-123" \
+		-d '{"email":"test@example.com", "name":"Test User"}' \
+		-s | jq '.status // .error'
+	@echo "$(COLOR_GREEN)✓ Check if second response is cached (should be faster)$(COLOR_RESET)"
+
+test-idempotency-worker:  ## Test worker idempotency
+	@echo "$(COLOR_BLUE)Testing worker idempotency...$(COLOR_RESET)"
+	@echo "Use zbctl to send duplicate workflow instances"
+	@echo "Command: zbctl create instance create-application-record --variables '{\"seekerId\": \"test-1\", \"franchiseId\": \"test-1\"}'"
+	@echo "$(COLOR_YELLOW)Note: Requires Zeebe CLI$(COLOR_RESET)"
+
+test-idempotency-all: test-idempotency-api test-idempotency-worker  ## Test all idempotency layers
+
+test-duplicate-app:  ## Test duplicate application prevention
+	@echo "$(COLOR_BLUE)Testing duplicate application prevention...$(COLOR_RESET)"
+	@echo "Step 1: Create test application"
+	@echo "Step 2: Try to create duplicate application"
+	@echo "Step 3: Should get error or existing application"
+	@echo "$(COLOR_YELLOW)Note: Requires authentication$(COLOR_RESET)"
+
+check-idempotency-keys:  ## Check idempotency keys in Redis and DB
+	@echo "$(COLOR_BLUE)Checking idempotency keys...$(COLOR_RESET)"
+	@echo "Redis keys:"
+	@docker-compose exec redis redis-cli KEYS "idempotency:*" || echo "No Redis keys"
+	@echo ""
+	@echo "Database keys:"
+	@docker-compose exec postgres psql -U postgres -d franchises -c "
+		SELECT idempotency_key, status, created_at, expires_at 
+		FROM idempotency_keys 
+		ORDER BY created_at DESC 
+		LIMIT 5;
+	" || echo "Cannot query database"

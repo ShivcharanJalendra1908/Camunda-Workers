@@ -33,7 +33,7 @@ func createTestLogger(t *testing.T) logger.Logger {
 	return logger.NewZapAdapter(zaptest.NewLogger(t))
 }
 
-func createBenchmarkLogger(b *testing.B) logger.Logger {
+func createBenchmarkLogger(_ *testing.B) logger.Logger {
 	// Create a production-like logger for benchmarks
 	zapLogger, _ := zap.NewProduction()
 	return logger.NewZapAdapter(zapLogger)

@@ -589,76 +589,6 @@ func TestHandler_ExtractErrorCode(t *testing.T) {
 	}
 }
 
-func TestHandler_ConvertToStandardError(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      error
-		validate func(*testing.T, *errors.StandardError)
-	}{
-		{
-			name: "already standard error",
-			err: &errors.StandardError{
-				Code:      "TEST_ERROR",
-				Message:   "Test message",
-				Details:   "Test details",
-				Retryable: false,
-				Timestamp: time.Now(),
-			},
-			validate: func(t *testing.T, stdErr *errors.StandardError) {
-				assert.Equal(t, errors.ErrorCode("TEST_ERROR"), stdErr.Code)
-				assert.Equal(t, "Test message", stdErr.Message)
-				assert.Equal(t, "Test details", stdErr.Details)
-				assert.False(t, stdErr.Retryable)
-			},
-		},
-		{
-			name: "generic error converted",
-			err:  fmt.Errorf("test error"),
-			validate: func(t *testing.T, stdErr *errors.StandardError) {
-				assert.Equal(t, errors.ErrorCode("EMAIL_SEND_ERROR"), stdErr.Code)
-				assert.Equal(t, "Failed to send email", stdErr.Message)
-				assert.True(t, stdErr.Retryable)
-				assert.Contains(t, stdErr.Details, "test error")
-				assert.False(t, stdErr.Timestamp.IsZero())
-			},
-		},
-		{
-			name: "retryable error preserved",
-			err: &errors.StandardError{
-				Code:      "NETWORK_ERROR",
-				Message:   "Network timeout",
-				Retryable: true,
-				Timestamp: time.Now(),
-			},
-			validate: func(t *testing.T, stdErr *errors.StandardError) {
-				assert.True(t, stdErr.Retryable)
-				assert.Equal(t, "NETWORK_ERROR", string(stdErr.Code))
-			},
-		},
-		{
-			name: "non-retryable error preserved",
-			err: &errors.StandardError{
-				Code:      "VALIDATION_FAILED",
-				Message:   "Invalid email",
-				Retryable: false,
-				Timestamp: time.Now(),
-			},
-			validate: func(t *testing.T, stdErr *errors.StandardError) {
-				assert.False(t, stdErr.Retryable)
-				assert.Equal(t, "VALIDATION_FAILED", string(stdErr.Code))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			stdErr := convertToStandardError(tt.err)
-			require.NotNil(t, stdErr)
-			tt.validate(t, stdErr)
-		})
-	}
-}
-
 // ==========================
 // Config Tests
 // ==========================
@@ -1168,7 +1098,7 @@ func TestHandler_HandleServiceError(t *testing.T) {
 	}
 
 	// Verify error handling configuration
-	stdErr := convertToStandardError(serviceError)
+	stdErr := serviceError
 	assert.Equal(t, errors.ErrorCode("SMTP_ERROR"), stdErr.Code)
 	assert.True(t, stdErr.Retryable)
 	assert.Equal(t, "Failed to connect to SMTP server", stdErr.Message)

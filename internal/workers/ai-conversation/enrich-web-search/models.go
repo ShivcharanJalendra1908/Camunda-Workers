@@ -7,7 +7,8 @@ type Input struct {
 }
 
 type Output struct {
-	WebData WebData `json:"webData"`
+	WebData        WebData                `json:"webData"`
+	CircuitBreaker map[string]interface{} `json:"circuitBreaker,omitempty"`
 }
 
 type Entity struct {

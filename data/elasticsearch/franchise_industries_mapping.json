@@ -1,0 +1,82 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "industry_id": {
+        "type": "keyword"
+      },
+      "industry_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "industry_slug": {
+        "type": "keyword"
+      },
+      "description": {
+        "type": "text"
+      },
+      "categories": {
+        "type": "nested",
+        "properties": {
+          "category_id": {
+            "type": "keyword"
+          },
+          "category_name": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
+          },
+          "category_slug": {
+            "type": "keyword"
+          }
+        }
+      },
+      "questions": {
+        "type": "text"
+      },
+      "market_insights": {
+        "type": "object",
+        "properties": {
+          "market_trend": {
+            "type": "text"
+          },
+          "growth_rate": {
+            "type": "float"
+          }
+        }
+      },
+      "recommended_franchises": {
+        "type": "nested",
+        "properties": {
+          "franchise_id": {
+            "type": "keyword"
+          },
+          "franchise_name": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
+          },
+          "industry": {
+            "type": "keyword"
+          }
+        }
+      },
+      "updated_at": {
+        "type": "date"
+      }
+    }
+  }
+}

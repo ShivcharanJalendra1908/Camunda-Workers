@@ -1,4 +1,3 @@
-// internal/workers/application/check-priority-routing/handler.go
 package checkpriorityrouting
 
 import (
@@ -6,12 +5,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+	ozzo "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/redis/go-redis/v9"
+
+	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -19,55 +28,168 @@ const (
 )
 
 type Handler struct {
-	config *Config
-	db     *sql.DB
-	redis  *redis.Client
-	logger logger.Logger
+	config       *Config
+	db           *sql.DB
+	redis        *redis.Client
+	logger       logger.Logger
+	errorHandler *errors.ErrorHandler
+	validator    *validation.Validator // ✅ ADDED
+	sanitizer    *validation.Sanitizer // ✅ ADDED
 }
 
 func NewHandler(config *Config, db *sql.DB, redis *redis.Client, log logger.Logger) *Handler {
 	return &Handler{
-		config: config,
-		db:     db,
-		redis:  redis,
-		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		config:       config,
+		db:           db,
+		redis:        redis,
+		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		errorHandler: errors.NewErrorHandler(log),
+		validator:    validation.NewValidator(), // ✅ ADDED
+		sanitizer:    validation.NewSanitizer(), // ✅ ADDED
 	}
 }
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	// ✅ EXTRACT TRACE CONTEXT
+	ctx := context.Background()
+
+	var traceID, parentSpanID string
+	var jobVars map[string]interface{}
+
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if tid, ok := jobVars["traceId"].(string); ok {
+			traceID = tid
+		}
+		if psid, ok := jobVars["spanId"].(string); ok {
+			parentSpanID = psid
+		}
+	}
+
+	// ✅ CREATE WORKER SPAN
+	tracer := otel.Tracer("worker-manager")
+	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
+		trace.WithAttributes(
+			attribute.String("worker.name", TaskType),
+			attribute.Int64("job.key", job.GetKey()),
+			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
+			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
+			attribute.String("workflow.element_id", job.GetElementId()),
+			attribute.String("trace.parent_id", parentSpanID),
+		),
+	)
+	defer span.End()
+
 	h.logger.Info("processing job", map[string]interface{}{
-		"jobKey":       job.Key,
-		"workflowKey":  job.ProcessInstanceKey,
+		"jobKey":      job.Key,
+		"workflowKey": job.ProcessInstanceKey,
+		"traceId":     traceID,
+		"spanId":      span.SpanContext().SpanID().String(),
 	})
 
+	// ===== STEP 1: PARSE INPUT =====
 	var input Input
+	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.parseInput")
 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-		h.failJob(client, job, "PRIORITY_ROUTING_FAILED", fmt.Sprintf("parse input: %v", err), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job,
+			errors.NewValidationError("input", fmt.Sprintf("parse input: %v", err)))
+		spanParse.End()
 		return
 	}
+	spanParse.End()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// ===== STEP 2: VALIDATE INPUT (GAP #1 FIX) =====
+	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.validateInput")
+	if err := h.validateInput(&input); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, err)
+		spanValidate.End()
+		return
+	}
+	spanValidate.End()
+
+	h.logger.Debug("Input validation passed", map[string]interface{}{
+		"jobKey":     job.Key,
+		"validation": "passed",
+		"worker":     TaskType,
+		"traceId":    traceID,
+	})
+
+	// ===== STEP 3: EXECUTE BUSINESS LOGIC =====
+	ctxExec, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := h.execute(ctx, &input)
+	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "check-priority-routing.Execute")
+	output, err := h.execute(ctxExec, &input)
+	spanExec.End()
 	if err != nil {
-		h.failJob(client, job, "PRIORITY_ROUTING_FAILED", err.Error(), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctxExec, client, job,
+			errors.NewValidationError("execution", err.Error()))
 		return
 	}
 
-	h.completeJob(client, job, output)
+	// ===== STEP 4: COMPLETE JOB =====
+	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.completeJob")
+	h.completeJob(ctx, client, job, output)
+	spanComp.End()
 }
 
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	return h.execute(ctx, input)
+// ===== CRITICAL VALIDATION FUNCTION (GAP #1 FIX) =====
+func (h *Handler) validateInput(input *Input) error {
+	// Validate FranchiseID (UUID format)
+	if err := ozzo.Validate(input.FranchiseID,
+		ozzo.Required.Error("franchiseId is required"),
+		ozzo.Length(36, 36).Error("franchiseId must be exactly 36 characters"),
+		validation.IsUUID,
+		validation.SafeSQLString,
+	); err != nil {
+		return errors.NewInvalidUUIDError("franchiseId", input.FranchiseID)
+	}
+
+	// 🔒 ADDITIONAL SECURITY CHECKS
+	// Prevent SQL injection patterns
+	sqlPatterns := []string{
+		"';", "--", "/*", "*/", "DROP", "UNION", "SELECT",
+		"INSERT", "UPDATE", "DELETE", "EXEC", "xp_", "sp_",
+	}
+
+	lowerFranchiseID := strings.ToLower(input.FranchiseID)
+	for _, pattern := range sqlPatterns {
+		if strings.Contains(lowerFranchiseID, strings.ToLower(pattern)) {
+			return errors.NewSQLInjectionError("franchiseId", input.FranchiseID)
+		}
+	}
+
+	// Validate UUID format more strictly
+	uuidRegex := regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$`)
+	if !uuidRegex.MatchString(strings.ToLower(input.FranchiseID)) {
+		return errors.NewInvalidUUIDError("franchiseId", input.FranchiseID)
+	}
+
+	// Sanitize input
+	input.FranchiseID = h.sanitizer.SanitizeString(input.FranchiseID)
+
+	return nil
 }
 
 func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
-	accountType, err := h.getFranchisorAccountType(ctx, input.FranchiseID)
+	// 🔒 Sanitize franchise ID before using in queries
+	sanitizedFranchiseID := h.sanitizer.SanitizeString(input.FranchiseID)
+
+	accountType, err := h.getFranchisorAccountType(ctx, sanitizedFranchiseID)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("db.error", true))
+
 		h.logger.Warn("failed to fetch franchisor account type, defaulting to standard", map[string]interface{}{
-			"franchiseId": input.FranchiseID,
+			"franchiseId": sanitizedFranchiseID,
 			"error":       err,
+			"traceId":     trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		})
 		accountType = AccountTypeStandard
 	}
@@ -75,11 +197,19 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	isPremium := accountType == AccountTypePremium
 	priority := h.determinePriority(accountType)
 
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.String("franchise.account_type", accountType),
+		attribute.Bool("franchise.is_premium", isPremium),
+		attribute.String("routing.priority", priority),
+	)
+
 	h.logger.Info("priority routing determined", map[string]interface{}{
-		"franchiseId": input.FranchiseID,
+		"franchiseId": sanitizedFranchiseID,
 		"accountType": accountType,
 		"isPremium":   isPremium,
 		"priority":    priority,
+		"traceId":     trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 	})
 
 	return &Output{
@@ -89,11 +219,25 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 }
 
 func (h *Handler) getFranchisorAccountType(ctx context.Context, franchiseID string) (string, error) {
+	// 🔒 Use parameterized query to prevent SQL injection
 	cacheKey := "franchisor:account:" + franchiseID
 	if val, err := h.redis.Get(ctx, cacheKey).Result(); err == nil {
-		return val, nil
+		// Validate cache value
+		if !isValidAccountType(val) {
+			h.logger.Warn("invalid account type in cache, fetching from DB", map[string]interface{}{
+				"franchiseId": franchiseID,
+				"cachedValue": val,
+				"traceId":     trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+			})
+			// Delete invalid cache entry
+			h.redis.Del(ctx, cacheKey)
+		} else {
+			return val, nil
+		}
 	}
 
+	// 🔒 PARAMETERIZED QUERY - CRITICAL FOR SQL INJECTION PREVENTION
+	_, spanQuery := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.dbQuery")
 	row := h.db.QueryRowContext(ctx, `
 		SELECT account_type 
 		FROM franchisors 
@@ -101,6 +245,8 @@ func (h *Handler) getFranchisorAccountType(ctx context.Context, franchiseID stri
 
 	var accountType string
 	err := row.Scan(&accountType)
+	spanQuery.End()
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("franchisor not found for franchise %s", franchiseID)
@@ -108,15 +254,38 @@ func (h *Handler) getFranchisorAccountType(ctx context.Context, franchiseID stri
 		return "", fmt.Errorf("database error: %w", err)
 	}
 
-	switch accountType {
-	case AccountTypePremium, AccountTypeVerified, AccountTypeStandard:
-		// valid
-	default:
+	// Validate account type from database
+	if !isValidAccountType(accountType) {
+		h.logger.Warn("invalid account type from database, defaulting to standard", map[string]interface{}{
+			"franchiseId": franchiseID,
+			"dbValue":     accountType,
+			"traceId":     trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+		})
 		accountType = AccountTypeStandard
 	}
 
-	h.redis.Set(ctx, cacheKey, accountType, h.config.CacheTTL)
+	// 🔒 Validate before caching
+	if isValidAccountType(accountType) {
+		h.redis.Set(ctx, cacheKey, accountType, h.config.CacheTTL)
+	}
+
 	return accountType, nil
+}
+
+// Helper function to validate account type
+func isValidAccountType(accountType string) bool {
+	validTypes := []string{
+		AccountTypePremium,
+		AccountTypeVerified,
+		AccountTypeStandard,
+	}
+
+	for _, validType := range validTypes {
+		if accountType == validType {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) determinePriority(accountType string) string {
@@ -130,41 +299,38 @@ func (h *Handler) determinePriority(accountType string) string {
 	}
 }
 
-func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	cmd, err := client.NewCompleteJobCommand().
 		JobKey(job.Key).
 		VariablesFromObject(output)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to create complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		})
 		return
 	}
-	_, err = cmd.Send(context.Background())
+
+	_, err = cmd.Send(ctx)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to send complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		})
 	}
 }
 
-func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-	h.logger.Error("job failed", map[string]interface{}{
-		"jobKey":       job.Key,
-		"errorCode":    errorCode,
-		"errorMessage": errorMessage,
-	})
-
-	_, err := client.NewThrowErrorCommand().
-		JobKey(job.Key).
-		ErrorCode(errorCode).
-		ErrorMessage(errorMessage).
-		Send(context.Background())
-	if err != nil {
-		h.logger.Error("failed to throw error", map[string]interface{}{
-			"error": err,
-		})
+// Public Execute method for direct API calls
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	// Validate before execution
+	if err := h.validateInput(input); err != nil {
+		return nil, err
 	}
+	return h.execute(ctx, input)
 }
 
 // // internal/workers/application/check-priority-routing/handler.go
@@ -180,7 +346,10 @@ func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, 
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
 // 	"github.com/redis/go-redis/v9"
-// 	"go.uber.org/zap"
+// 	"camunda-workers/internal/common/logger"
+// 	appErrs "camunda-workers/internal/common/errors"
+
+// 	"go.opentelemetry.io/otel"
 // )
 
 // const (
@@ -188,64 +357,77 @@ func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, 
 // )
 
 // type Handler struct {
-// 	config *Config
-// 	db     *sql.DB
-// 	redis  *redis.Client
-// 	logger *zap.Logger
+// 	config       *Config
+// 	db           *sql.DB
+// 	redis        *redis.Client
+// 	logger       logger.Logger
+// 	errorHandler *appErrs.ErrorHandler
 // }
 
-// func NewHandler(config *Config, db *sql.DB, redis *redis.Client, logger *zap.Logger) *Handler {
+// func NewHandler(config *Config, db *sql.DB, redis *redis.Client, log logger.Logger) *Handler {
 // 	return &Handler{
-// 		config: config,
-// 		db:     db,
-// 		redis:  redis,
-// 		logger: logger.With(zap.String("taskType", TaskType)),
+// 		config:       config,
+// 		db:           db,
+// 		redis:        redis,
+// 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+// 		errorHandler: appErrs.NewErrorHandler(log),
 // 	}
 // }
 
 // func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-// 	h.logger.Info("processing job",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.Int64("workflowKey", job.ProcessInstanceKey),
-// 	)
+// 	h.logger.Info("processing job", map[string]interface{}{
+// 		"jobKey":       job.Key,
+// 		"workflowKey":  job.ProcessInstanceKey,
+// 	})
 
 // 	var input Input
+// 	_, spanParse := otel.Tracer("worker-manager").Start(context.Background(), "check-priority-routing.parseInput")
 // 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
 // 		h.failJob(client, job, "PRIORITY_ROUTING_FAILED", fmt.Sprintf("parse input: %v", err), 0)
+// 		spanParse.End()
 // 		return
 // 	}
+// 	spanParse.End()
 
 // 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 // 	defer cancel()
 
-// 	output, err := h.execute(ctx, &input)
+// 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.Execute")
+// 	output, err := h.execute(ctxExec, &input)
+// 	spanExec.End()
 // 	if err != nil {
 // 		h.failJob(client, job, "PRIORITY_ROUTING_FAILED", err.Error(), 0)
 // 		return
 // 	}
 
+// 	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "check-priority-routing.completeJob")
 // 	h.completeJob(client, job, output)
+// 	spanComp.End()
+// }
+
+// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+// 	return h.execute(ctx, input)
 // }
 
 // func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 // 	accountType, err := h.getFranchisorAccountType(ctx, input.FranchiseID)
 // 	if err != nil {
-// 		h.logger.Warn("failed to fetch franchisor account type, defaulting to standard",
-// 			zap.String("franchiseId", input.FranchiseID),
-// 			zap.Error(err),
-// 		)
+// 		h.logger.Warn("failed to fetch franchisor account type, defaulting to standard", map[string]interface{}{
+// 			"franchiseId": input.FranchiseID,
+// 			"error":       err,
+// 		})
 // 		accountType = AccountTypeStandard
 // 	}
 
 // 	isPremium := accountType == AccountTypePremium
 // 	priority := h.determinePriority(accountType)
 
-// 	h.logger.Info("priority routing determined",
-// 		zap.String("franchiseId", input.FranchiseID),
-// 		zap.String("accountType", accountType),
-// 		zap.Bool("isPremium", isPremium),
-// 		zap.String("priority", priority),
-// 	)
+// 	h.logger.Info("priority routing determined", map[string]interface{}{
+// 		"franchiseId": input.FranchiseID,
+// 		"accountType": accountType,
+// 		"isPremium":   isPremium,
+// 		"priority":    priority,
+// 	})
 
 // 	return &Output{
 // 		IsPremiumFranchisor: isPremium,
@@ -260,8 +442,8 @@ func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, 
 // 	}
 
 // 	row := h.db.QueryRowContext(ctx, `
-// 		SELECT account_type 
-// 		FROM franchisors 
+// 		SELECT account_type
+// 		FROM franchisors
 // 		WHERE franchise_id = $1`, franchiseID)
 
 // 	var accountType string
@@ -300,32 +482,24 @@ func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, 
 // 		JobKey(job.Key).
 // 		VariablesFromObject(output)
 // 	if err != nil {
-// 		h.logger.Error("failed to create complete job command", zap.Error(err))
+// 		h.logger.Error("failed to create complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 		return
 // 	}
 // 	_, err = cmd.Send(context.Background())
 // 	if err != nil {
-// 		h.logger.Error("failed to send complete job command", zap.Error(err))
+// 		h.logger.Error("failed to send complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 	}
 // }
 
 // func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-// 	h.logger.Error("job failed",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.String("errorCode", errorCode),
-// 		zap.String("errorMessage", errorMessage),
-// 	)
-
-// 	_, err := client.NewThrowErrorCommand().
-// 		JobKey(job.Key).
-// 		ErrorCode(errorCode).
-// 		ErrorMessage(errorMessage).
-// 		Send(context.Background())
-// 	if err != nil {
-// 		h.logger.Error("failed to throw error", zap.Error(err))
+// 	stdErr := &appErrs.StandardError{
+// 		Code:      appErrs.ErrorCode(errorCode),
+// 		Message:   errorMessage,
+// 		Retryable: false,
 // 	}
-// }
-
-// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-//     return h.execute(ctx, input)
+// 	h.errorHandler.HandleJobError(context.Background(), client, job, stdErr)
 // }

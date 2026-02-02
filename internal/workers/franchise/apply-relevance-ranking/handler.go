@@ -1,4 +1,3 @@
-// internal/workers/franchise/apply-relevance-ranking/handler.go
 package applyrelevanceranking
 
 import (
@@ -10,10 +9,18 @@ import (
 	"sort"
 	"time"
 
+	appErrs "camunda-workers/internal/common/errors" // ✅ Keep original alias
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+
+	ozzo "github.com/go-ozzo/ozzo-validation/v4"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -25,48 +32,284 @@ var (
 )
 
 type Handler struct {
-	config *Config
-	logger logger.Logger
+	config       *Config
+	logger       logger.Logger
+	errorHandler *appErrs.ErrorHandler // ✅ Use appErrs
+	validator    *validation.Validator // ✅ ADDED
+	sanitizer    *validation.Sanitizer // ✅ ADDED
 }
 
 func NewHandler(config *Config, log logger.Logger) *Handler {
 	return &Handler{
-		config: config,
-		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		config:       config,
+		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		errorHandler: appErrs.NewErrorHandler(log), // ✅ Use appErrs
+		validator:    validation.NewValidator(),    // ✅ ADDED
+		sanitizer:    validation.NewSanitizer(),    // ✅ ADDED
 	}
 }
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	// ✅ EXTRACT TRACE CONTEXT
+	ctx := context.Background()
+	
+	var traceID, parentSpanID string
+	var jobVars map[string]interface{}
+	
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if tid, ok := jobVars["traceId"].(string); ok {
+			traceID = tid
+		}
+		if psid, ok := jobVars["spanId"].(string); ok {
+			parentSpanID = psid
+		}
+	}
+	
+	// ✅ CREATE WORKER SPAN
+	tracer := otel.Tracer("worker-manager")
+	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
+		trace.WithAttributes(
+			attribute.String("worker.name", TaskType),
+			attribute.Int64("job.key", job.GetKey()),
+			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
+			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
+			attribute.String("workflow.element_id", job.GetElementId()),
+			attribute.String("trace.parent_id", parentSpanID),
+		),
+	)
+	defer span.End()
+	
 	h.logger.Info("processing job", map[string]interface{}{
 		"jobKey":      job.Key,
 		"workflowKey": job.ProcessInstanceKey,
+		"traceId":     traceID,
+		"spanId":      span.SpanContext().SpanID().String(),
 	})
 
+	// ===== STEP 1: PARSE INPUT =====
 	var input Input
+	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "apply-relevance-ranking.parseInput")
 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job,
+			appErrs.NewValidationError("input", fmt.Sprintf("parse input: %v", err))) // ✅ Use appErrs
+		spanParse.End()
 		return
 	}
+	spanParse.End()
 
-	ctx, cancel := context.WithTimeout(context.Background(), h.config.Timeout)
+	// ===== STEP 2: VALIDATE INPUT (GAP #1 FIX) =====
+	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "apply-relevance-ranking.validateInput")
+	if err := h.validateInput(&input); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, err)
+		spanValidate.End()
+		return
+	}
+	spanValidate.End()
+
+	// ===== STEP 3: EXECUTE BUSINESS LOGIC =====
+	ctxExec, cancel := context.WithTimeout(ctx, h.config.Timeout)
 	defer cancel()
 
-	output, err := h.execute(ctx, &input)
+	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "apply-relevance-ranking.Execute")
+	output, err := h.execute(ctxExec, &input)
+	spanExec.End()
 	if err != nil {
-		h.failJob(client, job, "RANKING_FAILED", err.Error(), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctxExec, client, job,
+			appErrs.NewValidationError("execution", err.Error())) // ✅ Use appErrs
 		return
 	}
 
-	h.completeJob(client, job, output)
+	// ===== STEP 4: COMPLETE JOB =====
+	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "apply-relevance-ranking.completeJob")
+	h.completeJob(ctx, client, job, output)
+	spanComp.End()
 }
 
-func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
+// ===== CRITICAL VALIDATION FUNCTION (GAP #1 FIX) =====
+func (h *Handler) validateInput(input *Input) error {
+	if input == nil {
+		return appErrs.NewValidationError("input", "input cannot be nil") // ✅ Use appErrs
+	}
+
+	// Validate SearchResults array
+	if len(input.SearchResults) == 0 {
+		return appErrs.NewValidationError("searchResults", "cannot be empty") // ✅ Use appErrs
+	}
+
+	if len(input.SearchResults) > 1000 {
+		return appErrs.NewArrayTooLargeError("searchResults", 1000, len(input.SearchResults)) // ✅ Use appErrs
+	}
+
+	// Validate each search result
+	for i, result := range input.SearchResults {
+		// Validate ID (UUID format)
+		if err := ozzo.Validate(result.ID,
+			ozzo.Required.Error("id is required"),
+			ozzo.Length(36, 36).Error("id must be exactly 36 characters"),
+			validation.IsUUID,
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewInvalidUUIDError(fmt.Sprintf("searchResults[%d].id", i), result.ID) // ✅ Use appErrs
+		}
+
+		// Validate Score (0-100 range)
+		if result.Score < 0 || result.Score > 100 {
+			return appErrs.NewValidationError(fmt.Sprintf("searchResults[%d].score", i),
+				fmt.Sprintf("must be between 0 and 100, got %.2f", result.Score)) // ✅ Use appErrs
+		}
+	}
+
+	// Validate DetailsData array
+	if len(input.DetailsData) > 1000 {
+		return appErrs.NewArrayTooLargeError("detailsData", 1000, len(input.DetailsData)) // ✅ Use appErrs
+	}
+
+	// Validate each franchise detail
+	for i, detail := range input.DetailsData {
+		// Validate ID
+		if err := ozzo.Validate(detail.ID,
+			ozzo.Required.Error("id is required"),
+			ozzo.Length(36, 36).Error("id must be exactly 36 characters"),
+			validation.IsUUID,
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewInvalidUUIDError(fmt.Sprintf("detailsData[%d].id", i), detail.ID) // ✅ Use appErrs
+		}
+
+		// Validate Name
+		if err := ozzo.Validate(detail.Name,
+			ozzo.Required.Error("name is required"),
+			ozzo.Length(1, 200).Error("name must be between 1 and 200 characters"),
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].name", i), err.Error()) // ✅ Use appErrs
+		}
+
+		// Validate Investment Range
+		if detail.InvestmentMin < 0 {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].investmentMin", i),
+				"cannot be negative") // ✅ Use appErrs
+		}
+		if detail.InvestmentMax < 0 {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].investmentMax", i),
+				"cannot be negative") // ✅ Use appErrs
+		}
+		if detail.InvestmentMax > 0 && detail.InvestmentMin > detail.InvestmentMax {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].investmentRange", i),
+				"min cannot be greater than max") // ✅ Use appErrs
+		}
+
+		// Validate Counts (non-negative)
+		if detail.ViewCount < 0 {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].viewCount", i),
+				"cannot be negative") // ✅ Use appErrs
+		}
+		if detail.ApplicationCount < 0 {
+			return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].applicationCount", i),
+				"cannot be negative") // ✅ Use appErrs
+		}
+
+		// Validate Category
+		if detail.Category != "" {
+			if err := ozzo.Validate(detail.Category,
+				ozzo.Length(1, 100).Error("category must be between 1 and 100 characters"),
+				validation.SafeSQLString,
+			); err != nil {
+				return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].category", i), err.Error()) // ✅ Use appErrs
+			}
+		}
+
+		// Validate UpdatedAt format
+		if detail.UpdatedAt != "" {
+			if _, err := time.Parse(time.RFC3339, detail.UpdatedAt); err != nil {
+				return appErrs.NewValidationError(fmt.Sprintf("detailsData[%d].updatedAt", i),
+					fmt.Sprintf("must be RFC3339 format: %v", err)) // ✅ Use appErrs
+			}
+		}
+
+		// Validate Locations array size
+		if len(detail.Locations) > 50 {
+			return appErrs.NewArrayTooLargeError(fmt.Sprintf("detailsData[%d].locations", i),
+				50, len(detail.Locations)) // ✅ Use appErrs
+		}
+
+		// Validate each location
+		for j, location := range detail.Locations {
+			if err := ozzo.Validate(location,
+				ozzo.Length(1, 100).Error("location must be between 1 and 100 characters"),
+				validation.SafeSQLString,
+			); err != nil {
+				return appErrs.NewValidationError(
+					fmt.Sprintf("detailsData[%d].locations[%d]", i, j), err.Error()) // ✅ Use appErrs
+			}
+		}
+	}
+
+	// Validate UserProfile
+	// Validate CapitalAvailable (non-negative)
+	if input.UserProfile.CapitalAvailable < 0 {
+		return appErrs.NewValidationError("userProfile.capitalAvailable", "cannot be negative") // ✅ Use appErrs
+	}
+
+	// Validate ExperienceYears (non-negative)
+	if input.UserProfile.ExperienceYears < 0 {
+		return appErrs.NewValidationError("userProfile.experienceYears", "cannot be negative") // ✅ Use appErrs
+	}
+
+	// Validate LocationPrefs array size
+	if len(input.UserProfile.LocationPrefs) > 50 {
+		return appErrs.NewArrayTooLargeError("userProfile.locationPrefs",
+			50, len(input.UserProfile.LocationPrefs)) // ✅ Use appErrs
+	}
+
+	// Validate each location preference
+	for i, location := range input.UserProfile.LocationPrefs {
+		if err := ozzo.Validate(location,
+			ozzo.Length(1, 100).Error("location must be between 1 and 100 characters"),
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewValidationError(
+				fmt.Sprintf("userProfile.locationPrefs[%d]", i), err.Error()) // ✅ Use appErrs
+		}
+	}
+
+	// Validate Interests array size
+	if len(input.UserProfile.Interests) > 50 {
+		return appErrs.NewArrayTooLargeError("userProfile.interests",
+			50, len(input.UserProfile.Interests)) // ✅ Use appErrs
+	}
+
+	// Validate each interest
+	for i, interest := range input.UserProfile.Interests {
+		if err := ozzo.Validate(interest,
+			ozzo.Length(1, 100).Error("interest must be between 1 and 100 characters"),
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewValidationError(
+				fmt.Sprintf("userProfile.interests[%d]", i), err.Error()) // ✅ Use appErrs
+		}
+	}
+
+	return nil
+}
+
+// ===== ORIGINAL EXECUTE METHOD (with sanitization added) =====
+func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	// Validate input as per REQ-BIZ-007
 	if input == nil {
 		return nil, ErrNilInput
 	}
 
 	start := time.Now()
+
+	// 🔒 Sanitize input data
+	input = h.sanitizeInput(input)
 
 	// Build map of details for O(1) lookup
 	detailsMap := make(map[string]FranchiseDetail)
@@ -138,20 +381,86 @@ func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
 	}
 
 	duration := time.Since(start).Milliseconds()
+	
+	// Get span from context to add attributes
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.Int("input.search_results.count", len(input.SearchResults)),
+		attribute.Int("input.details_data.count", len(input.DetailsData)),
+		attribute.Int("output.ranked_franchises.count", len(ranked)),
+		attribute.Int64("processing.duration_ms", duration),
+	)
+	
 	h.logger.Info("ranking completed", map[string]interface{}{
 		"inputCount":  len(input.SearchResults),
 		"outputCount": len(ranked),
 		"durationMs":  duration,
+		"traceId":     span.SpanContext().TraceID().String(),
 	})
 
 	// Log warning if ranking exceeds 500ms as per REQ-BIZ-007
 	if duration > 500 {
+		span.SetAttributes(attribute.Bool("processing.slow", true))
 		h.logger.Warn("ranking exceeded 500ms", map[string]interface{}{
 			"durationMs": duration,
+			"traceId":    span.SpanContext().TraceID().String(),
 		})
 	}
 
 	return &Output{RankedFranchises: ranked}, nil
+}
+
+// ===== HELPER: Input Sanitization =====
+func (h *Handler) sanitizeInput(input *Input) *Input {
+	sanitized := &Input{
+		SearchResults: make([]SearchResult, len(input.SearchResults)),
+		DetailsData:   make([]FranchiseDetail, len(input.DetailsData)),
+		UserProfile:   input.UserProfile,
+	}
+
+	// Sanitize SearchResults
+	for i, sr := range input.SearchResults {
+		sanitized.SearchResults[i] = SearchResult{
+			ID:    sr.ID, // UUID doesn't need sanitization
+			Score: sr.Score,
+		}
+	}
+
+	// Sanitize FranchiseDetails
+	for i, detail := range input.DetailsData {
+		sanitized.DetailsData[i] = FranchiseDetail{
+			ID:               detail.ID, // UUID doesn't need sanitization
+			Name:             h.sanitizer.SanitizeString(detail.Name),
+			Category:         h.sanitizer.SanitizeString(detail.Category),
+			InvestmentMin:    detail.InvestmentMin,
+			InvestmentMax:    detail.InvestmentMax,
+			ViewCount:        detail.ViewCount,
+			ApplicationCount: detail.ApplicationCount,
+			UpdatedAt:        detail.UpdatedAt, // RFC3339 timestamp
+			Locations:        make([]string, len(detail.Locations)),
+		}
+
+		// Sanitize locations
+		for j, location := range detail.Locations {
+			sanitized.DetailsData[i].Locations[j] = h.sanitizer.SanitizeString(location)
+		}
+	}
+
+	// Sanitize UserProfile
+	sanitized.UserProfile.CapitalAvailable = input.UserProfile.CapitalAvailable
+	sanitized.UserProfile.ExperienceYears = input.UserProfile.ExperienceYears
+	sanitized.UserProfile.LocationPrefs = make([]string, len(input.UserProfile.LocationPrefs))
+	sanitized.UserProfile.Interests = make([]string, len(input.UserProfile.Interests))
+
+	for i, location := range input.UserProfile.LocationPrefs {
+		sanitized.UserProfile.LocationPrefs[i] = h.sanitizer.SanitizeString(location)
+	}
+
+	for i, interest := range input.UserProfile.Interests {
+		sanitized.UserProfile.Interests[i] = h.sanitizer.SanitizeString(interest)
+	}
+
+	return sanitized
 }
 
 // calculateMatchScore implements the matching algorithm as per REQ-BIZ-010
@@ -252,46 +561,38 @@ func (h *Handler) calculateFreshnessScore(updatedAt string) float64 {
 	}
 }
 
-func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	cmd, err := client.NewCompleteJobCommand().
 		JobKey(job.Key).
 		VariablesFromObject(output)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to create complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": span.SpanContext().TraceID().String(),
 		})
 		return
 	}
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to send complete job command", map[string]interface{}{
-			"error": err,
-		})
-	}
-}
-
-func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-	h.logger.Error("job failed", map[string]interface{}{
-		"jobKey":       job.Key,
-		"errorCode":    errorCode,
-		"errorMessage": errorMessage,
-	})
-
-	_, err := client.NewThrowErrorCommand().
-		JobKey(job.Key).
-		ErrorCode(errorCode).
-		ErrorMessage(errorMessage).
-		Send(context.Background())
-	if err != nil {
-		h.logger.Error("failed to throw error", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": span.SpanContext().TraceID().String(),
 		})
 	}
 }
 
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	// Validate before execution
+	if err := h.validateInput(input); err != nil {
+		return nil, err
+	}
 	return h.execute(ctx, input)
 }
+
 
 // // internal/workers/franchise/apply-relevance-ranking/handler.go
 // package applyrelevanceranking
@@ -305,9 +606,13 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 	"sort"
 // 	"time"
 
+// 	"camunda-workers/internal/common/logger"
+
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-// 	"go.uber.org/zap"
+// 	appErrs "camunda-workers/internal/common/errors"
+
+// 	"go.opentelemetry.io/otel"
 // )
 
 // const (
@@ -319,39 +624,47 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // )
 
 // type Handler struct {
-// 	config *Config
-// 	logger *zap.Logger
+// 	config       *Config
+// 	logger       logger.Logger
+// 	errorHandler *appErrs.ErrorHandler
 // }
 
-// func NewHandler(config *Config, logger *zap.Logger) *Handler {
+// func NewHandler(config *Config, log logger.Logger) *Handler {
 // 	return &Handler{
 // 		config: config,
-// 		logger: logger.With(zap.String("taskType", TaskType)),
+// 		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
 // 	}
 // }
 
 // func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-// 	h.logger.Info("processing job",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.Int64("workflowKey", job.ProcessInstanceKey),
-// 	)
+// 	h.logger.Info("processing job", map[string]interface{}{
+// 		"jobKey":      job.Key,
+// 		"workflowKey": job.ProcessInstanceKey,
+// 	})
 
 // 	var input Input
+// 	_, spanParse := otel.Tracer("worker-manager").Start(context.Background(), "apply-relevance-ranking.parseInput")
 // 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
 // 		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err), 0)
+// 		spanParse.End()
 // 		return
 // 	}
+// 	spanParse.End()
 
 // 	ctx, cancel := context.WithTimeout(context.Background(), h.config.Timeout)
 // 	defer cancel()
 
-// 	output, err := h.execute(ctx, &input)
+// 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "apply-relevance-ranking.Execute")
+// 	output, err := h.execute(ctxExec, &input)
+// 	spanExec.End()
 // 	if err != nil {
 // 		h.failJob(client, job, "RANKING_FAILED", err.Error(), 0)
 // 		return
 // 	}
 
+// 	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "apply-relevance-ranking.completeJob")
 // 	h.completeJob(client, job, output)
+// 	spanComp.End()
 // }
 
 // func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
@@ -432,17 +745,17 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 	}
 
 // 	duration := time.Since(start).Milliseconds()
-// 	h.logger.Info("ranking completed",
-// 		zap.Int("inputCount", len(input.SearchResults)),
-// 		zap.Int("outputCount", len(ranked)),
-// 		zap.Int64("durationMs", duration),
-// 	)
+// 	h.logger.Info("ranking completed", map[string]interface{}{
+// 		"inputCount":  len(input.SearchResults),
+// 		"outputCount": len(ranked),
+// 		"durationMs":  duration,
+// 	})
 
 // 	// Log warning if ranking exceeds 500ms as per REQ-BIZ-007
 // 	if duration > 500 {
-// 		h.logger.Warn("ranking exceeded 500ms",
-// 			zap.Int64("durationMs", duration),
-// 		)
+// 		h.logger.Warn("ranking exceeded 500ms", map[string]interface{}{
+// 			"durationMs": duration,
+// 		})
 // 	}
 
 // 	return &Output{RankedFranchises: ranked}, nil
@@ -551,30 +864,31 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 		JobKey(job.Key).
 // 		VariablesFromObject(output)
 // 	if err != nil {
-// 		h.logger.Error("failed to create complete job command", zap.Error(err))
+// 		h.logger.Error("failed to create complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 		return
 // 	}
 // 	_, err = cmd.Send(context.Background())
 // 	if err != nil {
-// 		h.logger.Error("failed to send complete job command", zap.Error(err))
+// 		h.logger.Error("failed to send complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 	}
 // }
 
 // func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-// 	h.logger.Error("job failed",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.String("errorCode", errorCode),
-// 		zap.String("errorMessage", errorMessage),
-// 	)
-
-// 	_, err := client.NewThrowErrorCommand().
-// 		JobKey(job.Key).
-// 		ErrorCode(errorCode).
-// 		ErrorMessage(errorMessage).
-// 		Send(context.Background())
-// 	if err != nil {
-// 		h.logger.Error("failed to throw error", zap.Error(err))
+// 	h.logger.Error("job failed", map[string]interface{}{
+// 		"jobKey":       job.Key,
+// 		"errorCode":    errorCode,
+// 		"errorMessage": errorMessage,
+// 	})
+// 	stdErr := &appErrs.StandardError{
+// 		Code:      appErrs.ErrorCode(errorCode),
+// 		Message:   errorMessage,
+// 		Retryable: false,
 // 	}
+// 	h.errorHandler.HandleJobError(context.Background(), client, job, stdErr)
 // }
 
 // func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {

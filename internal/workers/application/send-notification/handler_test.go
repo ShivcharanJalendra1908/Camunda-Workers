@@ -428,8 +428,8 @@ func TestHandler_GetRecipientContact(t *testing.T) {
 					WillReturnError(sql.ErrNoRows)
 			}
 
-			email, phone, err := handler.getRecipientContact("recipient-001", tt.recipientType)
-
+			ctx := context.Background()
+			email, phone, err := handler.getRecipientContact(ctx, "recipient-001", tt.recipientType)
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorContains != "" {

@@ -1,0 +1,121 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "refresh_interval": "30s"
+  },
+  "mappings": {
+    "properties": {
+      "franchise_id": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "slug": {
+        "type": "keyword"
+      },
+      "description": {
+        "type": "text"
+      },
+      "year_of_establishment": {
+        "type": "integer"
+      },
+      "rating": {
+        "type": "float"
+      },
+      "location": {
+        "type": "keyword"
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "space": {
+        "type": "object",
+        "properties": {
+          "minSpace": {
+            "type": "integer"
+          },
+          "maxSpace": {
+            "type": "integer"
+          },
+          "spaceUnit": {
+            "type": "keyword"
+          }
+        }
+      },
+      "total_outlets": {
+        "type": "integer"
+      },
+      "investmentRange": {
+        "type": "object",
+        "properties": {
+          "minInvestment": {
+            "type": "keyword"
+          },
+          "maxInvestment": {
+            "type": "keyword"
+          },
+          "investmentUnit": {
+            "type": "keyword"
+          }
+        }
+      },
+      "investment": {
+        "type": "object",
+        "properties": {
+          "min_investment": {
+            "type": "float"
+          },
+          "max_investment": {
+            "type": "float"
+          }
+        }
+      },
+      "industry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "name": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
+          },
+          "slug": {
+            "type": "keyword"
+          },
+          "color": {
+            "type": "keyword"
+          }
+        }
+      },
+      "categories": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "name": {
+            "type": "text"
+          },
+          "slug": {
+            "type": "keyword"
+          }
+        }
+      },
+      "updated_at": {
+        "type": "date"
+      }
+    }
+  }
+}

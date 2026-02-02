@@ -17,6 +17,7 @@ import (
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/database"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/observability"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,40 @@ func main() {
 
 	// Initialize logger
 	log := logger.NewStructured(cfg.Logging.Level, cfg.Logging.Format)
+
+	tracingConfig := observability.TracingConfig{
+		Enabled:       cfg.Monitoring.Tracing.Enabled,
+		ServiceName:   "lemici-api-gateway",
+		Endpoint:      cfg.Monitoring.Tracing.Endpoint,
+		Sampler:       cfg.Monitoring.Tracing.Sampler,
+		Probability:   cfg.Monitoring.Tracing.Probability,
+		Environment:   cfg.App.Environment,
+		Version:       cfg.App.Version,
+		ExportTimeout: time.Duration(cfg.Monitoring.Tracing.ExportTimeout) * time.Second,
+	}
+
+	tracerProvider, cleanupTracer, err := observability.InitTracer(tracingConfig)
+	if err != nil {
+		log.Error("Failed to initialize tracer", map[string]interface{}{
+			"error": err.Error(),
+		})
+	} else {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := cleanupTracer(ctx); err != nil {
+				log.Error("Failed to shutdown tracer", map[string]interface{}{"error": err.Error()})
+			}
+		}()
+		log.Info("Distributed tracing initialized", map[string]interface{}{
+			"service":  tracingConfig.ServiceName,
+			"endpoint": tracingConfig.Endpoint,
+			"sampler":  tracingConfig.Sampler,
+		})
+	}
+
+	_ = tracerProvider
+
 	log.Info("Starting Lemici API Gateway", map[string]interface{}{
 		"version": cfg.App.Version,
 		"env":     cfg.App.Environment,
@@ -52,7 +87,6 @@ func main() {
 	// Initialize Camunda client
 	fmt.Printf("🔧 Connecting to Camunda at: %s\n", cfg.Camunda.BrokerAddress)
 	camundaClient, err := camunda.NewClientFromEnv()
-	//camundaClient, err := camunda.NewClient(cfg.Camunda.BrokerAddress)
 	if err != nil {
 		log.Error("Failed to initialize Camunda client", map[string]interface{}{
 			"error": err.Error(),
@@ -103,7 +137,6 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	// Redis address - use the Address field from config
 	redisInfo := cfg.Database.Redis.Address
 	if redisInfo == "" {
 		redisInfo = "localhost:6379"
@@ -119,27 +152,58 @@ func main() {
 	}
 	router := gin.New()
 
-	// Global middleware
-	router.Use(gin.Recovery())
+	// ============================================================================
+	// ✅ CORRECT MIDDLEWARE ORDER (CRITICAL - DON'T CHANGE!)
+	// ============================================================================
+	// 1. Recovery MUST BE FIRST (catches all panics)
+	router.Use(middleware.Recovery(log))
+
+	// 2. Request ID (generate unique ID for each request)
 	router.Use(middleware.RequestID())
-	router.Use(middleware.Logger(log))
+
+	// 3. Tracing (distributed tracing context)
+	router.Use(middleware.TracingMiddleware())
+
+	// 4. CORS (handle cross-origin requests)
 	router.Use(middleware.CORS(cfg.API.CORS))
+
+	// 5. Security Headers
 	router.Use(middleware.SecurityHeaders())
+
+	// 6. Input Validation (basic validation)
+	router.Use(middleware.InputValidation())
+
+	// 7. Timeout (set request timeout)
+	router.Use(middleware.Timeout(30 * time.Second))
+
+	// 8. Idempotency (prevent duplicate requests)
+	router.Use(middleware.IdempotencyMiddleware(redisClient.GetClient()))
+
+	// 9. Logger (log all requests/responses)
+	router.Use(middleware.Logger(log))
+
+	// 10. Error Handler MUST BE LAST! (catches all errors)
+	router.Use(middleware.ErrorHandler(log))
+	// ============================================================================
 
 	// Public routes (no authentication required)
 	router.GET("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
-
 	router.GET("/metrics", metricsHandler())
 
 	// Initialize handlers
-	workflowHandler := handlers.NewWorkflowHandler(camundaClient, log)
-	franchiseHandler := handlers.NewFranchiseHandler(esClient, postgresDB, log)
+	workflowHandler := handlers.NewWorkflowHandler(
+		camundaClient,
+		log,
+		redisClient.GetClient())
+	//franchiseHandler := handlers.NewFranchiseHandler(esClient, postgresDB, log)
+
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
 
 	// ============================================================================
 	// PUBLIC API ROUTES (No JWT Required)
 	// ============================================================================
-	publicAPI := router.Group("/api/v1/public")
+	publicAPI := router.Group("/api/v1/")
 	{
 		// ========================================================================
 		// AUTHENTICATION ROUTES - Workflow-based (Workers handle Keycloak/DB)
@@ -163,10 +227,6 @@ func main() {
 
 			// Logout workflow
 			authGroup.POST("/logout", workflowHandler.StartUserLogout)
-
-			// NOTE: Token refresh should ideally be a direct operation (not workflow)
-			// Create a direct handler for this if needed:
-			// authGroup.POST("/refresh", authHandler.HandleTokenRefresh)
 		}
 
 		// ========================================================================
@@ -174,14 +234,28 @@ func main() {
 		// ========================================================================
 		franchiseGroup := publicAPI.Group("/franchises")
 		{
-			// Direct handlers for public browsing (existing handlers)
+			// Homepage & Discovery
+			franchiseGroup.GET("/home", franchiseHandler.GetHomePageData)
+			franchiseGroup.GET("/listing", franchiseHandler.GetListingPageData)          // ✅ NEW
+			franchiseGroup.GET("/detail/:slug", franchiseHandler.GetFranchiseDetailPage) // ✅ NEW
+			franchiseGroup.GET("/industries", franchiseHandler.GetAllIndustries)
+			franchiseGroup.GET("/industries/:slug", franchiseHandler.GetIndustryBySlug)
+			franchiseGroup.GET("/categories", franchiseHandler.GetCategories)
+
+			// Search & Browse
 			franchiseGroup.GET("/search", franchiseHandler.SearchFranchises)
 			franchiseGroup.GET("/suggest", franchiseHandler.GetSuggestions)
 			franchiseGroup.GET("/stats", franchiseHandler.GetStats)
-			franchiseGroup.GET("/:id", franchiseHandler.GetByID)
-			franchiseGroup.GET("/categories", franchiseHandler.GetCategories)
 			franchiseGroup.GET("/featured", franchiseHandler.GetFeatured)
+
+			// ✅ Generic :id route MUST be LAST
+			franchiseGroup.GET("/:id", franchiseHandler.GetByID)
 		}
+
+		// ========================================================================
+		// ENQUIRY ROUTES
+		// ========================================================================
+		publicAPI.POST("/enquiries", placeholderHandler("POST /enquiries"))
 	}
 
 	// ============================================================================
@@ -190,7 +264,6 @@ func main() {
 	protectedAPI := router.Group("/api/v1")
 	// Rate limiter middleware - check if config has enabled flag
 	if cfg.API.RateLimit.Enabled {
-		// ✅ FIXED: Pass the entire RateLimitConfig struct instead of individual fields
 		protectedAPI.Use(middleware.RateLimiter(cfg.API.RateLimit))
 	}
 	protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
@@ -209,10 +282,6 @@ func main() {
 		// ========================================================================
 		userGroup := protectedAPI.Group("/user")
 		{
-			// Simple CRUD - Direct handlers (create user_handler.go later)
-			// userGroup.GET("/profile", userHandler.GetProfile)
-			// userGroup.GET("/preferences", userHandler.GetPreferences)
-
 			// Complex operations - Workflows
 			userGroup.PUT("/profile", workflowHandler.StartProfileUpdate)
 			userGroup.DELETE("/account", workflowHandler.StartAccountDeletion)
@@ -239,15 +308,11 @@ func main() {
 			franchiseGroup.GET("/saved-searches", franchiseHandler.GetSavedSearches)
 			franchiseGroup.DELETE("/saved-searches/:id", franchiseHandler.DeleteSavedSearch)
 
-			// ========== ADD THESE NEW ROUTES BELOW ==========
-
 			// Franchise CRUD Operations (via franchise-postgres worker)
-			franchiseGroup.POST("/create", workflowHandler.CreateFranchise)     // User creates franchise
-			franchiseGroup.PUT("/:id", workflowHandler.UpdateFranchise)         // Admin updates franchise
-			franchiseGroup.DELETE("/:id", workflowHandler.DeleteFranchise)      // Admin deletes franchise
-			franchiseGroup.GET("/full/:slug", workflowHandler.GetFullFranchise) // Get franchise with all details
-
-			// ========== END OF ADDITION ==========
+			franchiseGroup.POST("/create", workflowHandler.CreateFranchise)
+			franchiseGroup.PUT("/:id", workflowHandler.UpdateFranchise)
+			franchiseGroup.DELETE("/:id", workflowHandler.DeleteFranchise)
+			franchiseGroup.GET("/full/:slug", workflowHandler.GetFullFranchise)
 		}
 
 		// ========================================================================
@@ -301,7 +366,6 @@ func main() {
 	// ============================================================================
 	adminAPI := router.Group("/api/admin")
 	// Rate limiter for admin - always enabled but stricter
-	// ✅ FIXED: Create a RateLimitConfig struct for admin
 	adminRateLimit := config.RateLimitConfig{
 		Enabled:           true,
 		RequestsPerSecond: 30,
@@ -446,31 +510,32 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		"🔓 PUBLIC ROUTES (No Authentication):",
 		"",
 		"  🔐 Auth Workflows (API → Camunda → Workers → Keycloak/DB):",
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/google/signup", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/google/signin", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/linkedin/signup", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/linkedin/signin", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/login", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/signup", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/logout", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/public/auth/password/reset", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/google/signup", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/google/signin", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/linkedin/signup", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/linkedin/signin", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/login", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/signup", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/logout", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/password/reset", port),
 		"",
-		"  🏢 Franchise Discovery (Direct Handlers - No Workflow):",
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/search", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/suggest", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/stats", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/:id", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/categories", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/public/franchises/featured", port),
-		"",
-		// ========== ADD THESE LINES ==========
-		"  🏗️  Franchise CRUD (Workflow-based):",
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/create (create)", port),
-		fmt.Sprintf("    PUT  http://localhost:%d/api/v1/franchises/:id (admin update)", port),
-		fmt.Sprintf("    DEL  http://localhost:%d/api/v1/franchises/:id (admin delete)", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/full/:slug (get full)", port),
-		// ========== END OF ADDITION ==========
+		"  🏢 Franchise Discovery & 🏠 Homepage (Direct Handlers):",
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/home", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/listing", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/detail/:slug", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/search", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/industries", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/industries/:slug", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/categories", port),
 
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/suggest", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/stats", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/featured", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/:id", port),
+		"",
+		"  📧 Enquiries:",
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/enquiries", port),
+		"",
 		"🔒 PROTECTED ROUTES (Requires JWT Token):",
 		"",
 		"  🤖 AI Workflows (API → Camunda → Workers):",
@@ -486,6 +551,12 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/favorite/:id (direct)", port),
 		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/favorites (direct)", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/save-search (direct)", port),
+		"",
+		"  🏗️  Franchise CRUD (Workflow-based):",
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/create", port),
+		fmt.Sprintf("    PUT  http://localhost:%d/api/v1/franchises/:id", port),
+		fmt.Sprintf("    DEL  http://localhost:%d/api/v1/franchises/:id", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/full/:slug", port),
 		"",
 		"  📝 Application Workflows:",
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/applications/submit", port),

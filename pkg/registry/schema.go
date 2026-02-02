@@ -9,6 +9,7 @@ type ActivityRegistry struct {
 
 type Activity struct {
 	ID                   string                 `json:"id"`
+	Name                 string                 `json:"name"`
 	DisplayName          string                 `json:"displayName"`
 	Description          string                 `json:"description"`
 	Category             string                 `json:"category"`
@@ -22,4 +23,5 @@ type Activity struct {
 	Retries              int                    `json:"retries"`
 	Workflows            []string               `json:"workflows"`
 	Tags                 []string               `json:"tags"`
+	Metadata             map[string]interface{} `json:"metadata"`
 }

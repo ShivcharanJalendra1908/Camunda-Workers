@@ -1,7 +1,10 @@
 // internal/common/config/config.go
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ============================================================================
 // MAIN CONFIG STRUCTURE
@@ -24,6 +27,7 @@ type Config struct {
 	Security        SecurityConfig          `mapstructure:"security"`
 	Workflows       WorkflowConfig          `mapstructure:"workflows"`
 	FranchiseSearch FranchiseSearchConfig   `yaml:"franchise_search"`
+	Idempotency     IdempotencyConfig       `yaml:"idempotency"`
 }
 
 // ============================================================================
@@ -526,11 +530,14 @@ type MetricsConfig struct {
 }
 
 type TracingConfig struct {
-	Enabled     bool    `mapstructure:"enabled"`
-	ServiceName string  `mapstructure:"serviceName"`
-	Endpoint    string  `mapstructure:"endpoint"`
-	Sampler     string  `mapstructure:"sampler"`
-	Probability float64 `mapstructure:"probability"`
+	Enabled       bool    `mapstructure:"enabled"`
+	ServiceName   string  `mapstructure:"serviceName"`
+	Endpoint      string  `mapstructure:"endpoint"`
+	Sampler       string  `mapstructure:"sampler"`
+	Probability   float64 `mapstructure:"probability"`
+	Environment   string  `mapstructure:"environment"`
+	Version       string  `mapstructure:"version"`
+	ExportTimeout int     `mapstructure:"exportTimeout"` // in seconds
 }
 
 type HealthCheckConfig struct {
@@ -592,8 +599,19 @@ type WorkerConfig struct {
 	MaxJobsActive  int      `mapstructure:"max_jobs_active"`
 	Timeout        int      `mapstructure:"timeout"`
 	MaxRetries     int      `mapstructure:"max_retries"`
+	Concurrency    int      `mapstructure:"concurrency"`
 	PollInterval   int      `mapstructure:"pollInterval"`
 	FetchVariables []string `mapstructure:"fetchVariables"`
 	WorkerType     string   `mapstructure:"workerType"`
 	Priority       int      `mapstructure:"priority"`
+}
+
+// ============================================================================
+// IDEMPOTENCY CONFIGURATION
+// ============================================================================
+type IdempotencyConfig struct {
+	Enabled         bool                     `yaml:"enabled"`
+	DefaultTTL      time.Duration            `yaml:"default_ttl"`
+	CleanupInterval time.Duration            `yaml:"cleanup_interval"`
+	TTLs            map[string]time.Duration `yaml:"ttls"`
 }

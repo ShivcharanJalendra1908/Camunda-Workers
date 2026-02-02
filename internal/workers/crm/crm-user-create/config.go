@@ -51,4 +51,3 @@ func (c *Config) Validate() error {
 func (c *Config) IsConfigured() bool {
 	return c.ZohoAPIKey != "" && c.ZohoOAuthToken != ""
 }
-

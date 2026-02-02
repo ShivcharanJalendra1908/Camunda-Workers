@@ -29,8 +29,8 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
-	
-// 🔴 REQUIRED SAFETY CHECKS (SAME AS SIGNIN WORKERS)
+
+	// 🔴 REQUIRED SAFETY CHECKS (SAME AS SIGNIN WORKERS)
 	if s.keycloak == nil {
 		return nil, &errors.StandardError{
 			Code:      "KEYCLOAK_NOT_CONFIGURED",
@@ -216,7 +216,7 @@ func (s *Service) extractNamesFromUserInfo(userInfo *auth.TokenInfo, input *Inpu
 	return "", ""
 }
 
-func (s *Service) updateUserDetails(ctx context.Context, userID string, input *Input, firstName, lastName string) error {
+func (s *Service) updateUserDetails(ctx context.Context, userID string, input *Input, _, _ string) error {
 	user, err := s.keycloak.GetUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user for update: %w", err)

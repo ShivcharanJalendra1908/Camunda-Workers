@@ -1,4 +1,3 @@
-// internal/workers/franchise/parse-search-filters/handler.go
 package parsesearchfilters
 
 import (
@@ -11,10 +10,18 @@ import (
 	"strings"
 	"time"
 
+	ozzo "github.com/go-ozzo/ozzo-validation/v4" // ✅ CHANGE THIS
+
+	appErrs "camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const TaskType = "parse-search-filters"
@@ -33,43 +40,198 @@ var validSortOptions = map[string]bool{
 }
 
 type Handler struct {
-	config *Config
-	logger logger.Logger
+	config       *Config
+	logger       logger.Logger
+	errorHandler *appErrs.ErrorHandler
+	validator    *validation.Validator // ✅ KEEP
+	sanitizer    *validation.Sanitizer // ✅ KEEP
 }
 
 func NewHandler(config *Config, log logger.Logger) *Handler {
 	return &Handler{
-		config: config,
-		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		config:       config,
+		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		errorHandler: appErrs.NewErrorHandler(log),
+		validator:    validation.NewValidator(), // ✅ KEEP
+		sanitizer:    validation.NewSanitizer(), // ✅ KEEP
 	}
 }
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	// ✅ EXTRACT TRACE CONTEXT
+	ctx := context.Background()
+	
+	var traceID, parentSpanID string
+	var jobVars map[string]interface{}
+	
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if tid, ok := jobVars["traceId"].(string); ok {
+			traceID = tid
+		}
+		if psid, ok := jobVars["spanId"].(string); ok {
+			parentSpanID = psid
+		}
+	}
+	
+	// ✅ CREATE WORKER SPAN
+	tracer := otel.Tracer("worker-manager")
+	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
+		trace.WithAttributes(
+			attribute.String("worker.name", TaskType),
+			attribute.Int64("job.key", job.GetKey()),
+			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
+			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
+			attribute.String("workflow.element_id", job.GetElementId()),
+			attribute.String("trace.parent_id", parentSpanID),
+		),
+	)
+	defer span.End()
+	
 	h.logger.Info("processing job", map[string]interface{}{
 		"jobKey":      job.Key,
 		"workflowKey": job.ProcessInstanceKey,
+		"traceId":     traceID,
+		"spanId":      span.SpanContext().SpanID().String(),
 	})
 
+	// ===== STEP 1: PARSE INPUT =====
 	var input Input
+	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "parse-search-filters.parseInput")
 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job,
+			appErrs.NewInvalidFilterFormatError(fmt.Sprintf("parse input: %v", err)))
+		spanParse.End()
 		return
 	}
+	spanParse.End()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// ===== STEP 2: VALIDATE INPUT (GAP #1 FIX) =====
+	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "parse-search-filters.validateInput")
+	if err := h.validateInput(&input); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, err)
+		spanValidate.End()
+		return
+	}
+	spanValidate.End()
+
+	// ===== STEP 3: EXECUTE BUSINESS LOGIC =====
+	ctxExec, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := h.execute(ctx, &input)
+	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "parse-search-filters.Execute")
+	output, err := h.execute(ctxExec, &input)
+	spanExec.End()
 	if err != nil {
-		h.failJob(client, job, "INVALID_FILTER_FORMAT", err.Error(), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, appErrs.NewInvalidFilterFormatError(err.Error()))
 		return
 	}
 
-	h.completeJob(client, job, output)
+	// ===== STEP 4: COMPLETE JOB =====
+	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "parse-search-filters.completeJob")
+	h.completeJob(ctx, client, job, output)
+	spanComp.End()
 }
 
-func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
-	if input.RawFilters == nil {
+// ===== CRITICAL VALIDATION FUNCTION (GAP #1 FIX) =====
+func (h *Handler) validateInput(input *Input) error {
+	// Validate RawFilters map size
+	if len(input.RawFilters) > 50 {
+		return appErrs.NewArrayTooLargeError("rawFilters", 50, len(input.RawFilters))
+	}
+
+	// Validate each key-value pair in RawFilters
+	for key, value := range input.RawFilters {
+		// Validate key using ozzo directly
+		if err := ozzo.Validate(key,
+			ozzo.Length(1, 50).Error("key must be between 1 and 50 characters"),
+			validation.IDString,
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s", key), err.Error())
+		}
+
+		// Validate value based on type
+		switch v := value.(type) {
+		case string:
+			// String validation using ozzo
+			if err := ozzo.Validate(v,
+				ozzo.Length(0, 1000).Error("value must not exceed 1000 characters"),
+				validation.SafeSQLString,
+			); err != nil {
+				return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s", key), err.Error())
+			}
+
+		case []interface{}:
+			// Array validation
+			if len(v) > 100 {
+				return appErrs.NewArrayTooLargeError(fmt.Sprintf("rawFilters.%s", key), 100, len(v))
+			}
+			for i, item := range v {
+				if str, ok := item.(string); ok {
+					if err := ozzo.Validate(str,
+						ozzo.Length(0, 200).Error("array item must not exceed 200 characters"),
+						validation.SafeSQLString,
+					); err != nil {
+						return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s[%d]", key, i), err.Error())
+					}
+				}
+			}
+
+		case map[string]interface{}:
+			// Nested object validation
+			if len(v) > 20 {
+				return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s", key),
+					"nested object cannot exceed 20 items")
+			}
+
+			// Prevent deep nesting
+			for nestedKey, nestedValue := range v {
+				if _, isMap := nestedValue.(map[string]interface{}); isMap {
+					return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s.%s", key, nestedKey),
+						"objects cannot be nested more than 2 levels deep")
+				}
+			}
+
+		case float64, int, bool:
+			// Simple types are fine
+			continue
+
+		default:
+			return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s", key),
+				fmt.Sprintf("unsupported type: %T", v))
+		}
+	}
+
+	// 🔒 ADDITIONAL SECURITY CHECKS
+	// Check for NoSQL injection patterns in all string values
+	if input.RawFilters != nil {
+		for key, value := range input.RawFilters {
+			if str, ok := value.(string); ok {
+				if strings.Contains(strings.ToLower(str), "$where") ||
+					strings.Contains(strings.ToLower(str), "$ne") ||
+					strings.Contains(strings.ToLower(str), "$gt") ||
+					strings.Contains(strings.ToLower(str), "$regex") {
+					return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s", key),
+						"contains potentially unsafe NoSQL patterns")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
+	// 🔒 Sanitize RawFilters before processing
+	if input.RawFilters != nil {
+		input.RawFilters = h.sanitizer.SanitizeInput(input.RawFilters)
+	} else {
 		input.RawFilters = make(map[string]interface{})
 	}
 
@@ -180,12 +342,13 @@ func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
 	}
 
 	h.logger.Info("filters parsed successfully", map[string]interface{}{
-		"categories":     parsed.Categories,
+		"categories":      parsed.Categories,
 		"investmentRange": parsed.InvestmentRange,
-		"locations":      parsed.Locations,
-		"keywords":       parsed.Keywords,
-		"sortBy":         parsed.SortBy,
-		"pagination":     parsed.Pagination,
+		"locations":       parsed.Locations,
+		"keywords":        parsed.Keywords,
+		"sortBy":          parsed.SortBy,
+		"pagination":      parsed.Pagination,
+		"traceId":         trace.SpanFromContext(ctx).SpanContext().TraceID().String(), // ✅ ADD traceId
 	})
 
 	return &Output{ParsedFilters: parsed}, nil
@@ -262,11 +425,14 @@ func (h *Handler) parseInt(raw interface{}) (int, error) {
 		return int(v), nil
 
 	case string:
+		// 🔒 SANITIZE the string first
+		sanitized := h.sanitizer.SanitizeString(v)
+
 		// Handle special case: extract numbers and check for decimal point
 		// "USD 50,000.00" should become "50000" not "5000000"
 
 		// First remove currency symbols and spaces
-		cleaned := strings.ReplaceAll(v, " ", "")
+		cleaned := strings.ReplaceAll(sanitized, " ", "")
 		cleaned = strings.ReplaceAll(cleaned, "$", "")
 		cleaned = strings.ReplaceAll(cleaned, "USD", "")
 		cleaned = strings.ReplaceAll(cleaned, ",", "")
@@ -299,46 +465,38 @@ func (h *Handler) parseInt(raw interface{}) (int, error) {
 	}
 }
 
-func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	cmd, err := client.NewCompleteJobCommand().
 		JobKey(job.Key).
 		VariablesFromObject(output)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to create complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		})
 		return
 	}
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to send complete job command", map[string]interface{}{
-			"error": err,
-		})
-	}
-}
-
-func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-	h.logger.Error("job failed", map[string]interface{}{
-		"jobKey":       job.Key,
-		"errorCode":    errorCode,
-		"errorMessage": errorMessage,
-	})
-
-	_, err := client.NewThrowErrorCommand().
-		JobKey(job.Key).
-		ErrorCode(errorCode).
-		ErrorMessage(errorMessage).
-		Send(context.Background())
-	if err != nil {
-		h.logger.Error("failed to throw error", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 		})
 	}
 }
 
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	// Validate before execution
+	if err := h.validateInput(input); err != nil {
+		return nil, err
+	}
 	return h.execute(ctx, input)
 }
+
 
 // // internal/workers/franchise/parse-search-filters/handler.go
 // package parsesearchfilters
@@ -353,9 +511,13 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 	"strings"
 // 	"time"
 
+// 	"camunda-workers/internal/common/logger"
+// 	appErrs "camunda-workers/internal/common/errors"
+
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-// 	"go.uber.org/zap"
+
+// 	"go.opentelemetry.io/otel"
 // )
 
 // const TaskType = "parse-search-filters"
@@ -374,39 +536,48 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // }
 
 // type Handler struct {
-// 	config *Config
-// 	logger *zap.Logger
+// 	config       *Config
+// 	logger       logger.Logger
+// 	errorHandler *appErrs.ErrorHandler
 // }
 
-// func NewHandler(config *Config, logger *zap.Logger) *Handler {
+// func NewHandler(config *Config, log logger.Logger) *Handler {
 // 	return &Handler{
-// 		config: config,
-// 		logger: logger.With(zap.String("taskType", TaskType)),
+// 		config:       config,
+// 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+// 		errorHandler: appErrs.NewErrorHandler(log),
 // 	}
 // }
 
 // func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-// 	h.logger.Info("processing job",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.Int64("workflowKey", job.ProcessInstanceKey),
-// 	)
+// 	h.logger.Info("processing job", map[string]interface{}{
+// 		"jobKey":      job.Key,
+// 		"workflowKey": job.ProcessInstanceKey,
+// 	})
 
 // 	var input Input
+// 	_, spanParse := otel.Tracer("worker-manager").Start(context.Background(), "parse-search-filters.parseInput")
 // 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-// 		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err), 0)
+// 		h.errorHandler.HandleJobError(context.Background(), client, job, appErrs.NewInvalidFilterFormatError(fmt.Sprintf("parse input: %v", err)))
+// 		spanParse.End()
 // 		return
 // 	}
+// 	spanParse.End()
 
 // 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 // 	defer cancel()
 
-// 	output, err := h.execute(ctx, &input)
+// 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "parse-search-filters.Execute")
+// 	output, err := h.execute(ctxExec, &input)
+// 	spanExec.End()
 // 	if err != nil {
-// 		h.failJob(client, job, "INVALID_FILTER_FORMAT", err.Error(), 0)
+// 		h.errorHandler.HandleJobError(ctx, client, job, appErrs.NewInvalidFilterFormatError(err.Error()))
 // 		return
 // 	}
 
+// 	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "parse-search-filters.completeJob")
 // 	h.completeJob(client, job, output)
+// 	spanComp.End()
 // }
 
 // func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
@@ -520,14 +691,14 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 		}
 // 	}
 
-// 	h.logger.Info("filters parsed successfully",
-// 		zap.Strings("categories", parsed.Categories),
-// 		zap.Any("investmentRange", parsed.InvestmentRange),
-// 		zap.Strings("locations", parsed.Locations),
-// 		zap.String("keywords", parsed.Keywords),
-// 		zap.String("sortBy", parsed.SortBy),
-// 		zap.Any("pagination", parsed.Pagination),
-// 	)
+// 	h.logger.Info("filters parsed successfully", map[string]interface{}{
+// 		"categories":     parsed.Categories,
+// 		"investmentRange": parsed.InvestmentRange,
+// 		"locations":      parsed.Locations,
+// 		"keywords":       parsed.Keywords,
+// 		"sortBy":         parsed.SortBy,
+// 		"pagination":     parsed.Pagination,
+// 	})
 
 // 	return &Output{ParsedFilters: parsed}, nil
 // }
@@ -645,29 +816,16 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 		JobKey(job.Key).
 // 		VariablesFromObject(output)
 // 	if err != nil {
-// 		h.logger.Error("failed to create complete job command", zap.Error(err))
+// 		h.logger.Error("failed to create complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 		return
 // 	}
 // 	_, err = cmd.Send(context.Background())
 // 	if err != nil {
-// 		h.logger.Error("failed to send complete job command", zap.Error(err))
-// 	}
-// }
-
-// func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-// 	h.logger.Error("job failed",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.String("errorCode", errorCode),
-// 		zap.String("errorMessage", errorMessage),
-// 	)
-
-// 	_, err := client.NewThrowErrorCommand().
-// 		JobKey(job.Key).
-// 		ErrorCode(errorCode).
-// 		ErrorMessage(errorMessage).
-// 		Send(context.Background())
-// 	if err != nil {
-// 		h.logger.Error("failed to throw error", zap.Error(err))
+// 		h.logger.Error("failed to send complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 	}
 // }
 

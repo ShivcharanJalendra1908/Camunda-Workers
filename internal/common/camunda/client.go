@@ -3,20 +3,27 @@ package camunda
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
-    "os"
+
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 
 	"camunda-workers/internal/common/errors"
-
-	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
+	"camunda-workers/internal/common/logger"
+	"camunda-workers/pkg/registry"
 )
 
 // Client wraps the Zeebe gRPC client with enhanced error handling and retry logic.
 type Client struct {
-	client zbc.Client
-	config *ClientConfig
+	client       zbc.Client
+	config       *ClientConfig
+	dependencies *registry.Dependencies
+	logger       logger.Logger
 }
 
 // ClientConfig holds configuration for the Camunda/Zeebe client.
@@ -43,7 +50,6 @@ var DefaultRetryConfig = &RetryConfig{
 }
 
 // NewClient creates a new Camunda client with default configuration.
-// Suitable for simple setups (e.g., local dev).
 func NewClient(address string) (*Client, error) {
 	config := &ClientConfig{
 		GatewayAddress:         address,
@@ -52,12 +58,15 @@ func NewClient(address string) (*Client, error) {
 		RequestTimeout:         30 * time.Second,
 		RetryConfig:            DefaultRetryConfig,
 	}
-	return NewClientWithConfig(config)
+	
+	// Create a default logger (you can customize this)
+	defaultLogger := logger.NewStructured("info", "console")
+	return NewClientWithConfig(config, defaultLogger)
 }
 
 // NewClientWithConfig creates a Camunda client using explicit configuration.
 // Implements REQ-INT-001 (connection retry, timeout, TLS support).
-func NewClientWithConfig(config *ClientConfig) (*Client, error) {
+func NewClientWithConfig(config *ClientConfig, log logger.Logger) (*Client, error) {
 	if config.RetryConfig == nil {
 		config.RetryConfig = DefaultRetryConfig
 	}
@@ -82,6 +91,7 @@ func NewClientWithConfig(config *ClientConfig) (*Client, error) {
 	return &Client{
 		client: zeebeClient,
 		config: config,
+		logger: log,
 	}, nil
 }
 
@@ -208,6 +218,45 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// ProcessInstanceResponse wraps Zeebe process instance key
+type ProcessInstanceResponse struct {
+	ProcessInstanceKey int64 `json:"processInstanceKey"`
+}
+
+func (c *Client) StartProcessInstance(
+	ctx context.Context,
+	processID string,
+	variables map[string]interface{},
+) (*ProcessInstanceResponse, error) {
+
+	res, err := c.ExecuteWithRetry(ctx, func(rctx context.Context) (interface{}, error) {
+
+		cmd := c.client.NewCreateInstanceCommand().
+			BPMNProcessId(processID).
+			LatestVersion()
+
+		cmd, err := cmd.VariablesFromMap(variables) // v8 returns error here
+		if err != nil {
+			return nil, err
+		}
+
+		return cmd.Send(rctx)
+
+	}, "start_process_instance")
+
+	if err != nil {
+		return nil, err
+	}
+
+	instance := res.(interface {
+		GetProcessInstanceKey() int64
+	})
+
+	return &ProcessInstanceResponse{
+		ProcessInstanceKey: instance.GetProcessInstanceKey(),
+	}, nil
+}
+
 // NewClientFromEnv creates a client using environment variables
 // This is useful for Docker/production deployments
 func NewClientFromEnv() (*Client, error) {
@@ -219,8 +268,8 @@ func NewClientFromEnv() (*Client, error) {
 		address = "localhost:26500" // fallback
 	}
 
-	insecure := os.Getenv("CAMUNDA_INSECURE") == "true" || 
-	            os.Getenv("APP_ENVIRONMENT") == "development"
+	insecure := os.Getenv("CAMUNDA_INSECURE") == "true" ||
+		os.Getenv("APP_ENVIRONMENT") == "development"
 
 	config := &ClientConfig{
 		GatewayAddress:         address,
@@ -230,5 +279,100 @@ func NewClientFromEnv() (*Client, error) {
 		RetryConfig:            DefaultRetryConfig,
 	}
 
-	return NewClientWithConfig(config)
+	// Create logger based on environment
+	level := os.Getenv("LOG_LEVEL")
+	if level == "" {
+		level = "info"
+	}
+	format := os.Getenv("LOG_FORMAT")
+	if format == "" {
+		if os.Getenv("APP_ENVIRONMENT") == "production" {
+			format = "json"
+		} else {
+			format = "console"
+		}
+	}
+	
+	log := logger.NewStructured(level, format)
+	return NewClientWithConfig(config, log)
+}
+
+// Add NewClientWithRegistry method:
+func NewClientWithRegistry(cfg *ClientConfig, deps *registry.Dependencies) (*Client, error) {
+	// Create default logger if not provided in config
+	var log logger.Logger
+	if deps != nil && deps.Logger != nil {
+		log = deps.Logger
+	} else {
+		log = logger.NewStructured("info", "console")
+	}
+	
+	client, err := NewClientWithConfig(cfg, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Camunda client: %w", err)
+	}
+
+	// Store dependencies in client
+	client.dependencies = deps
+
+	// Also set global dependencies for registry
+	registry.SetGlobalDependencies(deps)
+
+	return client, nil
+}
+
+// Add GetWorkerHandler method:
+func (c *Client) GetWorkerHandler(workerType string) (registry.WorkerHandler, error) {
+	if c.dependencies == nil {
+		return nil, fmt.Errorf("dependencies not initialized")
+	}
+	return registry.GetWorkerHandler(workerType)
+}
+
+// Add method to start worker via registry:
+func (c *Client) StartWorker(workerType string, maxJobsActive int, timeout time.Duration) (worker.JobWorker, error) {
+	handler, err := c.GetWorkerHandler(workerType)
+	if err != nil {
+		return nil, err
+	}
+
+	jobWorker := c.client.NewJobWorker().
+		JobType(workerType).
+		Handler(func(client worker.JobClient, job entities.Job) {
+			// Convert Zeebe job to registry Task
+			task := &registry.Task{
+				JobKey:             job.Key,
+				ProcessInstanceKey: job.ProcessInstanceKey,
+				BpmnProcessId:      job.GetBpmnProcessId(),
+				ElementId:          job.GetElementId(),
+				Retries:            job.GetRetries(),
+			}
+
+			// Parse variables
+			var vars map[string]interface{}
+			if err := json.Unmarshal([]byte(job.Variables), &vars); err == nil {
+				task.Variables = vars
+			}
+
+			// Execute handler
+			ctx := context.Background()
+			_, err := handler.Execute(ctx, task)
+			if err != nil {
+				if c.logger != nil {
+					c.logger.Error("Worker execution failed",
+						map[string]interface{}{
+							"worker": workerType,
+							"error":  err.Error(),
+							"jobKey": job.Key,
+						})
+				} else {
+					fmt.Printf("[ERROR] Worker %s failed: %v\n", workerType, err)
+				}
+			}
+		}).
+		MaxJobsActive(maxJobsActive).
+		Timeout(timeout).
+		Open()
+
+	return jobWorker, nil
 }

@@ -1,4 +1,3 @@
-// internal/workers/application/check-readiness-score/handler.go
 package checkreadinessscore
 
 import (
@@ -9,10 +8,17 @@ import (
 	"strings"
 	"time"
 
-	"camunda-workers/internal/common/logger"
-
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+	ozzo "github.com/go-ozzo/ozzo-validation/v4"
+
+	"camunda-workers/internal/common/errors"
+	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -20,41 +26,303 @@ const (
 )
 
 type Handler struct {
-	logger logger.Logger
+	logger       logger.Logger
+	errorHandler *errors.ErrorHandler
+	validator    *validation.Validator // ✅ ADDED
+	sanitizer    *validation.Sanitizer // ✅ ADDED
 }
 
 func NewHandler(config *Config, log logger.Logger) *Handler {
 	return &Handler{
-		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		errorHandler: errors.NewErrorHandler(log),
+		validator:    validation.NewValidator(), // ✅ ADDED
+		sanitizer:    validation.NewSanitizer(), // ✅ ADDED
 	}
 }
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	// ✅ EXTRACT TRACE CONTEXT
+	ctx := context.Background()
+
+	var traceID, parentSpanID string
+	var jobVars map[string]interface{}
+
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if tid, ok := jobVars["traceId"].(string); ok {
+			traceID = tid
+		}
+		if psid, ok := jobVars["spanId"].(string); ok {
+			parentSpanID = psid
+		}
+	}
+
+	// ✅ CREATE WORKER SPAN
+	tracer := otel.Tracer("worker-manager")
+	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
+		trace.WithAttributes(
+			attribute.String("worker.name", TaskType),
+			attribute.Int64("job.key", job.GetKey()),
+			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
+			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
+			attribute.String("workflow.element_id", job.GetElementId()),
+			attribute.String("trace.parent_id", parentSpanID),
+		),
+	)
+	defer span.End()
+
 	h.logger.Info("processing job", map[string]interface{}{
 		"jobKey":      job.Key,
 		"workflowKey": job.ProcessInstanceKey,
+		"traceId":     traceID,
+		"spanId":      span.SpanContext().SpanID().String(),
 	})
 
+	// ===== STEP 1: PARSE INPUT =====
 	var input Input
+	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "check-readiness-score.parseInput")
 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err))
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job,
+			errors.NewValidationError("input", fmt.Sprintf("parse input: %v", err)))
+		spanParse.End()
 		return
 	}
+	spanParse.End()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// ===== STEP 2: VALIDATE INPUT (GAP #1 FIX) =====
+	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "check-readiness-score.validateInput")
+	if err := h.validateInput(&input); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, err)
+		spanValidate.End()
+		return
+	}
+	spanValidate.End()
+
+	h.logger.Debug("Input validation passed", map[string]interface{}{
+		"jobKey":     job.Key,
+		"validation": "passed",
+		"worker":     TaskType,
+		"traceId":    traceID,
+	})
+
+	// ===== STEP 3: EXECUTE BUSINESS LOGIC =====
+	ctxExec, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := h.execute(ctx, &input)
+	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "check-readiness-score.Execute")
+	output, err := h.execute(ctxExec, &input)
+	spanExec.End()
 	if err != nil {
-		h.failJob(client, job, "READINESS_SCORE_FAILED", err.Error())
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctxExec, client, job,
+			errors.NewValidationError("execution", err.Error()))
 		return
 	}
 
-	h.completeJob(client, job, output)
+	// ===== STEP 4: COMPLETE JOB =====
+	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "check-readiness-score.completeJob")
+	h.completeJob(ctx, client, job, output)
+	spanComp.End()
 }
 
-func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
-	data := input.ApplicationData
+// ===== CRITICAL VALIDATION FUNCTION (GAP #1 FIX) =====
+func (h *Handler) validateInput(input *Input) error {
+	// Validate UserID (UUID format)
+	if err := ozzo.Validate(input.UserID,
+		ozzo.Required.Error("userId is required"),
+		ozzo.Length(36, 36).Error("userId must be exactly 36 characters"),
+		validation.IsUUID,
+		validation.SafeSQLString,
+	); err != nil {
+		return errors.NewInvalidUUIDError("userId", input.UserID)
+	}
+
+	// Validate ApplicationData (if provided)
+	if input.ApplicationData != nil {
+		if err := h.validateApplicationData(input.ApplicationData); err != nil {
+			return err
+		}
+	}
+
+	// 🔒 ADDITIONAL SECURITY CHECKS
+	// Prevent script injection in string fields
+	if input.ApplicationData != nil {
+		if err := h.validateNoScriptInjection(input.ApplicationData); err != nil {
+			return err
+		}
+	}
+
+	// Sanitize input
+	input.UserID = h.sanitizer.SanitizeString(input.UserID)
+
+	return nil
+}
+
+// ===== HELPER: Application Data Validation =====
+func (h *Handler) validateApplicationData(data map[string]interface{}) error {
+	// Limit data size
+	if len(data) > 100 {
+		return errors.NewValidationError("applicationData", "cannot exceed 100 fields")
+	}
+
+	// Validate each field
+	for key, value := range data {
+		// Validate key
+		if err := ozzo.Validate(key,
+			ozzo.Length(1, 100).Error("field name must be 1-100 characters"),
+			validation.IDString,
+			validation.SafeSQLString,
+			validation.SafeNoSQLString,
+		); err != nil {
+			return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key), "invalid field name: "+err.Error())
+		}
+
+		// Validate value based on type
+		switch v := value.(type) {
+		case string:
+			if len(v) > 1000 {
+				return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+					"string value cannot exceed 1000 characters")
+			}
+
+			// Check for script injection in strings
+			if strings.Contains(strings.ToLower(v), "javascript:") ||
+				strings.Contains(strings.ToLower(v), "script:") ||
+				strings.Contains(strings.ToLower(v), "data:") ||
+				strings.Contains(strings.ToLower(v), "<script") {
+				return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+					"value contains potentially unsafe content")
+			}
+
+		case float64:
+			// Validate numeric ranges for known financial fields
+			if strings.Contains(strings.ToLower(key), "capital") ||
+				strings.Contains(strings.ToLower(key), "worth") ||
+				strings.Contains(strings.ToLower(key), "score") ||
+				strings.Contains(strings.ToLower(key), "amount") {
+
+				// Prevent negative values for financial data
+				if v < 0 {
+					return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+						"cannot be negative")
+				}
+
+				// Prevent unreasonably large values (billion limit)
+				if v > 1000000000 { // 1 billion
+					return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+						"value too large (max 1,000,000,000)")
+				}
+			}
+
+		case bool:
+			// Boolean values are fine
+			continue
+
+		case []interface{}:
+			if len(v) > 100 {
+				return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+					"array cannot exceed 100 items")
+			}
+
+		case map[string]interface{}:
+			// Prevent deep nesting (max 3 levels)
+			if err := h.validateNestedObjectDepth(v, 1, fmt.Sprintf("applicationData.%s", key)); err != nil {
+				return err
+			}
+
+		default:
+			// Reject unknown types
+			return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+				fmt.Sprintf("unsupported type: %T", v))
+		}
+	}
+
+	return nil
+}
+
+// ===== HELPER: Nested Object Depth Validation =====
+func (h *Handler) validateNestedObjectDepth(data map[string]interface{}, currentDepth int, fieldPath string) error {
+	if currentDepth > 3 {
+		return errors.NewValidationError(fieldPath, "object nesting too deep (max 3 levels)")
+	}
+
+	for key, value := range data {
+		if err := ozzo.Validate(key,
+			ozzo.Length(1, 100).Error("field name must be 1-100 characters"),
+			validation.IDString,
+			validation.SafeSQLString,
+		); err != nil {
+			return errors.NewValidationError(fmt.Sprintf("%s.%s", fieldPath, key),
+				"invalid field name: "+err.Error())
+		}
+
+		if nestedMap, ok := value.(map[string]interface{}); ok {
+			if err := h.validateNestedObjectDepth(nestedMap, currentDepth+1,
+				fmt.Sprintf("%s.%s", fieldPath, key)); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// ===== HELPER: Script Injection Prevention =====
+func (h *Handler) validateNoScriptInjection(data map[string]interface{}) error {
+	for key, value := range data {
+		switch v := value.(type) {
+		case string:
+			// Check for script injection patterns
+			dangerousPatterns := []string{
+				"javascript:", "script:", "data:text/html", "data:text/javascript",
+				"onload=", "onerror=", "onclick=", "onmouseover=",
+				"eval(", "alert(", "document.cookie", "window.location",
+				"<script", "</script>", "<iframe", "</iframe>", "<object",
+			}
+
+			lowerValue := strings.ToLower(v)
+			for _, pattern := range dangerousPatterns {
+				if strings.Contains(lowerValue, pattern) {
+					return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
+						"contains potentially unsafe script content")
+				}
+			}
+
+		case map[string]interface{}:
+			// Recursively check nested objects
+			if err := h.validateNoScriptInjection(v); err != nil {
+				return err
+			}
+
+		case []interface{}:
+			// Check arrays
+			for i, item := range v {
+				if str, ok := item.(string); ok {
+					lowerStr := strings.ToLower(str)
+					if strings.Contains(lowerStr, "javascript:") ||
+						strings.Contains(lowerStr, "<script") {
+						return errors.NewValidationError(fmt.Sprintf("applicationData.%s[%d]", key, i),
+							"contains potentially unsafe content")
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// ===== ORIGINAL EXECUTE METHOD (with sanitization added) =====
+func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
+	// 🔒 Sanitize all string fields in application data
+	sanitizedData := h.sanitizeApplicationData(input.ApplicationData)
+
+	data := sanitizedData
 	if data == nil {
 		data = make(map[string]interface{})
 	}
@@ -80,11 +348,22 @@ func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
 		Compatibility: compatibility,
 	}
 
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.Int("readiness_score.financial", financial),
+		attribute.Int("readiness_score.experience", experience),
+		attribute.Int("readiness_score.commitment", commitment),
+		attribute.Int("readiness_score.compatibility", compatibility),
+		attribute.Int("readiness_score.final", finalScore),
+		attribute.String("readiness_score.level", level),
+	)
+
 	h.logger.Info("readiness score calculated", map[string]interface{}{
 		"userId":    input.UserID,
 		"score":     finalScore,
 		"level":     level,
 		"breakdown": breakdown,
+		"traceId":   span.SpanContext().TraceID().String(),
 	})
 
 	return &Output{
@@ -94,6 +373,45 @@ func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
 	}, nil
 }
 
+// ===== HELPER: Sanitize Application Data =====
+func (h *Handler) sanitizeApplicationData(data map[string]interface{}) map[string]interface{} {
+	if data == nil {
+		return nil
+	}
+
+	sanitized := make(map[string]interface{})
+
+	for key, value := range data {
+		sanitizedKey := h.sanitizer.SanitizeString(key)
+
+		switch v := value.(type) {
+		case string:
+			sanitized[sanitizedKey] = h.sanitizer.SanitizeString(v)
+
+		case map[string]interface{}:
+			// Recursively sanitize nested objects
+			sanitized[sanitizedKey] = h.sanitizeApplicationData(v)
+
+		case []interface{}:
+			sanitizedArray := make([]interface{}, len(v))
+			for i, item := range v {
+				if str, ok := item.(string); ok {
+					sanitizedArray[i] = h.sanitizer.SanitizeString(str)
+				} else {
+					sanitizedArray[i] = item
+				}
+			}
+			sanitized[sanitizedKey] = sanitizedArray
+
+		default:
+			sanitized[sanitizedKey] = value
+		}
+	}
+
+	return sanitized
+}
+
+// ===== ORIGINAL HELPER METHODS (remain the same) =====
 func (h *Handler) calculateFinancialReadiness(data map[string]interface{}) int {
 	var financialData map[string]interface{}
 	if fi, ok := data["financialInfo"]; ok {
@@ -323,44 +641,36 @@ func (h *Handler) clamp(value, min, max int) int {
 	return value
 }
 
-func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	cmd, err := client.NewCompleteJobCommand().
 		JobKey(job.Key).
 		VariablesFromObject(output)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to create complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": span.SpanContext().TraceID().String(),
 		})
 		return
 	}
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
 		h.logger.Error("failed to send complete job command", map[string]interface{}{
-			"error": err,
+			"error":   err,
+			"traceId": span.SpanContext().TraceID().String(),
 		})
 	}
 }
 
-func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string) {
-	h.logger.Error("job failed", map[string]interface{}{
-		"jobKey":       job.Key,
-		"errorCode":    errorCode,
-		"errorMessage": errorMessage,
-	})
-
-	_, err := client.NewThrowErrorCommand().
-		JobKey(job.Key).
-		ErrorCode(errorCode).
-		ErrorMessage(errorMessage).
-		Send(context.Background())
-	if err != nil {
-		h.logger.Error("failed to throw error", map[string]interface{}{
-			"error": err,
-		})
-	}
-}
-
+// Public Execute method for direct API calls
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	// Validate before execution
+	if err := h.validateInput(input); err != nil {
+		return nil, err
+	}
 	return h.execute(ctx, input)
 }
 
@@ -375,9 +685,13 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 	"strings"
 // 	"time"
 
+// 	appErrs "camunda-workers/internal/common/errors"
+// 	"camunda-workers/internal/common/logger"
+
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-// 	"go.uber.org/zap"
+
+// 	"go.opentelemetry.io/otel"
 // )
 
 // const (
@@ -385,37 +699,46 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // )
 
 // type Handler struct {
-// 	logger *zap.Logger
+// 	logger       logger.Logger
+// 	errorHandler *appErrs.ErrorHandler
 // }
 
-// func NewHandler(config *Config, logger *zap.Logger) *Handler {
+// func NewHandler(config *Config, log logger.Logger) *Handler {
 // 	return &Handler{
-// 		logger: logger.With(zap.String("taskType", TaskType)),
+// 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+// 		errorHandler: appErrs.NewErrorHandler(log),
 // 	}
 // }
 
 // func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-// 	h.logger.Info("processing job",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.Int64("workflowKey", job.ProcessInstanceKey),
-// 	)
+// 	h.logger.Info("processing job", map[string]interface{}{
+// 		"jobKey":      job.Key,
+// 		"workflowKey": job.ProcessInstanceKey,
+// 	})
 
 // 	var input Input
+// 	_, spanParse := otel.Tracer("worker-manager").Start(context.Background(), "check-readiness-score.parseInput")
 // 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
 // 		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err))
+// 		spanParse.End()
 // 		return
 // 	}
+// 	spanParse.End()
 
 // 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 // 	defer cancel()
 
-// 	output, err := h.execute(ctx, &input)
+// 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "check-readiness-score.Execute")
+// 	output, err := h.execute(ctxExec, &input)
+// 	spanExec.End()
 // 	if err != nil {
 // 		h.failJob(client, job, "READINESS_SCORE_FAILED", err.Error())
 // 		return
 // 	}
 
+// 	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "check-readiness-score.completeJob")
 // 	h.completeJob(client, job, output)
+// 	spanComp.End()
 // }
 
 // func (h *Handler) execute(_ context.Context, input *Input) (*Output, error) {
@@ -445,12 +768,12 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 		Compatibility: compatibility,
 // 	}
 
-// 	h.logger.Info("readiness score calculated",
-// 		zap.String("userId", input.UserID),
-// 		zap.Int("score", finalScore),
-// 		zap.String("level", level),
-// 		zap.Any("breakdown", breakdown),
-// 	)
+// 	h.logger.Info("readiness score calculated", map[string]interface{}{
+// 		"userId":    input.UserID,
+// 		"score":     finalScore,
+// 		"level":     level,
+// 		"breakdown": breakdown,
+// 	})
 
 // 	return &Output{
 // 		ReadinessScore:     finalScore,
@@ -693,30 +1016,26 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 // 		JobKey(job.Key).
 // 		VariablesFromObject(output)
 // 	if err != nil {
-// 		h.logger.Error("failed to create complete job command", zap.Error(err))
+// 		h.logger.Error("failed to create complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 		return
 // 	}
 // 	_, err = cmd.Send(context.Background())
 // 	if err != nil {
-// 		h.logger.Error("failed to send complete job command", zap.Error(err))
+// 		h.logger.Error("failed to send complete job command", map[string]interface{}{
+// 			"error": err,
+// 		})
 // 	}
 // }
 
 // func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string) {
-// 	h.logger.Error("job failed",
-// 		zap.Int64("jobKey", job.Key),
-// 		zap.String("errorCode", errorCode),
-// 		zap.String("errorMessage", errorMessage),
-// 	)
-
-// 	_, err := client.NewThrowErrorCommand().
-// 		JobKey(job.Key).
-// 		ErrorCode(errorCode).
-// 		ErrorMessage(errorMessage).
-// 		Send(context.Background())
-// 	if err != nil {
-// 		h.logger.Error("failed to throw error", zap.Error(err))
+// 	stdErr := &appErrs.StandardError{
+// 		Code:      appErrs.ErrorCode(errorCode),
+// 		Message:   errorMessage,
+// 		Retryable: false,
 // 	}
+// 	h.errorHandler.HandleJobError(context.Background(), client, job, stdErr)
 // }
 
 // func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {

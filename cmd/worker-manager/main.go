@@ -1,4 +1,3 @@
-// cmd/worker-manager/main.go
 package main
 
 import (
@@ -16,22 +15,30 @@ import (
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.uber.org/zap"
 
+	"camunda-workers/internal/api/handlers"
 	"camunda-workers/internal/common/auth"
+	"camunda-workers/internal/common/camunda"
+	"camunda-workers/internal/common/circuitbreaker"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/database"
+	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
-	"camunda-workers/internal/common/zoho"
+	"camunda-workers/pkg/registry"
 
-	// Infrastructure Workers (4 with template-driven)
+	// Infrastructure Workers (5 with template-driven)
 	br "camunda-workers/internal/workers/infrastructure/build-response"
 	st "camunda-workers/internal/workers/infrastructure/select-template"
+	sar "camunda-workers/internal/workers/infrastructure/send-api-response"
 	td "camunda-workers/internal/workers/infrastructure/template-driven"
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
 	// Data Access Workers (3)
+	esindexer "camunda-workers/internal/workers/data-access/franchise-es-indexer"
 	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
@@ -48,7 +55,8 @@ import (
 	sn "camunda-workers/internal/workers/application/send-notification"
 	vad "camunda-workers/internal/workers/application/validate-application-data"
 
-	// AI/ML Workers (4)
+	// AI/ML Workers (5)
+	ais "camunda-workers/internal/workers/ai-conversation/ai-search"
 	ews "camunda-workers/internal/workers/ai-conversation/enrich-web-search"
 	llm "camunda-workers/internal/workers/ai-conversation/llm-synthesis"
 	pui "camunda-workers/internal/workers/ai-conversation/parse-user-intent"
@@ -105,9 +113,56 @@ func main() {
 		zapLog.Fatal("config load failed", zap.Error(err))
 	}
 
+	// ✅ Initialize Tracing
+	tracingConfig := observability.TracingConfig{
+		Enabled:       cfg.Monitoring.Tracing.Enabled,
+		ServiceName:   "lemici-worker-manager",
+		Endpoint:      cfg.Monitoring.Tracing.Endpoint,
+		Sampler:       cfg.Monitoring.Tracing.Sampler,
+		Probability:   cfg.Monitoring.Tracing.Probability,
+		Environment:   cfg.App.Environment,
+		Version:       cfg.App.Version,
+		ExportTimeout: time.Duration(cfg.Monitoring.Tracing.ExportTimeout) * time.Second,
+	}
+
+	tracerProvider, cleanupTracer, err := observability.InitTracer(tracingConfig)
+	if err != nil {
+		zapLog.Warn("Failed to initialize tracer", zap.Error(err))
+	} else {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := cleanupTracer(ctx); err != nil {
+				zapLog.Error("Failed to shutdown tracer", zap.Error(err))
+			}
+		}()
+		zapLog.Info("Distributed tracing initialized",
+			zap.String("service", tracingConfig.ServiceName),
+			zap.String("endpoint", tracingConfig.Endpoint),
+		)
+	}
+
+	_ = tracerProvider
+
+	// ============================================================================
+	// INITIALIZE CIRCUIT BREAKER MANAGER
+	// ============================================================================
+	zapLog.Info("Initializing Circuit Breaker Manager")
+	cbManager := circuitbreaker.NewManager()
+	zapLog.Info("Circuit Breaker Manager initialized",
+		zap.Int("initial_count", len(cbManager.GetAll())))
+
 	obs := observability.New("worker-manager")
 	defer obs.Shutdown()
 
+	tracer, tracerCleanup, terr := observability.NewTracer("worker-manager", "http://localhost:14268/api/traces")
+	if terr != nil {
+		zapLog.Warn("tracer init failed", zap.Error(terr))
+	} else {
+		defer tracerCleanup()
+	}
+
+	_ = tracer
 	ctx := context.Background()
 
 	// --- Init Zeebe Client with retry ---
@@ -117,6 +172,7 @@ func main() {
 		zeebeClient, err = zbc.NewClient(&zbc.ClientConfig{
 			GatewayAddress:         cfg.Camunda.BrokerAddress,
 			UsePlaintextConnection: true,
+			KeepAlive:              30 * time.Second,
 		})
 		return err
 	}, 10, 2*time.Second, zapLog, "Zeebe client initialization")
@@ -179,21 +235,155 @@ func main() {
 	defer redis.Close()
 	zapLog.Info("Redis connected successfully")
 
-	// --- Init External Service Clients ---
-	_ = auth.NewKeycloakClient(
+	// ============================================================================
+	// INITIALIZE EXTERNAL SERVICE CLIENTS WITH CIRCUIT BREAKERS
+	// ============================================================================
+	zapLog.Info("Initializing external service clients with circuit breakers")
+
+	// Initialize Keycloak Client with circuit breaker
+	keycloakClient := auth.NewKeycloakClient(
 		cfg.Auth.Keycloak.URL,
 		cfg.Auth.Keycloak.Realm,
 		cfg.Auth.Keycloak.ClientID,
 		cfg.Auth.Keycloak.ClientSecret,
 	)
 
-	_ = zoho.NewCRMClient(cfg.Integrations.Zoho.APIKey, cfg.Integrations.Zoho.AuthToken)
+	// ===== IDEMPOTENCY CHECKER SETUP =====
+	var idempotencyChecker idempotency.Checker
+	if pg != nil {
+		idempotencyChecker = idempotency.NewDBChecker(pg.DB)
+		log.Info("Idempotency checker initialized with PostgreSQL", map[string]interface{}{})
+	} else {
+		log.Warn("PostgreSQL not available, idempotency checking disabled", map[string]interface{}{})
+	}
 
-	zapLog.Info("All external service clients initialized")
+	zapLog.Info("All external service clients initialized with circuit breakers",
+		zap.Int("circuit_breaker_count", len(cbManager.GetAll())))
 
-	// --- START: Register ALL 28 Workers (now including template-driven) ---
+	// ============================================================================
+	// ✅ CREATE DEPENDENCIES FOR REGISTRY
+	// ============================================================================
+	deps := &registry.Dependencies{
+		Logger:         log,
+		Config:         cfg,
+		ESClient:       esClient,
+		PGClient:       pg,
+		RedisClient:    redis,
+		CircuitBreaker: cbManager,
+		Idempotency:    idempotencyChecker,
+		// ResponseHandler will be set below
+	}
 
-	// --- 1. Infrastructure Workers (4 with template-driven) ---
+	// ============================================================================
+	// ✅ INITIALIZE CAMUNDA CLIENT AND FRANCHISE HANDLER
+	// ============================================================================
+
+	camundaClient, err := camunda.NewClientWithRegistry(&camunda.ClientConfig{
+		GatewayAddress:         cfg.Camunda.BrokerAddress,
+		UsePlaintextConnection: true,
+		ConnectionTimeout:      10 * time.Second,
+		RequestTimeout:         30 * time.Second,
+		RetryConfig:            camunda.DefaultRetryConfig,
+	}, deps)
+	if err != nil {
+		zapLog.Fatal("Failed to create Camunda client", zap.Error(err))
+	}
+
+	// ✅ Create franchise handler for response handling
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+
+	// ✅ Update dependencies with response handler
+	deps.ResponseHandler = franchiseHandler
+
+	// ============================================================================
+	// ✅ REGISTER ALL WORKERS (using registry pattern)
+	// ============================================================================
+
+	// --- 1. Infrastructure Workers (5) ---
+
+	// ============================================================================
+	// ✅ REGISTER send-api-response WORKER VIA REGISTRY
+	// ============================================================================
+	// if cfg.Workers[sar.TaskType].Enabled {
+	// 	// Get handler from registry
+	// 	handler, err := camundaClient.GetWorkerHandler(sar.TaskType)
+	// 	if err != nil {
+	// 		zapLog.Error("Failed to get send-api-response handler from registry",
+	// 			zap.String("taskType", sar.TaskType),
+	// 			zap.Error(err))
+	// 	} else {
+	// 		// Start worker with Camunda
+	// 		jobWorker := camundaClient.GetClient().NewJobWorker().
+	// 			JobType(sar.TaskType).
+	// 			Handler(func(client worker.JobClient, job entities.Job) {
+	// 				// Convert job to Task
+	// 				task := &registry.Task{
+	// 					JobKey:             job.Key,
+	// 					ProcessInstanceKey: job.ProcessInstanceKey,
+	// 					BpmnProcessId:      job.GetBpmnProcessId(),
+	// 					ElementId:          job.GetElementId(),
+	// 					Retries:            job.GetRetries(),
+	// 				}
+
+	// 				// Parse variables
+	// 				var vars map[string]interface{}
+	// 				if err := json.Unmarshal([]byte(job.Variables), &vars); err != nil {
+	// 					zapLog.Error("Failed to parse job variables",
+	// 						zap.Error(err),
+	// 						zap.String("worker", sar.TaskType))
+	// 					return
+	// 				}
+	// 				task.Variables = vars
+
+	// 				// Execute handler
+	// 				ctx := context.Background()
+	// 				_, err := handler.Execute(ctx, task)
+	// 				if err != nil {
+	// 					zapLog.Error("send-api-response worker execution failed",
+	// 						zap.Error(err),
+	// 						zap.String("worker", sar.TaskType))
+	// 				}
+	// 			}).
+	// 			MaxJobsActive(cfg.Workers[sar.TaskType].MaxJobsActive).
+	// 			Timeout(time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond).
+	// 			Name("send-api-response-worker").
+	// 			Open()
+
+	// 		_ = jobWorker
+
+	// 		zapLog.Info("send-api-response worker started via registry",
+	// 			zap.String("taskType", sar.TaskType),
+	// 			zap.Int("maxJobsActive", cfg.Workers[sar.TaskType].MaxJobsActive))
+	// 	}
+	// }
+	if cfg.Workers[sar.TaskType].Enabled {
+		handler := sar.NewHandler(
+			&sar.Config{
+				Timeout: time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond,
+			},
+			log,
+			franchiseHandler, // ✅ Pass response handler directly
+		)
+
+		// ✅ START WORKER WITH FAST POLLING
+		zeebeClient.NewJobWorker().
+			JobType(sar.TaskType).
+			Handler(handler.Handle).
+			MaxJobsActive(15).                   // ✅ More jobs
+			Concurrency(5).                      // ✅ More concurrency
+			PollInterval(50 * time.Millisecond). // ✅ FAST 50ms polling
+			RequestTimeout(5 * time.Second).     // ✅ Quick timeout
+			Timeout(10 * time.Second).           // ✅ Job timeout
+			Name("send-api-response-worker").
+			Open()
+
+		zapLog.Info("send-api-response worker started",
+			zap.String("taskType", sar.TaskType),
+			zap.Int("maxJobsActive", 15),
+			zap.Duration("pollInterval", 50*time.Millisecond),
+		)
+	}
+
 	if cfg.Workers[vs.TaskType].Enabled {
 		handler := vs.NewHandler(
 			&vs.Config{
@@ -207,8 +397,8 @@ func main() {
 	if cfg.Workers[br.TaskType].Enabled {
 		handler := br.NewHandler(
 			&br.Config{
-				TemplateRegistry: cfg.Template.RegistryPath,
-				AppVersion:       cfg.App.Version,
+				AppVersion: cfg.App.Version,
+				Timeout:    time.Duration(cfg.Workers[vs.TaskType].Timeout) * time.Millisecond,
 			},
 			log,
 		)
@@ -236,7 +426,7 @@ func main() {
 			tdConfig.TemplatesBaseDir = cfg.Template.RegistryPath
 		}
 
-		tdConfig.LogLevel = "info"  // Default log level
+		tdConfig.LogLevel = "info" // Default log level
 		tdConfig.MaxJobsActive = cfg.Workers[td.TaskType].MaxJobsActive
 		tdConfig.Timeout = int(time.Duration(cfg.Workers[td.TaskType].Timeout) * time.Millisecond / time.Second)
 		tdLogger := logger.NewZapAdapter(zapLog)
@@ -262,7 +452,7 @@ func main() {
 		_ = worker
 	}
 
-	// --- 2. Data Access Workers (3) ---
+	// --- 2. Data Access Workers (4) ---
 	if cfg.Workers[qp.TaskType].Enabled {
 		handler := qp.NewHandler(
 			&qp.Config{
@@ -298,6 +488,24 @@ func main() {
 			zap.Int("tables", 8),
 			zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
 			zap.Duration("requestTimeout", fpConfig.RequestTimeout),
+		)
+	}
+
+	// Franchise ES Indexer Worker
+	if taskType := "franchise-es-indexer"; cfg.Workers[taskType].Enabled {
+		esConfig := &esindexer.Config{
+			RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
+			MaxRetries:     3,
+			BatchSize:      100,
+		}
+		handler := esindexer.NewHandler(esConfig, pg.DB, esClient, log)
+		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+
+		zapLog.Info("Franchise ES Indexer worker registered successfully",
+			zap.String("taskType", taskType),
+			zap.String("esIndex", esindexer.ESIndex),
+			zap.Int("maxJobsActive", cfg.Workers[taskType].MaxJobsActive),
+			zap.Duration("requestTimeout", esConfig.RequestTimeout),
 		)
 	}
 
@@ -384,25 +592,28 @@ func main() {
 		startWorker(zeebeClient, sn.TaskType, cfg.Workers[sn.TaskType], handler.Handle, zapLog)
 	}
 
-	// --- 4. AI/ML Workers (4) ---
+	// --- 4. AI/ML Workers (5) ---
 	// Create adapters for AI workers
 	puiLogAdapter := &parseUserIntentLoggerAdapter{log}
 	qidLogAdapter := &queryInternalDataLoggerAdapter{log}
 	ewsLogAdapter := &enrichWebSearchLoggerAdapter{log}
 	llmLogAdapter := &llmSynthesisLoggerAdapter{log}
 
+	// Parse User Intent Worker
 	if cfg.Workers[pui.TaskType].Enabled {
-		handler := pui.NewHandler(
-			&pui.Config{
+		handler := pui.NewHandler(pui.HandlerOptions{
+			Config: &pui.Config{
 				GenAIBaseURL: cfg.APIs.GenAI.BaseURL,
 				Timeout:      30 * time.Second,
 				MaxRetries:   2,
 			},
-			puiLogAdapter,
-		)
+			Logger:    puiLogAdapter,
+			CBManager: cbManager, // Pass circuit breaker manager
+		})
 		startWorker(zeebeClient, pui.TaskType, cfg.Workers[pui.TaskType], handler.Handle, zapLog)
 	}
 
+	// Query Internal Data Worker
 	if cfg.Workers[qid.TaskType].Enabled {
 		handler := qid.NewHandler(
 			&qid.Config{
@@ -415,9 +626,10 @@ func main() {
 		startWorker(zeebeClient, qid.TaskType, cfg.Workers[qid.TaskType], handler.Handle, zapLog)
 	}
 
+	// Enrich Web Search Worker
 	if cfg.Workers[ews.TaskType].Enabled {
-		handler := ews.NewHandler(
-			&ews.Config{
+		handler := ews.NewHandler(ews.HandlerOptions{
+			Config: &ews.Config{
 				SearchAPIBaseURL: cfg.APIs.WebSearch.BaseURL,
 				SearchAPIKey:     cfg.APIs.WebSearch.APIKey,
 				SearchEngineID:   cfg.APIs.WebSearch.EngineID,
@@ -425,23 +637,50 @@ func main() {
 				MaxResults:       5,
 				MinRelevance:     0.5,
 			},
-			ewsLogAdapter,
-		)
+			Logger:    ewsLogAdapter,
+			CBManager: cbManager,
+		})
 		startWorker(zeebeClient, ews.TaskType, cfg.Workers[ews.TaskType], handler.Handle, zapLog)
 	}
 
+	// LLM Synthesis Worker
 	if cfg.Workers[llm.TaskType].Enabled {
-		handler := llm.NewHandler(
-			&llm.Config{
+		handler := llm.NewHandler(llm.HandlerOptions{
+			Config: &llm.Config{
 				GenAIBaseURL: cfg.APIs.GenAI.BaseURL,
 				Timeout:      5 * time.Second,
 				MaxRetries:   1,
 				MaxTokens:    500,
 				Temperature:  0.7,
 			},
-			llmLogAdapter,
-		)
+			Logger:    llmLogAdapter,
+			CBManager: cbManager, // Pass circuit breaker manager
+		})
 		startWorker(zeebeClient, llm.TaskType, cfg.Workers[llm.TaskType], handler.Handle, zapLog)
+	}
+
+	// AI Search Worker
+	if taskType := "ai-search"; cfg.Workers[taskType].Enabled { // ✅ Match BPMN taskType
+		aiConfig := ais.NewDefaultConfig()
+		aiConfig.IndexName = "franchises"
+		aiConfig.LLMEndpoint = getEnvOrDefault("LLM_ENDPOINT", "http://localhost:11434")
+		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
+		aiConfig.LLMTimeout = 15 * time.Second
+		aiConfig.SearchTimeout = 5 * time.Second
+		aiConfig.DefaultPageSize = 20
+		aiConfig.MaxQueryLength = 500
+
+		handler := ais.NewHandler(aiConfig, esClient, log)
+
+		// ✅ CRITICAL: Use fast polling
+		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+
+		zapLog.Info("AI Search worker registered successfully",
+			zap.String("taskType", taskType), // ✅ Now "ai-search"
+			zap.String("llmModel", aiConfig.LLMModel),
+			zap.String("llmEndpoint", aiConfig.LLMEndpoint),
+			zap.String("esIndex", aiConfig.IndexName),
+		)
 	}
 
 	// --- 5. Authentication & Utility Workers (8) ---
@@ -449,9 +688,12 @@ func main() {
 	// Auth Signin Google
 	if taskType := "auth-signin-google"; cfg.Workers[taskType].Enabled {
 		handler, err := asig.NewHandler(asig.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
+			AppConfig:          cfg,
+			Camunda:            nil,
+			Logger:             log,
+			CBManager:          cbManager,      // NEW: Pass circuit breaker manager
+			Keycloak:           keycloakClient, // NEW: Pass Keycloak client
+			IdempotencyChecker: idempotencyChecker,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-signin-google handler", zap.Error(err))
@@ -462,9 +704,12 @@ func main() {
 	// Auth Signin LinkedIn
 	if taskType := "auth-signin-linkedin"; cfg.Workers[taskType].Enabled {
 		handler, err := asil.NewHandler(asil.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
+			AppConfig:          cfg,
+			Camunda:            nil,
+			Logger:             log,
+			CBManager:          cbManager,
+			Keycloak:           keycloakClient,
+			IdempotencyChecker: idempotencyChecker,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-signin-linkedin handler", zap.Error(err))
@@ -475,9 +720,12 @@ func main() {
 	// Auth Signup Google
 	if taskType := "auth-signup-google"; cfg.Workers[taskType].Enabled {
 		handler, err := asug.NewHandler(asug.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
+			AppConfig:          cfg,
+			Camunda:            nil,
+			Logger:             log,
+			CBManager:          cbManager,
+			Keycloak:           keycloakClient,
+			IdempotencyChecker: idempotencyChecker,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-signup-google handler", zap.Error(err))
@@ -488,9 +736,12 @@ func main() {
 	// Auth Signup LinkedIn
 	if taskType := "auth-signup-linkedin"; cfg.Workers[taskType].Enabled {
 		handler, err := asul.NewHandler(asul.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
+			AppConfig:          cfg,
+			Camunda:            nil,
+			Logger:             log,
+			CBManager:          cbManager,
+			Keycloak:           keycloakClient,
+			IdempotencyChecker: idempotencyChecker,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-signup-linkedin handler", zap.Error(err))
@@ -504,6 +755,8 @@ func main() {
 			AppConfig: cfg,
 			Camunda:   nil,
 			Logger:    log,
+			CBManager: cbManager,
+			Keycloak:  keycloakClient,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-logout handler", zap.Error(err))
@@ -530,6 +783,7 @@ func main() {
 			AppConfig: cfg,
 			Camunda:   nil,
 			Logger:    log,
+			CBManager: cbManager,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create crm-user-create handler", zap.Error(err))
@@ -540,18 +794,52 @@ func main() {
 	// Email Send
 	if taskType := "email-send"; cfg.Workers[taskType].Enabled {
 		handler, err := es.NewHandler(es.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
+			AppConfig:          cfg,
+			Camunda:            nil,
+			Logger:             log,
+			CBManager:          cbManager,
+			IdempotencyChecker: idempotencyChecker,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create email-send handler", zap.Error(err))
 		}
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
-	zapLog.Info("All 28 workers registered successfully")
 
-	// --- Health & Metrics Server ---
+	zapLog.Info("All workers registered successfully",
+		zap.Int("totalWorkers", 30))
+
+	// ============================================================================
+	// START IDEMPOTENCY CLEANUP JOB
+	// ============================================================================
+	if idempotencyChecker != nil {
+		go func() {
+			cleanupTicker := time.NewTicker(1 * time.Hour)
+			defer cleanupTicker.Stop()
+
+			zapLog.Info("Idempotency cleanup job started")
+
+			for range cleanupTicker.C {
+				ctx := context.Background()
+
+				// Type assertion to access CleanupExpired method
+				if dbChecker, ok := idempotencyChecker.(*idempotency.DBChecker); ok {
+					count, err := dbChecker.CleanupExpired(ctx)
+					if err != nil {
+						zapLog.Error("Idempotency cleanup failed",
+							zap.Error(err))
+					} else if count > 0 {
+						zapLog.Info("Idempotency cleanup completed",
+							zap.Int64("keysDeleted", count))
+					}
+				}
+			}
+		}()
+	}
+
+	// ============================================================================
+	// HEALTH & METRICS SERVER
+	// ============================================================================
 	go func() {
 		// Enhanced health endpoint
 		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -562,6 +850,7 @@ func main() {
 				"timestamp": time.Now().Format(time.RFC3339),
 				"service":   "worker-manager",
 				"version":   cfg.App.Version,
+				"workers":   30, // Updated count
 			})
 		})
 
@@ -571,27 +860,102 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":    "ready",
 				"timestamp": time.Now().Format(time.RFC3339),
-				"workers":   28, // Total workers including template-driven
+				"workers":   30, // Updated count
 			})
 		})
 
+		// Add circuit breakers endpoint
+		http.HandleFunc("/circuit-breakers", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"circuit_breakers": cbManager.GetMetrics(),
+				"timestamp":        time.Now().Format(time.RFC3339),
+			})
+		})
+
+		// Add idempotency stats endpoint
+		http.HandleFunc("/idempotency-stats", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			if idempotencyChecker != nil {
+				if dbChecker, ok := idempotencyChecker.(*idempotency.DBChecker); ok {
+					stats, err := dbChecker.GetStats(context.Background())
+					if err != nil {
+						w.WriteHeader(http.StatusInternalServerError)
+						json.NewEncoder(w).Encode(map[string]interface{}{
+							"error": err.Error(),
+						})
+						return
+					}
+
+					w.WriteHeader(http.StatusOK)
+					json.NewEncoder(w).Encode(map[string]interface{}{
+						"stats":     stats,
+						"timestamp": time.Now().Format(time.RFC3339),
+					})
+					return
+				}
+			}
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"message":   "Idempotency not enabled",
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
+		})
+
+		// Add workers status endpoint
+		http.HandleFunc("/workers", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"workers": []string{
+					"send-api-response",
+					"query-elasticsearch",
+					"query-postgresql",
+					"search-franchises",
+					// ... other workers
+				},
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
+		})
+
+		http.HandleFunc("/debug/response-handler", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+
+			status := map[string]interface{}{
+				"connected": franchiseHandler != nil,
+				"timestamp": time.Now().Format(time.RFC3339),
+			}
+
+			if franchiseHandler != nil {
+				status["pending_responses"] = franchiseHandler.PendingResponsesCount()
+			}
+
+			_ = json.NewEncoder(w).Encode(status)
+		})
+
 		http.Handle("/metrics", promhttp.Handler())
-		zapLog.Info("Health/Metrics server listening on :8080")
+
+		zapLog.Info("Health/Metrics/Circuit-Breakers server listening on :8080")
 		if err := http.ListenAndServe(":8080", nil); err != nil {
 			zapLog.Error("Health/Metrics server failed", zap.Error(err))
 		}
 	}()
 
-	// --- Graceful Shutdown ---
+	// ============================================================================
+	// GRACEFUL SHUTDOWN
+	// ============================================================================
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	zapLog.Info("Worker manager running. Press Ctrl+C to stop.")
 	<-sigCh
 
 	zapLog.Info("Shutdown signal received, stopping workers...")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	_ = shutdownCtx
 
 	if err := zeebeClient.Close(); err != nil {
 		zapLog.Error("Error closing Zeebe client", zap.Error(err))
@@ -600,7 +964,15 @@ func main() {
 	zapLog.Info("Worker manager stopped gracefully")
 }
 
-// Logger adapters for AI workers that have their own Logger interfaces
+// getEnvOrDefault gets environment variable or returns default
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// Logger adapters for AI workers
 type parseUserIntentLoggerAdapter struct {
 	logger.Logger
 }
@@ -633,22 +1005,71 @@ func (a *llmSynthesisLoggerAdapter) With(fields map[string]interface{}) llm.Logg
 	return &llmSynthesisLoggerAdapter{a.Logger.With(fields)}
 }
 
+// Line 1150-1180: REPLACE startWorker function completely
+
 func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, handlerFunc func(worker.JobClient, entities.Job), log *zap.Logger) {
 	if !wcfg.Enabled {
 		log.Info("worker disabled", zap.String("taskType", taskType))
 		return
 	}
 
+	// ✅ CRITICAL CHANGES for faster polling
+	pollInterval := 25 * time.Millisecond // ✅ CHANGED from 100ms to 50ms
+	if wcfg.PollInterval > 0 {
+		pollInterval = time.Duration(wcfg.PollInterval) * time.Millisecond
+	}
+
+	maxJobsActive := wcfg.MaxJobsActive
+	if maxJobsActive == 0 {
+		maxJobsActive = 50 // ✅ Default increased from 5 to 10
+	}
+
+	concurrency := 10 // ✅ Default concurrency
+	if wcfg.Concurrency > 0 {
+		concurrency = wcfg.Concurrency
+	}
+
+	requestTimeout := 5 * time.Second // ✅ CHANGED from 10s to 5s
+	jobTimeout := time.Duration(wcfg.Timeout) * time.Millisecond
+
+	wrapped := func(c worker.JobClient, j entities.Job) {
+		ctx := context.Background()
+		ctx, span := otel.Tracer("worker-manager").Start(ctx, "worker:"+taskType)
+		start := time.Now()
+		span.SetAttributes(
+			attribute.String("worker.task_type", taskType),
+			attribute.Int64("job.key", j.GetKey()),
+			attribute.Int64("workflow.instance_key", j.GetProcessInstanceKey()),
+			attribute.String("bpmn.process_id", j.GetBpmnProcessId()),
+			attribute.String("element.id", j.GetElementId()),
+		)
+		defer func() {
+			span.SetAttributes(
+				attribute.Int64("job.retries", int64(j.GetRetries())),
+				attribute.Float64("duration_ms", float64(time.Since(start).Milliseconds())),
+			)
+			span.End()
+		}()
+		handlerFunc(c, j)
+	}
+
+	// ✅ KEY CHANGE: Add PollInterval and RequestTimeout
 	client.NewJobWorker().
 		JobType(taskType).
-		Handler(handlerFunc).
-		MaxJobsActive(wcfg.MaxJobsActive).
-		Timeout(time.Duration(wcfg.Timeout) * time.Millisecond).
+		Handler(wrapped).
+		MaxJobsActive(maxJobsActive).
+		Concurrency(concurrency).
+		PollInterval(pollInterval).
+		RequestTimeout(requestTimeout).
+		Timeout(jobTimeout).
+		Name(fmt.Sprintf("%s-worker", taskType)).
 		Open()
 
 	log.Info("worker started",
 		zap.String("taskType", taskType),
-		zap.Int("maxJobsActive", wcfg.MaxJobsActive),
+		zap.Int("maxJobsActive", maxJobsActive),
+		zap.Int("concurrency", concurrency),
+		zap.Duration("pollInterval", pollInterval), // ✅ ADD THIS
 		zap.Int("timeout_ms", wcfg.Timeout),
 	)
 }
@@ -671,6 +1092,8 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
 // 	"github.com/camunda/zeebe/clients/go/v8/pkg/zbc"
 // 	"github.com/prometheus/client_golang/prometheus/promhttp"
+// 	"go.opentelemetry.io/otel"
+// 	"go.opentelemetry.io/otel/attribute"
 // 	"go.uber.org/zap"
 
 // 	"camunda-workers/internal/common/auth"
@@ -680,9 +1103,11 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 	"camunda-workers/internal/common/observability"
 // 	"camunda-workers/internal/common/zoho"
 
-// 	// Infrastructure Workers (3)
+// 	// Infrastructure Workers (4 with template-driven)
 // 	br "camunda-workers/internal/workers/infrastructure/build-response"
 // 	st "camunda-workers/internal/workers/infrastructure/select-template"
+// 	sar "camunda-workers/internal/workers/infrastructure/send-api-response"
+// 	td "camunda-workers/internal/workers/infrastructure/template-driven"
 // 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
 // 	// Data Access Workers (3)
@@ -702,7 +1127,8 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 	sn "camunda-workers/internal/workers/application/send-notification"
 // 	vad "camunda-workers/internal/workers/application/validate-application-data"
 
-// 	// AI/ML Workers (4)
+// 	// AI/ML Workers (5)
+// 	ais "camunda-workers/internal/workers/ai-conversation/ai-search"
 // 	ews "camunda-workers/internal/workers/ai-conversation/enrich-web-search"
 // 	llm "camunda-workers/internal/workers/ai-conversation/llm-synthesis"
 // 	pui "camunda-workers/internal/workers/ai-conversation/parse-user-intent"
@@ -762,6 +1188,14 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 	obs := observability.New("worker-manager")
 // 	defer obs.Shutdown()
 
+// 	tracer, tracerCleanup, terr := observability.NewTracer("worker-manager", "http://localhost:14268/api/traces")
+// 	if terr != nil {
+// 		zapLog.Warn("tracer init failed", zap.Error(terr))
+// 	} else {
+// 		defer tracerCleanup()
+// 	}
+
+// 	_ = tracer
 // 	ctx := context.Background()
 
 // 	// --- Init Zeebe Client with retry ---
@@ -845,9 +1279,20 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 
 // 	zapLog.Info("All external service clients initialized")
 
-// 	// --- START: Register ALL 27 Workers ---
+// 	// --- START: Register ALL 29 Workers (now including template-driven) ---
 
-// 	// --- 1. Infrastructure Workers (3) ---
+// 	// --- 1. Infrastructure Workers (4 with template-driven) ---
+// 	// Add send-api-response worker
+// 	if cfg.Workers[sar.TaskType].Enabled {
+// 		handler := sar.NewHandler(
+// 			&sar.Config{
+// 				Timeout: time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond,
+// 			},
+// 			log,
+// 		)
+// 		startWorker(zeebeClient, sar.TaskType, cfg.Workers[sar.TaskType], handler.Handle, zapLog)
+// 	}
+
 // 	if cfg.Workers[vs.TaskType].Enabled {
 // 		handler := vs.NewHandler(
 // 			&vs.Config{
@@ -882,6 +1327,40 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		startWorker(zeebeClient, st.TaskType, cfg.Workers[st.TaskType], handler.Handle, zapLog)
 // 	}
 
+// 	// Template-Driven Worker
+// 	if cfg.Workers[td.TaskType].Enabled {
+// 		tdConfig := td.ProductionConfig()
+
+// 		if cfg.Template.RegistryPath != "" {
+// 			tdConfig.TemplatesBaseDir = cfg.Template.RegistryPath
+// 		}
+
+// 		tdConfig.LogLevel = "info" // Default log level
+// 		tdConfig.MaxJobsActive = cfg.Workers[td.TaskType].MaxJobsActive
+// 		tdConfig.Timeout = int(time.Duration(cfg.Workers[td.TaskType].Timeout) * time.Millisecond / time.Second)
+// 		tdLogger := logger.NewZapAdapter(zapLog)
+
+// 		handler, err := td.NewHandler(tdConfig, tdLogger)
+// 		if err != nil {
+// 			zapLog.Fatal("Failed to create template-driven handler", zap.Error(err))
+// 		}
+
+// 		worker := zeebeClient.NewJobWorker().
+// 			JobType(td.TaskType).
+// 			Handler(handler.Handle).
+// 			MaxJobsActive(cfg.Workers[td.TaskType].MaxJobsActive).
+// 			Timeout(time.Duration(cfg.Workers[td.TaskType].Timeout) * time.Millisecond).
+// 			Name(tdConfig.WorkerID).
+// 			Open()
+
+// 		zapLog.Info("Template-driven worker started",
+// 			zap.String("taskType", td.TaskType),
+// 			zap.String("workerId", tdConfig.WorkerID),
+// 		)
+
+// 		_ = worker
+// 	}
+
 // 	// --- 2. Data Access Workers (3) ---
 // 	if cfg.Workers[qp.TaskType].Enabled {
 // 		handler := qp.NewHandler(
@@ -903,28 +1382,23 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		startWorker(zeebeClient, qe.TaskType, cfg.Workers[qe.TaskType], handler.Handle, zapLog)
 // 	}
 
-// 	// ========== ADD THIS BLOCK BELOW ==========
-
 // 	// Franchise PostgreSQL Worker
 // 	if taskType := "franchise-postgres"; cfg.Workers[taskType].Enabled {
-//     // ✅ BETTER: Set all config values explicitly
-//         fpConfig := &franchisepostgres.Config{
-//             RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
-//             MaxJobsActive:  cfg.Workers[taskType].MaxJobsActive,  // ← ADD THIS
-//         }
-//         handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig)
-//         startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+// 		fpConfig := &franchisepostgres.Config{
+// 			RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
+// 			MaxJobsActive:  cfg.Workers[taskType].MaxJobsActive,
+// 		}
+// 		handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig)
+// 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 
-//         zapLog.Info("Franchise PostgreSQL worker registered successfully",
-//             zap.String("taskType", taskType),
-//             zap.Int("supportedOperations", 22),
-//             zap.Int("tables", 8),
-//             zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
-//             zap.Duration("requestTimeout", fpConfig.RequestTimeout),
-//         )
-//     }
-
-// 	// ========== END OF ADDITION ==========
+// 		zapLog.Info("Franchise PostgreSQL worker registered successfully",
+// 			zap.String("taskType", taskType),
+// 			zap.Int("supportedOperations", 22),
+// 			zap.Int("tables", 8),
+// 			zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
+// 			zap.Duration("requestTimeout", fpConfig.RequestTimeout),
+// 		)
+// 	}
 
 // 	// --- 3. Business Logic Workers (5 + 5 = 10) ---
 
@@ -1009,7 +1483,7 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		startWorker(zeebeClient, sn.TaskType, cfg.Workers[sn.TaskType], handler.Handle, zapLog)
 // 	}
 
-// 	// --- 4. AI/ML Workers (4) ---
+// 	// --- 4. AI/ML Workers (5) ---
 // 	// Create adapters for AI workers
 // 	puiLogAdapter := &parseUserIntentLoggerAdapter{log}
 // 	qidLogAdapter := &queryInternalDataLoggerAdapter{log}
@@ -1067,6 +1541,32 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 			llmLogAdapter,
 // 		)
 // 		startWorker(zeebeClient, llm.TaskType, cfg.Workers[llm.TaskType], handler.Handle, zapLog)
+// 	}
+
+// 	// AI Search Worker - NEW
+// 	if taskType := "ai-search-franchise"; cfg.Workers[taskType].Enabled {
+// 		// AI Search config
+// 		aiConfig := ais.NewDefaultConfig()
+// 		aiConfig.IndexName = "franchises"
+// 		aiConfig.LLMEndpoint = getEnvOrDefault("LLM_ENDPOINT", "http://localhost:11434")
+// 		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
+// 		aiConfig.LLMTimeout = 15 * time.Second
+// 		aiConfig.SearchTimeout = 5 * time.Second
+// 		aiConfig.DefaultPageSize = 20
+// 		aiConfig.MaxQueryLength = 500
+
+// 		// Create AI Search handler
+// 		handler := ais.NewHandler(aiConfig, esClient, log)
+
+// 		// Register worker
+// 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+
+// 		zapLog.Info("AI Search worker registered successfully",
+// 			zap.String("taskType", taskType),
+// 			zap.String("llmModel", aiConfig.LLMModel),
+// 			zap.String("llmEndpoint", aiConfig.LLMEndpoint),
+// 			zap.String("esIndex", aiConfig.IndexName),
+// 		)
 // 	}
 
 // 	// --- 5. Authentication & Utility Workers (8) ---
@@ -1174,26 +1674,32 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		}
 // 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 // 	}
-// 	zapLog.Info("All 27 workers registered successfully")
+// 	zapLog.Info("All 29 workers registered successfully")
 
 // 	// --- Health & Metrics Server ---
 // 	go func() {
-// 		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+// 		// Enhanced health endpoint
+// 		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 // 			w.Header().Set("Content-Type", "application/json")
 // 			w.WriteHeader(http.StatusOK)
-// 			json.NewEncoder(w).Encode(map[string]string{
-// 				"status": "healthy",
-// 				"time":   time.Now().Format(time.RFC3339),
+// 			json.NewEncoder(w).Encode(map[string]interface{}{
+// 				"status":    "healthy",
+// 				"timestamp": time.Now().Format(time.RFC3339),
+// 				"service":   "worker-manager",
+// 				"version":   cfg.App.Version,
 // 			})
 // 		})
+
 // 		http.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 // 			w.Header().Set("Content-Type", "application/json")
 // 			w.WriteHeader(http.StatusOK)
-// 			json.NewEncoder(w).Encode(map[string]string{
-// 				"status": "ready",
-// 				"time":   time.Now().Format(time.RFC3339),
+// 			json.NewEncoder(w).Encode(map[string]interface{}{
+// 				"status":    "ready",
+// 				"timestamp": time.Now().Format(time.RFC3339),
+// 				"workers":   29, // Total workers including template-driven
 // 			})
 // 		})
+
 // 		http.Handle("/metrics", promhttp.Handler())
 // 		zapLog.Info("Health/Metrics server listening on :8080")
 // 		if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -1203,7 +1709,7 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 
 // 	// --- Graceful Shutdown ---
 // 	sigCh := make(chan os.Signal, 1)
-// 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+// 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 // 	<-sigCh
 
 // 	zapLog.Info("Shutdown signal received, stopping workers...")
@@ -1217,6 +1723,14 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 	}
 
 // 	zapLog.Info("Worker manager stopped gracefully")
+// }
+
+// // getEnvOrDefault gets environment variable or returns default
+// func getEnvOrDefault(key, defaultValue string) string {
+// 	if value := os.Getenv(key); value != "" {
+// 		return value
+// 	}
+// 	return defaultValue
 // }
 
 // // Logger adapters for AI workers that have their own Logger interfaces
@@ -1258,9 +1772,30 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		return
 // 	}
 
+// 	wrapped := func(c worker.JobClient, j entities.Job) {
+// 		ctx := context.Background()
+// 		ctx, span := otel.Tracer("worker-manager").Start(ctx, "worker:"+taskType)
+// 		start := time.Now()
+// 		span.SetAttributes(
+// 			attribute.String("worker.task_type", taskType),
+// 			attribute.Int64("job.key", j.GetKey()),
+// 			attribute.Int64("workflow.instance_key", j.GetProcessInstanceKey()),
+// 			attribute.String("bpmn.process_id", j.GetBpmnProcessId()),
+// 			attribute.String("element.id", j.GetElementId()),
+// 		)
+// 		defer func() {
+// 			span.SetAttributes(
+// 				attribute.Int64("job.retries", int64(j.GetRetries())),
+// 				attribute.Float64("duration_ms", float64(time.Since(start).Milliseconds())),
+// 			)
+// 			span.End()
+// 		}()
+// 		handlerFunc(c, j)
+// 	}
+
 // 	client.NewJobWorker().
 // 		JobType(taskType).
-// 		Handler(handlerFunc).
+// 		Handler(wrapped).
 // 		MaxJobsActive(wcfg.MaxJobsActive).
 // 		Timeout(time.Duration(wcfg.Timeout) * time.Millisecond).
 // 		Open()

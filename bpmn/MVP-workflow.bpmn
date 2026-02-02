@@ -1,0 +1,665 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   id="Definitions_1"
+                   targetNamespace="http://bpmn.io/schema/bpmn">
+
+  <bpmn:process id="mvp-complete-flow" name="MVP Complete Flow" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="User Request">
+      <bpmn:outgoing>Flow_to_route</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Gateway to route based on operation type -->
+    <bpmn:exclusiveGateway id="Gateway_RouteOperation" name="What operation?">
+      <bpmn:incoming>Flow_to_route</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_browse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_detail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_search</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_ai_search</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_auth</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_enquiry</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Flow 1: Browse/Homepage -->
+    <bpmn:serviceTask id="Task_QueryElasticsearch_Browse" name="Query Featured Franchises">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="={&#10;  &#34;query_type&#34;: &#34;featured&#34;,&#10;  &#34;size&#34;: 12&#10;}" target="searchParams" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_browse</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_rank_browse</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_ApplyRanking_Browse" name="Apply Relevance Ranking">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="apply-relevance-ranking" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchises" target="items" />
+          <zeebe:input source="={&#10;  &#34;sort_by&#34;: &#34;popularity&#34;,&#10;  &#34;boost_trending&#34;: true&#10;}" target="rankingConfig" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_rank_browse</bpmn:incoming>
+      <bpmn:outgoing>Flow_browse_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Flow 2: Franchise Detail -->
+    <bpmn:serviceTask id="Task_QueryPostgres_Detail" name="Get Franchise Details">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="id" />
+          <zeebe:input source="&#34;franchise_complete&#34;" target="query_type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_detail</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_franchise_postgres</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_FranchisePostgres" name="Fetch Complete Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="franchise_id" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_franchise_postgres</bpmn:incoming>
+      <bpmn:outgoing>Flow_detail_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Flow 3: Search with Filters -->
+    <bpmn:serviceTask id="Task_ParseFilters" name="Parse Search Filters">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-search-filters" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=searchQuery" target="query" />
+          <zeebe:input source="=filters" target="raw_filters" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_search</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_search_es</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_QueryElasticsearch_Search" name="Search Franchises">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=parsedFilters" target="filters" />
+          <zeebe:input source="&#34;filtered_search&#34;" target="query_type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_search_es</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_match_score</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CalculateMatchScore" name="Calculate Match Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="calculate-match-score" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchises" target="franchises" />
+          <zeebe:input source="=userPreferences" target="preferences" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_match_score</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_rank_search</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_ApplyRanking_Search" name="Apply Relevance Ranking">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="apply-relevance-ranking" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=scoredFranchises" target="items" />
+          <zeebe:input source="={&#10;  &#34;sort_by&#34;: &#34;match_score&#34;&#10;}" target="rankingConfig" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_rank_search</bpmn:incoming>
+      <bpmn:outgoing>Flow_search_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Flow 4: AI Search -->
+    <bpmn:serviceTask id="Task_ParseUserIntent" name="Parse User Intent">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-user-intent" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=naturalLanguageQuery" target="query" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_ai_search</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_ai_search_es</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_QueryElasticsearch_AI" name="AI Search Franchises">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=extractedIntent" target="intent_params" />
+          <zeebe:input source="&#34;ai_search&#34;" target="query_type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_ai_search_es</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_ai_match</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CalculateMatchScore_AI" name="Calculate Match Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="calculate-match-score" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchises" target="franchises" />
+          <zeebe:input source="=extractedIntent" target="preferences" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_ai_match</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_llm_synthesis</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_LLMSynthesis" name="Generate AI Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="llm-synthesis" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=scoredFranchises" target="results" />
+          <zeebe:input source="=naturalLanguageQuery" target="original_query" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_llm_synthesis</bpmn:incoming>
+      <bpmn:outgoing>Flow_ai_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Flow 5: Authentication -->
+    <bpmn:serviceTask id="Task_CaptchaVerify" name="Verify Captcha">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="captcha-verify" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=captchaToken" target="token" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_auth</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_auth_provider</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_AuthProvider" name="Auth Provider?">
+      <bpmn:incoming>Flow_to_auth_provider</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_google_signin</bpmn:outgoing>
+      <bpmn:outgoing>Flow_to_linkedin_signin</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_GoogleSignin" name="Google Sign In">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth-signin-google" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=googleToken" target="token" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_google_signin</bpmn:incoming>
+      <bpmn:outgoing>Flow_google_to_crm</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_LinkedInSignin" name="LinkedIn Sign In">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth-signin-linkedin" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=linkedinToken" target="token" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_linkedin_signin</bpmn:incoming>
+      <bpmn:outgoing>Flow_linkedin_to_crm</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_MergeAuth">
+      <bpmn:incoming>Flow_google_to_crm</bpmn:incoming>
+      <bpmn:incoming>Flow_linkedin_to_crm</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_crm_create</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_CRMUserCreate" name="Create User in CRM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm-user-create" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userData" target="user" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_crm_create</bpmn:incoming>
+      <bpmn:outgoing>Flow_auth_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Flow 6: Enquiry/Application -->
+    <bpmn:serviceTask id="Task_ValidateApplication" name="Validate Application Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-application-data" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=applicationData" target="data" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_enquiry</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_readiness</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CheckReadinessScore" name="Check Readiness Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="check-readiness-score" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=validatedData" target="application" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_readiness</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_create_record</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CreateApplicationRecord" name="Create Application Record">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="create-application-record" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=scoredApplication" target="application" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_create_record</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_notification</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_SendNotification" name="Send Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=applicationRecord" target="application" />
+          <zeebe:input source="={&#10;  &#34;type&#34;: &#34;enquiry_received&#34;,&#10;  &#34;recipient&#34;: &#34;franchise_owner&#34;&#10;}" target="notificationConfig" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_notification</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_crm_sync</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_CRMUserCreate_Enquiry" name="Sync to CRM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm-user-create" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=applicationRecord" target="lead" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_crm_sync</bpmn:incoming>
+      <bpmn:outgoing>Flow_enquiry_to_response</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Final Response Builder -->
+    <bpmn:exclusiveGateway id="Gateway_MergeResponses">
+      <bpmn:incoming>Flow_browse_to_response</bpmn:incoming>
+      <bpmn:incoming>Flow_detail_to_response</bpmn:incoming>
+      <bpmn:incoming>Flow_search_to_response</bpmn:incoming>
+      <bpmn:incoming>Flow_ai_to_response</bpmn:incoming>
+      <bpmn:incoming>Flow_auth_to_response</bpmn:incoming>
+      <bpmn:incoming>Flow_enquiry_to_response</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_build_response</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=processedData" target="data" />
+          <zeebe:input source="=operationType" target="type" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_build_response</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Response Sent">
+      <bpmn:incoming>Flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_to_route" sourceRef="StartEvent_1" targetRef="Gateway_RouteOperation" />
+    
+    <!-- Browse Flow -->
+    <bpmn:sequenceFlow id="Flow_to_browse" sourceRef="Gateway_RouteOperation" targetRef="Task_QueryElasticsearch_Browse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "browse"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_rank_browse" sourceRef="Task_QueryElasticsearch_Browse" targetRef="Task_ApplyRanking_Browse" />
+    <bpmn:sequenceFlow id="Flow_browse_to_response" sourceRef="Task_ApplyRanking_Browse" targetRef="Gateway_MergeResponses" />
+
+    <!-- Detail Flow -->
+    <bpmn:sequenceFlow id="Flow_to_detail" sourceRef="Gateway_RouteOperation" targetRef="Task_QueryPostgres_Detail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "detail"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_franchise_postgres" sourceRef="Task_QueryPostgres_Detail" targetRef="Task_FranchisePostgres" />
+    <bpmn:sequenceFlow id="Flow_detail_to_response" sourceRef="Task_FranchisePostgres" targetRef="Gateway_MergeResponses" />
+
+    <!-- Search Flow -->
+    <bpmn:sequenceFlow id="Flow_to_search" sourceRef="Gateway_RouteOperation" targetRef="Task_ParseFilters">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "search"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_search_es" sourceRef="Task_ParseFilters" targetRef="Task_QueryElasticsearch_Search" />
+    <bpmn:sequenceFlow id="Flow_to_match_score" sourceRef="Task_QueryElasticsearch_Search" targetRef="Task_CalculateMatchScore" />
+    <bpmn:sequenceFlow id="Flow_to_rank_search" sourceRef="Task_CalculateMatchScore" targetRef="Task_ApplyRanking_Search" />
+    <bpmn:sequenceFlow id="Flow_search_to_response" sourceRef="Task_ApplyRanking_Search" targetRef="Gateway_MergeResponses" />
+
+    <!-- AI Search Flow -->
+    <bpmn:sequenceFlow id="Flow_to_ai_search" sourceRef="Gateway_RouteOperation" targetRef="Task_ParseUserIntent">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "ai_search"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_ai_search_es" sourceRef="Task_ParseUserIntent" targetRef="Task_QueryElasticsearch_AI" />
+    <bpmn:sequenceFlow id="Flow_to_ai_match" sourceRef="Task_QueryElasticsearch_AI" targetRef="Task_CalculateMatchScore_AI" />
+    <bpmn:sequenceFlow id="Flow_to_llm_synthesis" sourceRef="Task_CalculateMatchScore_AI" targetRef="Task_LLMSynthesis" />
+    <bpmn:sequenceFlow id="Flow_ai_to_response" sourceRef="Task_LLMSynthesis" targetRef="Gateway_MergeResponses" />
+
+    <!-- Auth Flow -->
+    <bpmn:sequenceFlow id="Flow_to_auth" sourceRef="Gateway_RouteOperation" targetRef="Task_CaptchaVerify">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "auth"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_auth_provider" sourceRef="Task_CaptchaVerify" targetRef="Gateway_AuthProvider" />
+    <bpmn:sequenceFlow id="Flow_to_google_signin" sourceRef="Gateway_AuthProvider" targetRef="Task_GoogleSignin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=authProvider = "google"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_linkedin_signin" sourceRef="Gateway_AuthProvider" targetRef="Task_LinkedInSignin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=authProvider = "linkedin"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_google_to_crm" sourceRef="Task_GoogleSignin" targetRef="Gateway_MergeAuth" />
+    <bpmn:sequenceFlow id="Flow_linkedin_to_crm" sourceRef="Task_LinkedInSignin" targetRef="Gateway_MergeAuth" />
+    <bpmn:sequenceFlow id="Flow_to_crm_create" sourceRef="Gateway_MergeAuth" targetRef="Task_CRMUserCreate" />
+    <bpmn:sequenceFlow id="Flow_auth_to_response" sourceRef="Task_CRMUserCreate" targetRef="Gateway_MergeResponses" />
+
+    <!-- Enquiry Flow -->
+    <bpmn:sequenceFlow id="Flow_to_enquiry" sourceRef="Gateway_RouteOperation" targetRef="Task_ValidateApplication">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operationType = "enquiry"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_to_readiness" sourceRef="Task_ValidateApplication" targetRef="Task_CheckReadinessScore" />
+    <bpmn:sequenceFlow id="Flow_to_create_record" sourceRef="Task_CheckReadinessScore" targetRef="Task_CreateApplicationRecord" />
+    <bpmn:sequenceFlow id="Flow_to_notification" sourceRef="Task_CreateApplicationRecord" targetRef="Task_SendNotification" />
+    <bpmn:sequenceFlow id="Flow_to_crm_sync" sourceRef="Task_SendNotification" targetRef="Task_CRMUserCreate_Enquiry" />
+    <bpmn:sequenceFlow id="Flow_enquiry_to_response" sourceRef="Task_CRMUserCreate_Enquiry" targetRef="Gateway_MergeResponses" />
+
+    <!-- Final Response -->
+    <bpmn:sequenceFlow id="Flow_to_build_response" sourceRef="Gateway_MergeResponses" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_to_end" sourceRef="Task_BuildResponse" targetRef="EndEvent_1" />
+
+  </bpmn:process>
+
+  <!-- Diagram Information -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="mvp-complete-flow">
+      
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="136" y="395" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Route Gateway -->
+      <bpmndi:BPMNShape id="Gateway_RouteOperation_di" bpmnElement="Gateway_RouteOperation" isMarkerVisible="true">
+        <dc:Bounds x="245" y="345" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="227" y="402" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Browse Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_QueryElasticsearch_Browse_di" bpmnElement="Task_QueryElasticsearch_Browse">
+        <dc:Bounds x="360" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApplyRanking_Browse_di" bpmnElement="Task_ApplyRanking_Browse">
+        <dc:Bounds x="520" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Detail Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_QueryPostgres_Detail_di" bpmnElement="Task_QueryPostgres_Detail">
+        <dc:Bounds x="360" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_FranchisePostgres_di" bpmnElement="Task_FranchisePostgres">
+        <dc:Bounds x="520" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Search Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_ParseFilters_di" bpmnElement="Task_ParseFilters">
+        <dc:Bounds x="360" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QueryElasticsearch_Search_di" bpmnElement="Task_QueryElasticsearch_Search">
+        <dc:Bounds x="520" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CalculateMatchScore_di" bpmnElement="Task_CalculateMatchScore">
+        <dc:Bounds x="680" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ApplyRanking_Search_di" bpmnElement="Task_ApplyRanking_Search">
+        <dc:Bounds x="840" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- AI Search Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_ParseUserIntent_di" bpmnElement="Task_ParseUserIntent">
+        <dc:Bounds x="360" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_QueryElasticsearch_AI_di" bpmnElement="Task_QueryElasticsearch_AI">
+        <dc:Bounds x="520" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CalculateMatchScore_AI_di" bpmnElement="Task_CalculateMatchScore_AI">
+        <dc:Bounds x="680" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LLMSynthesis_di" bpmnElement="Task_LLMSynthesis">
+        <dc:Bounds x="840" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Auth Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_CaptchaVerify_di" bpmnElement="Task_CaptchaVerify">
+        <dc:Bounds x="360" y="590" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AuthProvider_di" bpmnElement="Gateway_AuthProvider" isMarkerVisible="true">
+        <dc:Bounds x="520" y="605" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GoogleSignin_di" bpmnElement="Task_GoogleSignin">
+        <dc:Bounds x="630" y="560" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LinkedInSignin_di" bpmnElement="Task_LinkedInSignin">
+        <dc:Bounds x="630" y="680" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_MergeAuth_di" bpmnElement="Gateway_MergeAuth" isMarkerVisible="true">
+        <dc:Bounds x="790" y="605" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CRMUserCreate_di" bpmnElement="Task_CRMUserCreate">
+        <dc:Bounds x="900" y="590" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Enquiry Flow Tasks -->
+      <bpmndi:BPMNShape id="Task_ValidateApplication_di" bpmnElement="Task_ValidateApplication">
+        <dc:Bounds x="360" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CheckReadinessScore_di" bpmnElement="Task_CheckReadinessScore">
+        <dc:Bounds x="520" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateApplicationRecord_di" bpmnElement="Task_CreateApplicationRecord">
+        <dc:Bounds x="680" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendNotification_di" bpmnElement="Task_SendNotification">
+        <dc:Bounds x="840" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CRMUserCreate_Enquiry_di" bpmnElement="Task_CRMUserCreate_Enquiry">
+        <dc:Bounds x="1000" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Merge Gateway and Final Task -->
+      <bpmndi:BPMNShape id="Gateway_MergeResponses_di" bpmnElement="Gateway_MergeResponses" isMarkerVisible="true">
+        <dc:Bounds x="1200" y="345" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BuildResponse_di" bpmnElement="Task_BuildResponse">
+        <dc:Bounds x="1320" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- End Event -->
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1492" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1468" y="395" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- All Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_route_di" bpmnElement="Flow_to_route">
+        <di:waypoint x="188" y="370" />
+        <di:waypoint x="245" y="370" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Browse Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_browse_di" bpmnElement="Flow_to_browse">
+        <di:waypoint x="270" y="345" />
+        <di:waypoint x="270" y="120" />
+        <di:waypoint x="360" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_rank_browse_di" bpmnElement="Flow_to_rank_browse">
+        <di:waypoint x="460" y="120" />
+        <di:waypoint x="520" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_browse_to_response_di" bpmnElement="Flow_browse_to_response">
+        <di:waypoint x="620" y="120" />
+        <di:waypoint x="1225" y="120" />
+        <di:waypoint x="1225" y="345" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Detail Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_detail_di" bpmnElement="Flow_to_detail">
+        <di:waypoint x="270" y="345" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="360" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_franchise_postgres_di" bpmnElement="Flow_to_franchise_postgres">
+        <di:waypoint x="460" y="240" />
+        <di:waypoint x="520" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_detail_to_response_di" bpmnElement="Flow_detail_to_response">
+        <di:waypoint x="620" y="240" />
+        <di:waypoint x="1225" y="240" />
+        <di:waypoint x="1225" y="345" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Search Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_search_di" bpmnElement="Flow_to_search">
+        <di:waypoint x="295" y="370" />
+        <di:waypoint x="360" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_search_es_di" bpmnElement="Flow_to_search_es">
+        <di:waypoint x="460" y="370" />
+        <di:waypoint x="520" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_match_score_di" bpmnElement="Flow_to_match_score">
+        <di:waypoint x="620" y="370" />
+        <di:waypoint x="680" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_rank_search_di" bpmnElement="Flow_to_rank_search">
+        <di:waypoint x="780" y="370" />
+        <di:waypoint x="840" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_search_to_response_di" bpmnElement="Flow_search_to_response">
+        <di:waypoint x="940" y="370" />
+        <di:waypoint x="1200" y="370" />
+      </bpmndi:BPMNEdge>
+
+      <!-- AI Search Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_ai_search_di" bpmnElement="Flow_to_ai_search">
+        <di:waypoint x="270" y="395" />
+        <di:waypoint x="270" y="500" />
+        <di:waypoint x="360" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_ai_search_es_di" bpmnElement="Flow_to_ai_search_es">
+        <di:waypoint x="460" y="500" />
+        <di:waypoint x="520" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_ai_match_di" bpmnElement="Flow_to_ai_match">
+        <di:waypoint x="620" y="500" />
+        <di:waypoint x="680" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_llm_synthesis_di" bpmnElement="Flow_to_llm_synthesis">
+        <di:waypoint x="780" y="500" />
+        <di:waypoint x="840" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ai_to_response_di" bpmnElement="Flow_ai_to_response">
+        <di:waypoint x="940" y="500" />
+        <di:waypoint x="1225" y="500" />
+        <di:waypoint x="1225" y="395" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Auth Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_auth_di" bpmnElement="Flow_to_auth">
+        <di:waypoint x="270" y="395" />
+        <di:waypoint x="270" y="630" />
+        <di:waypoint x="360" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_auth_provider_di" bpmnElement="Flow_to_auth_provider">
+        <di:waypoint x="460" y="630" />
+        <di:waypoint x="520" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_google_signin_di" bpmnElement="Flow_to_google_signin">
+        <di:waypoint x="545" y="605" />
+        <di:waypoint x="545" y="600" />
+        <di:waypoint x="630" y="600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_linkedin_signin_di" bpmnElement="Flow_to_linkedin_signin">
+        <di:waypoint x="545" y="655" />
+        <di:waypoint x="545" y="720" />
+        <di:waypoint x="630" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_google_to_crm_di" bpmnElement="Flow_google_to_crm">
+        <di:waypoint x="730" y="600" />
+        <di:waypoint x="815" y="600" />
+        <di:waypoint x="815" y="605" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_linkedin_to_crm_di" bpmnElement="Flow_linkedin_to_crm">
+        <di:waypoint x="730" y="720" />
+        <di:waypoint x="815" y="720" />
+        <di:waypoint x="815" y="655" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_crm_create_di" bpmnElement="Flow_to_crm_create">
+        <di:waypoint x="840" y="630" />
+        <di:waypoint x="900" y="630" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_auth_to_response_di" bpmnElement="Flow_auth_to_response">
+        <di:waypoint x="1000" y="630" />
+        <di:waypoint x="1225" y="630" />
+        <di:waypoint x="1225" y="395" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Enquiry Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_enquiry_di" bpmnElement="Flow_to_enquiry">
+        <di:waypoint x="270" y="395" />
+        <di:waypoint x="270" y="840" />
+        <di:waypoint x="360" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_readiness_di" bpmnElement="Flow_to_readiness">
+        <di:waypoint x="460" y="840" />
+        <di:waypoint x="520" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_create_record_di" bpmnElement="Flow_to_create_record">
+        <di:waypoint x="620" y="840" />
+        <di:waypoint x="680" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_notification_di" bpmnElement="Flow_to_notification">
+        <di:waypoint x="780" y="840" />
+        <di:waypoint x="840" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_crm_sync_di" bpmnElement="Flow_to_crm_sync">
+        <di:waypoint x="940" y="840" />
+        <di:waypoint x="1000" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_enquiry_to_response_di" bpmnElement="Flow_enquiry_to_response">
+        <di:waypoint x="1100" y="840" />
+        <di:waypoint x="1225" y="840" />
+        <di:waypoint x="1225" y="395" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Final Response Edges -->
+      <bpmndi:BPMNEdge id="Flow_to_build_response_di" bpmnElement="Flow_to_build_response">
+        <di:waypoint x="1250" y="370" />
+        <di:waypoint x="1320" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_to_end_di" bpmnElement="Flow_to_end">
+        <di:waypoint x="1420" y="370" />
+        <di:waypoint x="1492" y="370" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

@@ -9,9 +9,10 @@ type Input struct {
 }
 
 type Output struct {
-	LLMResponse string   `json:"llmResponse"`
-	Confidence  float64  `json:"confidence"`
-	Sources     []string `json:"sources"`
+	LLMResponse    string                 `json:"llmResponse"`
+	Confidence     float64                `json:"confidence"`
+	Sources        []string               `json:"sources"`
+	CircuitBreaker map[string]interface{} `json:"circuitBreaker,omitempty"` // NEW: Circuit breaker metrics
 }
 
 type WebData struct {

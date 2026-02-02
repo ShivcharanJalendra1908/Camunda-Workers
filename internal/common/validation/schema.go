@@ -281,21 +281,3 @@ func (vr *ValidationResult) GetErrorsForField(field string) []ValidationError {
 	}
 	return fieldErrors
 }
-
-// ValidateEmail validates email format
-func ValidateEmail(email string) bool {
-	emailPattern := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailPattern.MatchString(email)
-}
-
-// ValidatePhone validates basic phone number format
-func ValidatePhone(phone string) bool {
-	phonePattern := regexp.MustCompile(`^\+?[\d\s\-\(\)]{10,}$`)
-	return phonePattern.MatchString(phone)
-}
-
-// ValidateURL validates URL format
-func ValidateURL(url string) bool {
-	urlPattern := regexp.MustCompile(`^(https?|ftp)://[^\s/$.?#].[^\s]*$`)
-	return urlPattern.MatchString(url)
-}

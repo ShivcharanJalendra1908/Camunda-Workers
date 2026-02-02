@@ -11,8 +11,8 @@ app:
 # ============================================================================
 api:
   port: 8080
-  readTimeout: 30
-  writeTimeout: 30
+  readTimeout: 60
+  writeTimeout: 60
   idleTimeout: 120
   
   rateLimit:
@@ -82,8 +82,8 @@ auth:
 # CAMUNDA/ZEEBE CONFIGURATION
 # ============================================================================
 camunda:
-  broker_address: "localhost:26500"
-  gateway_address: "localhost:26500"
+  broker_address: "zeebe:26500"
+  gateway_address: "zeebe:26500"
   max_jobs_active: 10
   timeout: 30000
   request_timeout: 30000
@@ -94,9 +94,9 @@ camunda:
   
   # Worker Configuration
   worker:
-    max_jobs_active: 5
-    concurrency: 3
-    poll_interval: "100ms"
+    max_jobs_active: 10
+    concurrency: 5
+    poll_interval: "50ms"
     timeout: "60s"
   
   # OAuth Configuration for Zeebe
@@ -130,9 +130,6 @@ database:
     password: "elastic"
     ssl_enabled: false
     indices:
-      food: "food_beverage_franchises"
-      education: "education_franchises"
-      fashion: "fashion_franchises"
       all: "franchises_all"
     timeout: "30s"
     sniff: false
@@ -241,11 +238,21 @@ monitoring:
     port: 9090
   
   # Distributed Tracing (Jaeger)
+  # tracing:
+  #   enabled: false
+  #   serviceName: "lemici-api-gateway"
+  #   endpoint: "http://localhost:14268/api/traces"
   tracing:
-    enabled: false
-    serviceName: "lemici-api-gateway"
-    endpoint: "http://localhost:14268/api/traces"
+    enabled: true                                    # ✅ CHANGE to true
+    serviceName: "lemici-worker-manager"            # ✅ ADD
+    endpoint: "http://jaeger:14268/api/traces"      # ✅ UPDATE (use jaeger hostname)
+    sampler: "always"                                # ✅ ADD (always, never, probabilistic)
+    probability: 1.0                                 # ✅ ADD (if sampler=probabilistic)
+    environment: "development"                       # ✅ ADD
+    version: "1.0.0"                                 # ✅ ADD
+    exportTimeout: 30                                # ✅ ADD (seconds)
   
+
   # Health Checks
   healthCheck:
     enabled: true
@@ -269,7 +276,19 @@ workflows:
 # WORKER CONFIGURATION
 # ============================================================================
 workers:
-
+ 
+  ai-search:
+    enabled: true
+    max_jobs_active: 50
+    timeout: 10000  # 10 seconds
+    poll_interval: 50
+    concurrency: 3
+    llm:
+      provider: "ollama"
+      model: "llama3.2"
+      endpoint: "http://ollama:11434"  # ✅ FIXED: Use Docker service name
+      timeout: 15000
+ 
   franchise_postgres:
     worker_name: "franchise-postgres-worker"
     job_type: "franchise-postgres"
@@ -290,8 +309,10 @@ workers:
 
   build-response:
     enabled: true
-    max_jobs_active: 5
-    timeout: 10000
+    max_jobs_active: 50
+    timeout: 5000              # Reduced (5s is enough)
+    poll_interval: 25
+    concurrency: 5
 
   select-template:
     enabled: true
@@ -300,13 +321,17 @@ workers:
 
   query-postgresql:
     enabled: true
-    max_jobs_active: 10
-    timeout: 30000
+    max_jobs_active: 50
+    timeout: 10000
+    poll_interval: 25
+    concurrency: 10
 
   query-elasticsearch:
     enabled: true
-    max_jobs_active: 10
-    timeout: 30000
+    max_jobs_active: 50
+    timeout: 10000
+    poll_interval: 25
+    concurrency: 10
 
   parse-search-filters:
     enabled: true
@@ -323,13 +348,20 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
-  search-franchises:
+  # ✅ NEW: Franchise ES Indexer
+  franchise-es-indexer:
     enabled: true
     max_jobs_active: 5
-    timeout: 60000
-    job_type: "search-franchises"
+    timeout: 30000  # 30 seconds
     concurrency: 3
-
+  
+  # ✅ UPDATED: Search Franchises (with single index)
+  search-franchises:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 10000  # 10 seconds
+    concurrency: 5
+    
   validate-application-data:
     enabled: true
     max_jobs_active: 5
@@ -359,6 +391,7 @@ workers:
     enabled: true
     max_jobs_active: 5
     timeout: 10000
+    poll_interval: 50
 
   query-internal-data:
     enabled: true
@@ -420,13 +453,20 @@ workers:
     maxJobsActive: 10
     timeout: 30000
 
+  send-api-response:
+    enabled: true
+    max_jobs_active: 50
+    timeout: 5000  # 5 seconds
+    poll_interval: 25
+    concurrency: 10
+
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
-logging:
-  level: "debug"
-  format: "console"
-  output: "stdout"
+  logging:
+    level: "debug"
+    format: "console"
+    output: "stdout"
 
 # ============================================================================
 # TEMPLATE CONFIGURATION
@@ -443,4 +483,113 @@ template:
     flow:
       signup: welcome-email
       signin: sign-in-confirmation
-  registry_path: "configs/templates.json"
+  registry_path: "configs/templates"
+
+
+
+# ============================================================================
+# VALIDATION CONFIGURATION
+# ============================================================================
+validation:
+  max_string_length: 1000
+  max_array_size: 100
+  max_request_size_mb: 10
+  allowed_sql_identifiers:
+    - franchises
+    - users
+    - applications
+  allowed_es_operations:
+    - match
+    - range
+    - term
+
+# ============================================================================
+# IDEMPOTENCY CONFIGURATION
+# ============================================================================
+idempotency:
+  enabled: true
+  default_ttl: 24h  # 24 hours
+  cleanup_interval: 1h  # Run cleanup every hour
+  
+  # Per-operation TTLs
+  ttls:
+    api_request: 24h
+    email_notification: 24h
+    application_creation: 24h
+    user_signup: 1h
+    user_signin: 15m
+    crm_contact: 168h  # 7 days
+
+# ============================================================================
+# ERROR HANDLING CONFIGURATION (GAP #4)
+# ============================================================================
+error_handling:
+  # Error logging
+  logging:
+    include_stack_trace: true
+    sanitize_sensitive_data: true
+    max_error_message_length: 1000
+  
+  # Retry configuration by error category
+  retry:
+    transient:
+      max_retries: 3
+      backoff_type: "exponential"  # exponential or fixed
+      initial_delay: "1s"
+      max_delay: "30s"
+      multiplier: 2.0
+    
+    dependency:
+      max_retries: 2
+      backoff_type: "fixed"
+      initial_delay: "5s"
+      max_delay: "10s"
+    
+    validation:
+      max_retries: 0  # Never retry validation errors
+    
+    client:
+      max_retries: 0  # Never retry client errors
+    
+    permanent:
+      max_retries: 0  # Never retry permanent errors
+  
+  # Circuit breaker settings
+  circuit_breaker:
+    failure_threshold: 5        # Open after 5 failures
+    success_threshold: 2        # Close after 2 successes in half-open
+    timeout: "60s"              # Stay open for 60 seconds
+    half_open_max_requests: 3   # Allow 3 requests in half-open state
+  
+  # Error alerting thresholds
+  alerting:
+    critical:
+      enabled: true
+      error_rate_threshold: 0.10  # 10% error rate
+      window: "5m"
+      notify: ["pagerduty", "slack"]
+    
+    high:
+      enabled: true
+      error_rate_threshold: 0.05  # 5% error rate
+      window: "15m"
+      notify: ["slack", "email"]
+    
+    medium:
+      enabled: true
+      error_rate_threshold: 0.02  # 2% error rate
+      window: "1h"
+      notify: ["email"]
+  
+  # Error message templates
+  user_messages:
+    default: "An unexpected error occurred. Please try again or contact support."
+    rate_limit: "You've made too many requests. Please wait {retry_after} seconds."
+    service_unavailable: "Our service is temporarily unavailable. Please try again in a few moments."
+    validation: "Please check your input: {details}"
+    authentication: "Authentication failed. Please sign in again."
+  
+  # Documentation URLs
+  documentation:
+    base_url: "https://docs.lemici.com/errors"
+    enabled: true

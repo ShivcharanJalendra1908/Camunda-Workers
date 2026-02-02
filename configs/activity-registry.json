@@ -1030,6 +1030,134 @@
       ],
       "status": "active",
       "version": "1.0.0"
+    },
+    
+    {
+    "id":"ai-search-franchise",
+    "name": "AI Search Franchise",
+    "description": "Natural language search with LLM parameter extraction",
+    "category": "ai-conversation",
+    "inputs": ["query", "user_id"],
+    "outputs": ["success", "extracted_params", "results"],
+    "timeout": "30s",
+    "retries": 3
+    },
+   
+    {
+    "id": "franchise-es-indexer",
+    "name": "Franchise Elasticsearch Indexer",
+    "type": "data-sync",
+    "description": "Indexes and syncs franchise data from PostgreSQL to Elasticsearch (single index architecture)",
+    "category": "data-access",
+    "version": "1.0.0",
+
+    "input_variables": [
+    {
+      "name": "franchise_id",
+      "type": "string",
+      "required": true,
+      "description": "Unique ID of the franchise to be indexed in Elasticsearch"
+    },
+    {
+      "name": "operation",
+      "type": "string",
+      "required": false,
+      "default": "INDEX",
+      "allowed_values": ["INDEX", "UPDATE", "DELETE"],
+      "description": "Operation to perform on Elasticsearch index"
     }
+    ],
+
+    "output_variables": [
+    {
+      "name": "franchise_id",
+      "type": "string",
+      "description": "Indexed franchise ID"
+    },
+    
+    {
+      "name": "indexed",
+      "type": "boolean",
+      "description": "Whether the franchise was successfully indexed"
+    },
+    
+    {
+      "name": "index_name",
+      "type": "string",
+      "description": "Target Elasticsearch index name"
+    },
+    {
+      "name": "success",
+      "type": "boolean"
+    },
+    {
+      "name": "error",
+      "type": "string"
+    }
+    ],
+
+    "worker_config": {
+      "job_type": "franchise-es-indexer",
+      "max_jobs_active": 3,
+      "concurrency": 2,
+      "timeout": 60000,
+      "retries": 3
+    }
+    },
+    {
+  "id": "send-api-response",
+  "displayName": "Send API Response",
+  "description": "Sends workflow response back to API gateway via callback",
+  "category": "infrastructure",
+  "version": "1.0.0",
+  "taskType": "send-api-response",
+  "implementationStatus": "completed",
+  "inputSchema": {
+    "type": "object",
+    "required": ["correlationKey", "response"],
+    "properties": {
+      "correlationKey": {
+        "type": "string",
+        "description": "Unique correlation key to match response with API request"
+      },
+      "response": {
+        "type": "object",
+        "description": "Final response object to send back to API"
+      },
+      "metadata": {
+        "type": "object",
+        "description": "Additional metadata (optional)"
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether response was sent successfully"
+      },
+      "sentToApi": {
+        "type": "boolean",
+        "description": "Whether API gateway received the response"
+      },
+      "apiError": {
+        "type": "string",
+        "description": "Error message if API gateway callback failed"
+      }
+    }
+  },
+  "errorCodes": ["API_CALLBACK_FAILED", "RESPONSE_VALIDATION_FAILED"],
+  "timeout": "10s",
+  "retries": 0,
+  "workflows": [
+    "franchise-home-page",
+    "franchise-listing-page", 
+    "franchise-detail-page",
+    "franchise-listing-ai"
+  ],
+  "tags": ["api", "response", "callback"]
+}
+
   ]
 }

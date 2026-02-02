@@ -3,295 +3,1090 @@ package buildresponse
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"strings"
-	"sync"
 	"time"
-
-	"camunda-workers/internal/common/logger"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-	"github.com/xeipuuv/gojsonschema"
+	ozzo "github.com/go-ozzo/ozzo-validation/v4"
+
+	appErrs "camunda-workers/internal/common/errors"
+	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const TaskType = "build-response"
 
-var (
-	ErrTemplateNotFound         = errors.New("TEMPLATE_NOT_FOUND")
-	ErrTemplateValidationFailed = errors.New("TEMPLATE_VALIDATION_FAILED")
-)
-
-type templateCacheEntry struct {
-	template *TemplateDefinition
-	loadedAt time.Time
-}
-
 type Handler struct {
-	config *Config
-	logger logger.Logger // Changed from *zap.Logger
-	cache  map[string]*templateCacheEntry
-	mu     sync.RWMutex
+	config       *Config
+	logger       logger.Logger
+	errorHandler *appErrs.ErrorHandler
+	validator    *validation.Validator
+	sanitizer    *validation.Sanitizer
 }
 
 func NewHandler(config *Config, log logger.Logger) *Handler {
 	return &Handler{
-		config: config,
-		logger: log.WithFields(map[string]interface{}{"taskType": TaskType}), // Fixed WithFields call
-		cache:  make(map[string]*templateCacheEntry),
+		config:       config,
+		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
+		errorHandler: appErrs.NewErrorHandler(log),
+		validator:    validation.NewValidator(),
+		sanitizer:    validation.NewSanitizer(),
 	}
 }
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
+	ctx := context.Background()
+
+	var traceID, parentSpanID string
+	var jobVars map[string]interface{}
+
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if tid, ok := jobVars["traceId"].(string); ok {
+			traceID = tid
+		}
+		if psid, ok := jobVars["spanId"].(string); ok {
+			parentSpanID = psid
+		}
+	}
+
+	tracer := otel.Tracer("worker-manager")
+	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
+		trace.WithAttributes(
+			attribute.String("worker.name", TaskType),
+			attribute.Int64("job.key", job.GetKey()),
+			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
+			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
+			attribute.String("workflow.element_id", job.GetElementId()),
+			attribute.String("trace.parent_id", parentSpanID),
+		),
+	)
+	defer span.End()
+
 	h.logger.Info("processing job",
 		map[string]interface{}{
 			"jobKey":      job.Key,
 			"workflowKey": job.ProcessInstanceKey,
+			"traceId":     traceID,
+			"spanId":      span.SpanContext().SpanID().String(),
 		})
 
 	var input Input
+	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "build-response.parseInput")
+
+	h.logger.Debug("Job variables received", map[string]interface{}{
+		"rawVarsLength": len(job.Variables),
+		"elementId":     job.GetElementId(),
+		"first500Chars": safeSubstring(job.Variables, 0, 500),
+	})
+
 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-		h.failJob(client, job, "PARSE_ERROR", fmt.Sprintf("parse input: %v", err), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job,
+			appErrs.NewValidationError("input", fmt.Sprintf("parse input: %v", err)))
+		spanParse.End()
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	h.logger.Info("Parsed input structure", map[string]interface{}{
+		"pageType":   input.PageType,
+		"dataKeys":   h.getKeys(input.Data),
+		"hasDataKey": input.Data != nil && input.Data["data"] != nil,
+		"metadata":   input.Metadata != nil,
+	})
+
+	spanParse.End()
+
+	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "build-response.validateInput")
+	if err := h.validateInput(&input); err != nil {
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+		h.errorHandler.HandleJobError(ctx, client, job, err)
+		spanValidate.End()
+		return
+	}
+	spanValidate.End()
+
+	ctxExec, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	output, err := h.Execute(ctx, &input) // Changed to Execute
+	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "build-response.Execute")
+	output, err := h.Execute(ctxExec, &input)
+	spanExec.End()
 	if err != nil {
-		errorCode := "RESPONSE_BUILD_ERROR"
-		if errors.Is(err, ErrTemplateNotFound) {
-			errorCode = "TEMPLATE_NOT_FOUND"
-		} else if errors.Is(err, ErrTemplateValidationFailed) {
-			errorCode = "TEMPLATE_VALIDATION_FAILED"
-		}
-		h.failJob(client, job, errorCode, err.Error(), 0)
+		span.RecordError(err)
+		span.SetAttributes(attribute.Bool("error", true))
+
+		stdErr := appErrs.NewExternalServiceError("build-response", err)
+		h.errorHandler.HandleJobError(ctx, client, job, stdErr)
 		return
 	}
 
-	h.completeJob(client, job, output)
+	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "build-response.completeJob")
+	h.completeJob(ctx, client, job, output)
+	spanComp.End()
 }
 
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	template, err := h.loadTemplate(input.TemplateId)
-	if err != nil {
-		return nil, err
+// ===== HELPER FUNCTIONS (NO DUPLICATES) =====
+
+func (h *Handler) extractArray(data map[string]interface{}, key string) []interface{} {
+	if data == nil {
+		return []interface{}{}
 	}
 
-	if err := h.validateData(template.Schema, input.Data); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrTemplateValidationFailed, err)
+	if arr, ok := data[key].([]interface{}); ok {
+		h.logger.Debug("Direct array access successful", map[string]interface{}{
+			"key":   key,
+			"count": len(arr),
+		})
+		return arr
 	}
 
-	responseData := h.substituteTemplate(template.Template, input.Data)
-
-	if responseData == nil {
-		h.logger.Error("Template substitution resulted in nil root object",
-			map[string]interface{}{
-				"templateId": input.TemplateId,
-				"requestId":  input.RequestId,
+	if nestedData, ok := data["data"].(map[string]interface{}); ok {
+		if arr, ok := nestedData[key].([]interface{}); ok {
+			h.logger.Debug("Nested array access successful", map[string]interface{}{
+				"key":    key,
+				"count":  len(arr),
+				"nested": true,
 			})
-		return nil, fmt.Errorf("template substitution resulted in nil root object for template ID: %s", input.TemplateId)
+			return arr
+		}
 	}
 
-	responseDataMap, ok := responseData.(map[string]interface{})
-	if !ok {
-		h.logger.Error("Template substitution did not return a map for root object",
-			map[string]interface{}{
-				"templateId": input.TemplateId,
-				"requestId":  input.RequestId,
-				"resultType": fmt.Sprintf("%T", responseData),
+	if str, ok := data[key].(string); ok {
+		var arr []interface{}
+		if err := json.Unmarshal([]byte(str), &arr); err == nil {
+			h.logger.Debug("JSON string unmarshaled", map[string]interface{}{
+				"key":   key,
+				"count": len(arr),
+				"from":  "string",
 			})
-		return nil, fmt.Errorf("expected template root to be an object after substitution, got %T (value: %v) for template ID: %s", responseData, responseData, input.TemplateId)
+			return arr
+		}
 	}
 
-	metadata := ResponseMetadata{
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
-		Version:   h.config.AppVersion,
-	}
+	h.logger.Debug("Array extraction failed", map[string]interface{}{
+		"key":        key,
+		"value":      data[key],
+		"valueType":  fmt.Sprintf("%T", data[key]),
+		"hasDataKey": data["data"] != nil,
+	})
 
-	payload := ResponsePayload{
-		RequestId: input.RequestId,
-		Status:    "success",
-		Data:      responseDataMap,
-		Metadata:  metadata,
-	}
-
-	return &Output{Response: payload}, nil
+	return []interface{}{}
 }
 
-func (h *Handler) substituteTemplate(templateData interface{}, inputData map[string]interface{}) interface{} {
-	if templateData == nil {
+func (h *Handler) extractMap(data map[string]interface{}, key string) map[string]interface{} {
+	if data == nil {
+		return map[string]interface{}{}
+	}
+
+	if m, ok := data[key].(map[string]interface{}); ok {
+		return m
+	}
+
+	if nestedData, ok := data["data"].(map[string]interface{}); ok {
+		if m, ok := nestedData[key].(map[string]interface{}); ok {
+			return m
+		}
+	}
+
+	if str, ok := data[key].(string); ok {
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(str), &m); err == nil {
+			return m
+		}
+	}
+
+	return map[string]interface{}{}
+}
+
+func (h *Handler) extractValue(data map[string]interface{}, key string) interface{} {
+	if data == nil {
 		return nil
 	}
 
-	switch v := templateData.(type) {
-	case string:
-		// Check if this is a template placeholder like {{key}}
-		if len(v) > 4 && v[0] == '{' && v[1] == '{' && v[len(v)-2] == '}' && v[len(v)-1] == '}' {
-			key := strings.TrimSpace(v[2 : len(v)-2]) // Remove whitespace from key
-			value := h.lookupNestedValue(inputData, key)
-			if value != nil {
-				// Convert integer types to float64 for JSON compatibility
-				switch numVal := value.(type) {
-				case int:
-					return float64(numVal)
-				case int64:
-					return float64(numVal)
-				case int32:
-					return float64(numVal)
-				case int16:
-					return float64(numVal)
-				case int8:
-					return float64(numVal)
-				default:
-					return value
-				}
-			}
-			// Return nil for missing values - let the test handle this appropriately
-			return nil
+	if value, exists := data[key]; exists {
+		return value
+	}
+
+	if nestedData, ok := data["data"].(map[string]interface{}); ok {
+		if value, exists := nestedData[key]; exists {
+			return value
 		}
-		return v
-	case map[string]interface{}:
-		result := make(map[string]interface{})
-		for k, v2 := range v {
-			substituted := h.substituteTemplate(v2, inputData)
-			// Include the key even if value is nil to maintain structure
-			result[k] = substituted
-		}
-		return result
-	case []interface{}:
-		result := make([]interface{}, len(v))
-		for i, item := range v {
-			result[i] = h.substituteTemplate(item, inputData)
-		}
-		return result
-	default:
-		return v
-	}
-}
-
-func (h *Handler) lookupNestedValue(data map[string]interface{}, key string) interface{} {
-	parts := strings.Split(key, ".")
-	current := interface{}(data)
-
-	for _, part := range parts {
-		currentMap, ok := current.(map[string]interface{})
-		if !ok {
-			return nil
-		}
-
-		val, exists := currentMap[part]
-		if !exists {
-			return nil
-		}
-
-		current = val
-	}
-
-	return current
-}
-
-func (h *Handler) loadTemplate(id string) (*TemplateDefinition, error) {
-	h.mu.RLock()
-	if entry, ok := h.cache[id]; ok && time.Since(entry.loadedAt) < h.config.CacheTTL {
-		h.mu.RUnlock()
-		return entry.template, nil
-	}
-	h.mu.RUnlock()
-
-	registryBytes, err := os.ReadFile(h.config.TemplateRegistry)
-	if err != nil {
-		return nil, fmt.Errorf("read registry: %w", err)
-	}
-
-	var registry struct {
-		Templates []TemplateDefinition `json:"templates"`
-	}
-	if err := json.Unmarshal(registryBytes, &registry); err != nil {
-		return nil, fmt.Errorf("parse registry: %w", err)
-	}
-
-	for _, t := range registry.Templates {
-		if t.ID == id {
-			h.mu.Lock()
-			h.cache[id] = &templateCacheEntry{
-				template: &t,
-				loadedAt: time.Now(),
-			}
-			h.mu.Unlock()
-			return &t, nil
-		}
-	}
-
-	return nil, ErrTemplateNotFound
-}
-
-func (h *Handler) validateData(schemaMap, data map[string]interface{}) error {
-	if len(schemaMap) == 0 {
-		return nil
-	}
-
-	schemaLoader := gojsonschema.NewGoLoader(schemaMap)
-	documentLoader := gojsonschema.NewGoLoader(data)
-
-	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-	if err != nil {
-		return fmt.Errorf("validation error: %w", err)
-	}
-
-	if !result.Valid() {
-		errs := make([]string, len(result.Errors()))
-		for i, desc := range result.Errors() {
-			errs[i] = desc.String()
-		}
-		return fmt.Errorf("data validation failed: %v", errs)
 	}
 
 	return nil
 }
 
-func (h *Handler) deepMerge(dst, src map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for k, v := range dst {
-		result[k] = v
+func (h *Handler) getKeys(data map[string]interface{}) []string {
+	if data == nil {
+		return []string{}
 	}
-	for k, v := range src {
-		result[k] = v
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
 	}
+	return keys
+}
+
+func safeSubstring(s string, start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(s) {
+		end = len(s)
+	}
+	if start >= end {
+		return ""
+	}
+	return s[start:end]
+}
+
+// ===== VALIDATION FUNCTION =====
+func (h *Handler) validateInput(input *Input) error {
+	if err := ozzo.Validate(input.PageType,
+		ozzo.Required.Error("pageType is required"),
+		ozzo.In("home", "listing", "detail", "search").Error("must be one of: home, listing, detail, search"),
+		validation.SafeSQLString,
+	); err != nil {
+		return appErrs.NewValidationError("pageType", err.Error())
+	}
+
+	if input.Data != nil {
+		if err := h.validateDataDepth(input.Data, 0); err != nil {
+			return err
+		}
+
+		if err := h.validateDataSize(input.Data); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) validateDataDepth(data map[string]interface{}, depth int) error {
+	if depth > 10 {
+		return appErrs.NewValidationError("data", "object nesting too deep (max 10 levels)")
+	}
+
+	for key, value := range data {
+		if err := ozzo.Validate(key,
+			ozzo.Length(1, 100).Error("key must be 1-100 characters"),
+			validation.SafeNoSQLString,
+			validation.AlphanumericOnly,
+		); err != nil {
+			return appErrs.NewValidationError(fmt.Sprintf("data.%s", key), err.Error())
+		}
+
+		if nestedMap, ok := value.(map[string]interface{}); ok {
+			if err := h.validateDataDepth(nestedMap, depth+1); err != nil {
+				return err
+			}
+		}
+
+		if arr, ok := value.([]interface{}); ok {
+			if len(arr) > 1000 {
+				return appErrs.NewArrayTooLargeError(fmt.Sprintf("data.%s", key), 1000, len(arr))
+			}
+
+			for i, item := range arr {
+				if nestedMap, ok := item.(map[string]interface{}); ok {
+					if err := h.validateDataDepth(nestedMap, depth+1); err != nil {
+						return appErrs.NewValidationError(fmt.Sprintf("data.%s[%d]", key, i), err.Error())
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (h *Handler) validateDataSize(data map[string]interface{}) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return appErrs.NewValidationError("data", fmt.Sprintf("cannot serialize data: %v", err))
+	}
+
+	sizeKB := len(jsonBytes) / 1024
+	if sizeKB > 100 {
+		return appErrs.NewValidationError("data",
+			fmt.Sprintf("data too large (%d KB), maximum is 100 KB", sizeKB))
+	}
+
+	return nil
+}
+
+// ===== EXECUTE METHOD =====
+func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+	combinedData := make(map[string]interface{})
+
+	if input.Data != nil {
+		for k, v := range input.Data {
+			combinedData[k] = v
+		}
+	}
+
+	if len(input.FranchiseListings) > 0 {
+		combinedData["franchises"] = input.FranchiseListings
+	}
+	if len(input.FeaturedCategories) > 0 {
+		combinedData["categories"] = input.FeaturedCategories
+	}
+	if len(input.UnderstandingCategory) > 0 {
+		combinedData["categoryQuestions"] = input.UnderstandingCategory
+	}
+	if len(input.RecommendedFranchises) > 0 {
+		combinedData["recommended"] = input.RecommendedFranchises
+	}
+	if len(input.KeyMarketInsights) > 0 {
+		combinedData["marketInsights"] = input.KeyMarketInsights
+	}
+	if input.HeroDescription != "" {
+		combinedData["heroDescription"] = input.HeroDescription
+	}
+
+	if len(input.HeroBrands) > 0 {
+		combinedData["heroBrands"] = input.HeroBrands
+	}
+	if len(input.Industries) > 0 {
+		combinedData["industries"] = input.Industries
+	}
+	if len(input.PopularListings) > 0 {
+		combinedData["popularListings"] = input.PopularListings
+	}
+	if len(input.Categories) > 0 {
+		combinedData["categories"] = input.Categories
+	}
+
+	combinedData = h.sanitizer.SanitizeInput(combinedData)
+
+	var response map[string]interface{}
+	switch input.PageType {
+	case "home":
+		response = h.buildHomeResponse(combinedData)
+	case "listing":
+		response = h.buildListingResponse(combinedData)
+	case "detail":
+		response = h.buildDetailResponse(combinedData)
+	case "search":
+		response = h.buildSearchResponse(combinedData)
+	default:
+		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
+	}
+
+	return &Output{Success: true, Response: response}, nil
+}
+
+// ===== HOME PAGE BUILDER =====
+func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]interface{} {
+	sections := []map[string]interface{}{}
+
+	h.logger.Info("Building home response", map[string]interface{}{
+		"dataKeys":   h.getKeys(data),
+		"hasDataKey": data["data"] != nil,
+	})
+
+	heroBrands := h.extractArray(data, "heroBrands")
+	if len(heroBrands) > 0 {
+		h.logger.Info("Hero brands found", map[string]interface{}{
+			"count": len(heroBrands),
+		})
+
+		sections = append(sections, map[string]interface{}{
+			"type":    "hero",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"topBrandLogos": heroBrands,
+			},
+		})
+	} else {
+		h.logger.Warn("No hero brands extracted", map[string]interface{}{
+			"dataKeys": h.getKeys(data),
+		})
+	}
+
+	industries := h.extractArray(data, "industries")
+	if len(industries) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "top_franchise_opportunities",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"industries": industries,
+			},
+		})
+	}
+
+	// listings := h.extractArray(data, "popularListings")
+	// if len(listings) > 0 {
+	// 	sections = append(sections, map[string]interface{}{
+	// 		"type":    "popular_listings",
+	// 		"enabled": true,
+	// 		"data":    listings,
+	// 	})
+	// }
+	listings := h.extractArray(data, "popularListings")
+	if len(listings) > 0 {
+		// ✅ Transform listings to match API spec
+		transformedListings := make([]map[string]interface{}, 0, len(listings))
+
+		for _, item := range listings {
+			listing, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Build API-compliant listing object
+			transformed := map[string]interface{}{}
+
+			// Map franchise_id -> id
+			if franchiseID, ok := listing["franchise_id"].(string); ok {
+				transformed["id"] = franchiseID
+			}
+
+			// Map name -> brand
+			if name, ok := listing["name"].(string); ok {
+				transformed["brand"] = name
+			}
+
+			// Flatten industry.name -> category
+			if industry, ok := listing["industry"].(map[string]interface{}); ok {
+				if categoryName, ok := industry["name"].(string); ok {
+					transformed["category"] = categoryName
+				}
+				// Keep color at top level
+				if color, ok := industry["color"].(string); ok {
+					transformed["color"] = color
+				}
+			}
+
+			// Copy remaining fields
+			transformed["description"] = listing["description"]
+			transformed["year_of_establishment"] = listing["year_of_establishment"]
+			transformed["rating"] = listing["rating"]
+			transformed["location"] = listing["location"]
+			transformed["tags"] = listing["tags"]
+			transformed["space"] = listing["space"]
+			transformed["slug"] = listing["slug"]
+
+			// Map total_outlets -> no_of_outlets
+			if outlets, ok := listing["total_outlets"]; ok {
+				transformed["no_of_outlets"] = outlets
+			}
+
+			// Keep investmentRange as-is
+			transformed["investmentRange"] = listing["investmentRange"]
+
+			// Transform logo structure
+			transformed["logo"] = map[string]interface{}{
+				"url": listing["logo_url"],
+				"alt": transformed["brand"],
+			}
+
+			transformedListings = append(transformedListings, transformed)
+		}
+
+		sections = append(sections, map[string]interface{}{
+			"type":    "popular_listings",
+			"enabled": true,
+			"data":    transformedListings, // Use transformed data
+		})
+	}
+
+	categories := h.extractArray(data, "categories")
+	if len(categories) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "explore_by_categories",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"categories": categories,
+			},
+		})
+	}
+
+	if sections == nil {
+		sections = []map[string]interface{}{}
+	}
+
+	h.logger.Info("Built home response sections", map[string]interface{}{
+		"totalSections": len(sections),
+		"hasHero":       len(heroBrands) > 0,
+		"hasIndustries": len(industries) > 0,
+		"hasListings":   len(listings) > 0,
+		"hasCategories": len(categories) > 0,
+	})
+
+	return map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"pageId":   "franchise_home",
+			"sections": sections,
+		},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "home",
+		},
+	}
+}
+
+// ===== LISTING PAGE BUILDER =====
+func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]interface{} {
+	sections := []map[string]interface{}{}
+
+	industryInfo := h.extractMap(data, "industryInfo")
+	franchises := h.extractArray(data, "franchises")
+	categories := h.extractArray(data, "categories")
+	categoryQuestions := h.extractArray(data, "categoryQuestions")
+	recommended := h.extractArray(data, "recommended")
+	marketInsights := h.extractArray(data, "marketInsights")
+
+	heroDescription := "Explore top franchise opportunities in India"
+
+	if len(industryInfo) > 0 {
+		// Priority 1: Use listing_description if available
+		if desc, ok := industryInfo["listing_description"].(string); ok && desc != "" {
+			heroDescription = desc
+		} else if desc, ok := industryInfo["description"].(string); ok && desc != "" {
+			// Priority 2: Use description
+			heroDescription = desc
+		} else if name, ok := industryInfo["name"].(string); ok && name != "" {
+			// Priority 3: Generate from industry name
+			heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+		} else if name, ok := industryInfo["industry_name"].(string); ok && name != "" {
+			// Priority 4: Try industry_name field
+			heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+		}
+	}
+
+	sections = append(sections, map[string]interface{}{
+		"type":    "hero",
+		"enabled": true,
+		"data": map[string]interface{}{
+			"description": heroDescription,
+		},
+	})
+
+	if len(franchises) > 0 {
+		for _, f := range franchises {
+			franchise, ok := f.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			if space, ok := franchise["space"].(map[string]interface{}); ok {
+				space["spaceUnit"] = "sq ft"
+			}
+
+			if invRange, ok := franchise["investmentRange"].(map[string]interface{}); ok {
+				if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
+					invRange["investmentUnit"] = "Lakhs"
+				}
+			}
+		}
+
+		sections = append(sections, map[string]interface{}{
+			"type":    "franchise_listing",
+			"enabled": true,
+			"data":    franchises,
+		})
+	}
+
+	if len(categories) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "featured_categories",
+			"enabled": true,
+			"data":    categories,
+		})
+	}
+
+	if len(categoryQuestions) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "category_questions",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"questions": categoryQuestions,
+			},
+		})
+	}
+
+	if len(recommended) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "recommended_franchises",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"items": recommended,
+			},
+		})
+	}
+
+	if len(marketInsights) > 0 {
+		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
+			sections = append(sections, map[string]interface{}{
+				"type":    "key_market_insights",
+				"enabled": true,
+				"data":    insights,
+			})
+		}
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"sections": sections,
+		},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "listing",
+		},
+	}
+}
+
+// ===== DETAIL PAGE BUILDER =====
+func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]interface{} {
+	// ✅ FIX ERROR #2: Declare basicInfo at the function level
+	basicInfo := h.extractMap(data, "basicInfo")
+	overview := h.extractMap(data, "overview")
+	business := h.extractMap(data, "business")
+	investment := h.extractMap(data, "investment")
+	operations := h.extractMap(data, "operations")
+	socialLinks := h.extractArray(data, "social")
+	categories := h.extractArray(data, "categories")
+	recommended := h.extractArray(data, "recommended")
+	marketInsights := h.extractArray(data, "marketInsights")
+	categoryQuestions := h.extractArray(data, "categoryQuestions")
+
+	detailData := map[string]interface{}{}
+
+	if len(basicInfo) > 0 {
+		if fid, ok := basicInfo["franchise_id"].(string); ok && fid != "" {
+			detailData["franchiseId"] = fid
+		}
+		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
+			detailData["slug"] = slug
+		}
+	}
+
+	detailData["basicInfo"] = h.buildBasicInfoStructure(basicInfo)
+
+	if len(socialLinks) > 0 {
+		detailData["social_media"] = h.buildSocialMediaStructure(socialLinks)
+	} else {
+		// Return proper empty structure instead of {}
+		detailData["social_media"] = map[string]interface{}{
+			"instagram": "",
+			"facebook":  "",
+			"linkedin":  "",
+			"twitter":   "",
+			"youtube":   "",
+		}
+	}
+
+	detailData["franchising_overview"] = h.buildFranchisingOverviewStructure(overview, investment, basicInfo)
+	detailData["business_overview"] = h.buildBusinessOverviewStructure(business, operations)
+	detailData["investment_details"] = h.buildInvestmentDetailsStructure(investment, operations)
+	detailData["operation"] = h.buildOperationStructure(operations)
+
+	sections := []map[string]interface{}{}
+
+	if len(categories) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "featured_categories",
+			"enabled": true,
+			"data":    categories,
+		})
+	}
+
+	if len(recommended) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "recommended_franchises",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"items": recommended,
+			},
+		})
+	}
+
+	if len(categoryQuestions) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "category_questions",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"questions": categoryQuestions,
+			},
+		})
+	}
+
+	detailData["sections"] = sections
+
+	if len(marketInsights) > 0 {
+		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
+			detailData["key_market_insights"] = insights
+		}
+	} else {
+		detailData["key_market_insights"] = nil
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data":    detailData,
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "detail",
+		},
+	}
+}
+
+// ===== HELPER BUILDERS =====
+func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	for key, value := range basicInfo {
+		if key == "_id" || key == "_score" || key == "updated_at" {
+			continue
+		}
+		result[key] = value
+	}
+
+	if _, exists := result["logo"]; !exists {
+		logoUrl := ""
+		if url, ok := basicInfo["logo_url"].(string); ok {
+			logoUrl = url
+		}
+		name := ""
+		if n, ok := basicInfo["name"].(string); ok {
+			name = n
+		}
+		result["logo"] = map[string]interface{}{
+			"url": logoUrl,
+			"alt": name,
+		}
+	}
+
 	return result
 }
 
-func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
+func (h *Handler) buildSocialMediaStructure(socialLinks []interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	for _, link := range socialLinks {
+		if linkMap, ok := link.(map[string]interface{}); ok {
+			platform, _ := linkMap["platform"].(string)
+			url, _ := linkMap["url"].(string)
+
+			switch platform {
+			case "instagram":
+				result["instagram"] = url
+			case "facebook":
+				result["facebook"] = url
+			case "twitter":
+				result["twitter"] = url
+			case "linkedin":
+				result["linkedin"] = url
+			case "youtube":
+				result["youtube"] = url
+			}
+		}
+	}
+
+	return result
+}
+
+// ✅ FIX ERROR #3: Add basicInfo parameter
+func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicInfo map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	minInv := getFloatValue(investment, "initial_investment_min")
+	maxInv := getFloatValue(investment, "initial_investment_max")
+	if minInv > 0 || maxInv > 0 {
+		result["initial_investment"] = map[string]interface{}{
+			"min":  minInv,
+			"max":  maxInv,
+			"unit": "INR",
+		}
+	}
+
+	if units, ok := overview["total_outlets"].(float64); ok {
+		result["number_of_units"] = int(units)
+	} else if units, ok := basicInfo["total_outlets"].(float64); ok {
+		result["number_of_units"] = int(units)
+	}
+
+	minSpace := getFloatValue(overview, "space_min_sqft")
+	maxSpace := getFloatValue(overview, "space_max_sqft")
+	if minSpace > 0 || maxSpace > 0 {
+		result["space_requirement"] = map[string]interface{}{
+			"min":  minSpace,
+			"max":  maxSpace,
+			"unit": "sq. ft.",
+		}
+	}
+
+	if parentCompany, ok := overview["parent_company"].(string); ok && parentCompany != "" {
+		result["parent_company"] = parentCompany
+	}
+
+	if businessType, ok := overview["business_type"].(string); ok && businessType != "" {
+		result["business_type"] = businessType
+	}
+
+	if leader, ok := overview["leader_name"].(string); ok && leader != "" {
+		result["leadership"] = leader
+	}
+
+	if email, ok := overview["email"].(string); ok && email != "" {
+		result["email"] = email
+	}
+
+	fee := getFloatValue(overview, "franchise_fee")
+	if fee == 0 {
+		fee = getFloatValue(investment, "franchise_fee")
+	}
+	if fee > 0 {
+		result["franchise_fees"] = map[string]interface{}{
+			"min":   fee,
+			"max":   fee,
+			"unit":  "INR",
+			"notes": "",
+		}
+	}
+
+	if yearFounded, ok := overview["year_founded"].(float64); ok {
+		result["year_founded"] = int(yearFounded)
+	}
+
+	if hq, ok := overview["headquarters"].(string); ok && hq != "" {
+		result["headquarters"] = hq
+	} else if city, ok := overview["city"].(string); ok && city != "" {
+		result["headquarters"] = city
+	}
+
+	return result
+}
+
+func (h *Handler) buildBusinessOverviewStructure(business, operations map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	if products, ok := business["products"].([]interface{}); ok && len(products) > 0 {
+		result["products"] = products
+	} else {
+		result["products"] = []string{}
+	}
+
+	if services, ok := business["services"].([]interface{}); ok && len(services) > 0 {
+		result["services"] = services
+	} else {
+		result["services"] = []string{}
+	}
+
+	trainingProvided := false
+	if tp, ok := operations["training_provided"].(bool); ok {
+		trainingProvided = tp
+	}
+
+	result["training_and_support"] = map[string]interface{}{
+		"ongoing_support":             trainingProvided,
+		"ongoing_support_notes":       "",
+		"marketing_support":           trainingProvided,
+		"marketing_support_notes":     "",
+		"on_the_job_training":         trainingProvided,
+		"on_the_job_training_notes":   "",
+		"classroom_training":          false,
+		"classroom_training_notes":    "",
+		"field_assistance":            trainingProvided,
+		"field_assistance_notes":      "",
+		"franchisee_training_program": trainingProvided,
+		"franchisee_training_notes":   "",
+	}
+
+	return result
+}
+
+func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	minInv := getFloatValue(investment, "initial_investment_min")
+	maxInv := getFloatValue(investment, "initial_investment_max")
+	if minInv > 0 || maxInv > 0 {
+		result["initial_investment"] = map[string]interface{}{
+			"min":   minInv / 100000,
+			"max":   maxInv / 100000,
+			"unit":  "Lakhs",
+			"notes": "",
+		}
+	}
+
+	result["investment_breakdown"] = []string{
+		"Franchise Fee",
+		"Equipment & Fixtures",
+		"Initial Inventory",
+		"Marketing & Promotion",
+		"Working Capital",
+	}
+
+	fee := getFloatValue(investment, "franchise_fee")
+	if fee > 0 {
+		result["franchise_fee"] = map[string]interface{}{
+			"min":  fee / 100000,
+			"max":  fee / 100000,
+			"unit": "Lakhs",
+		}
+	}
+
+	result["required_property_location"] = []string{"Commercial", "High Street", "Mall"}
+
+	minSpace := getFloatValue(operations, "space_min_sqft")
+	maxSpace := getFloatValue(operations, "space_max_sqft")
+	if minSpace > 0 || maxSpace > 0 {
+		result["floor_area"] = map[string]interface{}{
+			"min":  minSpace,
+			"max":  maxSpace,
+			"unit": "sq. ft.",
+		}
+	}
+
+	return result
+}
+
+func (h *Handler) buildOperationStructure(operations map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	if propType, ok := operations["required_property_type"].(string); ok && propType != "" {
+		result["required_property"] = propType
+	} else {
+		result["required_property"] = "Commercial"
+	}
+
+	result["sector"] = "Retail"
+	result["service"] = []string{}
+
+	if qual, ok := operations["qualification_required"].(string); ok && qual != "" {
+		result["qualification_required"] = qual
+	} else {
+		result["qualification_required"] = "None specified"
+	}
+
+	result["is_absentee_ownership_allowed"] = "Negotiable"
+	result["can_be_run_from_home_or_mobile"] = "No"
+
+	minStaff := getFloatValue(operations, "staff_required_min")
+	maxStaff := getFloatValue(operations, "staff_required_max")
+	if minStaff > 0 || maxStaff > 0 {
+		result["staff_required"] = map[string]interface{}{
+			"min": int(minStaff),
+			"max": int(maxStaff),
+		}
+	}
+
+	return result
+}
+
+func getFloatValue(data map[string]interface{}, key string) float64 {
+	if val, ok := data[key].(float64); ok {
+		return val
+	}
+	if val, ok := data[key].(int); ok {
+		return float64(val)
+	}
+	return 0
+}
+
+// ===== SEARCH PAGE BUILDER =====
+func (h *Handler) buildSearchResponse(data map[string]interface{}) map[string]interface{} {
+	response := map[string]interface{}{
+		"success": true,
+		"data":    map[string]interface{}{},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "search",
+		},
+	}
+
+	h.logger.Info("Building search response", map[string]interface{}{
+		"dataKeys":   h.getKeys(data),
+		"hasDataKey": data["data"] != nil,
+	})
+
+	franchises := h.extractArray(data, "franchises")
+	if len(franchises) > 0 {
+		for _, f := range franchises {
+			franchise, ok := f.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			space, ok := franchise["space"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			space["spaceUnit"] = "sq ft"
+		}
+
+		response["data"].(map[string]interface{})["franchises"] = franchises
+	}
+
+	if totalVal := h.extractValue(data, "total"); totalVal != nil {
+		if total, ok := totalVal.(float64); ok {
+			response["data"].(map[string]interface{})["total"] = int(total)
+		}
+	}
+
+	if pageVal := h.extractValue(data, "page"); pageVal != nil {
+		if page, ok := pageVal.(float64); ok {
+			response["data"].(map[string]interface{})["page"] = int(page)
+		}
+	}
+	if limitVal := h.extractValue(data, "limit"); limitVal != nil {
+		if limit, ok := limitVal.(float64); ok {
+			response["data"].(map[string]interface{})["limit"] = int(limit)
+		}
+	}
+
+	filters := h.extractMap(data, "appliedFilters")
+	if len(filters) > 0 {
+		response["data"].(map[string]interface{})["filters_applied"] = filters
+	}
+
+	h.logger.Info("Built search response", map[string]interface{}{
+		"hasFranchises": len(franchises) > 0,
+		"total":         response["data"].(map[string]interface{})["total"],
+	})
+
+	return response
+}
+
+func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	cmd, err := client.NewCompleteJobCommand().
 		JobKey(job.Key).
 		VariablesFromObject(output)
 	if err != nil {
-		h.logger.Error("failed to create complete job command", map[string]interface{}{"error": err})
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		h.logger.Error("failed to create complete job command",
+			map[string]interface{}{
+				"error":   err,
+				"traceId": span.SpanContext().TraceID().String(),
+			})
 		return
 	}
-	_, err = cmd.Send(context.Background())
+	_, err = cmd.Send(ctx)
 	if err != nil {
-		h.logger.Error("failed to send complete job command", map[string]interface{}{"error": err})
-	}
-}
-
-func (h *Handler) failJob(client worker.JobClient, job entities.Job, errorCode, errorMessage string, _ int32) {
-	h.logger.Error("job failed",
-		map[string]interface{}{
-			"jobKey":       job.Key,
-			"errorCode":    errorCode,
-			"errorMessage": errorMessage,
-		})
-
-	_, err := client.NewThrowErrorCommand().
-		JobKey(job.Key).
-		ErrorCode(errorCode).
-		ErrorMessage(errorMessage).
-		Send(context.Background())
-	if err != nil {
-		h.logger.Error("failed to throw error", map[string]interface{}{"error": err})
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		h.logger.Error("failed to send complete job command",
+			map[string]interface{}{
+				"error":   err,
+				"traceId": span.SpanContext().TraceID().String(),
+			})
 	}
 }

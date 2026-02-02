@@ -69,6 +69,22 @@ func createMockJob(key int64, variables map[string]interface{}) entities.Job {
 // Test Helpers
 // ==========================
 
+func convertToStandardError(err error) *errors.StandardError {
+	if stdErr, ok := err.(*errors.StandardError); ok {
+		if stdErr.Timestamp.IsZero() {
+			stdErr.Timestamp = time.Now()
+		}
+		return stdErr
+	}
+	return &errors.StandardError{
+		Code:      "INTERNAL_ERROR",
+		Message:   "Unexpected error",
+		Details:   err.Error(),
+		Retryable: true,
+		Timestamp: time.Now(),
+	}
+}
+
 func createValidInput() *Input {
 	return &Input{
 		UserID:       "user-123",

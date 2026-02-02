@@ -1,0 +1,27 @@
+{
+  "mappings": {
+    "properties": {
+      "industry_id": {
+        "type": "keyword"
+      },
+      "industry_slug": {
+        "type": "keyword"
+      },
+      "growth_rate_title": {
+        "type": "text"
+      },
+      "growth_rate_description": {
+        "type": "text"
+      },
+      "market_trend_title": {
+        "type": "text"
+      },
+      "market_trend_description": {
+        "type": "text"
+      },
+      "updated_at": {
+        "type": "date"
+      }
+    }
+  }
+}

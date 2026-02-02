@@ -1,3 +1,4 @@
+// config.go update karo:
 package authsigningoogle
 
 import (
@@ -14,6 +15,8 @@ type Config struct {
 	ClientSecret     string        `mapstructure:"client_secret"`
 	RedirectURL      string        `mapstructure:"redirect_uri"`
 	CreateCRMContact bool          `mapstructure:"create_crm_contact"`
+	ZohoAPIKey       string        `mapstructure:"zoho_api_key"`
+	ZohoOAuthToken   string        `mapstructure:"zoho_oauth_token"`
 }
 
 // DefaultConfig returns default configuration values
@@ -30,7 +33,6 @@ func DefaultConfig() *Config {
 func (c *Config) Validate() error {
 	if c.ClientID == "" {
 		return fmt.Errorf("client_id is required")
-		//	return fmt.Errorf("clientId is required") // Change to camelCase
 	}
 	if c.ClientSecret == "" {
 		return fmt.Errorf("client_secret is required")
@@ -44,10 +46,19 @@ func (c *Config) Validate() error {
 	if c.MaxJobsActive <= 0 {
 		return fmt.Errorf("max_jobs_active must be positive")
 	}
+	// Zoho credentials validation only if CRM contact creation is enabled
+	if c.CreateCRMContact && c.ZohoAPIKey == "" {
+		return fmt.Errorf("zoho_api_key is required when create_crm_contact is true")
+	}
+	if c.CreateCRMContact && c.ZohoOAuthToken == "" {
+		return fmt.Errorf("zoho_oauth_token is required when create_crm_contact is true")
+	}
 	return nil
 }
 
 // IsCRMEnabled checks if CRM integration should be used
 func (c *Config) IsCRMEnabled() bool {
-	return c.CreateCRMContact && c.ClientID != "" && c.ClientSecret != ""
+	return c.CreateCRMContact &&
+		c.ZohoAPIKey != "" &&
+		c.ZohoOAuthToken != ""
 }

@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_franchise_home" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:process id="franchise-home-page" name="Franchise Home Page" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_Home" name="Home Page Request">
+      <bpmn:outgoing>Flow_Start_To_Fork</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="Gateway_Fork" name="Fetch Data in Parallel">
+      <bpmn:incoming>Flow_Start_To_Fork</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Hero</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_Industries</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_Listings</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_Categories</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_GetHeroBrands" name="Get Hero Brands">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;ES_HERO_BRANDS&quot;" target="queryType" />
+          <zeebe:output source="=data" target="heroBrands" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Hero</bpmn:incoming>
+      <bpmn:outgoing>Flow_Hero_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_GetIndustries" name="Get Top Industries">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;INDUSTRIES_TOP_9&#34;" target="queryType" />
+          <zeebe:output source="=data" target="industries" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Industries</bpmn:incoming>
+      <bpmn:outgoing>Flow_Industries_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_GetPopularListings" name="Get Popular Listings">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;ES_POPULAR_LISTINGS&quot;" target="queryType" />
+          <zeebe:output source="=data" target="popularListings" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Listings</bpmn:incoming>
+      <bpmn:outgoing>Flow_Listings_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_GetCategories" name="Get Categories">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;CATEGORIES_TOP_30&#34;" target="queryType" />
+          <zeebe:output source="=data" target="categories" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Categories</bpmn:incoming>
+      <bpmn:outgoing>Flow_Categories_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_Join" name="Combine Results">
+      <bpmn:incoming>Flow_Hero_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Industries_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Listings_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Categories_To_Join</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Build</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Home Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=&#34;home&#34;" target="pageType" />
+          <zeebe:input source="=heroBrands" target="heroBrands" />
+          <zeebe:input source="=industries" target="industries" />
+          <zeebe:input source="=popularListings" target="popularListings" />
+          <zeebe:input source="=categories" target="categories" />
+          <zeebe:output source="=response" target="finalResponse" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Build</bpmn:incoming>
+      <bpmn:outgoing>Flow_Build_To_Send</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=finalResponse" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Build_To_Send</bpmn:incoming>
+      <bpmn:outgoing>Flow_Send_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Home" name="Response Sent">
+      <bpmn:incoming>Flow_Send_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Fork" sourceRef="StartEvent_Home" targetRef="Gateway_Fork" />
+    <bpmn:sequenceFlow id="Flow_To_Hero" sourceRef="Gateway_Fork" targetRef="Task_GetHeroBrands" />
+    <bpmn:sequenceFlow id="Flow_To_Industries" sourceRef="Gateway_Fork" targetRef="Task_GetIndustries" />
+    <bpmn:sequenceFlow id="Flow_To_Listings" sourceRef="Gateway_Fork" targetRef="Task_GetPopularListings" />
+    <bpmn:sequenceFlow id="Flow_To_Categories" sourceRef="Gateway_Fork" targetRef="Task_GetCategories" />
+    <bpmn:sequenceFlow id="Flow_Hero_To_Join" sourceRef="Task_GetHeroBrands" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Industries_To_Join" sourceRef="Task_GetIndustries" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Listings_To_Join" sourceRef="Task_GetPopularListings" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Categories_To_Join" sourceRef="Task_GetCategories" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_Build_To_Send" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
+    <bpmn:sequenceFlow id="Flow_Send_To_End" sourceRef="Task_SendResponse" targetRef="EndEvent_Home" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_franchise_home">
+    <bpmndi:BPMNPlane bpmnElement="franchise-home-page">
+      <bpmndi:BPMNShape bpmnElement="Gateway_Fork">
+        <dc:Bounds x="240" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="283.5" y="261" width="63" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_GetHeroBrands">
+        <dc:Bounds x="340" y="80" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_GetIndustries">
+        <dc:Bounds x="340" y="180" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_GetPopularListings">
+        <dc:Bounds x="340" y="280" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_GetCategories">
+        <dc:Bounds x="340" y="380" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Gateway_Join">
+        <dc:Bounds x="580" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="565" y="323" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_SendResponse">
+        <dc:Bounds x="900" y="240" width="190" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="StartEvent_Home">
+        <dc:Bounds x="160" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="151" y="305" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_BuildResponse">
+        <dc:Bounds x="680" y="235" width="190" height="90" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="EndEvent_Home">
+        <dc:Bounds x="1140" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1121" y="298" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Fork_di" bpmnElement="Flow_Start_To_Fork">
+        <di:waypoint x="196" y="280" />
+        <di:waypoint x="240" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Hero_di" bpmnElement="Flow_To_Hero">
+        <di:waypoint x="265" y="255" />
+        <di:waypoint x="265" y="120" />
+        <di:waypoint x="340" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Industries_di" bpmnElement="Flow_To_Industries">
+        <di:waypoint x="265" y="255" />
+        <di:waypoint x="265" y="220" />
+        <di:waypoint x="340" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Listings_di" bpmnElement="Flow_To_Listings">
+        <di:waypoint x="265" y="305" />
+        <di:waypoint x="265" y="320" />
+        <di:waypoint x="340" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Categories_di" bpmnElement="Flow_To_Categories">
+        <di:waypoint x="265" y="305" />
+        <di:waypoint x="265" y="420" />
+        <di:waypoint x="340" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Hero_To_Join_di" bpmnElement="Flow_Hero_To_Join">
+        <di:waypoint x="510" y="120" />
+        <di:waypoint x="605" y="120" />
+        <di:waypoint x="605" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Industries_To_Join_di" bpmnElement="Flow_Industries_To_Join">
+        <di:waypoint x="510" y="220" />
+        <di:waypoint x="605" y="220" />
+        <di:waypoint x="605" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Listings_To_Join_di" bpmnElement="Flow_Listings_To_Join">
+        <di:waypoint x="510" y="320" />
+        <di:waypoint x="545" y="320" />
+        <di:waypoint x="545" y="280" />
+        <di:waypoint x="580" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Categories_To_Join_di" bpmnElement="Flow_Categories_To_Join">
+        <di:waypoint x="510" y="420" />
+        <di:waypoint x="605" y="420" />
+        <di:waypoint x="605" y="305" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_To_Build_di" bpmnElement="Flow_To_Build">
+        <di:waypoint x="630" y="280" />
+        <di:waypoint x="680" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Build_To_Send_di" bpmnElement="Flow_Build_To_Send">
+        <di:waypoint x="870" y="280" />
+        <di:waypoint x="900" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Send_To_End_di" bpmnElement="Flow_Send_To_End">
+        <di:waypoint x="1090" y="280" />
+        <di:waypoint x="1140" y="280" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

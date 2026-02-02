@@ -1,3 +1,4 @@
+// config.go update karo:
 package authsignupgoogle
 
 import (
@@ -13,6 +14,8 @@ type Config struct {
 	ClientSecret     string        `mapstructure:"client_secret"`
 	RedirectURL      string        `mapstructure:"redirect_uri"`
 	CreateCRMContact bool          `mapstructure:"create_crm_contact"`
+	ZohoAPIKey       string        `mapstructure:"zoho_api_key"`
+	ZohoOAuthToken   string        `mapstructure:"zoho_oauth_token"`
 }
 
 func DefaultConfig() *Config {
@@ -40,9 +43,18 @@ func (c *Config) Validate() error {
 	if c.MaxJobsActive <= 0 {
 		return fmt.Errorf("max_jobs_active must be positive")
 	}
+	// Zoho credentials validation only if CRM contact creation is enabled
+	if c.CreateCRMContact && c.ZohoAPIKey == "" {
+		return fmt.Errorf("zoho_api_key is required when create_crm_contact is true")
+	}
+	if c.CreateCRMContact && c.ZohoOAuthToken == "" {
+		return fmt.Errorf("zoho_oauth_token is required when create_crm_contact is true")
+	}
 	return nil
 }
 
 func (c *Config) IsCRMEnabled() bool {
-	return c.CreateCRMContact && c.ClientID != "" && c.ClientSecret != ""
+	return c.CreateCRMContact &&
+		c.ZohoAPIKey != "" &&
+		c.ZohoOAuthToken != ""
 }

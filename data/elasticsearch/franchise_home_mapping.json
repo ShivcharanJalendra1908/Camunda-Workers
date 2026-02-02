@@ -1,0 +1,56 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "refresh_interval": "30s"
+  },
+  "mappings": {
+    "properties": {
+      "page_type": {
+        "type": "keyword"
+      },
+      "industries": {
+        "type": "nested",
+        "properties": {
+          "id": {
+            "type": "keyword"
+          },
+          "name": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword"
+              }
+            }
+          },
+          "slug": {
+            "type": "keyword"
+          },
+          "color_hex": {
+            "type": "keyword"
+          }
+        }
+      },
+      "statistics": {
+        "type": "object",
+        "properties": {
+          "total_industries": {
+            "type": "integer"
+          },
+          "total_franchises": {
+            "type": "integer"
+          },
+          "total_outlets": {
+            "type": "integer"
+          },
+          "new_franchisors_this_year": {
+            "type": "integer"
+          }
+        }
+      },
+      "updated_at": {
+        "type": "date"
+      }
+    }
+  }
+}

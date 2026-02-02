@@ -7,9 +7,10 @@ type Input struct {
 }
 
 type Output struct {
-	IntentAnalysis IntentAnalysis `json:"intentAnalysis"`
-	DataSources    []string       `json:"dataSources"`
-	Entities       []Entity       `json:"entities"`
+	IntentAnalysis IntentAnalysis         `json:"intentAnalysis"`
+	DataSources    []string               `json:"dataSources"`
+	Entities       []Entity               `json:"entities"`
+	CircuitBreaker map[string]interface{} `json:"circuitBreaker,omitempty"` // NEW: Circuit breaker metrics
 }
 
 type IntentAnalysis struct {

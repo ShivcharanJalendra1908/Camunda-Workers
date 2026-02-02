@@ -14,6 +14,8 @@ type Output struct {
 	NotificationID string `json:"notificationId"`
 	Status         string `json:"status"` // "sent", "failed", "disabled"
 	SentAt         string `json:"sentAt"` // ISO 8601
+	IsDuplicate    bool   `json:"isDuplicate,omitempty"`
+	Message        string `json:"message,omitempty"`
 }
 
 // Notification types

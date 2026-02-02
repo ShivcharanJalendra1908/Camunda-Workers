@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="Definitions_search_filters"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  
+  <bpmn:process id="franchise-search-filters" name="Franchise Search with Filters" isExecutable="true">
+    
+    <bpmn:startEvent id="Start_1" name="Search Request">
+      <bpmn:outgoing>Flow_to_parse</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- Parse Search Filters -->
+    <bpmn:serviceTask id="Task_ParseFilters" name="Parse Search Filters">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="parse-search-filters" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=filters" target="filters" />
+          <zeebe:output source="=parsedFilters" target="parsedFilters" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_parse</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_search</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Search with Filters -->
+    <bpmn:serviceTask id="Task_SearchFranchises" name="Search with Filters">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;franchise_listings&#34;" target="indexName" />
+          <zeebe:input source="=parsedFilters.esQuery" target="query" />
+          <zeebe:output source="=results" target="franchises" />
+          <zeebe:output source="=total" target="totalResults" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_search</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_build</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Build Response -->
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Search Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;search&#34;" target="pageType" />
+          <zeebe:input source="=franchises" target="franchises" />
+          <zeebe:input source="=totalResults" target="total" />
+          <zeebe:input source="=parsedFilters" target="appliedFilters" />
+          <zeebe:output source="=response" target="finalResponse" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_to_build</bpmn:incoming>
+      <bpmn:outgoing>Flow_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:endEvent id="End_1" name="Response Ready">
+      <bpmn:incoming>Flow_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_to_parse" sourceRef="Start_1" targetRef="Task_ParseFilters" />
+    <bpmn:sequenceFlow id="Flow_to_search" sourceRef="Task_ParseFilters" targetRef="Task_SearchFranchises" />
+    <bpmn:sequenceFlow id="Flow_to_build" sourceRef="Task_SearchFranchises" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_to_end" sourceRef="Task_BuildResponse" targetRef="End_1" />
+    
+  </bpmn:process>
+</bpmn:definitions>

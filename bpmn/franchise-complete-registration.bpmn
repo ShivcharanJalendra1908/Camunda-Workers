@@ -91,9 +91,24 @@
       <bpmn:outgoing>Flow_5</bpmn:outgoing>
     </bpmn:serviceTask>
 
+    <!-- ✅ NEW STEP 5: Index to Elasticsearch -->
+    <bpmn:serviceTask id="IndexToES" name="Index to Elasticsearch">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-es-indexer" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchise_id" target="franchise_id" />
+          <zeebe:input source="=&#34;INDEX&#34;" target="operation" />
+          <zeebe:output source="=indexed" target="es_indexed" />
+          <zeebe:output source="=index_name" target="es_index_name" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:serviceTask>
+
     <!-- End Event -->
     <bpmn:endEvent id="EndEvent_1" name="Registration Complete">
-      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:incoming>Flow_6</bpmn:incoming>
     </bpmn:endEvent>
 
     <!-- Sequence Flows -->
@@ -101,7 +116,8 @@
     <bpmn:sequenceFlow id="Flow_2" sourceRef="CreateFranchise" targetRef="CreateBusinessOverview" />
     <bpmn:sequenceFlow id="Flow_3" sourceRef="CreateBusinessOverview" targetRef="CreateInvestment" />
     <bpmn:sequenceFlow id="Flow_4" sourceRef="CreateInvestment" targetRef="CreateOperations" />
-    <bpmn:sequenceFlow id="Flow_5" sourceRef="CreateOperations" targetRef="EndEvent_1" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="CreateOperations" targetRef="IndexToES" />
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="IndexToES" targetRef="EndEvent_1" />
 
   </bpmn:process>
 
@@ -122,8 +138,12 @@
       <bpmndi:BPMNShape id="CreateOperations_di" bpmnElement="CreateOperations">
         <dc:Bounds x="750" y="77" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <!-- ✅ NEW: ES Indexer Shape -->
+      <bpmndi:BPMNShape id="IndexToES_di" bpmnElement="IndexToES">
+        <dc:Bounds x="910" y="77" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="912" y="99" width="36" height="36" />
+        <dc:Bounds x="1072" y="99" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
         <dc:Point x="215" y="117" />
@@ -141,9 +161,15 @@
         <dc:Point x="690" y="117" />
         <dc:Point x="750" y="117" />
       </bpmndi:BPMNEdge>
+      <!-- ✅ NEW: Flow to ES Indexer -->
       <bpmndi:BPMNEdge id="Flow_5_di" bpmnElement="Flow_5">
         <dc:Point x="850" y="117" />
-        <dc:Point x="912" y="117" />
+        <dc:Point x="910" y="117" />
+      </bpmndi:BPMNEdge>
+      <!-- ✅ NEW: Flow to End Event -->
+      <bpmndi:BPMNEdge id="Flow_6_di" bpmnElement="Flow_6">
+        <dc:Point x="1010" y="117" />
+        <dc:Point x="1072" y="117" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
