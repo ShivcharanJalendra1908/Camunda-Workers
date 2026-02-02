@@ -62,7 +62,7 @@ services:
       timeout: 10s
       retries: 10
       start_period: 180s
-    restart: on-failure
+    restart: on-failure:5
 
 # ============================================================================
 # OLLAMA SERVICE
@@ -240,7 +240,7 @@ services:
         condition: service_healthy
     networks:
       - camunda-network
-    restart: on-failure
+    restart: on-failure:3
 
 # ============================================================================
 # KEYCLOAK
@@ -283,7 +283,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 180s
-    restart: on-failure
+    restart: on-failure:5
 
 # ============================================================================
 # APPLICATION
@@ -291,7 +291,7 @@ services:
 
   api-gateway:
     build:
-      context: .
+      context: ../..
       dockerfile: deployments/docker/Dockerfile.gateway
     image: camunda-api-gateway:latest
     container_name: api-gateway
@@ -339,11 +339,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    restart: on-failure
+    restart: on-failure:3
 
   camunda-workers:
     build:
-      context: .
+      context: ../..
       dockerfile: deployments/docker/Dockerfile.worker
     image: camunda-workers:latest
     container_name: camunda-workers
@@ -400,4 +400,4 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
-    restart: on-failure
+    restart: on-failure:3
