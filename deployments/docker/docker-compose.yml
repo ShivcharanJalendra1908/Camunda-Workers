@@ -283,7 +283,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 180s
-    restart: on-failure:5
+    restart: on-failure
 
 # ============================================================================
 # APPLICATION
@@ -291,7 +291,7 @@ services:
 
   api-gateway:
     build:
-      context: ../..
+      context: .
       dockerfile: deployments/docker/Dockerfile.gateway
     image: camunda-api-gateway:latest
     container_name: api-gateway
@@ -343,7 +343,7 @@ services:
 
   camunda-workers:
     build:
-      context: ../..
+      context: .
       dockerfile: deployments/docker/Dockerfile.worker
     image: camunda-workers:latest
     container_name: camunda-workers
