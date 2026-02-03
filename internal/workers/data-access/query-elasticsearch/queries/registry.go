@@ -521,7 +521,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 	start := time.Now()
 	res, err := esClient.Search(
 		esClient.Search.WithContext(ctx),
-		esClient.Search.WithIndex("market_insights"),
+		esClient.Search.WithIndex("industry_insights"),
 		esClient.Search.WithBody(bytes.NewReader(queryJSON)),
 		esClient.Search.WithTrackTotalHits(true),
 	)
