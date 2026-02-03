@@ -372,6 +372,7 @@ services:
       KEYCLOAK_CLIENT_ID: worker-client
       KEYCLOAK_CLIENT_SECRET: worker-secret
       OLLAMA_URL: http://ollama:11434
+      LLM_ENDPOINT: http://ollama:11434
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_SERVICE_NAME: camunda-workers

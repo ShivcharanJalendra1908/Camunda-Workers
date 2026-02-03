@@ -486,21 +486,19 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 	var query map[string]interface{}
 
 	if hasId && industryId != "" {
-		// ✅ FIX: Use .keyword for exact match on UUID
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"term": map[string]interface{}{
-					"industry_id.keyword": industryId, // ✅ Added .keyword
+					"industry_id": industryId,
 				},
 			},
 			"size": 1,
 		}
 	} else if hasSlug && industrySlug != "" {
-		// ✅ FIX: Use .keyword for exact match on slug
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"term": map[string]interface{}{
-					"industry_slug.keyword": industrySlug, // ✅ Added .keyword
+					"industry_slug": industrySlug,
 				},
 			},
 			"size": 1,
@@ -523,7 +521,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 	start := time.Now()
 	res, err := esClient.Search(
 		esClient.Search.WithContext(ctx),
-		esClient.Search.WithIndex("industry_insights"),
+		esClient.Search.WithIndex("market_insights"),
 		esClient.Search.WithBody(bytes.NewReader(queryJSON)),
 		esClient.Search.WithTrackTotalHits(true),
 	)

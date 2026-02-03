@@ -155,7 +155,15 @@ func main() {
 	obs := observability.New("worker-manager")
 	defer obs.Shutdown()
 
-	tracer, tracerCleanup, terr := observability.NewTracer("worker-manager", "http://localhost:14268/api/traces")
+	jaegerEndpoint := getEnvOrDefault("JAEGER_ENDPOINT", cfg.Monitoring.Tracing.Endpoint)
+	if jaegerEndpoint == "" {
+		jaegerEndpoint = "http://jaeger:14268/api/traces"
+	}
+
+	zapLog.Info("Initializing secondary tracer", zap.String("endpoint", jaegerEndpoint))
+
+	tracer, tracerCleanup, terr := observability.NewTracer("worker-manager", jaegerEndpoint)
+	// tracer, tracerCleanup, terr := observability.NewTracer("worker-manager", "http://localhost:14268/api/traces")
 	if terr != nil {
 		zapLog.Warn("tracer init failed", zap.Error(terr))
 	} else {
@@ -271,7 +279,6 @@ func main() {
 		RedisClient:    redis,
 		CircuitBreaker: cbManager,
 		Idempotency:    idempotencyChecker,
-		// ResponseHandler will be set below
 	}
 
 	// ============================================================================
@@ -300,62 +307,6 @@ func main() {
 	// ============================================================================
 
 	// --- 1. Infrastructure Workers (5) ---
-
-	// ============================================================================
-	// ✅ REGISTER send-api-response WORKER VIA REGISTRY
-	// ============================================================================
-	// if cfg.Workers[sar.TaskType].Enabled {
-	// 	// Get handler from registry
-	// 	handler, err := camundaClient.GetWorkerHandler(sar.TaskType)
-	// 	if err != nil {
-	// 		zapLog.Error("Failed to get send-api-response handler from registry",
-	// 			zap.String("taskType", sar.TaskType),
-	// 			zap.Error(err))
-	// 	} else {
-	// 		// Start worker with Camunda
-	// 		jobWorker := camundaClient.GetClient().NewJobWorker().
-	// 			JobType(sar.TaskType).
-	// 			Handler(func(client worker.JobClient, job entities.Job) {
-	// 				// Convert job to Task
-	// 				task := &registry.Task{
-	// 					JobKey:             job.Key,
-	// 					ProcessInstanceKey: job.ProcessInstanceKey,
-	// 					BpmnProcessId:      job.GetBpmnProcessId(),
-	// 					ElementId:          job.GetElementId(),
-	// 					Retries:            job.GetRetries(),
-	// 				}
-
-	// 				// Parse variables
-	// 				var vars map[string]interface{}
-	// 				if err := json.Unmarshal([]byte(job.Variables), &vars); err != nil {
-	// 					zapLog.Error("Failed to parse job variables",
-	// 						zap.Error(err),
-	// 						zap.String("worker", sar.TaskType))
-	// 					return
-	// 				}
-	// 				task.Variables = vars
-
-	// 				// Execute handler
-	// 				ctx := context.Background()
-	// 				_, err := handler.Execute(ctx, task)
-	// 				if err != nil {
-	// 					zapLog.Error("send-api-response worker execution failed",
-	// 						zap.Error(err),
-	// 						zap.String("worker", sar.TaskType))
-	// 				}
-	// 			}).
-	// 			MaxJobsActive(cfg.Workers[sar.TaskType].MaxJobsActive).
-	// 			Timeout(time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond).
-	// 			Name("send-api-response-worker").
-	// 			Open()
-
-	// 		_ = jobWorker
-
-	// 		zapLog.Info("send-api-response worker started via registry",
-	// 			zap.String("taskType", sar.TaskType),
-	// 			zap.Int("maxJobsActive", cfg.Workers[sar.TaskType].MaxJobsActive))
-	// 	}
-	// }
 	if cfg.Workers[sar.TaskType].Enabled {
 		handler := sar.NewHandler(
 			&sar.Config{
@@ -663,7 +614,7 @@ func main() {
 	if taskType := "ai-search"; cfg.Workers[taskType].Enabled { // ✅ Match BPMN taskType
 		aiConfig := ais.NewDefaultConfig()
 		aiConfig.IndexName = "franchises"
-		aiConfig.LLMEndpoint = getEnvOrDefault("LLM_ENDPOINT", "http://localhost:11434")
+		aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
 		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
 		aiConfig.LLMTimeout = 15 * time.Second
 		aiConfig.SearchTimeout = 5 * time.Second
