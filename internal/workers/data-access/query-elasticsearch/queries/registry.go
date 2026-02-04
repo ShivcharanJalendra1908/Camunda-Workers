@@ -488,7 +488,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 	if hasId && industryId != "" {
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
-				"term": map[string]interface{}{
+				"match": map[string]interface{}{
 					"industry_id": industryId,
 				},
 			},
@@ -497,8 +497,11 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 	} else if hasSlug && industrySlug != "" {
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
-				"term": map[string]interface{}{
-					"industry_slug": industrySlug,
+				"match": map[string]interface{}{
+					"industry_slug": map[string]interface{}{
+						"query":    industrySlug,
+						"operator": "and",
+					},
 				},
 			},
 			"size": 1,
