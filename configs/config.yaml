@@ -280,14 +280,14 @@ workers:
   ai-search:
     enabled: true
     max_jobs_active: 50
-    timeout: 10000  # 10 seconds
-    poll_interval: 50
-    concurrency: 3
+    timeout: 30000  # 10 seconds
+    poll_interval: 25
+    concurrency: 5
     llm:
       provider: "ollama"
       model: "llama3.2"
       endpoint: "http://ollama:11434"  # ✅ FIXED: Use Docker service name
-      timeout: 15000
+      timeout: 8000
  
   franchise_postgres:
     worker_name: "franchise-postgres-worker"

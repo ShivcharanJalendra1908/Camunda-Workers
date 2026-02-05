@@ -19,7 +19,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;INDUSTRY_BY_SLUG&#34;" target="queryType" />
           <zeebe:input source="=industrySlug" target="slug" />
-          <zeebe:input source="=industrySlug" target="industrySlug" /> 
+          <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="industryInfo" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -81,7 +81,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;MARKET_INSIGHTS&#34;" target="queryType" />
           <zeebe:input source="=industrySlug" target="industrySlug" />
-          <zeebe:output source="=if data != null and count(data) > 0 then data[1] else null" target="marketInsights" />
+          <zeebe:output source="=if data != null and count(data) &#62; 0 then data[1] else null" target="marketInsights" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Insights</bpmn:incoming>
@@ -199,12 +199,12 @@
         <di:waypoint x="328" y="70" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_To_Listings" bpmnElement="Flow_To_Listings">
-        <di:waypoint x="263" y="295" />
+        <di:waypoint x="263" y="245" />
         <di:waypoint x="263" y="150" />
         <di:waypoint x="328" y="150" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_To_Categories" bpmnElement="Flow_To_Categories">
-        <di:waypoint x="263" y="295" />
+        <di:waypoint x="263" y="245" />
         <di:waypoint x="263" y="230" />
         <di:waypoint x="328" y="230" />
       </bpmndi:BPMNEdge>

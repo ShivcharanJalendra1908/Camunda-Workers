@@ -41,13 +41,13 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		WorkerID:        "ai-search-worker",
 		TaskType:        "ai-search", // ✅ FIXED: Matches BPMN task type
-		MaxJobs:         10,
-		PollInterval:    100 * time.Millisecond,
+		MaxJobs:         50,
+		PollInterval:    25 * time.Millisecond,
 		RequestTimeout:  30 * time.Second,
 		LLMProvider:     "ollama",
 		LLMModel:        "llama3.2",
 		LLMEndpoint:     "http://ollama:11434", // ✅ Hardcoded fix
-		LLMTimeout:      15 * time.Second,
+		LLMTimeout:      50 * time.Second,      // 15 -> 60
 		LLMMaxTokens:    1000,
 		LLMTemperature:  0.1,
 		IndexName:       "franchise_listings", // ✅ FIXED: Matches actual ES index

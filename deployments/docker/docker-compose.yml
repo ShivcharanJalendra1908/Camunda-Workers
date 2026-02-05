@@ -89,6 +89,33 @@ services:
       retries: 5
       start_period: 60s
 
+  # ollama-setup:
+  #   image: curlimages/curl:latest
+  #   container_name: ollama-setup
+  #   depends_on:
+  #     ollama:
+  #       condition: service_started
+  #   command: >
+  #     sh -c "
+  #     echo '⏳ Waiting for Ollama to be ready...' &&
+  #     sleep 30 &&
+  #     for i in 1 2 3 4 5; do
+  #       if curl -f http://ollama:11434/api/tags >/dev/null 2>&1; then
+  #         echo '✅ Ollama is ready!' &&
+  #         curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"llama3.2\"}' &&
+  #         echo '✅ Model llama3.2 pull initiated!' &&
+  #         exit 0
+  #       fi
+  #       echo 'Attempt $$i: Ollama not ready yet, retrying in 10s...' &&
+  #       sleep 10
+  #     done &&
+  #     echo '⚠️  Could not connect to Ollama, but continuing...' &&
+  #     exit 0
+  #     "
+  #   networks:
+  #     - camunda-network
+  #   restart: "no"
+
   ollama-setup:
     image: curlimages/curl:latest
     container_name: ollama-setup
@@ -97,20 +124,18 @@ services:
         condition: service_started
     command: >
       sh -c "
-      echo '⏳ Waiting for Ollama to be ready...' &&
       sleep 30 &&
-      for i in 1 2 3 4 5; do
-        if curl -f http://ollama:11434/api/tags >/dev/null 2>&1; then
-          echo '✅ Ollama is ready!' &&
-          curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"llama3.2\"}' &&
-          echo '✅ Model llama3.2 pull initiated!' &&
-          exit 0
-        fi
-        echo 'Attempt $$i: Ollama not ready yet, retrying in 10s...' &&
-        sleep 10
-      done &&
-      echo '⚠️  Could not connect to Ollama, but continuing...' &&
-      exit 0
+      curl -f http://ollama:11434/api/tags &&
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"llama3.2\"}' &&
+      sleep 60 &&
+      curl -X POST http://ollama:11434/api/generate -d '{
+        \"model\":\"llama3.2:latest\",
+        \"prompt\":\"warmup\",
+        \"stream\":false,
+        \"keep_alive\":-1,
+        \"options\":{\"num_predict\":1}
+      }' &&
+      echo 'Model loaded permanently!'
       "
     networks:
       - camunda-network

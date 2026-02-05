@@ -710,6 +710,11 @@ func (h *Handler) buildRegistryParams(input *Input) map[string]interface{} {
 		}
 	}
 
+	// ✅ ADD THIS - Extract from top-level Input fields
+	if input.IndustrySlug != "" && params["industrySlug"] == nil {
+		params["industrySlug"] = input.IndustrySlug
+	}
+
 	// ✅ CRITICAL: Extract slug from multiple possible sources
 	slug := ""
 	if input.FranchiseID != "" {
