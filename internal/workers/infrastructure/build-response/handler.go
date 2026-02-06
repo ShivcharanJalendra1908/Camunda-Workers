@@ -685,7 +685,7 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 		} else if id, ok := basicInfo["id"].(string); ok && id != "" {
 			detailData["franchiseId"] = id
 		}
-		
+
 		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
 			detailData["slug"] = slug
 		}
@@ -776,7 +776,7 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[
 	// ✅ DEFENSIVE: Handle logo structure (logo object OR logo_url)
 	if _, exists := result["logo"]; !exists {
 		logoURL := ""
-		
+
 		// Try to get logo URL from various sources
 		if url, ok := basicInfo["logo_url"].(string); ok {
 			logoURL = url

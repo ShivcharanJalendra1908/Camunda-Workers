@@ -15,6 +15,21 @@ var (
 	ErrNotFound      = errors.New("record not found")
 )
 
+// ✅ Helper to extract franchiseId from multiple sources
+func extractFranchiseID(params map[string]interface{}) (string, error) {
+	// Try 'franchiseId' first (expected parameter)
+	if id, ok := params["franchiseId"].(string); ok && id != "" {
+		return id, nil
+	}
+
+	// Try 'id' (from ES transformed data)
+	if id, ok := params["id"].(string); ok && id != "" {
+		return id, nil
+	}
+
+	return "", ErrInvalidParams
+}
+
 // ============================================================
 // QUERY IMPLEMENTATIONS
 // ============================================================
@@ -202,9 +217,13 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	// franchiseID, ok := params["franchiseId"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
+	franchiseID, err := extractFranchiseID(params)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
 	query := `
@@ -242,7 +261,7 @@ WHERE f.id = $1
 		spaceMin, spaceMax                 sql.NullInt32
 	)
 
-	err := db.QueryRowContext(ctx, query, franchiseID).Scan(
+	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
 		&email,
 		&parentCompany,
 		&businessType,
@@ -310,9 +329,13 @@ WHERE f.id = $1
 func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	// franchiseID, ok := params["franchiseId"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
+	franchiseID, err := extractFranchiseID(params)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
 	query := `
@@ -323,7 +346,7 @@ func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interf
 
 	var productsJSON, servicesJSON []byte
 
-	err := db.QueryRowContext(ctx, query, franchiseID).Scan(&productsJSON, &servicesJSON)
+	err = db.QueryRowContext(ctx, query, franchiseID).Scan(&productsJSON, &servicesJSON)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return map[string]interface{}{
@@ -348,9 +371,14 @@ func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interf
 func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	// franchiseID, ok := params["franchiseId"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
+
+	franchiseID, err := extractFranchiseID(params)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
 	query := `
@@ -375,7 +403,7 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 		unitCostMin, unitCostMax     sql.NullFloat64
 	)
 
-	err := db.QueryRowContext(ctx, query, franchiseID).Scan(
+	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
 		&minInv,
 		&maxInv,
 		&franchiseFee,
@@ -431,9 +459,14 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	// franchiseID, ok := params["franchiseId"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
+
+	franchiseID, err := extractFranchiseID(params)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
 	query := `
@@ -453,7 +486,7 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 	var trainingProvided sql.NullBool
 	var trainingDetails, marketingSupport sql.NullString
 
-	err := db.QueryRowContext(ctx, query, franchiseID).Scan(
+	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
 		&spaceMin, &spaceMax, &staffMin, &staffMax,
 		&trainingProvided, &trainingDetails, &marketingSupport,
 	)
@@ -496,9 +529,14 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 func FranchiseSocial(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	// franchiseID, ok := params["franchiseId"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
+
+	franchiseID, err := extractFranchiseID(params)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
 	query := `
@@ -513,7 +551,7 @@ func FranchiseSocial(ctx context.Context, db *sql.DB, params map[string]interfac
 
 	var instagram, facebook, twitter, linkedin sql.NullString
 
-	err := db.QueryRowContext(ctx, query, franchiseID).Scan(&instagram, &facebook, &twitter, &linkedin)
+	err = db.QueryRowContext(ctx, query, franchiseID).Scan(&instagram, &facebook, &twitter, &linkedin)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
