@@ -423,81 +423,82 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 		})
 	}
 
-	// listings := h.extractArray(data, "popularListings")
-	// if len(listings) > 0 {
-	// 	sections = append(sections, map[string]interface{}{
-	// 		"type":    "popular_listings",
-	// 		"enabled": true,
-	// 		"data":    listings,
-	// 	})
-	// }
 	listings := h.extractArray(data, "popularListings")
 	if len(listings) > 0 {
-		// ✅ Transform listings to match API spec
-		transformedListings := make([]map[string]interface{}, 0, len(listings))
-
-		for _, item := range listings {
-			listing, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			// Build API-compliant listing object
-			transformed := map[string]interface{}{}
-
-			// Map franchise_id -> id
-			if franchiseID, ok := listing["franchise_id"].(string); ok {
-				transformed["id"] = franchiseID
-			}
-
-			// Map name -> brand
-			if name, ok := listing["name"].(string); ok {
-				transformed["brand"] = name
-			}
-
-			// Flatten industry.name -> category
-			if industry, ok := listing["industry"].(map[string]interface{}); ok {
-				if categoryName, ok := industry["name"].(string); ok {
-					transformed["category"] = categoryName
-				}
-				// Keep color at top level
-				if color, ok := industry["color"].(string); ok {
-					transformed["color"] = color
-				}
-			}
-
-			// Copy remaining fields
-			transformed["description"] = listing["description"]
-			transformed["year_of_establishment"] = listing["year_of_establishment"]
-			transformed["rating"] = listing["rating"]
-			transformed["location"] = listing["location"]
-			transformed["tags"] = listing["tags"]
-			transformed["space"] = listing["space"]
-			transformed["slug"] = listing["slug"]
-
-			// Map total_outlets -> no_of_outlets
-			if outlets, ok := listing["total_outlets"]; ok {
-				transformed["no_of_outlets"] = outlets
-			}
-
-			// Keep investmentRange as-is
-			transformed["investmentRange"] = listing["investmentRange"]
-
-			// Transform logo structure
-			transformed["logo"] = map[string]interface{}{
-				"url": listing["logo_url"],
-				"alt": transformed["brand"],
-			}
-
-			transformedListings = append(transformedListings, transformed)
-		}
-
 		sections = append(sections, map[string]interface{}{
 			"type":    "popular_listings",
 			"enabled": true,
-			"data":    transformedListings, // Use transformed data
+			"data":    listings,
 		})
 	}
+
+	// listings := h.extractArray(data, "popularListings")
+	// if len(listings) > 0 {
+	// 	// ✅ Transform listings to match API spec
+	// 	transformedListings := make([]map[string]interface{}, 0, len(listings))
+
+	// 	for _, item := range listings {
+	// 		listing, ok := item.(map[string]interface{})
+	// 		if !ok {
+	// 			continue
+	// 		}
+
+	// 		// Build API-compliant listing object
+	// 		transformed := map[string]interface{}{}
+
+	// 		// Map franchise_id -> id
+	// 		if franchiseID, ok := listing["franchise_id"].(string); ok {
+	// 			transformed["id"] = franchiseID
+	// 		}
+
+	// 		// Map name -> brand
+	// 		if name, ok := listing["name"].(string); ok {
+	// 			transformed["brand"] = name
+	// 		}
+
+	// 		// Flatten industry.name -> category
+	// 		if industry, ok := listing["industry"].(map[string]interface{}); ok {
+	// 			if categoryName, ok := industry["name"].(string); ok {
+	// 				transformed["category"] = categoryName
+	// 			}
+	// 			// Keep color at top level
+	// 			if color, ok := industry["color"].(string); ok {
+	// 				transformed["color"] = color
+	// 			}
+	// 		}
+
+	// 		// Copy remaining fields
+	// 		transformed["description"] = listing["description"]
+	// 		transformed["year_of_establishment"] = listing["year_of_establishment"]
+	// 		transformed["rating"] = listing["rating"]
+	// 		transformed["location"] = listing["location"]
+	// 		transformed["tags"] = listing["tags"]
+	// 		transformed["space"] = listing["space"]
+	// 		transformed["slug"] = listing["slug"]
+
+	// 		// Map total_outlets -> no_of_outlets
+	// 		if outlets, ok := listing["total_outlets"]; ok {
+	// 			transformed["no_of_outlets"] = outlets
+	// 		}
+
+	// 		// Keep investmentRange as-is
+	// 		transformed["investmentRange"] = listing["investmentRange"]
+
+	// 		// Transform logo structure
+	// 		transformed["logo"] = map[string]interface{}{
+	// 			"url": listing["logo_url"],
+	// 			"alt": transformed["brand"],
+	// 		}
+
+	// 		transformedListings = append(transformedListings, transformed)
+	// 	}
+
+	// 	sections = append(sections, map[string]interface{}{
+	// 		"type":    "popular_listings",
+	// 		"enabled": true,
+	// 		"data":    transformedListings, // Use transformed data
+	// 	})
+	// }
 
 	categories := h.extractArray(data, "categories")
 	if len(categories) > 0 {
@@ -746,9 +747,37 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 }
 
 // ===== HELPER BUILDERS =====
+// func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {
+// 	result := map[string]interface{}{}
+
+// 	for key, value := range basicInfo {
+// 		if key == "_id" || key == "_score" || key == "updated_at" {
+// 			continue
+// 		}
+// 		result[key] = value
+// 	}
+
+// 	if _, exists := result["logo"]; !exists {
+// 		logoUrl := ""
+// 		if url, ok := basicInfo["logo_url"].(string); ok {
+// 			logoUrl = url
+// 		}
+// 		name := ""
+// 		if n, ok := basicInfo["name"].(string); ok {
+// 			name = n
+// 		}
+// 		result["logo"] = map[string]interface{}{
+// 			"url": logoUrl,
+// 			"alt": name,
+// 		}
+// 	}
+
+//		return result
+//	}
 func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 
+	// Copy all fields except metadata
 	for key, value := range basicInfo {
 		if key == "_id" || key == "_score" || key == "updated_at" {
 			continue
@@ -756,20 +785,32 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[
 		result[key] = value
 	}
 
+	// ✅ ENSURE logo structure is correct
 	if _, exists := result["logo"]; !exists {
-		logoUrl := ""
+		logoURL := ""
 		if url, ok := basicInfo["logo_url"].(string); ok {
-			logoUrl = url
+			logoURL = url
+		} else if logo, ok := basicInfo["logo"].(map[string]interface{}); ok {
+			if url, ok := logo["url"].(string); ok {
+				logoURL = url
+			}
 		}
+
 		name := ""
 		if n, ok := basicInfo["name"].(string); ok {
 			name = n
+		} else if b, ok := basicInfo["brand"].(string); ok {
+			name = b
 		}
+
 		result["logo"] = map[string]interface{}{
-			"url": logoUrl,
+			"url": logoURL,
 			"alt": name,
 		}
 	}
+
+	// ✅ Remove logo_url if it exists (use logo object instead)
+	delete(result, "logo_url")
 
 	return result
 }

@@ -983,24 +983,32 @@ func executeQuery(ctx context.Context, esClient *elasticsearch.Client, index str
 		maxScore = ms
 	}
 
+	// // Extract documents
+	// var data []map[string]interface{}
+	// if hitsList, ok := hits["hits"].([]interface{}); ok {
+	// 	for _, hit := range hitsList {
+	// 		if hitMap, ok := hit.(map[string]interface{}); ok {
+	// 			if source, ok := hitMap["_source"].(map[string]interface{}); ok {
+	// 				// // Add ES metadata
+	// 				// source["_id"] = hitMap["_id"]
+	// 				// if score, ok := hitMap["_score"].(float64); ok {
+	// 				// 	source["_score"] = score
+	// 				// }
+	// 				data = append(data, source)
+	// 			}
+	// 		}
+	// 	}
+	// }
+
 	// Extract documents
 	var data []map[string]interface{}
 	if hitsList, ok := hits["hits"].([]interface{}); ok {
 		for _, hit := range hitsList {
 			if hitMap, ok := hit.(map[string]interface{}); ok {
 				if source, ok := hitMap["_source"].(map[string]interface{}); ok {
-					// // Add ES metadata
-					// source["_id"] = hitMap["_id"]
-					// if score, ok := hitMap["_score"].(float64); ok {
-					// 	source["_score"] = score
-					// }
-					// ✅ REMOVE: Don't add ES metadata
-					// Delete any ES-specific fields that might be in source
-					delete(source, "_id")
-					delete(source, "_score")
-					delete(source, "updated_at") // If this is ES-only metadata
-
-					data = append(data, source)
+					// ✅ APPLY TRANSFORMATION
+					transformed := transformFranchiseFields(source)
+					data = append(data, transformed)
 				}
 			}
 		}
@@ -1072,4 +1080,76 @@ func executeSuggestQuery(ctx context.Context, esClient *elasticsearch.Client, in
 		TotalHits: int64(len(suggestions)),
 		Took:      time.Since(start).Milliseconds(),
 	}, nil
+}
+
+// ============================================================
+// FIELD TRANSFORMATION FUNCTIONS
+// ============================================================
+
+// transformFranchiseFields converts ES fields to API spec format
+func transformFranchiseFields(source map[string]interface{}) map[string]interface{} {
+	// Remove ES metadata
+	delete(source, "_id")
+	delete(source, "_score")
+	delete(source, "updated_at")
+
+	// ✅ FIX 1: Map franchise_id → id
+	if franchiseID, ok := source["franchise_id"].(string); ok {
+		source["id"] = franchiseID
+		delete(source, "franchise_id")
+	}
+
+	// ✅ FIX 2: Map name → brand
+	if name, ok := source["name"].(string); ok {
+		source["brand"] = name
+		delete(source, "name")
+	}
+
+	// ✅ FIX 3: Map total_outlets → no_of_outlets
+	if outlets, ok := source["total_outlets"]; ok {
+		source["no_of_outlets"] = outlets
+		delete(source, "total_outlets")
+	}
+
+	// ✅ FIX 4: Extract industry.name → category (top-level)
+	if industry, ok := source["industry"].(map[string]interface{}); ok {
+		if categoryName, ok := industry["name"].(string); ok {
+			source["category"] = categoryName
+		}
+
+		// Keep color at top level
+		if color, ok := industry["color"].(string); ok {
+			source["color"] = color
+		}
+	}
+
+	// ✅ FIX 5: Transform logo_url → logo object
+	if logoURL, ok := source["logo_url"].(string); ok {
+		brandName := ""
+		if name, ok := source["brand"].(string); ok {
+			brandName = name
+		}
+
+		source["logo"] = map[string]interface{}{
+			"url": logoURL,
+			"alt": brandName,
+		}
+		delete(source, "logo_url")
+	}
+
+	// ✅ FIX 6: Ensure space has spaceUnit
+	if space, ok := source["space"].(map[string]interface{}); ok {
+		if _, hasUnit := space["spaceUnit"]; !hasUnit {
+			space["spaceUnit"] = "sq ft"
+		}
+	}
+
+	// ✅ FIX 7: Ensure investmentRange has unit
+	if invRange, ok := source["investmentRange"].(map[string]interface{}); ok {
+		if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
+			invRange["investmentUnit"] = "Lakhs"
+		}
+	}
+
+	return source
 }

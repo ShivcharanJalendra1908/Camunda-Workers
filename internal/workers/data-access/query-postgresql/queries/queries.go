@@ -24,7 +24,7 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
 	start := time.Now()
 
 	query := `
-		SELECT id, name, slug, icon_name
+		SELECT id, name, slug, icon_url
 		FROM industries
 		WHERE is_active = true
 		ORDER BY display_order
@@ -40,9 +40,9 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
 	var industries []map[string]interface{}
 	for rows.Next() {
 		var id, name, slug string
-		var iconName sql.NullString
+		var iconURL sql.NullString
 
-		if err := rows.Scan(&id, &name, &slug, &iconName); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &iconURL); err != nil {
 			continue
 		}
 
@@ -52,8 +52,9 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
 			"slug": slug,
 		}
 
-		if iconName.Valid {
-			industry["icon_name"] = iconName.String
+		// ✅ CHANGED: Use icon_url instead of icon_name
+		if iconURL.Valid {
+			industry["icon_url"] = iconURL.String
 		}
 
 		industries = append(industries, industry)
@@ -67,7 +68,7 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	start := time.Now()
 
 	query := `
-		SELECT c.id, c.name, c.slug, c.icon_name, i.slug as industry_slug
+		SELECT c.id, c.name, c.slug, c.icon_url, i.slug as industry_slug
 		FROM categories c
 		INNER JOIN industries i ON c.industry_id = i.id
 		WHERE c.is_active = true
@@ -84,9 +85,9 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	var categories []map[string]interface{}
 	for rows.Next() {
 		var id, name, slug, industrySlug string
-		var iconName sql.NullString
+		var iconURL sql.NullString
 
-		if err := rows.Scan(&id, &name, &slug, &iconName, &industrySlug); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &iconURL, &industrySlug); err != nil {
 			continue
 		}
 
@@ -97,8 +98,9 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 			"industry_slug": industrySlug,
 		}
 
-		if iconName.Valid {
-			category["icon_name"] = iconName.String
+		// ✅ CHANGED: Use icon_url instead of icon_name
+		if iconURL.Valid {
+			category["icon_url"] = iconURL.String
 		}
 
 		categories = append(categories, category)
@@ -112,7 +114,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	start := time.Now()
 
 	query := `
-		SELECT c.id, c.name, c.slug, c.icon_name
+		SELECT c.id, c.name, c.slug, c.icon_url
 		FROM categories c
 		WHERE c.is_active = true
 		ORDER BY c.display_order
@@ -128,9 +130,9 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	var categories []map[string]interface{}
 	for rows.Next() {
 		var id, name, slug string
-		var iconName sql.NullString
+		var iconURL sql.NullString
 
-		if err := rows.Scan(&id, &name, &slug, &iconName); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &iconURL); err != nil {
 			continue
 		}
 
@@ -140,8 +142,9 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			"slug": slug,
 		}
 
-		if iconName.Valid {
-			category["icon_name"] = iconName.String
+		// ✅ CHANGED: Use icon_url instead of icon_name
+		if iconURL.Valid {
+			category["icon_url"] = iconURL.String
 		}
 
 		categories = append(categories, category)
@@ -149,45 +152,6 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
-
-// // IndustryBySlug - Get industry info by slug
-// func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
-// 	start := time.Now()
-
-// 	slug, ok := params["slug"].(string)
-// 	if !ok {
-// 		return nil, 0, 0, ErrInvalidParams
-// 	}
-
-// 	query := `
-// 		SELECT id, name, slug, listing_description
-// 		FROM industries
-// 		WHERE slug = $1 AND is_active = true
-// 	`
-
-// 	var id, name, industrySlug string
-// 	var description sql.NullString
-
-// 	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &description)
-// 	if err != nil {
-// 		if err == sql.ErrNoRows {
-// 			return nil, 0, 0, ErrNotFound
-// 		}
-// 		return nil, 0, 0, err
-// 	}
-
-// 	industry := map[string]interface{}{
-// 		"id":   id,
-// 		"name": name,
-// 		"slug": industrySlug,
-// 	}
-
-// 	if description.Valid {
-// 		industry["description"] = description.String
-// 	}
-
-// 	return industry, 1, time.Since(start).Milliseconds(), nil
-// }
 
 // IndustryBySlug - Get industry info by slug
 func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {

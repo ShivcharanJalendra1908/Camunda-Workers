@@ -23,6 +23,9 @@
       "description": {
         "type": "text"
       },
+      "logo_url": {
+        "type": "keyword"
+      },
       "year_of_establishment": {
         "type": "integer"
       },
