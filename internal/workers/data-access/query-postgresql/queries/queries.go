@@ -150,6 +150,45 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
 
+// // IndustryBySlug - Get industry info by slug
+// func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	slug, ok := params["slug"].(string)
+// 	if !ok {
+// 		return nil, 0, 0, ErrInvalidParams
+// 	}
+
+// 	query := `
+// 		SELECT id, name, slug, listing_description
+// 		FROM industries
+// 		WHERE slug = $1 AND is_active = true
+// 	`
+
+// 	var id, name, industrySlug string
+// 	var description sql.NullString
+
+// 	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &description)
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return nil, 0, 0, ErrNotFound
+// 		}
+// 		return nil, 0, 0, err
+// 	}
+
+// 	industry := map[string]interface{}{
+// 		"id":   id,
+// 		"name": name,
+// 		"slug": industrySlug,
+// 	}
+
+// 	if description.Valid {
+// 		industry["description"] = description.String
+// 	}
+
+// 	return industry, 1, time.Since(start).Milliseconds(), nil
+// }
+
 // IndustryBySlug - Get industry info by slug
 func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
@@ -159,10 +198,16 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 		return nil, 0, 0, ErrInvalidParams
 	}
 
+	// ✅ FIXED: Try exact match first, then partial match
 	query := `
 		SELECT id, name, slug, listing_description
 		FROM industries
-		WHERE slug = $1 AND is_active = true
+		WHERE (slug = $1 OR slug LIKE $1 || '%' OR $1 LIKE slug || '%')
+		  AND is_active = true
+		ORDER BY 
+		  CASE WHEN slug = $1 THEN 1 ELSE 2 END,
+		  LENGTH(slug)
+		LIMIT 1
 	`
 
 	var id, name, industrySlug string
@@ -667,88 +712,6 @@ func CategoryQuestionsByIndustry(
 
 	return questions, len(questions), time.Since(start).Milliseconds(), nil
 }
-
-// func CategoryQuestionsByIndustry(
-// 	ctx context.Context,
-// 	db *sql.DB,
-// 	params map[string]interface{},
-// ) (interface{}, int, int64, error) {
-// 	start := time.Now()
-
-// 	var referenceID string
-
-// 	// Extract reference ID from params
-// 	if v, ok := params["categoryId"].(string); ok && v != "" {
-// 		referenceID = v
-// 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
-// 		err := db.QueryRowContext(ctx,
-// 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
-// 		).Scan(&referenceID)
-// 		if err != nil {
-// 			if err == sql.ErrNoRows {
-// 				return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 			}
-// 			return nil, 0, 0, fmt.Errorf("category lookup failed: %w", err)
-// 		}
-// 	} else if v, ok := params["industryId"].(string); ok && v != "" {
-// 		referenceID = v
-// 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
-// 		err := db.QueryRowContext(ctx,
-// 			"SELECT id FROM industries WHERE slug = $1 AND is_active = true", v,
-// 		).Scan(&referenceID)
-// 		if err != nil {
-// 			if err == sql.ErrNoRows {
-// 				return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 			}
-// 			return nil, 0, 0, fmt.Errorf("industry lookup failed: %w", err)
-// 		}
-// 	} else {
-// 		return nil, 0, 0, ErrInvalidParams
-// 	}
-
-// 	// ✅ Check if table exists
-// 	var tableExists bool
-// 	err := db.QueryRowContext(ctx, `
-// 		SELECT EXISTS (
-// 			SELECT FROM information_schema.tables
-// 			WHERE table_schema = 'public'
-// 			AND table_name = 'category_questions'
-// 		)
-// 	`).Scan(&tableExists)
-
-// 	if err != nil || !tableExists {
-// 		// ✅ Return empty array instead of failing
-// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 	}
-
-// 	// ✅ Query with timeout
-// 	queryCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-// 	defer cancel()
-
-// 	rows, err := db.QueryContext(queryCtx, `
-// 		SELECT question
-// 		FROM category_questions
-// 		WHERE reference_id = $1
-// 		ORDER BY created_at
-// 		LIMIT 8
-// 	`, referenceID)
-
-// 	if err != nil {
-// 		// ✅ Return empty array instead of failing
-// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 	}
-// 	defer rows.Close()
-
-// 	var questions []string
-// 	for rows.Next() {
-// 		var q string
-// 		if err := rows.Scan(&q); err == nil && q != "" {
-// 			questions = append(questions, q)
-// 		}
-// 	}
-
-// 	return questions, len(questions), time.Since(start).Milliseconds(), nil
-// }
 
 // FeaturedCategoriesByIndustry - Get featured categories for an industry (detail page)
 func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {

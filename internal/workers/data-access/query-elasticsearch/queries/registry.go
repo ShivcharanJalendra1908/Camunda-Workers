@@ -234,8 +234,11 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 		// Filter by industry
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
-				"term": map[string]interface{}{
-					"industry.slug": industrySlug,
+				"match": map[string]interface{}{
+					"industry.slug": map[string]interface{}{
+						"query":    industrySlug,
+						"operator": "and",
+					},
 				},
 			},
 			"size": 4,
@@ -364,9 +367,19 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 
 	if industrySlug != "" {
 		// Same industry, exclude current
+		// boolQuery := map[string]interface{}{
+		// 	"must": []map[string]interface{}{
+		// 		{"term": map[string]interface{}{"industry.slug": industrySlug}},
+		// 	},
+		// }
 		boolQuery := map[string]interface{}{
 			"must": []map[string]interface{}{
-				{"term": map[string]interface{}{"industry.slug": industrySlug}},
+				{"match": map[string]interface{}{
+					"industry.slug": map[string]interface{}{
+						"query":    industrySlug,
+						"operator": "and",
+					},
+				}},
 			},
 		}
 
@@ -402,81 +415,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 	return executeQuery(ctx, esClient, "franchise_listings", query)
 }
 
-// // MarketInsights - Get market insights for industry (HARDCODED with industry mapping)
-// func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
-// 	//industryID, _ := params["industryId"].(string)
-// 	industrySlug, _ := params["industrySlug"].(string)
-
-// 	// ✅ DEFAULT HARDCODED INSIGHTS
-// 	insights := map[string]interface{}{
-// 		"growth_rate": map[string]interface{}{
-// 			"title":       "Growth Rate",
-// 			"description": "The market is growing at a healthy pace driven by changing consumer preferences and increasing demand.",
-// 		},
-// 		"market_trend": map[string]interface{}{
-// 			"title":       "Market Trend",
-// 			"description": "This industry is experiencing steady growth with increasing consumer demand and innovation.",
-// 		},
-// 	}
-
-// 	// ✅ INDUSTRY-SPECIFIC HARDCODED INSIGHTS
-// 	switch industrySlug {
-// 	case "food", "food-beverage":
-// 		insights = map[string]interface{}{
-// 			"growth_rate": map[string]interface{}{
-// 				"title":       "Growth Rate",
-// 				"description": "The food and beverage franchise market in India is growing at 15-18% annually, driven by urbanization, rising disposable income, and changing eating habits.",
-// 			},
-// 			"market_trend": map[string]interface{}{
-// 				"title":       "Market Trend",
-// 				"description": "Quick service restaurants, cloud kitchens, and healthy food options are dominating the market with technology integration and delivery focus.",
-// 			},
-// 		}
-// 	case "education":
-// 		insights = map[string]interface{}{
-// 			"growth_rate": map[string]interface{}{
-// 				"title":       "Growth Rate",
-// 				"description": "The education franchise sector is growing at 12-15% CAGR, fueled by demand for quality education, test preparation, and skill development.",
-// 			},
-// 			"market_trend": map[string]interface{}{
-// 				"title":       "Market Trend",
-// 				"description": "Hybrid learning models, STEM education, coding academies, and competitive exam coaching are trending in the education franchise space.",
-// 			},
-// 		}
-// 	case "health-wellness":
-// 		insights = map[string]interface{}{
-// 			"growth_rate": map[string]interface{}{
-// 				"title":       "Growth Rate",
-// 				"description": "Health and wellness franchises are growing at 20-25% annually as consumers prioritize fitness, mental health, and preventive care.",
-// 			},
-// 			"market_trend": map[string]interface{}{
-// 				"title":       "Market Trend",
-// 				"description": "Yoga studios, fitness centers, mental wellness clinics, and organic food outlets are seeing high demand post-pandemic.",
-// 			},
-// 		}
-// 	case "automobiles":
-// 		insights = map[string]interface{}{
-// 			"growth_rate": map[string]interface{}{
-// 				"title":       "Growth Rate",
-// 				"description": "Automobile service and dealership franchises are growing at 10-12% with increasing vehicle ownership and demand for after-sales service.",
-// 			},
-// 			"market_trend": map[string]interface{}{
-// 				"title":       "Market Trend",
-// 				"description": "EV charging stations, car service centers, and multi-brand dealerships are emerging as profitable franchise opportunities.",
-// 			},
-// 		}
-// 	}
-
-// 	return &QueryResult{
-// 		Data:      []map[string]interface{}{insights},
-// 		TotalHits: 1,
-// 		Took:      0,
-// 	}, nil
-// }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-// USE THIS WHEN IT AVAILABLE IN DATABASE
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// MarketInsights - Get market insights for industry
 
 func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	// Extract industry identifier from params
@@ -682,10 +621,20 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 		},
 	}
 
+	// if industrySlug != "" {
+	// 	query["query"] = map[string]interface{}{
+	// 		"term": map[string]interface{}{
+	// 			"industry.slug": industrySlug,
+	// 		},
+	// 	}
+	// }
 	if industrySlug != "" {
 		query["query"] = map[string]interface{}{
-			"term": map[string]interface{}{
-				"industry.slug": industrySlug,
+			"match": map[string]interface{}{
+				"industry.slug": map[string]interface{}{
+					"query":    industrySlug,
+					"operator": "and",
+				},
 			},
 		}
 	} else {
