@@ -184,20 +184,20 @@ func (h *Handler) sanitizeSlug(slug string) string {
 	if slug == "" {
 		return ""
 	}
-	
+
 	// Remove whitespace
 	slug = strings.TrimSpace(slug)
-	
+
 	// Remove leading/trailing quotes (both single and double)
 	slug = strings.Trim(slug, `"'`)
-	
+
 	// Remove escaped quotes
 	slug = strings.ReplaceAll(slug, `\"`, "")
 	slug = strings.ReplaceAll(slug, `\'`, "")
-	
+
 	// Remove any backslashes
 	slug = strings.ReplaceAll(slug, `\`, "")
-	
+
 	return slug
 }
 
@@ -225,7 +225,7 @@ func (h *Handler) validateIndustryBySlug(input *Input) error {
 
 	// Clean malformed quotes from slug
 	slug = h.sanitizeSlug(slug)
-	
+
 	// Update the input with cleaned slug
 	input.Slug = slug
 	if input.IndustrySlug != "" {
@@ -522,6 +522,19 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	// ✅ Build parameters with ALL possible field sources
 	params := make(map[string]interface{})
 
+	// ✅✅✅ CRITICAL FIX - Extract franchiseId from basicInfo FIRST
+	if input.Params != nil {
+		if basicInfo, ok := input.Params["basicInfo"].(map[string]interface{}); ok {
+			// Extract franchiseId from basicInfo.id
+			if id, ok := basicInfo["id"].(string); ok && id != "" {
+				params["franchiseId"] = id
+				h.logger.Info("Extracted franchiseId from basicInfo", map[string]interface{}{
+					"franchiseId": id,
+				})
+			}
+		}
+	}
+
 	// Add specific known fields
 	if input.FranchiseID != "" {
 		params["franchiseId"] = input.FranchiseID
@@ -576,6 +589,15 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 			}
 			if input.Slug == "" {
 				params["slug"] = cleanSlug
+			}
+		}
+	}
+
+	// ✅✅✅ ADD THIS - Pass entire Params to queries
+	if input.Params != nil {
+		for k, v := range input.Params {
+			if _, exists := params[k]; !exists {
+				params[k] = v
 			}
 		}
 	}
