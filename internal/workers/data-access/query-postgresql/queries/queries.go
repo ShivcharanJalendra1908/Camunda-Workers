@@ -15,14 +15,28 @@ var (
 	ErrNotFound      = errors.New("record not found")
 )
 
-// ✅ Helper to extract franchiseId from multiple sources
+// / ✅ Helper to extract franchiseId from multiple sources
 func extractFranchiseID(params map[string]interface{}) (string, error) {
-	// Try 'franchiseId' first (expected parameter)
+	// Priority 1: Direct franchiseId parameter
 	if id, ok := params["franchiseId"].(string); ok && id != "" {
 		return id, nil
 	}
 
-	// Try 'id' (from ES transformed data)
+	// Priority 2: Extract from basicInfo object (Detail Page)
+	if basicInfo, ok := params["basicInfo"].(map[string]interface{}); ok {
+		// Try all possible field names in basicInfo
+		if id, ok := basicInfo["id"].(string); ok && id != "" {
+			return id, nil
+		}
+		if id, ok := basicInfo["franchise_id"].(string); ok && id != "" {
+			return id, nil
+		}
+		if id, ok := basicInfo["franchiseId"].(string); ok && id != "" {
+			return id, nil
+		}
+	}
+
+	// Priority 3: Direct id parameter (fallback)
 	if id, ok := params["id"].(string); ok && id != "" {
 		return id, nil
 	}
