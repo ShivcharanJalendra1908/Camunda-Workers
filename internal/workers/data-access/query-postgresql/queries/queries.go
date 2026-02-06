@@ -16,15 +16,15 @@ var (
 )
 
 // ✅ Helper to extract franchiseId from multiple sources
+// ✅ Helper to extract franchiseId from multiple sources
 func extractFranchiseID(params map[string]interface{}) (string, error) {
 	// Priority 1: Direct franchiseId parameter
 	if id, ok := params["franchiseId"].(string); ok && id != "" {
 		return id, nil
 	}
 
-	// Priority 2: Extract from basicInfo object (Detail Page)
+	// Priority 2: Extract from basicInfo.id (BPMN passes this)
 	if basicInfo, ok := params["basicInfo"].(map[string]interface{}); ok {
-		// Try all possible field names in basicInfo
 		if id, ok := basicInfo["id"].(string); ok && id != "" {
 			return id, nil
 		}
@@ -36,15 +36,18 @@ func extractFranchiseID(params map[string]interface{}) (string, error) {
 		}
 	}
 
-	// Priority 3: Direct id parameter (ES data)
+	// Priority 3: Direct id parameter
 	if id, ok := params["id"].(string); ok && id != "" {
 		return id, nil
 	}
 
-	// Priority 4: Extract from params map
-	if paramsMap, ok := params["params"].(map[string]interface{}); ok {
-		if basicInfo, ok := paramsMap["basicInfo"].(map[string]interface{}); ok {
-			if id, ok := basicInfo["id"].(string); ok && id != "" {
+	// Priority 4: Extract from data array (ES response format)
+	if data, ok := params["data"].([]interface{}); ok && len(data) > 0 {
+		if firstItem, ok := data[0].(map[string]interface{}); ok {
+			if id, ok := firstItem["id"].(string); ok && id != "" {
+				return id, nil
+			}
+			if id, ok := firstItem["franchise_id"].(string); ok && id != "" {
 				return id, nil
 			}
 		}

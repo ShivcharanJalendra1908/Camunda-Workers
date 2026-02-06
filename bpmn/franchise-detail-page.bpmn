@@ -18,7 +18,7 @@
           <zeebe:input source="=slug" target="slug" />
           <zeebe:input source="=slug" target="franchiseId" />
           <zeebe:output source="=data[1]" target="basicInfo" />
-          <zeebe:output source="=if data != null and count(data) > 0 then data[1].franchise_id else slug" target="franchiseId" />
+          <zeebe:output source="=if data != null and count(data) > 0 then data[1].id else slug" target="franchiseId" />
           <zeebe:output source="=if data != null and count(data) > 0 and data[1].industry != null then data[1].industry.id else null" target="industryId" /> 
           <zeebe:output source="=if data != null and count(data) > 0 and data[1].industry != null then data[1].industry.slug else null" target="industrySlug" />
         </zeebe:ioMapping>

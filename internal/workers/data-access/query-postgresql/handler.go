@@ -522,10 +522,8 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	// ✅ Build parameters with ALL possible field sources
 	params := make(map[string]interface{})
 
-	// ✅✅✅ CRITICAL FIX - Extract franchiseId from basicInfo FIRST
 	if input.Params != nil {
 		if basicInfo, ok := input.Params["basicInfo"].(map[string]interface{}); ok {
-			// Extract franchiseId from basicInfo.id
 			if id, ok := basicInfo["id"].(string); ok && id != "" {
 				params["franchiseId"] = id
 				h.logger.Info("Extracted franchiseId from basicInfo", map[string]interface{}{
@@ -593,7 +591,6 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 		}
 	}
 
-	// ✅✅✅ ADD THIS - Pass entire Params to queries
 	if input.Params != nil {
 		for k, v := range input.Params {
 			if _, exists := params[k]; !exists {
