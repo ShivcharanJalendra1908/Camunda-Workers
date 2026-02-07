@@ -198,8 +198,17 @@ func main() {
 		redisClient.GetClient())
 	//franchiseHandler := handlers.NewFranchiseHandler(esClient, postgresDB, log)
 
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+	//franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
 
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient())
+
+	router.GET("/debug/response-handler", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"connected":         franchiseHandler != nil,
+			"pending_responses": franchiseHandler.PendingResponsesCount(),
+			"timestamp":         time.Now().Format(time.RFC3339),
+		})
+	})
 	// ============================================================================
 	// PUBLIC API ROUTES (No JWT Required)
 	// ============================================================================

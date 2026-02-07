@@ -13,6 +13,20 @@ import (
 	"sync"
 )
 
+// Registry struct define karo
+type Registry struct {
+	mu     sync.RWMutex
+	deps   *Dependencies
+	logger logger.Logger
+}
+
+// NewRegistry creates a new registry
+func NewRegistry(logger logger.Logger) *Registry {
+	return &Registry{
+		logger: logger,
+	}
+}
+
 // WorkerHandler defines the interface for all workers
 type WorkerHandler interface {
 	Execute(ctx context.Context, task *Task) (map[string]interface{}, error)
@@ -113,6 +127,18 @@ func GetRegisteredWorkers() []string {
 		workers = append(workers, workerType)
 	}
 	return workers
+}
+
+// SetDependencies updates dependencies after registry creation
+func (r *Registry) SetDependencies(deps *Dependencies) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.deps = deps
+
+	if deps.ResponseHandler != nil {
+		r.logger.Info("Response handler registered in registry", map[string]interface{}{})
+	}
 }
 
 // // pkg/registry/registry.go

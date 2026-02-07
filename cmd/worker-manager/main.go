@@ -269,38 +269,50 @@ func main() {
 		zap.Int("circuit_breaker_count", len(cbManager.GetAll())))
 
 	// ============================================================================
-	// ✅ CREATE DEPENDENCIES FOR REGISTRY
+	// ✅ STEP 1: INITIALIZE CAMUNDA CLIENT (BEFORE EVERYTHING)
 	// ============================================================================
-	deps := &registry.Dependencies{
-		Logger:         log,
-		Config:         cfg,
-		ESClient:       esClient,
-		PGClient:       pg,
-		RedisClient:    redis,
-		CircuitBreaker: cbManager,
-		Idempotency:    idempotencyChecker,
-	}
-
-	// ============================================================================
-	// ✅ INITIALIZE CAMUNDA CLIENT AND FRANCHISE HANDLER
-	// ============================================================================
-
 	camundaClient, err := camunda.NewClientWithRegistry(&camunda.ClientConfig{
 		GatewayAddress:         cfg.Camunda.BrokerAddress,
 		UsePlaintextConnection: true,
 		ConnectionTimeout:      10 * time.Second,
 		RequestTimeout:         30 * time.Second,
 		RetryConfig:            camunda.DefaultRetryConfig,
-	}, deps)
+	}, nil) // ⚠️ Pass nil first, we'll update deps later
 	if err != nil {
 		zapLog.Fatal("Failed to create Camunda client", zap.Error(err))
 	}
 
-	// ✅ Create franchise handler for response handling
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+	// ============================================================================
+	// ✅ STEP 2: CREATE FRANCHISE HANDLER (BEFORE REGISTRY)
+	// ============================================================================
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redis.GetClient())
 
-	// ✅ Update dependencies with response handler
-	deps.ResponseHandler = franchiseHandler
+	zapLog.Info("✅ Franchise handler created",
+		zap.Int("pendingResponses", franchiseHandler.PendingResponsesCount()))
+
+	// ============================================================================
+	// ✅ STEP 3: CREATE DEPENDENCIES WITH RESPONSE HANDLER
+	// ============================================================================
+	deps := &registry.Dependencies{
+		Logger:          log,
+		Config:          cfg,
+		ESClient:        esClient,
+		PGClient:        pg,
+		RedisClient:     redis,
+		CircuitBreaker:  cbManager,
+		Idempotency:     idempotencyChecker,
+		ResponseHandler: franchiseHandler, // ✅ CRITICAL: Set BEFORE workers register
+	}
+
+	zapLog.Info("✅ Dependencies created with response handler",
+		zap.Bool("hasResponseHandler", deps.ResponseHandler != nil))
+
+	// ============================================================================
+	// ✅ STEP 4: UPDATE CAMUNDA CLIENT WITH DEPS
+	// ============================================================================
+	camundaClient.SetDependencies(deps)
+
+	zapLog.Info("✅ Camunda client updated with dependencies")
 
 	// ============================================================================
 	// ✅ REGISTER ALL WORKERS (using registry pattern)
@@ -313,7 +325,8 @@ func main() {
 				Timeout: time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond,
 			},
 			log,
-			franchiseHandler, // ✅ Pass response handler directly
+			deps,
+			//franchiseHandler, // ✅ Pass response handler directly
 		)
 
 		// ✅ START WORKER WITH FAST POLLING

@@ -24,6 +24,7 @@ type Client struct {
 	config       *ClientConfig
 	dependencies *registry.Dependencies
 	logger       logger.Logger
+	registry     *registry.Registry
 }
 
 // ClientConfig holds configuration for the Camunda/Zeebe client.
@@ -58,7 +59,7 @@ func NewClient(address string) (*Client, error) {
 		RequestTimeout:         30 * time.Second,
 		RetryConfig:            DefaultRetryConfig,
 	}
-	
+
 	// Create a default logger (you can customize this)
 	defaultLogger := logger.NewStructured("info", "console")
 	return NewClientWithConfig(config, defaultLogger)
@@ -292,7 +293,7 @@ func NewClientFromEnv() (*Client, error) {
 			format = "console"
 		}
 	}
-	
+
 	log := logger.NewStructured(level, format)
 	return NewClientWithConfig(config, log)
 }
@@ -306,7 +307,7 @@ func NewClientWithRegistry(cfg *ClientConfig, deps *registry.Dependencies) (*Cli
 	} else {
 		log = logger.NewStructured("info", "console")
 	}
-	
+
 	client, err := NewClientWithConfig(cfg, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Camunda client: %w", err)
@@ -314,6 +315,9 @@ func NewClientWithRegistry(cfg *ClientConfig, deps *registry.Dependencies) (*Cli
 
 	// Store dependencies in client
 	client.dependencies = deps
+
+	// Create a registry instance
+	client.registry = registry.NewRegistry(log)
 
 	// Also set global dependencies for registry
 	registry.SetGlobalDependencies(deps)
@@ -375,4 +379,14 @@ func (c *Client) StartWorker(workerType string, maxJobsActive int, timeout time.
 		Open()
 
 	return jobWorker, nil
+}
+
+// SetDependencies updates the registry dependencies after client creation
+func (c *Client) SetDependencies(deps *registry.Dependencies) {
+	if c.registry != nil {
+		c.registry.SetDependencies(deps)
+		c.logger.Info("Registry dependencies updated", map[string]interface{}{
+			"hasResponseHandler": deps.ResponseHandler != nil,
+		})
+	}
 }

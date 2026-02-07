@@ -64,7 +64,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_OVERVIEW&#34;" target="queryType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=if franchiseId != null then franchiseId else if basicInfo != null then basicInfo.id else null" target="franchiseId" />
           <zeebe:output source="=data" target="overview" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -79,7 +79,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_BUSINESS&#34;" target="queryType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=if franchiseId != null then franchiseId else if basicInfo != null then basicInfo.id else null" target="franchiseId" />
           <zeebe:output source="=data" target="business" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -94,7 +94,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_INVESTMENT&#34;" target="queryType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=if franchiseId != null then franchiseId else if basicInfo != null then basicInfo.id else null" target="franchiseId" />
           <zeebe:output source="=data" target="investment" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -109,7 +109,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_OPERATIONS&#34;" target="queryType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=if franchiseId != null then franchiseId else if basicInfo != null then basicInfo.id else null" target="franchiseId" />
           <zeebe:output source="=data" target="operations" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -124,7 +124,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_SOCIAL&#34;" target="queryType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=if franchiseId != null then franchiseId else if basicInfo != null then basicInfo.id else null" target="franchiseId" />
           <zeebe:output source="=data" target="social" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
