@@ -68,17 +68,18 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 
 	h.responseMutex.Lock()
 	h.pendingResponses[correlationKey] = responseChan
+	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
 	h.responseMutex.Unlock()
 
-	// Cleanup on exit
-	defer func() {
-		h.responseMutex.Lock()
-		if ch, exists := h.pendingResponses[correlationKey]; exists {
-			close(ch)
-			delete(h.pendingResponses, correlationKey)
-		}
-		h.responseMutex.Unlock()
-	}()
+	// // Cleanup on exit
+	// defer func() {
+	// 	h.responseMutex.Lock()
+	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+	// 		close(ch)
+	// 		delete(h.pendingResponses, correlationKey)
+	// 	}
+	// 	h.responseMutex.Unlock()
+	// }()
 
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
@@ -98,6 +99,12 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 	// Start HOME PAGE workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-home-page", variables)
 	if err != nil {
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("failed to start home page workflow: %w", err)
 	}
 
@@ -109,6 +116,13 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 	// Wait for response with timeout (30 seconds)
 	select {
 	case response := <-responseChan:
+
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		// Check if response indicates success
 		if success, ok := response["success"].(bool); !ok || !success {
 			return nil, fmt.Errorf("workflow failed: %v", response)
@@ -116,9 +130,21 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 		return response, nil
 
 	case <-time.After(30 * time.Second):
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("workflow timeout after 30 seconds")
 
 	case <-ctx.Done():
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, ctx.Err()
 	}
 }
@@ -140,17 +166,18 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 
 	h.responseMutex.Lock()
 	h.pendingResponses[correlationKey] = responseChan
+	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
 	h.responseMutex.Unlock()
 
-	// Cleanup on exit
-	defer func() {
-		h.responseMutex.Lock()
-		if ch, exists := h.pendingResponses[correlationKey]; exists {
-			close(ch)
-			delete(h.pendingResponses, correlationKey)
-		}
-		h.responseMutex.Unlock()
-	}()
+	// // Cleanup on exit
+	// defer func() {
+	// 	h.responseMutex.Lock()
+	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+	// 		close(ch)
+	// 		delete(h.pendingResponses, correlationKey)
+	// 	}
+	// 	h.responseMutex.Unlock()
+	// }()
 
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
@@ -171,6 +198,12 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 	// Start LISTING PAGE workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-page", variables)
 	if err != nil {
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("failed to start listing page workflow: %w", err)
 	}
 
@@ -183,6 +216,12 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 	// Wait for response with timeout (30 seconds)
 	select {
 	case response := <-responseChan:
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		// Check if response indicates success
 		if success, ok := response["success"].(bool); !ok || !success {
 			return nil, fmt.Errorf("workflow failed: %v", response)
@@ -190,9 +229,21 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 		return response, nil
 
 	case <-time.After(30 * time.Second):
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("workflow timeout after 30 seconds")
 
 	case <-ctx.Done():
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, ctx.Err()
 	}
 }
@@ -213,17 +264,18 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 
 	h.responseMutex.Lock()
 	h.pendingResponses[correlationKey] = responseChan
+	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
 	h.responseMutex.Unlock()
 
-	// Cleanup on exit
-	defer func() {
-		h.responseMutex.Lock()
-		if ch, exists := h.pendingResponses[correlationKey]; exists {
-			close(ch)
-			delete(h.pendingResponses, correlationKey)
-		}
-		h.responseMutex.Unlock()
-	}()
+	// // Cleanup on exit
+	// defer func() {
+	// 	h.responseMutex.Lock()
+	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+	// 		close(ch)
+	// 		delete(h.pendingResponses, correlationKey)
+	// 	}
+	// 	h.responseMutex.Unlock()
+	// }()
 
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
@@ -243,6 +295,12 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 	// Start DETAIL PAGE workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-detail-page", variables)
 	if err != nil {
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("failed to start detail page workflow: %w", err)
 	}
 
@@ -255,6 +313,12 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 	// Wait for response with timeout (30 seconds)
 	select {
 	case response := <-responseChan:
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		// Check if response indicates success
 		if success, ok := response["success"].(bool); !ok || !success {
 			return nil, fmt.Errorf("workflow failed: %v", response)
@@ -262,9 +326,21 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 		return response, nil
 
 	case <-time.After(30 * time.Second):
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("workflow timeout after 30 seconds")
 
 	case <-ctx.Done():
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, ctx.Err()
 	}
 }
@@ -285,17 +361,18 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 
 	h.responseMutex.Lock()
 	h.pendingResponses[correlationKey] = responseChan
+	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
 	h.responseMutex.Unlock()
 
-	// Cleanup on exit
-	defer func() {
-		h.responseMutex.Lock()
-		if ch, exists := h.pendingResponses[correlationKey]; exists {
-			close(ch)
-			delete(h.pendingResponses, correlationKey)
-		}
-		h.responseMutex.Unlock()
-	}()
+	// // Cleanup on exit
+	// defer func() {
+	// 	h.responseMutex.Lock()
+	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+	// 		close(ch)
+	// 		delete(h.pendingResponses, correlationKey)
+	// 	}
+	// 	h.responseMutex.Unlock()
+	// }()
 
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
@@ -332,6 +409,12 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 	// Start SEARCH workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-ai-search", variables)
 	if err != nil {
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("failed to start search workflow: %w", err)
 	}
 
@@ -344,6 +427,12 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 	// Wait for response with timeout (30 seconds)
 	select {
 	case response := <-responseChan:
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		// Check if response indicates success
 		if success, ok := response["success"].(bool); !ok || !success {
 			return nil, fmt.Errorf("workflow failed: %v", response)
@@ -351,9 +440,21 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 		return response, nil
 
 	case <-time.After(30 * time.Second):
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("workflow timeout after 30 seconds")
 
 	case <-ctx.Done():
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, ctx.Err()
 	}
 }
@@ -380,17 +481,18 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 
 	h.responseMutex.Lock()
 	h.pendingResponses[correlationKey] = responseChan
+	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
 	h.responseMutex.Unlock()
 
-	// Cleanup on exit
-	defer func() {
-		h.responseMutex.Lock()
-		if ch, exists := h.pendingResponses[correlationKey]; exists {
-			close(ch)
-			delete(h.pendingResponses, correlationKey)
-		}
-		h.responseMutex.Unlock()
-	}()
+	// // Cleanup on exit
+	// defer func() {
+	// 	h.responseMutex.Lock()
+	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+	// 		close(ch)
+	// 		delete(h.pendingResponses, correlationKey)
+	// 	}
+	// 	h.responseMutex.Unlock()
+	// }()
 
 	// Add correlation key and operation to workflow variables
 	variables["correlationKey"] = correlationKey
@@ -404,6 +506,12 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 	// Start MVP workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-mvp-workflow", variables)
 	if err != nil {
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("failed to start MVP workflow: %w", err)
 	}
 
@@ -416,6 +524,12 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 	// Wait for response with timeout (30 seconds)
 	select {
 	case response := <-responseChan:
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		// Check if response indicates success
 		if success, ok := response["success"].(bool); !ok || !success {
 			return nil, fmt.Errorf("workflow failed: %v", response)
@@ -423,9 +537,21 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 		return response, nil
 
 	case <-time.After(30 * time.Second):
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, fmt.Errorf("workflow timeout after 30 seconds")
 
 	case <-ctx.Done():
+		// ✅ ADD THESE 3 LINES
+		h.responseMutex.Lock()
+		delete(h.pendingResponses, correlationKey)
+		delete(h.requestTimes, correlationKey)
+		h.responseMutex.Unlock()
+
 		return nil, ctx.Err()
 	}
 }
@@ -1200,6 +1326,7 @@ func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, respon
 
 	h.responseMutex.RLock()
 	responseChan, exists := h.pendingResponses[correlationKey]
+	requestTime, timeExists := h.requestTimes[correlationKey] // ✅ ADD THIS LINE
 	h.responseMutex.RUnlock()
 
 	if !exists {
@@ -1208,6 +1335,18 @@ func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, respon
 			"response":       response,
 		})
 		return fmt.Errorf("no waiting request for correlation key: %s", correlationKey)
+	}
+
+	// ✅ ADD THIS BLOCK
+	if timeExists {
+		age := time.Since(requestTime)
+		if age > 60*time.Second {
+			h.logger.Warn("Request too old, dropping response", map[string]interface{}{
+				"correlationKey": correlationKey,
+				"age":            age.String(),
+			})
+			return fmt.Errorf("request expired (age: %s)", age)
+		}
 	}
 
 	// Send response to waiting channel
@@ -1225,42 +1364,41 @@ func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, respon
 		return fmt.Errorf("response channel blocked for key: %s", correlationKey)
 	}
 }
-
 func (h *FranchiseHandler) cleanupOldResponses() {
-	ticker := time.NewTicker(10 * time.Second) // 5 minute से 10 second करो
+	ticker := time.NewTicker(30 * time.Second) // ✅ CHANGED from 10s to 30s
 	defer ticker.Stop()
+
+	h.logger.Info("Response cleanup goroutine started", map[string]interface{}{}) // ✅ ADD THIS
 
 	for range ticker.C {
 		h.responseMutex.Lock()
 		now := time.Now()
 
 		for key, ch := range h.pendingResponses {
-			// Extract timestamp from correlation key
-			parts := strings.Split(key, "_")
-			if len(parts) >= 3 {
-				timestampStr := parts[len(parts)-1]
-				if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
-					requestTime := time.Unix(0, timestamp)
-					if now.Sub(requestTime) > 30*time.Second {
-						timeoutResponse := map[string]interface{}{
-							"success": false,
-							"error":   "Request timeout",
-							"code":    "TIMEOUT",
-						}
+			// ✅ CHANGED: Check requestTimes instead of parsing key
+			if requestTime, exists := h.requestTimes[key]; exists {
+				age := now.Sub(requestTime)
 
-						select {
-						case ch <- timeoutResponse:
-						default:
-						}
-
-						close(ch)
-						delete(h.pendingResponses, key)
-
-						h.logger.Warn("Cleaned expired request", map[string]interface{}{
-							"correlationKey": key,
-							"age":            now.Sub(requestTime).String(),
-						})
+				if age > 60*time.Second { // ✅ CHANGED from 30s to 60s
+					timeoutResponse := map[string]interface{}{
+						"success": false,
+						"error":   "Request timeout",
+						"code":    "TIMEOUT",
 					}
+
+					select {
+					case ch <- timeoutResponse:
+					default:
+					}
+
+					close(ch)
+					delete(h.pendingResponses, key)
+					delete(h.requestTimes, key) // ✅ ADD THIS LINE
+
+					h.logger.Warn("Cleaned expired request", map[string]interface{}{
+						"correlationKey": key,
+						"age":            age.String(),
+					})
 				}
 			}
 		}
@@ -1274,31 +1412,6 @@ func (h *FranchiseHandler) PendingResponsesCount() int {
 	defer h.responseMutex.RUnlock()
 	return len(h.pendingResponses)
 }
-
-// func (h *FranchiseHandler) cleanupOldResponses() {
-// 	ticker := time.NewTicker(10* time.Minute)
-// 	defer ticker.Stop()
-
-// 	for range ticker.C {
-// 		h.responseMutex.Lock()
-// 		removed := 0
-
-// 		// Simple cleanup: if map too large, clear it
-// 		if len(h.pendingResponses) > 1000 {
-// 			oldCount := len(h.pendingResponses)
-// 			h.pendingResponses = make(map[string]chan map[string]interface{})
-// 			removed = oldCount
-// 		}
-
-// 		h.responseMutex.Unlock()
-
-// 		if removed > 0 {
-// 			h.logger.Info("Cleaned up old response channels", map[string]interface{}{
-// 				"removedCount": removed,
-// 			})
-// 		}
-// 	}
-// }
 
 // package handlers
 
