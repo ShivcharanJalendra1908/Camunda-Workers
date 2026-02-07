@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -1309,20 +1308,20 @@ func (h *FranchiseHandler) validateSearchFilters(filters *models.FranchiseSearch
 
 func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, response map[string]interface{}) error {
 
-	parts := strings.Split(correlationKey, "_")
-	if len(parts) >= 3 {
-		timestampStr := parts[len(parts)-1]
-		if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
-			requestTime := time.Unix(0, timestamp)
-			if time.Since(requestTime) > 30*time.Second {
-				h.logger.Warn("Request expired, skipping response", map[string]interface{}{
-					"correlationKey": correlationKey,
-					"age":            time.Since(requestTime).String(),
-				})
-				return nil
-			}
-		}
-	}
+	// parts := strings.Split(correlationKey, "_")
+	// if len(parts) >= 3 {
+	// 	timestampStr := parts[len(parts)-1]
+	// 	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+	// 		requestTime := time.Unix(0, timestamp)
+	// 		if time.Since(requestTime) > 30*time.Second {
+	// 			h.logger.Warn("Request expired, skipping response", map[string]interface{}{
+	// 				"correlationKey": correlationKey,
+	// 				"age":            time.Since(requestTime).String(),
+	// 			})
+	// 			return nil
+	// 		}
+	// 	}
+	// }
 
 	h.responseMutex.RLock()
 	responseChan, exists := h.pendingResponses[correlationKey]
