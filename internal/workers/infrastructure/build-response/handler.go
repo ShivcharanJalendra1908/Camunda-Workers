@@ -327,12 +327,39 @@ func (h *Handler) validateDataSize(data map[string]interface{}) error {
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	combinedData := make(map[string]interface{})
 
-	if input.Data != nil {
-		for k, v := range input.Data {
-			combinedData[k] = v
-		}
+	// ✅ DETAIL PAGE - Map individual fields
+	if len(input.BasicInfo) > 0 {
+		combinedData["basicInfo"] = input.BasicInfo
+	}
+	if len(input.Business) > 0 {
+		combinedData["business"] = input.Business
+	}
+	if len(input.Investment) > 0 {
+		combinedData["investment"] = input.Investment
+	}
+	if len(input.Operations) > 0 {
+		combinedData["operations"] = input.Operations
+	}
+	if len(input.Overview) > 0 {
+		combinedData["overview"] = input.Overview
+	}
+	if len(input.Social) > 0 {
+		combinedData["social"] = input.Social
+	}
+	if len(input.Categories) > 0 {
+		combinedData["categories"] = input.Categories
+	}
+	if len(input.Recommended) > 0 {
+		combinedData["recommended"] = input.Recommended
+	}
+	if input.MarketInsights != nil {
+		combinedData["marketInsights"] = input.MarketInsights
+	}
+	if len(input.CategoryQuestions) > 0 {
+		combinedData["categoryQuestions"] = input.CategoryQuestions
 	}
 
+	// ✅ LISTING PAGE - Map listing-specific fields
 	if len(input.FranchiseListings) > 0 {
 		combinedData["franchises"] = input.FranchiseListings
 	}
@@ -352,6 +379,7 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		combinedData["heroDescription"] = input.HeroDescription
 	}
 
+	// ✅ HOME PAGE - Map home-specific fields
 	if len(input.HeroBrands) > 0 {
 		combinedData["heroBrands"] = input.HeroBrands
 	}
@@ -365,6 +393,16 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		combinedData["categories"] = input.Categories
 	}
 
+	// ✅ Also merge anything in input.Data (backup/generic data)
+	if input.Data != nil {
+		for k, v := range input.Data {
+			if _, exists := combinedData[k]; !exists {
+				combinedData[k] = v
+			}
+		}
+	}
+
+	// Sanitize and build response
 	combinedData = h.sanitizer.SanitizeInput(combinedData)
 
 	var response map[string]interface{}
@@ -383,6 +421,66 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 
 	return &Output{Success: true, Response: response}, nil
 }
+
+// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
+// 	combinedData := make(map[string]interface{})
+
+// 	if input.Data != nil {
+// 		for k, v := range input.Data {
+// 			combinedData[k] = v
+// 		}
+// 	}
+
+// 	if len(input.FranchiseListings) > 0 {
+// 		combinedData["franchises"] = input.FranchiseListings
+// 	}
+// 	if len(input.FeaturedCategories) > 0 {
+// 		combinedData["categories"] = input.FeaturedCategories
+// 	}
+// 	if len(input.UnderstandingCategory) > 0 {
+// 		combinedData["categoryQuestions"] = input.UnderstandingCategory
+// 	}
+// 	if len(input.RecommendedFranchises) > 0 {
+// 		combinedData["recommended"] = input.RecommendedFranchises
+// 	}
+// 	if len(input.KeyMarketInsights) > 0 {
+// 		combinedData["marketInsights"] = input.KeyMarketInsights
+// 	}
+// 	if input.HeroDescription != "" {
+// 		combinedData["heroDescription"] = input.HeroDescription
+// 	}
+
+// 	if len(input.HeroBrands) > 0 {
+// 		combinedData["heroBrands"] = input.HeroBrands
+// 	}
+// 	if len(input.Industries) > 0 {
+// 		combinedData["industries"] = input.Industries
+// 	}
+// 	if len(input.PopularListings) > 0 {
+// 		combinedData["popularListings"] = input.PopularListings
+// 	}
+// 	if len(input.Categories) > 0 {
+// 		combinedData["categories"] = input.Categories
+// 	}
+
+// 	combinedData = h.sanitizer.SanitizeInput(combinedData)
+
+// 	var response map[string]interface{}
+// 	switch input.PageType {
+// 	case "home":
+// 		response = h.buildHomeResponse(combinedData)
+// 	case "listing":
+// 		response = h.buildListingResponse(combinedData)
+// 	case "detail":
+// 		response = h.buildDetailResponse(combinedData)
+// 	case "search":
+// 		response = h.buildSearchResponse(combinedData)
+// 	default:
+// 		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
+// 	}
+
+// 	return &Output{Success: true, Response: response}, nil
+// }
 
 // ===== HOME PAGE BUILDER =====
 func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]interface{} {

@@ -6,19 +6,30 @@ type Input struct {
 	Data     map[string]interface{} `json:"data"`     // All data from workflow (can be nested)
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 
-	// ✅ BPMN variable mappings - listing flow
+	// HOME PAGE FIELDS
+	HeroBrands      []interface{} `json:"heroBrands,omitempty"`
+	Industries      []interface{} `json:"industries,omitempty"`
+	PopularListings []interface{} `json:"popularListings,omitempty"`
+	Categories      []interface{} `json:"categories,omitempty"`
+
+	// LISTING PAGE FIELDS
 	FranchiseListings     []interface{} `json:"franchiseListings,omitempty"`
 	FeaturedCategories    []interface{} `json:"featuredCategories,omitempty"`
 	UnderstandingCategory []interface{} `json:"understandingCategory,omitempty"`
 	RecommendedFranchises []interface{} `json:"recommendedFranchises,omitempty"`
 	KeyMarketInsights     []interface{} `json:"keyMarketInsights,omitempty"`
+	HeroDescription       string        `json:"heroDescription,omitempty"`
 
-	// ✅ Optional fields - different flows
-	HeroDescription string        `json:"heroDescription,omitempty"`
-	HeroBrands      []interface{} `json:"heroBrands,omitempty"`
-	Industries      []interface{} `json:"industries,omitempty"`
-	PopularListings []interface{} `json:"popularListings,omitempty"`
-	Categories      []interface{} `json:"categories,omitempty"`
+	// DETAIL PAGE FIELDS
+	BasicInfo         map[string]interface{} `json:"basicInfo,omitempty"`
+	Business          map[string]interface{} `json:"business,omitempty"`
+	Investment        map[string]interface{} `json:"investment,omitempty"`
+	Operations        map[string]interface{} `json:"operations,omitempty"`
+	Overview          map[string]interface{} `json:"overview,omitempty"`
+	Social            []interface{}          `json:"social,omitempty"`
+	Recommended       []interface{}          `json:"recommended,omitempty"`
+	MarketInsights    interface{}            `json:"marketInsights,omitempty"`
+	CategoryQuestions []interface{}          `json:"categoryQuestions,omitempty"`
 }
 
 // Output - Simplified structure (matches what build-response returns)
