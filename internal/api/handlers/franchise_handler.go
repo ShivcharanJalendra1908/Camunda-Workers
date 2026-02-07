@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"camunda-workers/internal/common/camunda"
@@ -20,14 +20,11 @@ import (
 )
 
 type FranchiseHandler struct {
-	camundaClient    *camunda.Client
-	logger           logger.Logger
-	redisClient      *redis.Client
-	validator        *validation.Validator
-	sanitizer        *validation.Sanitizer
-	pendingResponses map[string]chan map[string]interface{}
-	requestTimes     map[string]time.Time
-	responseMutex    sync.RWMutex
+	camundaClient *camunda.Client
+	logger        logger.Logger
+	redisClient   *redis.Client
+	validator     *validation.Validator
+	sanitizer     *validation.Sanitizer
 }
 
 func NewFranchiseHandler(
@@ -35,58 +32,116 @@ func NewFranchiseHandler(
 	log logger.Logger,
 	redisClient *redis.Client,
 ) *FranchiseHandler {
-	handler := &FranchiseHandler{
-		camundaClient:    camundaClient,
-		logger:           log,
-		redisClient:      redisClient,
-		validator:        validation.NewValidator(),
-		sanitizer:        validation.NewSanitizer(),
-		pendingResponses: make(map[string]chan map[string]interface{}),
-		requestTimes:     make(map[string]time.Time),
-		responseMutex:    sync.RWMutex{},
+	return &FranchiseHandler{
+		camundaClient: camundaClient,
+		logger:        log,
+		redisClient:   redisClient,
+		validator:     validation.NewValidator(),
+		sanitizer:     validation.NewSanitizer(),
 	}
-
-	// Start cleanup goroutine
-	go handler.cleanupOldResponses()
-
-	return handler
 }
 
 // ========================================================================
-// 🔥 SPECIFIC WORKFLOW EXECUTION HELPERS
+// 🔥 SINGLE WORKFLOW EXECUTION METHOD - WORKS FOR ALL WORKFLOWS
 // ========================================================================
 
-func (h *FranchiseHandler) executeHomePageWorkflow(
-	c *gin.Context,
+func (h *FranchiseHandler) executeWorkflow(
+	ctx context.Context,
+	processID string,
+	variables map[string]interface{},
 ) (map[string]interface{}, error) {
+
+	correlationKey := variables["correlationKey"].(string)
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+
+	// ✅ STEP 1: Subscribe to Redis FIRST (before workflow starts)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	// ✅ STEP 2: Wait for subscription confirmation
+	if _, err := pubsub.Receive(ctx); err != nil {
+		return nil, fmt.Errorf("failed to confirm subscription: %w", err)
+	}
+
+	h.logger.Info("✅ Subscribed to Redis channel BEFORE workflow", map[string]interface{}{
+		"channel":        channel,
+		"correlationKey": correlationKey,
+		"processID":      processID,
+	})
+
+	// ✅ STEP 3: NOW start the workflow (subscription is ready)
+	instance, err := h.camundaClient.StartProcessInstance(ctx, processID, variables)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start workflow: %w", err)
+	}
+
+	h.logger.Info("Workflow started successfully", map[string]interface{}{
+		"processId":      processID,
+		"instanceKey":    instance.ProcessInstanceKey,
+		"correlationKey": correlationKey,
+	})
+
+	// ✅ STEP 4: Wait for response with dual fallback
+	responseChan := pubsub.Channel()
+	timeoutDuration := 30 * time.Second
+
+	select {
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		h.logger.Info("✅ Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+			"success":        response["success"],
+		})
+		return response, nil
+
+	case <-time.After(timeoutDuration):
+		// ✅ Fallback: Try cache
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache after timeout", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
+
+		h.logger.Error("Timeout waiting for workflow response", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"timeout":        timeoutDuration.String(),
+			"processID":      processID,
+		})
+		return nil, fmt.Errorf("timeout after %v", timeoutDuration)
+
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// ========================================================================
+// 📱 HOME PAGE
+// ========================================================================
+
+func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 	ctx := c.Request.Context()
 
-	// Generate unique correlation key
 	correlationKey := fmt.Sprintf("home_%s_%d",
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// ✅ Subscribe to Redis BEFORE workflow
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// // Cleanup on exit
-	// defer func() {
-	// 	h.responseMutex.Lock()
-	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
-	// 		close(ch)
-	// 		delete(h.pendingResponses, correlationKey)
-	// 	}
-	// 	h.responseMutex.Unlock()
-	// }()
-
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
 		"operation":      "home_page",
+		"pageType":       "home",
 		"lang":           c.GetHeader("X-Lang"),
 		"userId":         c.GetString("userId"),
-		"pageType":       "home",
 		"deviceType":     c.GetHeader("X-Device-Type"),
 		"countryCode":    c.GetHeader("X-Country-Code"),
 		"traceId":        c.GetString("traceId"),
@@ -96,477 +151,7 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 		"ipAddress":      c.ClientIP(),
 	}
 
-	// Start HOME PAGE workflow
-	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-home-page", variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start home page workflow: %w", err)
-	}
-
-	h.logger.Info("Home Page Workflow started", map[string]interface{}{
-		"instanceKey":    instance.ProcessInstanceKey,
-		"correlationKey": correlationKey,
-	})
-
-	// ✅ Wait for Redis pub/sub
-	timeout := time.After(60 * time.Second)
-	responseChan := pubsub.Channel()
-
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		h.logger.Info("Received response from Redis", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"channel":        channel,
-		})
-		return response, nil
-
-	case <-timeout:
-		// Try cache fallback
-		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
-				h.logger.Info("Retrieved from cache", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				return response, nil
-			}
-		}
-
-		h.logger.Error("Timeout", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return nil, fmt.Errorf("timeout after 60s")
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-func (h *FranchiseHandler) executeListingPageWorkflow(
-	c *gin.Context,
-	industrySlug string,
-	page, limit int,
-) (map[string]interface{}, error) {
-	ctx := c.Request.Context()
-
-	// Generate unique correlation key
-	correlationKey := fmt.Sprintf("listing_%s_%d",
-		uuid.New().String()[:8],
-		time.Now().UnixNano())
-
-	// ✅ Subscribe to Redis BEFORE workflow
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// // Cleanup on exit
-	// defer func() {
-	// 	h.responseMutex.Lock()
-	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
-	// 		close(ch)
-	// 		delete(h.pendingResponses, correlationKey)
-	// 	}
-	// 	h.responseMutex.Unlock()
-	// }()
-
-	variables := map[string]interface{}{
-		"correlationKey": correlationKey,
-		"operation":      "listing_page",
-		"industrySlug":   industrySlug,
-		"page":           page,
-		"limit":          limit,
-		"userId":         c.GetString("userId"),
-		"lang":           c.GetHeader("X-Lang"),
-		"pageType":       "listing",
-		"traceId":        c.GetString("traceId"),
-		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
-		"userAgent":      c.Request.UserAgent(),
-		"ipAddress":      c.ClientIP(),
-	}
-
-	// Start LISTING PAGE workflow
-	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-page", variables)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start listing page workflow: %w", err)
-	}
-
-	h.logger.Info("Listing Page Workflow started", map[string]interface{}{
-		"instanceKey":    instance.ProcessInstanceKey,
-		"correlationKey": correlationKey,
-		"industrySlug":   industrySlug,
-	})
-
-	// ✅ Wait for Redis pub/sub
-	timeout := time.After(60 * time.Second)
-	responseChan := pubsub.Channel()
-
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		h.logger.Info("Received response from Redis", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"channel":        channel,
-		})
-		return response, nil
-
-	case <-timeout:
-		// Try cache fallback
-		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
-				h.logger.Info("Retrieved from cache", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				return response, nil
-			}
-		}
-
-		h.logger.Error("Timeout", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return nil, fmt.Errorf("timeout after 60s")
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-func (h *FranchiseHandler) executeDetailPageWorkflow(
-	c *gin.Context,
-	slug string,
-) (map[string]interface{}, error) {
-	ctx := c.Request.Context()
-
-	// Generate unique correlation key
-	correlationKey := fmt.Sprintf("detail_%s_%d",
-		uuid.New().String()[:8],
-		time.Now().UnixNano())
-
-	// ✅ Subscribe to Redis BEFORE workflow
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// // Cleanup on exit
-	// defer func() {
-	// 	h.responseMutex.Lock()
-	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
-	// 		close(ch)
-	// 		delete(h.pendingResponses, correlationKey)
-	// 	}
-	// 	h.responseMutex.Unlock()
-	// }()
-
-	variables := map[string]interface{}{
-		"correlationKey": correlationKey,
-		"operation":      "detail_page",
-		"slug":           slug,
-		"userId":         c.GetString("userId"),
-		"lang":           c.GetHeader("X-Lang"),
-		"pageType":       "detail",
-		"includeStats":   true,
-		"traceId":        c.GetString("traceId"),
-		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
-		"userAgent":      c.Request.UserAgent(),
-		"ipAddress":      c.ClientIP(),
-	}
-
-	// Start DETAIL PAGE workflow
-	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-detail-page", variables)
-	if err != nil {
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
-		return nil, fmt.Errorf("failed to start detail page workflow: %w", err)
-	}
-
-	h.logger.Info("Detail Page Workflow started", map[string]interface{}{
-		"instanceKey":    instance.ProcessInstanceKey,
-		"correlationKey": correlationKey,
-		"slug":           slug,
-	})
-
-	// ✅ Wait for Redis pub/sub
-	timeout := time.After(60 * time.Second)
-	responseChan := pubsub.Channel()
-
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		h.logger.Info("Received response from Redis", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"channel":        channel,
-		})
-		return response, nil
-
-	case <-timeout:
-		// Try cache fallback
-		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
-				h.logger.Info("Retrieved from cache", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				return response, nil
-			}
-		}
-
-		h.logger.Error("Timeout", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return nil, fmt.Errorf("timeout after 60s")
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-func (h *FranchiseHandler) executeSearchWorkflow(
-	c *gin.Context,
-	filters models.FranchiseSearchFilters,
-) (map[string]interface{}, error) {
-	ctx := c.Request.Context()
-
-	// Generate unique correlation key
-	correlationKey := fmt.Sprintf("search_%s_%d",
-		uuid.New().String()[:8],
-		time.Now().UnixNano())
-
-	// ✅ Subscribe to Redis BEFORE workflow
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// // Cleanup on exit
-	// defer func() {
-	// 	h.responseMutex.Lock()
-	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
-	// 		close(ch)
-	// 		delete(h.pendingResponses, correlationKey)
-	// 	}
-	// 	h.responseMutex.Unlock()
-	// }()
-
-	variables := map[string]interface{}{
-		"correlationKey": correlationKey,
-		"operation":      "search_franchises",
-		"searchQuery":    filters.Query,
-
-		// 🔥 ONLY THIS IS USED BY ES WORKER
-		"filters": map[string]interface{}{
-			"query":         filters.Query,
-			"category":      filters.Category,
-			"location":      filters.Location,
-			"minInvestment": filters.MinInvestment,
-			"maxInvestment": filters.MaxInvestment,
-			"minSpace":      filters.MinSpace,
-			"maxSpace":      filters.MaxSpace,
-			"minRating":     filters.MinRating,
-			"tags":          filters.Tags,
-		},
-
-		// pagination
-		"page":  filters.Page,
-		"limit": filters.Limit,
-
-		"userId":     c.GetString("userId"),
-		"searchType": "advanced",
-
-		"traceId":   c.GetString("traceId"),
-		"spanId":    c.GetString("spanId"),
-		"requestId": c.GetString("X-Request-ID"),
-		"userAgent": c.Request.UserAgent(),
-		"ipAddress": c.ClientIP(),
-	}
-
-	// Start SEARCH workflow
-	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-ai-search", variables)
-	if err != nil {
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
-		return nil, fmt.Errorf("failed to start search workflow: %w", err)
-	}
-
-	h.logger.Info("Search Workflow started", map[string]interface{}{
-		"instanceKey":    instance.ProcessInstanceKey,
-		"correlationKey": correlationKey,
-		"query":          filters.Query,
-	})
-
-	// ✅ Wait for Redis pub/sub
-	timeout := time.After(60 * time.Second)
-	responseChan := pubsub.Channel()
-
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		h.logger.Info("Received response from Redis", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"channel":        channel,
-		})
-		return response, nil
-
-	case <-timeout:
-		// Try cache fallback
-		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
-				h.logger.Info("Retrieved from cache", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				return response, nil
-			}
-		}
-
-		h.logger.Error("Timeout", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return nil, fmt.Errorf("timeout after 60s")
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// ========================================================================
-// 🔥 SINGLE MVP WORKFLOW EXECUTION HELPER (for other operations)
-// ========================================================================
-
-func (h *FranchiseHandler) executeMVPWorkflow(
-	c *gin.Context,
-	operation string,
-	variables map[string]interface{},
-) (map[string]interface{}, error) {
-	ctx := c.Request.Context()
-
-	// Generate unique correlation key
-	correlationKey := fmt.Sprintf("mvp_%s_%s_%d",
-		operation,
-		uuid.New().String()[:8],
-		time.Now().UnixNano())
-
-	// ✅ Subscribe to Redis BEFORE workflow
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// // Cleanup on exit
-	// defer func() {
-	// 	h.responseMutex.Lock()
-	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
-	// 		close(ch)
-	// 		delete(h.pendingResponses, correlationKey)
-	// 	}
-	// 	h.responseMutex.Unlock()
-	// }()
-
-	// Add correlation key and operation to workflow variables
-	variables["correlationKey"] = correlationKey
-	variables["operation"] = operation
-	variables["traceId"] = c.GetString("traceId")
-	variables["spanId"] = c.GetString("spanId")
-	variables["requestId"] = c.GetString("X-Request-ID")
-	variables["userAgent"] = c.Request.UserAgent()
-	variables["ipAddress"] = c.ClientIP()
-
-	// Start MVP workflow
-	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-mvp-workflow", variables)
-	if err != nil {
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
-		return nil, fmt.Errorf("failed to start MVP workflow: %w", err)
-	}
-
-	h.logger.Info("MVP Workflow started", map[string]interface{}{
-		"operation":      operation,
-		"instanceKey":    instance.ProcessInstanceKey,
-		"correlationKey": correlationKey,
-	})
-
-	// ✅ Wait for Redis pub/sub
-	timeout := time.After(60 * time.Second)
-	responseChan := pubsub.Channel()
-
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			return nil, fmt.Errorf("failed to parse response: %w", err)
-		}
-
-		h.logger.Info("Received response from Redis", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"channel":        channel,
-		})
-		return response, nil
-
-	case <-timeout:
-		// Try cache fallback
-		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
-				h.logger.Info("Retrieved from cache", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				return response, nil
-			}
-		}
-
-		h.logger.Error("Timeout", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return nil, fmt.Errorf("timeout after 60s")
-
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-// ========================================================================
-// 📱 HOME PAGE OPERATIONS
-// ========================================================================
-
-func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
-	response, err := h.executeHomePageWorkflow(c)
+	response, err := h.executeWorkflow(ctx, "franchise-home-page", variables)
 	if err != nil {
 		h.internalError(c, "Failed to fetch home page data", err)
 		return
@@ -576,10 +161,11 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 }
 
 // ========================================================================
-// 📋 LISTING PAGE OPERATIONS
+// 📋 LISTING PAGE
 // ========================================================================
 
 func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
+	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
 	industrySlug := c.Query("industry")
 	page := 1
@@ -598,44 +184,57 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 
 	// If search query exists, use search workflow
 	if searchQuery != "" {
-		filters := models.FranchiseSearchFilters{
+		_ = models.FranchiseSearchFilters{
 			Query:    searchQuery,
 			Page:     page,
 			Limit:    limit,
 			Category: industrySlug,
 		}
-
-		response, err := h.executeSearchWorkflow(c, filters)
-		if err != nil {
-			h.internalError(c, "Failed to search franchises", err)
-			return
-		}
-		c.JSON(http.StatusOK, response)
+		h.SearchFranchises(c)
 		return
 	}
 
-	// If industry slug exists, use listing workflow
-	if industrySlug != "" {
-		response, err := h.executeListingPageWorkflow(c, industrySlug, page, limit)
-		if err != nil {
-			h.internalError(c, "Failed to fetch listing data", err)
-			return
-		}
-		c.JSON(http.StatusOK, response)
+	// Industry slug required for listing page
+	if industrySlug == "" {
+		h.validationError(c, "Either search query (q) or industry slug (industry) is required")
 		return
 	}
 
-	// Default: Return all franchises (no industry filter)
-	//response, err := h.executeListingPageWorkflow(c, "", page, limit)  // Empty industrySlug
-	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
+	correlationKey := fmt.Sprintf("listing_%s_%d",
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
 
+	variables := map[string]interface{}{
+		"correlationKey": correlationKey,
+		"operation":      "listing_page",
+		"pageType":       "listing",
+		"industrySlug":   industrySlug,
+		"page":           page,
+		"limit":          limit,
+		"userId":         c.GetString("userId"),
+		"lang":           c.GetHeader("X-Lang"),
+		"traceId":        c.GetString("traceId"),
+		"spanId":         c.GetString("spanId"),
+		"requestId":      c.GetString("X-Request-ID"),
+		"userAgent":      c.Request.UserAgent(),
+		"ipAddress":      c.ClientIP(),
+	}
+
+	response, err := h.executeWorkflow(ctx, "franchise-listing-page", variables)
+	if err != nil {
+		h.internalError(c, "Failed to fetch listing data", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // ========================================================================
-// 📄 DETAIL PAGE OPERATIONS
+// 📄 DETAIL PAGE
 // ========================================================================
 
 func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
+	ctx := c.Request.Context()
 	slug := c.Param("slug")
 
 	if slug == "" {
@@ -652,7 +251,26 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 		return
 	}
 
-	response, err := h.executeDetailPageWorkflow(c, slug)
+	correlationKey := fmt.Sprintf("detail_%s_%d",
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
+
+	variables := map[string]interface{}{
+		"correlationKey": correlationKey,
+		"operation":      "detail_page",
+		"pageType":       "detail",
+		"slug":           slug,
+		"includeStats":   true,
+		"userId":         c.GetString("userId"),
+		"lang":           c.GetHeader("X-Lang"),
+		"traceId":        c.GetString("traceId"),
+		"spanId":         c.GetString("spanId"),
+		"requestId":      c.GetString("X-Request-ID"),
+		"userAgent":      c.Request.UserAgent(),
+		"ipAddress":      c.ClientIP(),
+	}
+
+	response, err := h.executeWorkflow(ctx, "franchise-detail-page", variables)
 	if err != nil {
 		h.internalError(c, "Failed to fetch franchise details", err)
 		return
@@ -666,6 +284,7 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 // ========================================================================
 
 func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
+	ctx := c.Request.Context()
 	searchQuery := c.Query("query")
 
 	var filters models.FranchiseSearchFilters
@@ -701,7 +320,37 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		filters.Limit = 100
 	}
 
-	response, err := h.executeSearchWorkflow(c, filters)
+	correlationKey := fmt.Sprintf("search_%s_%d",
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
+
+	variables := map[string]interface{}{
+		"correlationKey": correlationKey,
+		"operation":      "search_franchises",
+		"searchQuery":    filters.Query,
+		"filters": map[string]interface{}{
+			"query":         filters.Query,
+			"category":      filters.Category,
+			"location":      filters.Location,
+			"minInvestment": filters.MinInvestment,
+			"maxInvestment": filters.MaxInvestment,
+			"minSpace":      filters.MinSpace,
+			"maxSpace":      filters.MaxSpace,
+			"minRating":     filters.MinRating,
+			"tags":          filters.Tags,
+		},
+		"page":       filters.Page,
+		"limit":      filters.Limit,
+		"userId":     c.GetString("userId"),
+		"searchType": "advanced",
+		"traceId":    c.GetString("traceId"),
+		"spanId":     c.GetString("spanId"),
+		"requestId":  c.GetString("X-Request-ID"),
+		"userAgent":  c.Request.UserAgent(),
+		"ipAddress":  c.ClientIP(),
+	}
+
+	response, err := h.executeWorkflow(ctx, "franchise-listing-ai-search", variables)
 	if err != nil {
 		h.internalError(c, "Failed to search franchises", err)
 		return
@@ -710,7 +359,6 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// Simple Search
 func (h *FranchiseHandler) SimpleSearch(c *gin.Context) {
 	query := c.Query("q")
 	page := 1
@@ -743,28 +391,50 @@ func (h *FranchiseHandler) SimpleSearch(c *gin.Context) {
 		return
 	}
 
-	filters := models.FranchiseSearchFilters{
+	_ = models.FranchiseSearchFilters{
 		Query: query,
 		Page:  page,
 		Limit: limit,
 	}
 
-	response, err := h.executeSearchWorkflow(c, filters)
-	if err != nil {
-		h.internalError(c, "Failed to search franchises", err)
-		return
-	}
-
-	c.JSON(http.StatusOK, response)
+	// Reuse SearchFranchises logic
+	c.Request.URL.RawQuery = fmt.Sprintf("query=%s&page=%d&limit=%d", query, page, limit)
+	h.SearchFranchises(c)
 }
 
 // ========================================================================
-// 🏢 FRANCHISE OPERATIONS (MVP Workflow)
+// 🏢 MVP WORKFLOW HELPER (for other operations)
+// ========================================================================
+
+func (h *FranchiseHandler) executeMVPWorkflow(
+	c *gin.Context,
+	operation string,
+	variables map[string]interface{},
+) (map[string]interface{}, error) {
+	ctx := c.Request.Context()
+
+	correlationKey := fmt.Sprintf("mvp_%s_%s_%d",
+		operation,
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
+
+	variables["correlationKey"] = correlationKey
+	variables["operation"] = operation
+	variables["traceId"] = c.GetString("traceId")
+	variables["spanId"] = c.GetString("spanId")
+	variables["requestId"] = c.GetString("X-Request-ID")
+	variables["userAgent"] = c.Request.UserAgent()
+	variables["ipAddress"] = c.ClientIP()
+
+	return h.executeWorkflow(ctx, "franchise-mvp-workflow", variables)
+}
+
+// ========================================================================
+// 🏢 FRANCHISE OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetByID(c *gin.Context) {
 	franchiseID := c.Param("id")
-
 	if franchiseID == "" {
 		h.validationError(c, "Franchise ID is required")
 		return
@@ -786,7 +456,6 @@ func (h *FranchiseHandler) GetByID(c *gin.Context) {
 
 func (h *FranchiseHandler) GetFranchiseOutlets(c *gin.Context) {
 	franchiseID := c.Param("id")
-
 	if franchiseID == "" {
 		h.validationError(c, "Franchise ID is required")
 		return
@@ -807,7 +476,6 @@ func (h *FranchiseHandler) GetFranchiseOutlets(c *gin.Context) {
 
 func (h *FranchiseHandler) GetFranchiseVerification(c *gin.Context) {
 	franchiseID := c.Param("id")
-
 	if franchiseID == "" {
 		h.validationError(c, "Franchise ID is required")
 		return
@@ -827,7 +495,7 @@ func (h *FranchiseHandler) GetFranchiseVerification(c *gin.Context) {
 }
 
 // ========================================================================
-// 📊 STATISTICS & ANALYTICS (MVP Workflow)
+// 📊 STATISTICS & ANALYTICS
 // ========================================================================
 
 func (h *FranchiseHandler) GetStats(c *gin.Context) {
@@ -847,7 +515,7 @@ func (h *FranchiseHandler) GetStats(c *gin.Context) {
 }
 
 // ========================================================================
-// 🗂️ CATEGORIES & INDUSTRIES (MVP Workflow)
+// 🗂️ CATEGORIES & INDUSTRIES
 // ========================================================================
 
 func (h *FranchiseHandler) GetCategories(c *gin.Context) {
@@ -868,7 +536,6 @@ func (h *FranchiseHandler) GetCategories(c *gin.Context) {
 
 func (h *FranchiseHandler) GetIndustryBySlug(c *gin.Context) {
 	slug := c.Param("slug")
-
 	if slug == "" {
 		h.validationError(c, "Industry slug is required")
 		return
@@ -906,7 +573,7 @@ func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 }
 
 // ========================================================================
-// ⭐ FEATURED & RECOMMENDED (MVP Workflow)
+// ⭐ FEATURED & RECOMMENDED
 // ========================================================================
 
 func (h *FranchiseHandler) GetFeatured(c *gin.Context) {
@@ -969,12 +636,11 @@ func (h *FranchiseHandler) GetSuggestions(c *gin.Context) {
 }
 
 // ========================================================================
-// 👤 USER OPERATIONS (MVP Workflow)
+// 👤 USER OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetUserProfile(c *gin.Context) {
 	userID := c.GetString("userId")
-
 	if userID == "" {
 		h.validationError(c, "User ID is required")
 		return
@@ -994,7 +660,6 @@ func (h *FranchiseHandler) GetUserProfile(c *gin.Context) {
 
 func (h *FranchiseHandler) UpdateUserProfile(c *gin.Context) {
 	userID := c.GetString("userId")
-
 	if userID == "" {
 		h.validationError(c, "User ID is required")
 		return
@@ -1020,7 +685,7 @@ func (h *FranchiseHandler) UpdateUserProfile(c *gin.Context) {
 }
 
 // ========================================================================
-// ❤️ USER FAVORITES (MVP Workflow)
+// ❤️ USER FAVORITES
 // ========================================================================
 
 func (h *FranchiseHandler) AddToFavorites(c *gin.Context) {
@@ -1069,7 +734,6 @@ func (h *FranchiseHandler) RemoveFromFavorites(c *gin.Context) {
 
 func (h *FranchiseHandler) GetFavorites(c *gin.Context) {
 	userID := c.GetString("userId")
-
 	if userID == "" {
 		h.validationError(c, "User ID is required")
 		return
@@ -1103,7 +767,7 @@ func (h *FranchiseHandler) GetFavorites(c *gin.Context) {
 }
 
 // ========================================================================
-// 🔍 SAVED SEARCHES (MVP Workflow)
+// 🔍 SAVED SEARCHES
 // ========================================================================
 
 func (h *FranchiseHandler) SaveSearch(c *gin.Context) {
@@ -1168,7 +832,7 @@ func (h *FranchiseHandler) DeleteSavedSearch(c *gin.Context) {
 }
 
 // ========================================================================
-// 🆕 BATCH OPERATIONS (MVP Workflow)
+// 🆕 BATCH OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) BatchGetFranchises(c *gin.Context) {
@@ -1205,7 +869,7 @@ func (h *FranchiseHandler) BatchGetFranchises(c *gin.Context) {
 }
 
 // ========================================================================
-// 🏷️ TAGS OPERATIONS (MVP Workflow)
+// 🏷️ TAGS OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
@@ -1230,7 +894,7 @@ func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
 }
 
 // ========================================================================
-// 🔄 HEALTH CHECK (MVP Workflow)
+// 🔄 HEALTH CHECK
 // ========================================================================
 
 func (h *FranchiseHandler) HealthCheck(c *gin.Context) {
@@ -1309,114 +973,1428 @@ func (h *FranchiseHandler) validateSearchFilters(filters *models.FranchiseSearch
 }
 
 // ========================================================================
-// 🔄 RESPONSE HANDLER
+// 🔌 COMPATIBILITY METHODS (Not Used - For Registry Interface)
 // ========================================================================
 
+// These methods exist only for backward compatibility with registry
+// The new design doesn't use them, but they're kept to avoid breaking changes
+
 func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, response map[string]interface{}) error {
-
-	// parts := strings.Split(correlationKey, "_")
-	// if len(parts) >= 3 {
-	// 	timestampStr := parts[len(parts)-1]
-	// 	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
-	// 		requestTime := time.Unix(0, timestamp)
-	// 		if time.Since(requestTime) > 30*time.Second {
-	// 			h.logger.Warn("Request expired, skipping response", map[string]interface{}{
-	// 				"correlationKey": correlationKey,
-	// 				"age":            time.Since(requestTime).String(),
-	// 			})
-	// 			return nil
-	// 		}
-	// 	}
-	// }
-
-	h.responseMutex.RLock()
-	responseChan, exists := h.pendingResponses[correlationKey]
-	requestTime, timeExists := h.requestTimes[correlationKey] // ✅ ADD THIS LINE
-	h.responseMutex.RUnlock()
-
-	if !exists {
-		h.logger.Warn("No waiting request found for response", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"response":       response,
-		})
-		return fmt.Errorf("no waiting request for correlation key: %s", correlationKey)
-	}
-
-	// ✅ ADD THIS BLOCK
-	if timeExists {
-		age := time.Since(requestTime)
-		if age > 60*time.Second {
-			h.logger.Warn("Request too old, dropping response", map[string]interface{}{
-				"correlationKey": correlationKey,
-				"age":            age.String(),
-			})
-			return fmt.Errorf("request expired (age: %s)", age)
-		}
-	}
-
-	// Send response to waiting channel
-	select {
-	case responseChan <- response:
-		h.logger.Info("Response delivered to API handler", map[string]interface{}{
-			"correlationKey": correlationKey,
-			"success":        response["success"],
-		})
-		return nil
-	case <-time.After(2 * time.Second):
-		h.logger.Error("Response channel blocked", map[string]interface{}{
-			"correlationKey": correlationKey,
-		})
-		return fmt.Errorf("response channel blocked for key: %s", correlationKey)
-	}
-}
-func (h *FranchiseHandler) cleanupOldResponses() {
-	ticker := time.NewTicker(30 * time.Second) // ✅ CHANGED from 10s to 30s
-	defer ticker.Stop()
-
-	h.logger.Info("Response cleanup goroutine started", map[string]interface{}{}) // ✅ ADD THIS
-
-	for range ticker.C {
-		h.responseMutex.Lock()
-		now := time.Now()
-
-		for key, ch := range h.pendingResponses {
-			// ✅ CHANGED: Check requestTimes instead of parsing key
-			if requestTime, exists := h.requestTimes[key]; exists {
-				age := now.Sub(requestTime)
-
-				if age > 60*time.Second { // ✅ CHANGED from 30s to 60s
-					timeoutResponse := map[string]interface{}{
-						"success": false,
-						"error":   "Request timeout",
-						"code":    "TIMEOUT",
-					}
-
-					select {
-					case ch <- timeoutResponse:
-					default:
-					}
-
-					close(ch)
-					delete(h.pendingResponses, key)
-					delete(h.requestTimes, key) // ✅ ADD THIS LINE
-
-					h.logger.Warn("Cleaned expired request", map[string]interface{}{
-						"correlationKey": key,
-						"age":            age.String(),
-					})
-				}
-			}
-		}
-
-		h.responseMutex.Unlock()
-	}
+	// Not used in new Redis pub/sub design
+	return nil
 }
 
 func (h *FranchiseHandler) PendingResponsesCount() int {
-	h.responseMutex.RLock()
-	defer h.responseMutex.RUnlock()
-	return len(h.pendingResponses)
+	// Not used in new Redis pub/sub design
+	return 0
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// package handlers
+
+// import (
+// 	"encoding/json"
+// 	"fmt"
+// 	"net/http"
+// 	"strconv"
+// 	"sync"
+// 	"time"
+
+// 	"camunda-workers/internal/common/camunda"
+// 	"camunda-workers/internal/common/logger"
+// 	"camunda-workers/internal/common/validation"
+// 	"camunda-workers/internal/models"
+
+// 	"github.com/gin-gonic/gin"
+// 	ozzo "github.com/go-ozzo/ozzo-validation/v4"
+// 	"github.com/google/uuid"
+// 	"github.com/redis/go-redis/v9"
+// )
+
+// type FranchiseHandler struct {
+// 	camundaClient    *camunda.Client
+// 	logger           logger.Logger
+// 	redisClient      *redis.Client
+// 	validator        *validation.Validator
+// 	sanitizer        *validation.Sanitizer
+// 	pendingResponses map[string]chan map[string]interface{}
+// 	requestTimes     map[string]time.Time
+// 	responseMutex    sync.RWMutex
+// }
+
+// func NewFranchiseHandler(
+// 	camundaClient *camunda.Client,
+// 	log logger.Logger,
+// 	redisClient *redis.Client,
+// ) *FranchiseHandler {
+// 	handler := &FranchiseHandler{
+// 		camundaClient:    camundaClient,
+// 		logger:           log,
+// 		redisClient:      redisClient,
+// 		validator:        validation.NewValidator(),
+// 		sanitizer:        validation.NewSanitizer(),
+// 		pendingResponses: make(map[string]chan map[string]interface{}),
+// 		requestTimes:     make(map[string]time.Time),
+// 		responseMutex:    sync.RWMutex{},
+// 	}
+
+// 	// Start cleanup goroutine
+// 	go handler.cleanupOldResponses()
+
+// 	return handler
+// }
+
+// // ========================================================================
+// // 🔥 SPECIFIC WORKFLOW EXECUTION HELPERS
+// // ========================================================================
+
+// func (h *FranchiseHandler) executeHomePageWorkflow(
+// 	c *gin.Context,
+// ) (map[string]interface{}, error) {
+// 	ctx := c.Request.Context()
+
+// 	// Generate unique correlation key
+// 	correlationKey := fmt.Sprintf("home_%s_%d",
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	// ✅ Subscribe to Redis BEFORE workflow
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	// // Cleanup on exit
+// 	// defer func() {
+// 	// 	h.responseMutex.Lock()
+// 	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+// 	// 		close(ch)
+// 	// 		delete(h.pendingResponses, correlationKey)
+// 	// 	}
+// 	// 	h.responseMutex.Unlock()
+// 	// }()
+
+// 	variables := map[string]interface{}{
+// 		"correlationKey": correlationKey,
+// 		"operation":      "home_page",
+// 		"lang":           c.GetHeader("X-Lang"),
+// 		"userId":         c.GetString("userId"),
+// 		"pageType":       "home",
+// 		"deviceType":     c.GetHeader("X-Device-Type"),
+// 		"countryCode":    c.GetHeader("X-Country-Code"),
+// 		"traceId":        c.GetString("traceId"),
+// 		"spanId":         c.GetString("spanId"),
+// 		"requestId":      c.GetString("X-Request-ID"),
+// 		"userAgent":      c.Request.UserAgent(),
+// 		"ipAddress":      c.ClientIP(),
+// 	}
+
+// 	// Start HOME PAGE workflow
+// 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-home-page", variables)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to start home page workflow: %w", err)
+// 	}
+
+// 	h.logger.Info("Home Page Workflow started", map[string]interface{}{
+// 		"instanceKey":    instance.ProcessInstanceKey,
+// 		"correlationKey": correlationKey,
+// 	})
+
+// 	// ✅ Wait for Redis pub/sub
+// 	timeout := time.After(60 * time.Second)
+// 	responseChan := pubsub.Channel()
+
+// 	select {
+// 	case msg := <-responseChan:
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			return nil, fmt.Errorf("failed to parse response: %w", err)
+// 		}
+
+// 		h.logger.Info("Received response from Redis", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"channel":        channel,
+// 		})
+// 		return response, nil
+
+// 	case <-timeout:
+// 		// Try cache fallback
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+// 				h.logger.Info("Retrieved from cache", map[string]interface{}{
+// 					"correlationKey": correlationKey,
+// 				})
+// 				return response, nil
+// 			}
+// 		}
+
+// 		h.logger.Error("Timeout", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return nil, fmt.Errorf("timeout after 60s")
+
+// 	case <-ctx.Done():
+// 		return nil, ctx.Err()
+// 	}
+// }
+
+// func (h *FranchiseHandler) executeListingPageWorkflow(
+// 	c *gin.Context,
+// 	industrySlug string,
+// 	page, limit int,
+// ) (map[string]interface{}, error) {
+// 	ctx := c.Request.Context()
+
+// 	// Generate unique correlation key
+// 	correlationKey := fmt.Sprintf("listing_%s_%d",
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	// ✅ Subscribe to Redis BEFORE workflow
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	// // Cleanup on exit
+// 	// defer func() {
+// 	// 	h.responseMutex.Lock()
+// 	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+// 	// 		close(ch)
+// 	// 		delete(h.pendingResponses, correlationKey)
+// 	// 	}
+// 	// 	h.responseMutex.Unlock()
+// 	// }()
+
+// 	variables := map[string]interface{}{
+// 		"correlationKey": correlationKey,
+// 		"operation":      "listing_page",
+// 		"industrySlug":   industrySlug,
+// 		"page":           page,
+// 		"limit":          limit,
+// 		"userId":         c.GetString("userId"),
+// 		"lang":           c.GetHeader("X-Lang"),
+// 		"pageType":       "listing",
+// 		"traceId":        c.GetString("traceId"),
+// 		"spanId":         c.GetString("spanId"),
+// 		"requestId":      c.GetString("X-Request-ID"),
+// 		"userAgent":      c.Request.UserAgent(),
+// 		"ipAddress":      c.ClientIP(),
+// 	}
+
+// 	// Start LISTING PAGE workflow
+// 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-page", variables)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to start listing page workflow: %w", err)
+// 	}
+
+// 	h.logger.Info("Listing Page Workflow started", map[string]interface{}{
+// 		"instanceKey":    instance.ProcessInstanceKey,
+// 		"correlationKey": correlationKey,
+// 		"industrySlug":   industrySlug,
+// 	})
+
+// 	// ✅ Wait for Redis pub/sub
+// 	timeout := time.After(60 * time.Second)
+// 	responseChan := pubsub.Channel()
+
+// 	select {
+// 	case msg := <-responseChan:
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			return nil, fmt.Errorf("failed to parse response: %w", err)
+// 		}
+
+// 		h.logger.Info("Received response from Redis", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"channel":        channel,
+// 		})
+// 		return response, nil
+
+// 	case <-timeout:
+// 		// Try cache fallback
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+// 				h.logger.Info("Retrieved from cache", map[string]interface{}{
+// 					"correlationKey": correlationKey,
+// 				})
+// 				return response, nil
+// 			}
+// 		}
+
+// 		h.logger.Error("Timeout", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return nil, fmt.Errorf("timeout after 60s")
+
+// 	case <-ctx.Done():
+// 		return nil, ctx.Err()
+// 	}
+// }
+
+// func (h *FranchiseHandler) executeDetailPageWorkflow(
+// 	c *gin.Context,
+// 	slug string,
+// ) (map[string]interface{}, error) {
+// 	ctx := c.Request.Context()
+
+// 	// Generate unique correlation key
+// 	correlationKey := fmt.Sprintf("detail_%s_%d",
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	// ✅ Subscribe to Redis BEFORE workflow
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	// // Cleanup on exit
+// 	// defer func() {
+// 	// 	h.responseMutex.Lock()
+// 	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+// 	// 		close(ch)
+// 	// 		delete(h.pendingResponses, correlationKey)
+// 	// 	}
+// 	// 	h.responseMutex.Unlock()
+// 	// }()
+
+// 	variables := map[string]interface{}{
+// 		"correlationKey": correlationKey,
+// 		"operation":      "detail_page",
+// 		"slug":           slug,
+// 		"userId":         c.GetString("userId"),
+// 		"lang":           c.GetHeader("X-Lang"),
+// 		"pageType":       "detail",
+// 		"includeStats":   true,
+// 		"traceId":        c.GetString("traceId"),
+// 		"spanId":         c.GetString("spanId"),
+// 		"requestId":      c.GetString("X-Request-ID"),
+// 		"userAgent":      c.Request.UserAgent(),
+// 		"ipAddress":      c.ClientIP(),
+// 	}
+
+// 	// Start DETAIL PAGE workflow
+// 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-detail-page", variables)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to start detail page workflow: %w", err)
+// 	}
+
+// 	h.logger.Info("Detail Page Workflow started", map[string]interface{}{
+// 		"instanceKey":    instance.ProcessInstanceKey,
+// 		"correlationKey": correlationKey,
+// 		"slug":           slug,
+// 	})
+
+// 	// ✅ Wait for Redis pub/sub
+// 	timeout := time.After(60 * time.Second)
+// 	responseChan := pubsub.Channel()
+
+// 	select {
+// 	case msg := <-responseChan:
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			return nil, fmt.Errorf("failed to parse response: %w", err)
+// 		}
+
+// 		h.logger.Info("Received response from Redis", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"channel":        channel,
+// 		})
+// 		return response, nil
+
+// 	case <-timeout:
+// 		// Try cache fallback
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+// 				h.logger.Info("Retrieved from cache", map[string]interface{}{
+// 					"correlationKey": correlationKey,
+// 				})
+// 				return response, nil
+// 			}
+// 		}
+
+// 		h.logger.Error("Timeout", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return nil, fmt.Errorf("timeout after 60s")
+
+// 	case <-ctx.Done():
+// 		return nil, ctx.Err()
+// 	}
+// }
+
+// func (h *FranchiseHandler) executeSearchWorkflow(
+// 	c *gin.Context,
+// 	filters models.FranchiseSearchFilters,
+// ) (map[string]interface{}, error) {
+// 	ctx := c.Request.Context()
+
+// 	// Generate unique correlation key
+// 	correlationKey := fmt.Sprintf("search_%s_%d",
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	// ✅ Subscribe to Redis BEFORE workflow
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	// // Cleanup on exit
+// 	// defer func() {
+// 	// 	h.responseMutex.Lock()
+// 	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+// 	// 		close(ch)
+// 	// 		delete(h.pendingResponses, correlationKey)
+// 	// 	}
+// 	// 	h.responseMutex.Unlock()
+// 	// }()
+
+// 	variables := map[string]interface{}{
+// 		"correlationKey": correlationKey,
+// 		"operation":      "search_franchises",
+// 		"searchQuery":    filters.Query,
+
+// 		// 🔥 ONLY THIS IS USED BY ES WORKER
+// 		"filters": map[string]interface{}{
+// 			"query":         filters.Query,
+// 			"category":      filters.Category,
+// 			"location":      filters.Location,
+// 			"minInvestment": filters.MinInvestment,
+// 			"maxInvestment": filters.MaxInvestment,
+// 			"minSpace":      filters.MinSpace,
+// 			"maxSpace":      filters.MaxSpace,
+// 			"minRating":     filters.MinRating,
+// 			"tags":          filters.Tags,
+// 		},
+
+// 		// pagination
+// 		"page":  filters.Page,
+// 		"limit": filters.Limit,
+
+// 		"userId":     c.GetString("userId"),
+// 		"searchType": "advanced",
+
+// 		"traceId":   c.GetString("traceId"),
+// 		"spanId":    c.GetString("spanId"),
+// 		"requestId": c.GetString("X-Request-ID"),
+// 		"userAgent": c.Request.UserAgent(),
+// 		"ipAddress": c.ClientIP(),
+// 	}
+
+// 	// Start SEARCH workflow
+// 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-ai-search", variables)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to start search workflow: %w", err)
+// 	}
+
+// 	h.logger.Info("Search Workflow started", map[string]interface{}{
+// 		"instanceKey":    instance.ProcessInstanceKey,
+// 		"correlationKey": correlationKey,
+// 		"query":          filters.Query,
+// 	})
+
+// 	// ✅ Wait for Redis pub/sub
+// 	timeout := time.After(60 * time.Second)
+// 	responseChan := pubsub.Channel()
+
+// 	select {
+// 	case msg := <-responseChan:
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			return nil, fmt.Errorf("failed to parse response: %w", err)
+// 		}
+
+// 		h.logger.Info("Received response from Redis", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"channel":        channel,
+// 		})
+// 		return response, nil
+
+// 	case <-timeout:
+// 		// Try cache fallback
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+// 				h.logger.Info("Retrieved from cache", map[string]interface{}{
+// 					"correlationKey": correlationKey,
+// 				})
+// 				return response, nil
+// 			}
+// 		}
+
+// 		h.logger.Error("Timeout", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return nil, fmt.Errorf("timeout after 60s")
+
+// 	case <-ctx.Done():
+// 		return nil, ctx.Err()
+// 	}
+// }
+
+// // ========================================================================
+// // 🔥 SINGLE MVP WORKFLOW EXECUTION HELPER (for other operations)
+// // ========================================================================
+
+// func (h *FranchiseHandler) executeMVPWorkflow(
+// 	c *gin.Context,
+// 	operation string,
+// 	variables map[string]interface{},
+// ) (map[string]interface{}, error) {
+// 	ctx := c.Request.Context()
+
+// 	// Generate unique correlation key
+// 	correlationKey := fmt.Sprintf("mvp_%s_%s_%d",
+// 		operation,
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	// ✅ Subscribe to Redis BEFORE workflow
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	// // Cleanup on exit
+// 	// defer func() {
+// 	// 	h.responseMutex.Lock()
+// 	// 	if ch, exists := h.pendingResponses[correlationKey]; exists {
+// 	// 		close(ch)
+// 	// 		delete(h.pendingResponses, correlationKey)
+// 	// 	}
+// 	// 	h.responseMutex.Unlock()
+// 	// }()
+
+// 	// Add correlation key and operation to workflow variables
+// 	variables["correlationKey"] = correlationKey
+// 	variables["operation"] = operation
+// 	variables["traceId"] = c.GetString("traceId")
+// 	variables["spanId"] = c.GetString("spanId")
+// 	variables["requestId"] = c.GetString("X-Request-ID")
+// 	variables["userAgent"] = c.Request.UserAgent()
+// 	variables["ipAddress"] = c.ClientIP()
+
+// 	// Start MVP workflow
+// 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-mvp-workflow", variables)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to start MVP workflow: %w", err)
+// 	}
+
+// 	h.logger.Info("MVP Workflow started", map[string]interface{}{
+// 		"operation":      operation,
+// 		"instanceKey":    instance.ProcessInstanceKey,
+// 		"correlationKey": correlationKey,
+// 	})
+
+// 	// ✅ Wait for Redis pub/sub
+// 	timeout := time.After(60 * time.Second)
+// 	responseChan := pubsub.Channel()
+
+// 	select {
+// 	case msg := <-responseChan:
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			return nil, fmt.Errorf("failed to parse response: %w", err)
+// 		}
+
+// 		h.logger.Info("Received response from Redis", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"channel":        channel,
+// 		})
+// 		return response, nil
+
+// 	case <-timeout:
+// 		// Try cache fallback
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+// 				h.logger.Info("Retrieved from cache", map[string]interface{}{
+// 					"correlationKey": correlationKey,
+// 				})
+// 				return response, nil
+// 			}
+// 		}
+
+// 		h.logger.Error("Timeout", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return nil, fmt.Errorf("timeout after 60s")
+
+// 	case <-ctx.Done():
+// 		return nil, ctx.Err()
+// 	}
+// }
+
+// // ========================================================================
+// // 📱 HOME PAGE OPERATIONS
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
+// 	response, err := h.executeHomePageWorkflow(c)
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch home page data", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 📋 LISTING PAGE OPERATIONS
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
+// 	searchQuery := c.Query("q")
+// 	industrySlug := c.Query("industry")
+// 	page := 1
+// 	limit := 12
+
+// 	if p := c.Query("page"); p != "" {
+// 		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+// 			page = pageNum
+// 		}
+// 	}
+// 	if l := c.Query("limit"); l != "" {
+// 		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+// 			limit = limitNum
+// 		}
+// 	}
+
+// 	// If search query exists, use search workflow
+// 	if searchQuery != "" {
+// 		filters := models.FranchiseSearchFilters{
+// 			Query:    searchQuery,
+// 			Page:     page,
+// 			Limit:    limit,
+// 			Category: industrySlug,
+// 		}
+
+// 		response, err := h.executeSearchWorkflow(c, filters)
+// 		if err != nil {
+// 			h.internalError(c, "Failed to search franchises", err)
+// 			return
+// 		}
+// 		c.JSON(http.StatusOK, response)
+// 		return
+// 	}
+
+// 	// If industry slug exists, use listing workflow
+// 	if industrySlug != "" {
+// 		response, err := h.executeListingPageWorkflow(c, industrySlug, page, limit)
+// 		if err != nil {
+// 			h.internalError(c, "Failed to fetch listing data", err)
+// 			return
+// 		}
+// 		c.JSON(http.StatusOK, response)
+// 		return
+// 	}
+
+// 	// Default: Return all franchises (no industry filter)
+// 	//response, err := h.executeListingPageWorkflow(c, "", page, limit)  // Empty industrySlug
+// 	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
+
+// }
+
+// // ========================================================================
+// // 📄 DETAIL PAGE OPERATIONS
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
+// 	slug := c.Param("slug")
+
+// 	if slug == "" {
+// 		h.validationError(c, "Franchise slug is required")
+// 		return
+// 	}
+
+// 	// Validate slug
+// 	if err := ozzo.Validate(slug,
+// 		validation.ValidateStringLength(1, 100),
+// 		validation.SafeSQLString,
+// 	); err != nil {
+// 		h.validationError(c, "Invalid franchise slug: "+err.Error())
+// 		return
+// 	}
+
+// 	response, err := h.executeDetailPageWorkflow(c, slug)
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch franchise details", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🔍 SEARCH OPERATIONS
+// // ========================================================================
+
+// func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
+// 	searchQuery := c.Query("query")
+
+// 	var filters models.FranchiseSearchFilters
+// 	if err := c.ShouldBindQuery(&filters); err != nil {
+// 		h.validationError(c, "Invalid search parameters: "+err.Error())
+// 		return
+// 	}
+
+// 	if searchQuery != "" {
+// 		filters.Query = searchQuery
+// 	}
+
+// 	h.logger.Info("Search request received", map[string]interface{}{
+// 		"query":    filters.Query,
+// 		"category": filters.Category,
+// 		"rawURL":   c.Request.URL.String(),
+// 	})
+
+// 	// Validate inputs
+// 	if err := h.validateSearchFilters(&filters); err != nil {
+// 		h.validationError(c, err.Error())
+// 		return
+// 	}
+
+// 	// Set defaults
+// 	if filters.Page <= 0 {
+// 		filters.Page = 1
+// 	}
+// 	if filters.Limit <= 0 {
+// 		filters.Limit = 10
+// 	}
+// 	if filters.Limit > 100 {
+// 		filters.Limit = 100
+// 	}
+
+// 	response, err := h.executeSearchWorkflow(c, filters)
+// 	if err != nil {
+// 		h.internalError(c, "Failed to search franchises", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // Simple Search
+// func (h *FranchiseHandler) SimpleSearch(c *gin.Context) {
+// 	query := c.Query("q")
+// 	page := 1
+// 	limit := 20
+
+// 	if p := c.Query("page"); p != "" {
+// 		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+// 			page = pageNum
+// 		}
+// 	}
+// 	if l := c.Query("limit"); l != "" {
+// 		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+// 			limit = limitNum
+// 		}
+// 	}
+
+// 	if query == "" {
+// 		c.JSON(http.StatusOK, gin.H{
+// 			"success": true,
+// 			"data": gin.H{
+// 				"franchises": []map[string]interface{}{},
+// 				"pagination": gin.H{
+// 					"page":       page,
+// 					"limit":      limit,
+// 					"total":      0,
+// 					"totalPages": 0,
+// 				},
+// 			},
+// 		})
+// 		return
+// 	}
+
+// 	filters := models.FranchiseSearchFilters{
+// 		Query: query,
+// 		Page:  page,
+// 		Limit: limit,
+// 	}
+
+// 	response, err := h.executeSearchWorkflow(c, filters)
+// 	if err != nil {
+// 		h.internalError(c, "Failed to search franchises", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🏢 FRANCHISE OPERATIONS (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetByID(c *gin.Context) {
+// 	franchiseID := c.Param("id")
+
+// 	if franchiseID == "" {
+// 		h.validationError(c, "Franchise ID is required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_franchise", map[string]interface{}{
+// 		"franchiseId": franchiseID,
+// 		"userId":      c.GetString("userId"),
+// 		"includeAll":  true,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch franchise", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetFranchiseOutlets(c *gin.Context) {
+// 	franchiseID := c.Param("id")
+
+// 	if franchiseID == "" {
+// 		h.validationError(c, "Franchise ID is required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_franchise_outlets", map[string]interface{}{
+// 		"franchiseId": franchiseID,
+// 		"userId":      c.GetString("userId"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch franchise outlets", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetFranchiseVerification(c *gin.Context) {
+// 	franchiseID := c.Param("id")
+
+// 	if franchiseID == "" {
+// 		h.validationError(c, "Franchise ID is required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_franchise_verification", map[string]interface{}{
+// 		"franchiseId": franchiseID,
+// 		"userId":      c.GetString("userId"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch franchise verification", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 📊 STATISTICS & ANALYTICS (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetStats(c *gin.Context) {
+// 	response, err := h.executeMVPWorkflow(c, "get_stats", map[string]interface{}{
+// 		"userId":    c.GetString("userId"),
+// 		"statsType": "overview",
+// 		"timeRange": c.Query("timeRange"),
+// 		"groupBy":   c.Query("groupBy"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch statistics", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🗂️ CATEGORIES & INDUSTRIES (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetCategories(c *gin.Context) {
+// 	response, err := h.executeMVPWorkflow(c, "get_categories", map[string]interface{}{
+// 		"lang":   c.GetHeader("X-Lang"),
+// 		"userId": c.GetString("userId"),
+// 		"limit":  c.Query("limit"),
+// 		"offset": c.Query("offset"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch categories", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetIndustryBySlug(c *gin.Context) {
+// 	slug := c.Param("slug")
+
+// 	if slug == "" {
+// 		h.validationError(c, "Industry slug is required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_industry", map[string]interface{}{
+// 		"industrySlug":      slug,
+// 		"lang":              c.GetHeader("X-Lang"),
+// 		"userId":            c.GetString("userId"),
+// 		"includeCategories": c.Query("includeCategories") == "true",
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch industry details", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
+// 	response, err := h.executeMVPWorkflow(c, "get_industries", map[string]interface{}{
+// 		"lang":       c.GetHeader("X-Lang"),
+// 		"userId":     c.GetString("userId"),
+// 		"activeOnly": c.Query("activeOnly") != "false",
+// 		"withCounts": c.Query("withCounts") == "true",
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch industries", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // ⭐ FEATURED & RECOMMENDED (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetFeatured(c *gin.Context) {
+// 	limit := 10
+// 	if l := c.Query("limit"); l != "" {
+// 		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+// 			limit = limitNum
+// 		}
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_featured", map[string]interface{}{
+// 		"limit":        limit,
+// 		"userId":       c.GetString("userId"),
+// 		"lang":         c.GetHeader("X-Lang"),
+// 		"featuredType": c.Query("type"),
+// 		"countryCode":  c.GetHeader("X-Country-Code"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch featured franchises", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetSuggestions(c *gin.Context) {
+// 	query := c.Query("q")
+
+// 	if query == "" {
+// 		c.JSON(http.StatusOK, gin.H{
+// 			"success": true,
+// 			"data":    []string{},
+// 		})
+// 		return
+// 	}
+
+// 	// Validate query
+// 	if err := ozzo.Validate(query,
+// 		validation.ValidateStringLength(1, 100),
+// 		validation.SafeSQLString,
+// 	); err != nil {
+// 		h.validationError(c, "Invalid query: "+err.Error())
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_suggestions", map[string]interface{}{
+// 		"prefix":         query,
+// 		"userId":         c.GetString("userId"),
+// 		"limit":          10,
+// 		"suggestionType": c.Query("type"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to get suggestions", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 👤 USER OPERATIONS (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetUserProfile(c *gin.Context) {
+// 	userID := c.GetString("userId")
+
+// 	if userID == "" {
+// 		h.validationError(c, "User ID is required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_user_profile", map[string]interface{}{
+// 		"userId": userID,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to get user profile", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) UpdateUserProfile(c *gin.Context) {
+// 	userID := c.GetString("userId")
+
+// 	if userID == "" {
+// 		h.validationError(c, "User ID is required")
+// 		return
+// 	}
+
+// 	var input map[string]interface{}
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		h.validationError(c, "Invalid input: "+err.Error())
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "update_user_profile", map[string]interface{}{
+// 		"userId":      userID,
+// 		"profileData": input,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to update user profile", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // ❤️ USER FAVORITES (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) AddToFavorites(c *gin.Context) {
+// 	franchiseID := c.Param("id")
+// 	userID := c.GetString("userId")
+
+// 	if franchiseID == "" || userID == "" {
+// 		h.validationError(c, "Franchise ID and User ID are required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "add_to_favorites", map[string]interface{}{
+// 		"userId":      userID,
+// 		"franchiseId": franchiseID,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to add to favorites", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) RemoveFromFavorites(c *gin.Context) {
+// 	franchiseID := c.Param("id")
+// 	userID := c.GetString("userId")
+
+// 	if franchiseID == "" || userID == "" {
+// 		h.validationError(c, "Franchise ID and User ID are required")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "remove_from_favorites", map[string]interface{}{
+// 		"userId":      userID,
+// 		"franchiseId": franchiseID,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to remove from favorites", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetFavorites(c *gin.Context) {
+// 	userID := c.GetString("userId")
+
+// 	if userID == "" {
+// 		h.validationError(c, "User ID is required")
+// 		return
+// 	}
+
+// 	page := 1
+// 	limit := 20
+// 	if p := c.Query("page"); p != "" {
+// 		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+// 			page = pageNum
+// 		}
+// 	}
+// 	if l := c.Query("limit"); l != "" {
+// 		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+// 			limit = limitNum
+// 		}
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_favorites", map[string]interface{}{
+// 		"userId": userID,
+// 		"page":   page,
+// 		"limit":  limit,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to get favorites", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🔍 SAVED SEARCHES (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) SaveSearch(c *gin.Context) {
+// 	userID := c.GetString("userId")
+
+// 	var input struct {
+// 		Name    string                        `json:"name" binding:"required"`
+// 		Filters models.FranchiseSearchFilters `json:"filters" binding:"required"`
+// 	}
+
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		h.validationError(c, "Invalid input: "+err.Error())
+// 		return
+// 	}
+
+// 	filtersJSON, _ := json.Marshal(input.Filters)
+
+// 	response, err := h.executeMVPWorkflow(c, "save_search", map[string]interface{}{
+// 		"userId":     userID,
+// 		"searchName": input.Name,
+// 		"filters":    string(filtersJSON),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to save search", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) GetSavedSearches(c *gin.Context) {
+// 	userID := c.GetString("userId")
+
+// 	response, err := h.executeMVPWorkflow(c, "get_saved_searches", map[string]interface{}{
+// 		"userId": userID,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to get saved searches", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// func (h *FranchiseHandler) DeleteSavedSearch(c *gin.Context) {
+// 	searchID := c.Param("id")
+// 	userID := c.GetString("userId")
+
+// 	response, err := h.executeMVPWorkflow(c, "delete_saved_search", map[string]interface{}{
+// 		"userId":   userID,
+// 		"searchId": searchID,
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to delete saved search", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🆕 BATCH OPERATIONS (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) BatchGetFranchises(c *gin.Context) {
+// 	var request struct {
+// 		FranchiseIDs []string `json:"franchiseIds" binding:"required"`
+// 	}
+
+// 	if err := c.ShouldBindJSON(&request); err != nil {
+// 		h.validationError(c, "Invalid request: "+err.Error())
+// 		return
+// 	}
+
+// 	if len(request.FranchiseIDs) == 0 {
+// 		h.validationError(c, "At least one franchise ID is required")
+// 		return
+// 	}
+
+// 	if len(request.FranchiseIDs) > 100 {
+// 		h.validationError(c, "Maximum 100 franchise IDs allowed")
+// 		return
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "batch_get_franchises", map[string]interface{}{
+// 		"franchiseIds": request.FranchiseIDs,
+// 		"userId":       c.GetString("userId"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch franchises in batch", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🏷️ TAGS OPERATIONS (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
+// 	limit := 20
+// 	if l := c.Query("limit"); l != "" {
+// 		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 100 {
+// 			limit = limitNum
+// 		}
+// 	}
+
+// 	response, err := h.executeMVPWorkflow(c, "get_popular_tags", map[string]interface{}{
+// 		"limit":  limit,
+// 		"userId": c.GetString("userId"),
+// 	})
+
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch popular tags", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🔄 HEALTH CHECK (MVP Workflow)
+// // ========================================================================
+
+// func (h *FranchiseHandler) HealthCheck(c *gin.Context) {
+// 	response, err := h.executeMVPWorkflow(c, "health_check", map[string]interface{}{
+// 		"timestamp": time.Now().UTC().Format(time.RFC3339),
+// 	})
+
+// 	if err != nil {
+// 		c.JSON(http.StatusServiceUnavailable, gin.H{
+// 			"status":  "unhealthy",
+// 			"message": "Workflow service unavailable",
+// 			"error":   err.Error(),
+// 		})
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+// // ========================================================================
+// // 🛠️ HELPER METHODS
+// // ========================================================================
+
+// func (h *FranchiseHandler) validationError(c *gin.Context, message string) {
+// 	c.JSON(http.StatusBadRequest, gin.H{
+// 		"success": false,
+// 		"error":   "Validation error",
+// 		"message": message,
+// 	})
+// }
+
+// func (h *FranchiseHandler) internalError(c *gin.Context, message string, err error) {
+// 	h.logger.Error(message, map[string]interface{}{
+// 		"error": err.Error(),
+// 		"path":  c.Request.URL.Path,
+// 	})
+// 	c.JSON(http.StatusInternalServerError, gin.H{
+// 		"success": false,
+// 		"error":   "Internal server error",
+// 		"message": message,
+// 	})
+// }
+
+// func (h *FranchiseHandler) validateSearchFilters(filters *models.FranchiseSearchFilters) error {
+// 	// Validate Query string
+// 	if filters.Query != "" {
+// 		if err := ozzo.Validate(filters.Query,
+// 			validation.ValidateStringLength(0, 500),
+// 			validation.SafeSQLString,
+// 			validation.SafeNoSQLString,
+// 		); err != nil {
+// 			return fmt.Errorf("invalid query: %s", err.Error())
+// 		}
+// 	}
+
+// 	// Validate Category
+// 	if filters.Category != "" {
+// 		if err := ozzo.Validate(filters.Category,
+// 			validation.ValidateStringLength(0, 100),
+// 			validation.SafeSQLString,
+// 			validation.SafeNoSQLString,
+// 		); err != nil {
+// 			return fmt.Errorf("invalid category: %s", err.Error())
+// 		}
+// 	}
+
+// 	// Validate Investment Range
+// 	if filters.MinInvestment < 0 || filters.MinInvestment > 100000000 {
+// 		return fmt.Errorf("invalid minInvestment: must be 0-100000000")
+// 	}
+// 	if filters.MaxInvestment < 0 || filters.MaxInvestment > 100000000 {
+// 		return fmt.Errorf("invalid maxInvestment: must be 0-100000000")
+// 	}
+
+// 	return nil
+// }
+
+// // ========================================================================
+// // 🔄 RESPONSE HANDLER
+// // ========================================================================
+
+// func (h *FranchiseHandler) ReceiveWorkflowResponse(correlationKey string, response map[string]interface{}) error {
+
+// 	// parts := strings.Split(correlationKey, "_")
+// 	// if len(parts) >= 3 {
+// 	// 	timestampStr := parts[len(parts)-1]
+// 	// 	if timestamp, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+// 	// 		requestTime := time.Unix(0, timestamp)
+// 	// 		if time.Since(requestTime) > 30*time.Second {
+// 	// 			h.logger.Warn("Request expired, skipping response", map[string]interface{}{
+// 	// 				"correlationKey": correlationKey,
+// 	// 				"age":            time.Since(requestTime).String(),
+// 	// 			})
+// 	// 			return nil
+// 	// 		}
+// 	// 	}
+// 	// }
+
+// 	h.responseMutex.RLock()
+// 	responseChan, exists := h.pendingResponses[correlationKey]
+// 	requestTime, timeExists := h.requestTimes[correlationKey] // ✅ ADD THIS LINE
+// 	h.responseMutex.RUnlock()
+
+// 	if !exists {
+// 		h.logger.Warn("No waiting request found for response", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"response":       response,
+// 		})
+// 		return fmt.Errorf("no waiting request for correlation key: %s", correlationKey)
+// 	}
+
+// 	// ✅ ADD THIS BLOCK
+// 	if timeExists {
+// 		age := time.Since(requestTime)
+// 		if age > 60*time.Second {
+// 			h.logger.Warn("Request too old, dropping response", map[string]interface{}{
+// 				"correlationKey": correlationKey,
+// 				"age":            age.String(),
+// 			})
+// 			return fmt.Errorf("request expired (age: %s)", age)
+// 		}
+// 	}
+
+// 	// Send response to waiting channel
+// 	select {
+// 	case responseChan <- response:
+// 		h.logger.Info("Response delivered to API handler", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 			"success":        response["success"],
+// 		})
+// 		return nil
+// 	case <-time.After(2 * time.Second):
+// 		h.logger.Error("Response channel blocked", map[string]interface{}{
+// 			"correlationKey": correlationKey,
+// 		})
+// 		return fmt.Errorf("response channel blocked for key: %s", correlationKey)
+// 	}
+// }
+// func (h *FranchiseHandler) cleanupOldResponses() {
+// 	ticker := time.NewTicker(30 * time.Second) // ✅ CHANGED from 10s to 30s
+// 	defer ticker.Stop()
+
+// 	h.logger.Info("Response cleanup goroutine started", map[string]interface{}{}) // ✅ ADD THIS
+
+// 	for range ticker.C {
+// 		h.responseMutex.Lock()
+// 		now := time.Now()
+
+// 		for key, ch := range h.pendingResponses {
+// 			// ✅ CHANGED: Check requestTimes instead of parsing key
+// 			if requestTime, exists := h.requestTimes[key]; exists {
+// 				age := now.Sub(requestTime)
+
+// 				if age > 60*time.Second { // ✅ CHANGED from 30s to 60s
+// 					timeoutResponse := map[string]interface{}{
+// 						"success": false,
+// 						"error":   "Request timeout",
+// 						"code":    "TIMEOUT",
+// 					}
+
+// 					select {
+// 					case ch <- timeoutResponse:
+// 					default:
+// 					}
+
+// 					close(ch)
+// 					delete(h.pendingResponses, key)
+// 					delete(h.requestTimes, key) // ✅ ADD THIS LINE
+
+// 					h.logger.Warn("Cleaned expired request", map[string]interface{}{
+// 						"correlationKey": key,
+// 						"age":            age.String(),
+// 					})
+// 				}
+// 			}
+// 		}
+
+// 		h.responseMutex.Unlock()
+// 	}
+// }
+
+// func (h *FranchiseHandler) PendingResponsesCount() int {
+// 	h.responseMutex.RLock()
+// 	defer h.responseMutex.RUnlock()
+// 	return len(h.pendingResponses)
+// }
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // package handlers
 
