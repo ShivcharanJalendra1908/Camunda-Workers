@@ -616,7 +616,7 @@ func main() {
 		aiConfig.IndexName = "franchises"
 		aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
 		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
-		aiConfig.LLMTimeout = 15 * time.Second
+		aiConfig.LLMTimeout = 60 * time.Second
 		aiConfig.SearchTimeout = 5 * time.Second
 		aiConfig.DefaultPageSize = 20
 		aiConfig.MaxQueryLength = 500
@@ -1501,7 +1501,7 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 // 		aiConfig.IndexName = "franchises"
 // 		aiConfig.LLMEndpoint = getEnvOrDefault("LLM_ENDPOINT", "http://localhost:11434")
 // 		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
-// 		aiConfig.LLMTimeout = 15 * time.Second
+// 		aiConfig.LLMTimeout = 60 * time.Second
 // 		aiConfig.SearchTimeout = 5 * time.Second
 // 		aiConfig.DefaultPageSize = 20
 // 		aiConfig.MaxQueryLength = 500
