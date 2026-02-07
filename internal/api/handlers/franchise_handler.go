@@ -16,11 +16,13 @@ import (
 	"github.com/gin-gonic/gin"
 	ozzo "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type FranchiseHandler struct {
 	camundaClient    *camunda.Client
 	logger           logger.Logger
+	redisClient      *redis.Client
 	validator        *validation.Validator
 	sanitizer        *validation.Sanitizer
 	pendingResponses map[string]chan map[string]interface{}
@@ -31,10 +33,12 @@ type FranchiseHandler struct {
 func NewFranchiseHandler(
 	camundaClient *camunda.Client,
 	log logger.Logger,
+	redisClient *redis.Client,
 ) *FranchiseHandler {
 	handler := &FranchiseHandler{
 		camundaClient:    camundaClient,
 		logger:           log,
+		redisClient:      redisClient,
 		validator:        validation.NewValidator(),
 		sanitizer:        validation.NewSanitizer(),
 		pendingResponses: make(map[string]chan map[string]interface{}),
@@ -62,13 +66,10 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// Create response channel
-	responseChan := make(chan map[string]interface{}, 1)
-
-	h.responseMutex.Lock()
-	h.pendingResponses[correlationKey] = responseChan
-	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
-	h.responseMutex.Unlock()
+	// ✅ Subscribe to Redis BEFORE workflow
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
 
 	// // Cleanup on exit
 	// defer func() {
@@ -98,12 +99,6 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 	// Start HOME PAGE workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-home-page", variables)
 	if err != nil {
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, fmt.Errorf("failed to start home page workflow: %w", err)
 	}
 
@@ -112,38 +107,43 @@ func (h *FranchiseHandler) executeHomePageWorkflow(
 		"correlationKey": correlationKey,
 	})
 
-	// Wait for response with timeout (30 seconds)
+	// ✅ Wait for Redis pub/sub
+	timeout := time.After(60 * time.Second)
+	responseChan := pubsub.Channel()
+
 	select {
-	case response := <-responseChan:
-
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
-		// Check if response indicates success
-		if success, ok := response["success"].(bool); !ok || !success {
-			return nil, fmt.Errorf("workflow failed: %v", response)
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		h.logger.Info("Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+		})
 		return response, nil
 
-	case <-time.After(30 * time.Second):
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	case <-timeout:
+		// Try cache fallback
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
 
-		return nil, fmt.Errorf("workflow timeout after 30 seconds")
+		h.logger.Error("Timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+		})
+		return nil, fmt.Errorf("timeout after 60s")
 
 	case <-ctx.Done():
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, ctx.Err()
 	}
 }
@@ -160,13 +160,10 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// Create response channel
-	responseChan := make(chan map[string]interface{}, 1)
-
-	h.responseMutex.Lock()
-	h.pendingResponses[correlationKey] = responseChan
-	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
-	h.responseMutex.Unlock()
+	// ✅ Subscribe to Redis BEFORE workflow
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
 
 	// // Cleanup on exit
 	// defer func() {
@@ -197,12 +194,6 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 	// Start LISTING PAGE workflow
 	instance, err := h.camundaClient.StartProcessInstance(ctx, "franchise-listing-page", variables)
 	if err != nil {
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, fmt.Errorf("failed to start listing page workflow: %w", err)
 	}
 
@@ -212,37 +203,43 @@ func (h *FranchiseHandler) executeListingPageWorkflow(
 		"industrySlug":   industrySlug,
 	})
 
-	// Wait for response with timeout (30 seconds)
-	select {
-	case response := <-responseChan:
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	// ✅ Wait for Redis pub/sub
+	timeout := time.After(60 * time.Second)
+	responseChan := pubsub.Channel()
 
-		// Check if response indicates success
-		if success, ok := response["success"].(bool); !ok || !success {
-			return nil, fmt.Errorf("workflow failed: %v", response)
+	select {
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		h.logger.Info("Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+		})
 		return response, nil
 
-	case <-time.After(30 * time.Second):
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	case <-timeout:
+		// Try cache fallback
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
 
-		return nil, fmt.Errorf("workflow timeout after 30 seconds")
+		h.logger.Error("Timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+		})
+		return nil, fmt.Errorf("timeout after 60s")
 
 	case <-ctx.Done():
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, ctx.Err()
 	}
 }
@@ -258,13 +255,10 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// Create response channel
-	responseChan := make(chan map[string]interface{}, 1)
-
-	h.responseMutex.Lock()
-	h.pendingResponses[correlationKey] = responseChan
-	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
-	h.responseMutex.Unlock()
+	// ✅ Subscribe to Redis BEFORE workflow
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
 
 	// // Cleanup on exit
 	// defer func() {
@@ -309,37 +303,43 @@ func (h *FranchiseHandler) executeDetailPageWorkflow(
 		"slug":           slug,
 	})
 
-	// Wait for response with timeout (30 seconds)
-	select {
-	case response := <-responseChan:
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	// ✅ Wait for Redis pub/sub
+	timeout := time.After(60 * time.Second)
+	responseChan := pubsub.Channel()
 
-		// Check if response indicates success
-		if success, ok := response["success"].(bool); !ok || !success {
-			return nil, fmt.Errorf("workflow failed: %v", response)
+	select {
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		h.logger.Info("Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+		})
 		return response, nil
 
-	case <-time.After(30 * time.Second):
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	case <-timeout:
+		// Try cache fallback
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
 
-		return nil, fmt.Errorf("workflow timeout after 30 seconds")
+		h.logger.Error("Timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+		})
+		return nil, fmt.Errorf("timeout after 60s")
 
 	case <-ctx.Done():
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, ctx.Err()
 	}
 }
@@ -355,13 +355,10 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// Create response channel
-	responseChan := make(chan map[string]interface{}, 1)
-
-	h.responseMutex.Lock()
-	h.pendingResponses[correlationKey] = responseChan
-	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
-	h.responseMutex.Unlock()
+	// ✅ Subscribe to Redis BEFORE workflow
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
 
 	// // Cleanup on exit
 	// defer func() {
@@ -423,37 +420,43 @@ func (h *FranchiseHandler) executeSearchWorkflow(
 		"query":          filters.Query,
 	})
 
-	// Wait for response with timeout (30 seconds)
-	select {
-	case response := <-responseChan:
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	// ✅ Wait for Redis pub/sub
+	timeout := time.After(60 * time.Second)
+	responseChan := pubsub.Channel()
 
-		// Check if response indicates success
-		if success, ok := response["success"].(bool); !ok || !success {
-			return nil, fmt.Errorf("workflow failed: %v", response)
+	select {
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		h.logger.Info("Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+		})
 		return response, nil
 
-	case <-time.After(30 * time.Second):
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	case <-timeout:
+		// Try cache fallback
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
 
-		return nil, fmt.Errorf("workflow timeout after 30 seconds")
+		h.logger.Error("Timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+		})
+		return nil, fmt.Errorf("timeout after 60s")
 
 	case <-ctx.Done():
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, ctx.Err()
 	}
 }
@@ -475,13 +478,10 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
-	// Create response channel
-	responseChan := make(chan map[string]interface{}, 1)
-
-	h.responseMutex.Lock()
-	h.pendingResponses[correlationKey] = responseChan
-	h.requestTimes[correlationKey] = time.Now() // ✅ ADD THIS LINE
-	h.responseMutex.Unlock()
+	// ✅ Subscribe to Redis BEFORE workflow
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
 
 	// // Cleanup on exit
 	// defer func() {
@@ -520,37 +520,43 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 		"correlationKey": correlationKey,
 	})
 
-	// Wait for response with timeout (30 seconds)
-	select {
-	case response := <-responseChan:
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	// ✅ Wait for Redis pub/sub
+	timeout := time.After(60 * time.Second)
+	responseChan := pubsub.Channel()
 
-		// Check if response indicates success
-		if success, ok := response["success"].(bool); !ok || !success {
-			return nil, fmt.Errorf("workflow failed: %v", response)
+	select {
+	case msg := <-responseChan:
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+
+		h.logger.Info("Received response from Redis", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"channel":        channel,
+		})
 		return response, nil
 
-	case <-time.After(30 * time.Second):
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
+	case <-timeout:
+		// Try cache fallback
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+				h.logger.Info("Retrieved from cache", map[string]interface{}{
+					"correlationKey": correlationKey,
+				})
+				return response, nil
+			}
+		}
 
-		return nil, fmt.Errorf("workflow timeout after 30 seconds")
+		h.logger.Error("Timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+		})
+		return nil, fmt.Errorf("timeout after 60s")
 
 	case <-ctx.Done():
-		// ✅ ADD THESE 3 LINES
-		h.responseMutex.Lock()
-		delete(h.pendingResponses, correlationKey)
-		delete(h.requestTimes, correlationKey)
-		h.responseMutex.Unlock()
-
 		return nil, ctx.Err()
 	}
 }

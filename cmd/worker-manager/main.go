@@ -285,7 +285,7 @@ func main() {
 	// ============================================================================
 	// ✅ STEP 2: CREATE FRANCHISE HANDLER (BEFORE REGISTRY)
 	// ============================================================================
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redis.GetClient())
 
 	zapLog.Info("✅ Franchise handler created",
 		zap.Int("pendingResponses", franchiseHandler.PendingResponsesCount()))
@@ -325,7 +325,8 @@ func main() {
 				Timeout: time.Duration(cfg.Workers[sar.TaskType].Timeout) * time.Millisecond,
 			},
 			log,
-			franchiseHandler, // ✅ Pass response handler directly
+			deps,
+			//franchiseHandler, // ✅ Pass response handler directly
 		)
 
 		// ✅ START WORKER WITH FAST POLLING

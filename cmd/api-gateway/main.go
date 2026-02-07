@@ -198,7 +198,9 @@ func main() {
 		redisClient.GetClient())
 	//franchiseHandler := handlers.NewFranchiseHandler(esClient, postgresDB, log)
 
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+	//franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
+
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient())
 
 	router.GET("/debug/response-handler", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
