@@ -114,7 +114,7 @@ services:
   #     - camunda-network
   #   restart: "no"
 
-ollama-setup:
+  ollama-setup:
     image: curlimages/curl:latest
     container_name: ollama-setup
     depends_on:
@@ -138,6 +138,7 @@ ollama-setup:
     networks:
       - camunda-network
     restart: "no"
+
 # ============================================================================
 # INFRASTRUCTURE
 # ============================================================================
