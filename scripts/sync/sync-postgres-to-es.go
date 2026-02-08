@@ -292,10 +292,17 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		// Add space object
+		// if minSpace.Valid || maxSpace.Valid {
+		// 	doc["space"] = map[string]interface{}{
+		// 		"minSpace": minSpace.Int32,
+		// 		"maxSpace": maxSpace.Int32,
+		// 	}
+		// }
 		if minSpace.Valid || maxSpace.Valid {
 			doc["space"] = map[string]interface{}{
-				"minSpace": minSpace.Int32,
-				"maxSpace": maxSpace.Int32,
+				"minSpace":  fmt.Sprintf("%d", minSpace.Int32), // Convert to string
+				"maxSpace":  fmt.Sprintf("%d", maxSpace.Int32), // Convert to string
+				"spaceUnit": "sq ft",
 			}
 		}
 
