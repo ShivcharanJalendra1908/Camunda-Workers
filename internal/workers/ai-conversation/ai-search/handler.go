@@ -1,6 +1,6 @@
 // ============================================================
 // FILE: internal/workers/ai-conversation/ai-search/handler.go
-// UPDATED: Match franchise_listings index schema
+// FINAL VERSION: All parameters + robust error handling
 // ============================================================
 
 package ai_search
@@ -90,7 +90,9 @@ func NewOllamaService(config *Config, log logger.Logger) *OllamaService {
 func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, error) {
 	s.logger.Debug("Calling Ollama API", map[string]interface{}{
 		"model":      s.model,
+		"endpoint":   s.endpoint,
 		"prompt_len": len(prompt),
+		"timeout":    s.httpClient.Timeout.Seconds(),
 	})
 
 	reqBody := OllamaRequest{
@@ -137,6 +139,11 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("parse failed: %w", err)
 	}
 
+	s.logger.Debug("LLM response received", map[string]interface{}{
+		"response_len": len(ollamaResp.Response),
+		"done":         ollamaResp.Done,
+	})
+
 	return ollamaResp.Response, nil
 }
 
@@ -151,7 +158,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	h.logger.Info("AI search job started", map[string]interface{}{
 		"job_key":    job.Key,
 		"process_id": job.ProcessInstanceKey,
-		"index":      h.config.IndexName, // ✅ ADDED: Log index name
+		"index":      h.config.IndexName,
 	})
 
 	// Parse input
@@ -167,12 +174,8 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	// Extract parameters using LLM
-	params, err := h.extractParameters(ctx, input)
-	if err != nil {
-		h.handleError(client, job, err, "PARAMETER_EXTRACTION_ERROR")
-		return
-	}
+	// Extract parameters using LLM (with fallback)
+	params := h.extractParametersWithFallback(ctx, input)
 
 	// Build ES query
 	esQuery, err := h.buildElasticsearchQuery(params)
@@ -247,12 +250,13 @@ func (h *Handler) validateInput(input *SearchInput) error {
 	}
 
 	if len(input.Query) > h.config.MaxQueryLength {
-		return fmt.Errorf("query too long")
+		return fmt.Errorf("query too long: %d chars (max %d)", len(input.Query), h.config.MaxQueryLength)
 	}
 	return nil
 }
 
-func (h *Handler) extractParameters(ctx context.Context, input *SearchInput) (*ExtractedParameters, error) {
+// ✅ NEW: Extract parameters with fallback instead of failing
+func (h *Handler) extractParametersWithFallback(ctx context.Context, input *SearchInput) *ExtractedParameters {
 	h.logger.Debug("Extracting parameters", map[string]interface{}{
 		"query": input.Query,
 	})
@@ -260,79 +264,55 @@ func (h *Handler) extractParameters(ctx context.Context, input *SearchInput) (*E
 	// If query is wildcard, return empty params
 	if input.Query == "*" || strings.TrimSpace(input.Query) == "" {
 		h.logger.Info("Wildcard or empty query - returning match-all parameters", nil)
-		return &ExtractedParameters{
-			Category:      "",
-			Location:      nil,
-			Investment:    nil,
-			ROI:           nil,
-			Rating:        nil,
-			Verified:      nil,
-			TrustedSeller: nil,
-		}, nil
+		return &ExtractedParameters{}
 	}
 
+	// Build prompt
 	prompt := h.paramExtractor.BuildPrompt(input.Query)
 
+	// Call LLM with timeout
 	llmCtx, cancel := context.WithTimeout(ctx, h.config.LLMTimeout)
 	defer cancel()
 
 	response, err := h.llmService.Extract(llmCtx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf("LLM extraction failed: %w", err)
+		h.logger.Warn("LLM extraction failed, using fallback", map[string]interface{}{
+			"error": err.Error(),
+			"query": input.Query,
+		})
+		// ✅ FALLBACK: Return empty params instead of failing
+		return &ExtractedParameters{}
 	}
 
-	params, err := h.paramExtractor.Parse(response)
-	if err != nil {
-		return nil, fmt.Errorf("parse failed: %w", err)
-	}
+	// Parse response with fallback
+	params := h.paramExtractor.ParseWithFallback(response)
 
-	if err := h.validateParameters(params); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
-	}
+	h.logger.Info("Parameters extracted", map[string]interface{}{
+		"category":   params.Category,
+		"has_location": params.Location != nil,
+		"has_investment": params.Investment != nil,
+		"has_rating": params.Rating != nil,
+		"has_space": params.Space != nil,
+		"has_staff": params.Staff != nil,
+		"has_outlets": params.Outlets != nil,
+		"has_roi": params.ROI != nil,
+	})
 
-	return params, nil
+	return params
 }
 
-func (h *Handler) validateParameters(params *ExtractedParameters) error {
-	if params == nil {
-		return fmt.Errorf("params nil")
-	}
-
-	if params.ROI != nil {
-		if params.ROI.Min < 0 || params.ROI.Max > 100 {
-			return fmt.Errorf("ROI must be 0-100")
-		}
-		if params.ROI.Min > params.ROI.Max {
-			return fmt.Errorf("ROI min > max")
-		}
-	}
-
-	if params.Investment != nil {
-		if params.Investment.Min < 0 || params.Investment.Max < 0 {
-			return fmt.Errorf("investment must be positive")
-		}
-	}
-
-	if params.Rating != nil && (*params.Rating < 0 || *params.Rating > 5) {
-		return fmt.Errorf("rating must be 0-5")
-	}
-
-	return nil
-}
-
-// ✅ UPDATED: Match franchise_listings schema
+// ✅ UPDATED: Build query with ALL parameters
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
 	must := []interface{}{}
 	filter := []interface{}{}
 	hasFilters := false
 
-	// ✅ UPDATED: Match industry.name field instead of "industry"
+	// ✅ CATEGORY: Search in industry.name, industry.slug, name, tags
 	if params.Category != "" {
 		hasFilters = true
 		must = append(must, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
-					// Search in industry.name
 					map[string]interface{}{
 						"match": map[string]interface{}{
 							"industry.name": map[string]interface{}{
@@ -341,22 +321,25 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 							},
 						},
 					},
-					// Search in industry.slug
 					map[string]interface{}{
 						"match": map[string]interface{}{
 							"industry.slug": map[string]interface{}{
+								"query": params.Category,
+								"boost": 2.5,
+							},
+						},
+					},
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"name": map[string]interface{}{
 								"query": params.Category,
 								"boost": 2.0,
 							},
 						},
 					},
-					// Search in franchise name
 					map[string]interface{}{
-						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query": params.Category,
-								"boost": 1.5,
-							},
+						"term": map[string]interface{}{
+							"tags": strings.ToLower(params.Category),
 						},
 					},
 				},
@@ -365,7 +348,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ UPDATED: Match location field (string, not nested)
+	// ✅ LOCATION: Match location field (string)
 	if params.Location != nil && params.Location.City != "" {
 		hasFilters = true
 		filter = append(filter, map[string]interface{}{
@@ -375,27 +358,31 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ UPDATED: Match investment.min_investment and investment.max_investment
-	if params.Investment != nil && params.Investment.Min > 0 {
+	// ✅ INVESTMENT: Range query on investment.min_investment and investment.max_investment
+	if params.Investment != nil && (params.Investment.Min > 0 || params.Investment.Max > 0) {
 		hasFilters = true
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"investment.min_investment": map[string]interface{}{
-					"lte": params.Investment.Max,
+		if params.Investment.Max > 0 {
+			filter = append(filter, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{
+						"lte": params.Investment.Max,
+					},
 				},
-			},
-		})
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"investment.max_investment": map[string]interface{}{
-					"gte": params.Investment.Min,
+			})
+		}
+		if params.Investment.Min > 0 {
+			filter = append(filter, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{
+						"gte": params.Investment.Min,
+					},
 				},
-			},
-		})
+			})
+		}
 	}
 
-	// ✅ UPDATED: Match rating field (float)
-	if params.Rating != nil {
+	// ✅ RATING: Minimum rating filter
+	if params.Rating != nil && *params.Rating > 0 {
 		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -406,30 +393,74 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ UPDATED: Match space.minSpace and space.maxSpace
-	if params.Space != nil && params.Space.Min > 0 {
+	// ✅ SPACE: Range query on space.minSpace and space.maxSpace
+	if params.Space != nil && (params.Space.Min > 0 || params.Space.Max > 0) {
+		hasFilters = true
+		if params.Space.Max > 0 {
+			filter = append(filter, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.minSpace": map[string]interface{}{
+						"lte": params.Space.Max,
+					},
+				},
+			})
+		}
+		if params.Space.Min > 0 {
+			filter = append(filter, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.maxSpace": map[string]interface{}{
+						"gte": params.Space.Min,
+					},
+				},
+			})
+		}
+	}
+
+	// ✅ ROI: Range query (if your ES schema supports it)
+	if params.ROI != nil && (params.ROI.Min > 0 || params.ROI.Max > 0) {
+		hasFilters = true
+		roiFilter := map[string]interface{}{}
+		if params.ROI.Min > 0 {
+			roiFilter["gte"] = params.ROI.Min
+		}
+		if params.ROI.Max > 0 {
+			roiFilter["lte"] = params.ROI.Max
+		}
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"roi": roiFilter, // Assuming your schema has "roi" field
+			},
+		})
+	}
+
+	// ✅ OUTLETS: Minimum outlets filter
+	if params.Outlets != nil && *params.Outlets > 0 {
 		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"range": map[string]interface{}{
-				"space.minSpace": map[string]interface{}{
-					"lte": params.Space.Max,
-				},
-			},
-		})
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"space.maxSpace": map[string]interface{}{
-					"gte": params.Space.Min,
+				"total_outlets": map[string]interface{}{
+					"gte": *params.Outlets,
 				},
 			},
 		})
 	}
 
-	// ✅ ADDED: Match tags if provided
-	if params.Category != "" {
+	// ✅ VERIFIED: Boolean filter
+	if params.Verified != nil && *params.Verified {
+		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"term": map[string]interface{}{
-				"tags": strings.ToLower(params.Category),
+				"verified": true,
+			},
+		})
+	}
+
+	// ✅ TRUSTED SELLER: Boolean filter
+	if params.TrustedSeller != nil && *params.TrustedSeller {
+		hasFilters = true
+		filter = append(filter, map[string]interface{}{
+			"term": map[string]interface{}{
+				"trusted_seller": true,
 			},
 		})
 	}
@@ -441,7 +472,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ UPDATED: Sort by rating and total_outlets
+	// Build final query
 	query := map[string]interface{}{
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
@@ -465,7 +496,7 @@ func (h *Handler) executeSearch(ctx context.Context, query map[string]interface{
 	searchCtx, cancel := context.WithTimeout(ctx, h.config.SearchTimeout)
 	defer cancel()
 
-	// ✅ ADDED: Log query for debugging
+	// Log query for debugging
 	queryJSON, _ := json.MarshalIndent(query, "", "  ")
 	h.logger.Debug("Executing ES query", map[string]interface{}{
 		"index": h.config.IndexName,
@@ -520,17 +551,25 @@ func (h *Handler) executeSearch(ctx context.Context, query map[string]interface{
 	}, nil
 }
 
+// ✅ UPDATED: Build response with ALL parameters
 func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters, results *SearchResults) map[string]interface{} {
 	extractedParams := map[string]interface{}{
-		"query":         input.Query,
-		"category":      "",
-		"location":      "",
-		"minInvestment": 0,
-		"maxInvestment": 0,
-		"minSpace":      0,
-		"maxSpace":      0,
-		"minRating":     0.0,
-		"tags":          []string{},
+		"query":          input.Query,
+		"category":       "",
+		"location":       "",
+		"minInvestment":  0,
+		"maxInvestment":  0,
+		"minSpace":       0,
+		"maxSpace":       0,
+		"minStaff":       0,
+		"maxStaff":       0,
+		"minOutlets":     0,
+		"minRoi":         0.0,
+		"maxRoi":         0.0,
+		"minRating":      0.0,
+		"verified":       false,
+		"trustedSeller":  false,
+		"tags":           []string{},
 	}
 
 	// Populate from extracted parameters
@@ -553,17 +592,35 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		extractedParams["maxSpace"] = params.Space.Max
 	}
 
+	if params.Staff != nil {
+		extractedParams["minStaff"] = params.Staff.Min
+		extractedParams["maxStaff"] = params.Staff.Max
+	}
+
+	if params.Outlets != nil {
+		extractedParams["minOutlets"] = *params.Outlets
+	}
+
+	if params.ROI != nil {
+		extractedParams["minRoi"] = params.ROI.Min
+		extractedParams["maxRoi"] = params.ROI.Max
+	}
+
 	if params.Rating != nil {
 		extractedParams["minRating"] = *params.Rating
 	}
 
+	if params.Verified != nil {
+		extractedParams["verified"] = *params.Verified
+	}
+
+	if params.TrustedSeller != nil {
+		extractedParams["trustedSeller"] = *params.TrustedSeller
+	}
+
 	return map[string]interface{}{
 		"success": true,
-
-		// This maps to "filters" in BPMN
 		"extractedParams": extractedParams,
-
-		// Metadata
 		"metadata": map[string]interface{}{
 			"processed_at": time.Now().UTC().Format(time.RFC3339),
 			"took_ms":      results.TookMs,

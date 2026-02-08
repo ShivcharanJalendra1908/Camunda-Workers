@@ -285,9 +285,10 @@ workers:
     concurrency: 5
     llm:
       provider: "ollama"
-      model: "llama3.2"
+      # model: "llama3.2"
+      model: "tinyllama"  # ✅ CHANGED from llama3.2
       endpoint: "http://ollama:11434"  # ✅ FIXED: Use Docker service name
-      timeout: 8000
+      timeout: 45000
  
   franchise_postgres:
     worker_name: "franchise-postgres-worker"
