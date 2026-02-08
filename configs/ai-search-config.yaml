@@ -5,11 +5,18 @@ ai_search_worker:
   poll_interval: "25ms"
   request_timeout: "30s"
 
+# llm:
+#   provider: "ollama"
+#   model: "llama3.2"
+#   endpoint: "http://ollama:11434"
+#   timeout: "15s"
+#   max_tokens: 1000
+#   temperature: 0.1
 llm:
   provider: "ollama"
-  model: "llama3.2"
+  model: "tinyllama"  # ✅ CHANGED from llama3.2
   endpoint: "http://ollama:11434"
-  timeout: "15s"
+  timeout: "45s"  # ✅ Increased from 15s
   max_tokens: 1000
   temperature: 0.1
 
