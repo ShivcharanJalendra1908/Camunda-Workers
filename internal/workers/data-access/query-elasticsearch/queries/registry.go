@@ -397,7 +397,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo_url"},
 		}
 	} else {
 		query = map[string]interface{}{
@@ -408,7 +408,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo_url"},
 		}
 	}
 
@@ -982,23 +982,6 @@ func executeQuery(ctx context.Context, esClient *elasticsearch.Client, index str
 	if ms, ok := hits["max_score"].(float64); ok {
 		maxScore = ms
 	}
-
-	// // Extract documents
-	// var data []map[string]interface{}
-	// if hitsList, ok := hits["hits"].([]interface{}); ok {
-	// 	for _, hit := range hitsList {
-	// 		if hitMap, ok := hit.(map[string]interface{}); ok {
-	// 			if source, ok := hitMap["_source"].(map[string]interface{}); ok {
-	// 				// // Add ES metadata
-	// 				// source["_id"] = hitMap["_id"]
-	// 				// if score, ok := hitMap["_score"].(float64); ok {
-	// 				// 	source["_score"] = score
-	// 				// }
-	// 				data = append(data, source)
-	// 			}
-	// 		}
-	// 	}
-	// }
 
 	// Extract documents
 	var data []map[string]interface{}

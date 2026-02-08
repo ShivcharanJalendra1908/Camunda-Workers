@@ -422,66 +422,6 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	return &Output{Success: true, Response: response}, nil
 }
 
-// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-// 	combinedData := make(map[string]interface{})
-
-// 	if input.Data != nil {
-// 		for k, v := range input.Data {
-// 			combinedData[k] = v
-// 		}
-// 	}
-
-// 	if len(input.FranchiseListings) > 0 {
-// 		combinedData["franchises"] = input.FranchiseListings
-// 	}
-// 	if len(input.FeaturedCategories) > 0 {
-// 		combinedData["categories"] = input.FeaturedCategories
-// 	}
-// 	if len(input.UnderstandingCategory) > 0 {
-// 		combinedData["categoryQuestions"] = input.UnderstandingCategory
-// 	}
-// 	if len(input.RecommendedFranchises) > 0 {
-// 		combinedData["recommended"] = input.RecommendedFranchises
-// 	}
-// 	if len(input.KeyMarketInsights) > 0 {
-// 		combinedData["marketInsights"] = input.KeyMarketInsights
-// 	}
-// 	if input.HeroDescription != "" {
-// 		combinedData["heroDescription"] = input.HeroDescription
-// 	}
-
-// 	if len(input.HeroBrands) > 0 {
-// 		combinedData["heroBrands"] = input.HeroBrands
-// 	}
-// 	if len(input.Industries) > 0 {
-// 		combinedData["industries"] = input.Industries
-// 	}
-// 	if len(input.PopularListings) > 0 {
-// 		combinedData["popularListings"] = input.PopularListings
-// 	}
-// 	if len(input.Categories) > 0 {
-// 		combinedData["categories"] = input.Categories
-// 	}
-
-// 	combinedData = h.sanitizer.SanitizeInput(combinedData)
-
-// 	var response map[string]interface{}
-// 	switch input.PageType {
-// 	case "home":
-// 		response = h.buildHomeResponse(combinedData)
-// 	case "listing":
-// 		response = h.buildListingResponse(combinedData)
-// 	case "detail":
-// 		response = h.buildDetailResponse(combinedData)
-// 	case "search":
-// 		response = h.buildSearchResponse(combinedData)
-// 	default:
-// 		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
-// 	}
-
-// 	return &Output{Success: true, Response: response}, nil
-// }
-
 // ===== HOME PAGE BUILDER =====
 func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]interface{} {
 	sections := []map[string]interface{}{}
@@ -728,12 +668,55 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		})
 	}
 
+	// if len(recommended) > 0 {
+	// 	sections = append(sections, map[string]interface{}{
+	// 		"type":    "recommended_franchises",
+	// 		"enabled": true,
+	// 		"data": map[string]interface{}{
+	// 			"items": recommended,
+	// 		},
+	// 	})
+	// }
+	// Add this transformation for recommended items
+	// LISTING PAGE - Line 669
 	if len(recommended) > 0 {
+		transformedRecommended := make([]map[string]interface{}, 0, len(recommended))
+
+		for _, item := range recommended {
+			rec, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Extract industry as STRING
+			industryName := ""
+			if industry, ok := rec["industry"].(map[string]interface{}); ok {
+				if name, ok := industry["name"].(string); ok {
+					industryName = name
+				}
+			} else if industry, ok := rec["industry"].(string); ok {
+				industryName = industry
+			}
+
+			transformed := map[string]interface{}{
+				"id":       rec["id"],
+				"brand":    rec["brand"],
+				"industry": industryName, // ✅ String, not object
+				"slug":     rec["slug"],
+				"image": map[string]interface{}{ // ✅ ADD THIS
+					"url": rec["logo_url"],
+					"alt": rec["brand"],
+				},
+			}
+
+			transformedRecommended = append(transformedRecommended, transformed)
+		}
+
 		sections = append(sections, map[string]interface{}{
 			"type":    "recommended_franchises",
 			"enabled": true,
 			"data": map[string]interface{}{
-				"items": recommended,
+				"items": transformedRecommended, // ✅ Use transformed
 			},
 		})
 	}
@@ -818,12 +801,56 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 		})
 	}
 
+	// if len(recommended) > 0 {
+	// 	sections = append(sections, map[string]interface{}{
+	// 		"type":    "recommended_franchises",
+	// 		"enabled": true,
+	// 		"data": map[string]interface{}{
+	// 			"items": recommended,
+	// 		},
+	// 	})
+	// }
+	// Add this transformation for recommended items
+
+	// LISTING PAGE - Line 669
 	if len(recommended) > 0 {
+		transformedRecommended := make([]map[string]interface{}, 0, len(recommended))
+
+		for _, item := range recommended {
+			rec, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Extract industry as STRING
+			industryName := ""
+			if industry, ok := rec["industry"].(map[string]interface{}); ok {
+				if name, ok := industry["name"].(string); ok {
+					industryName = name
+				}
+			} else if industry, ok := rec["industry"].(string); ok {
+				industryName = industry
+			}
+
+			transformed := map[string]interface{}{
+				"id":       rec["id"],
+				"brand":    rec["brand"],
+				"industry": industryName, // ✅ String, not object
+				"slug":     rec["slug"],
+				"image": map[string]interface{}{ // ✅ ADD THIS
+					"url": rec["logo_url"],
+					"alt": rec["brand"],
+				},
+			}
+
+			transformedRecommended = append(transformedRecommended, transformed)
+		}
+
 		sections = append(sections, map[string]interface{}{
 			"type":    "recommended_franchises",
 			"enabled": true,
 			"data": map[string]interface{}{
-				"items": recommended,
+				"items": transformedRecommended, // ✅ Use transformed
 			},
 		})
 	}

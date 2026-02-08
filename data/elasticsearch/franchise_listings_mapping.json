@@ -42,10 +42,10 @@
         "type": "object",
         "properties": {
           "minSpace": {
-            "type": "integer"
+            "type": "keyword"
           },
           "maxSpace": {
-            "type": "integer"
+            "type": "keyword"
           },
           "spaceUnit": {
             "type": "keyword"
