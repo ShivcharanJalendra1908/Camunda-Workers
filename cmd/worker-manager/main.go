@@ -657,7 +657,7 @@ func main() {
 		aiConfig.IndexName = "franchise_listings"
 		aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
 		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "qwen2.5:1.5b") // ✅ CHANGED default
-		aiConfig.LLMTimeout = 3 * time.Second                            // ✅ CHANGED from 45s
+		aiConfig.LLMTimeout = 30 * time.Second                           // ✅ CHANGED from 45s
 		aiConfig.LLMMaxTokens = 200                                      // ✅ ADDED
 		aiConfig.LLMTemperature = 0.0                                    // ✅ ADDED
 		aiConfig.SearchTimeout = 5 * time.Second

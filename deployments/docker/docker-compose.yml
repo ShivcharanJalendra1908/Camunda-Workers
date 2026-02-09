@@ -99,16 +99,16 @@ services:
   #     sh -c "
   #     sleep 30 &&
   #     curl -f http://ollama:11434/api/tags &&
-  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"tinyllama\"}' &&
-  #     sleep 60 &&
+  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
+  #     sleep 90 &&
   #     curl -X POST http://ollama:11434/api/generate -d '{
-  #       \"model\":\"tinyllama:latest\",
+  #       \"model\":\"qwen2.5:1.5b\",
   #       \"prompt\":\"warmup\",
   #       \"stream\":false,
   #       \"keep_alive\":-1,
   #       \"options\":{\"num_predict\":1}
   #     }' &&
-  #     echo 'TinyLlama loaded permanently!'
+  #     echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
   #     "
   #   networks:
   #     - camunda-network
@@ -121,22 +121,36 @@ services:
         condition: service_started
     command: >
       sh -c "
+      echo '🔄 Waiting for Ollama to start...' &&
       sleep 30 &&
+      
+      echo '✅ Ollama ready, checking connection...' &&
       curl -f http://ollama:11434/api/tags &&
+      
+      echo '📥 Pulling Qwen 2.5:1.5b model (this takes 2-3 minutes)...' &&
       curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
       sleep 90 &&
+      
+      echo '🔥 Warming up model with test generation...' &&
       curl -X POST http://ollama:11434/api/generate -d '{
         \"model\":\"qwen2.5:1.5b\",
-        \"prompt\":\"warmup\",
+        \"prompt\":\"Extract parameters from: food franchise in Mumbai\",
         \"stream\":false,
         \"keep_alive\":-1,
-        \"options\":{\"num_predict\":1}
+        \"options\":{
+          \"num_predict\":50,
+          \"temperature\":0.0
+        }
       }' &&
-      echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
+      
+      echo '✅ Qwen 2.5:1.5b loaded and warmed up!' &&
+      echo '⚡ Model will stay in memory permanently (keep_alive: -1)' &&
+      echo '🚀 Expected response time: 0.5-1.5 seconds'
       "
     networks:
       - camunda-network
     restart: "no"
+
 # ============================================================================
 # INFRASTRUCTURE
 # ============================================================================
