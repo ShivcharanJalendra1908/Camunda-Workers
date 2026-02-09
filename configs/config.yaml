@@ -279,7 +279,7 @@ workers:
   ai-search:
     enabled: true
     max_jobs_active: 50
-    timeout: 20000  
+    timeout: 25000  
     poll_interval: 25
     concurrency: 10
     llm:
@@ -288,7 +288,7 @@ workers:
       # model: "tinyllama"  # ✅ CHANGED from llama3.2
       model: "qwen2.5:0.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
       endpoint: "http://ollama:11434"  
-      timeout: 15000
+      timeout: 25000
       max_tokens: 200                     
       temperature: 0.0     
  

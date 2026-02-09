@@ -45,7 +45,7 @@ func NewDefaultConfig() *Config {
 		LLMProvider:     "ollama",
 		LLMModel:        "qwen2.5:0.5b",
 		LLMEndpoint:     "http://ollama:11434",
-		LLMTimeout:      15 * time.Second,
+		LLMTimeout:      25 * time.Second,
 		LLMMaxTokens:    200,
 		LLMTemperature:  0.0,
 		IndexName:       "franchise_listings",

@@ -174,7 +174,8 @@ func main() {
 	router.Use(middleware.InputValidation())
 
 	// 7. Timeout (set request timeout)
-	router.Use(middleware.Timeout(30 * time.Second))
+	//router.Use(middleware.Timeout(30 * time.Second))
+	router.Use(middleware.Timeout(60 * time.Second)) // Increase for LLM Testing
 
 	// 8. Idempotency (prevent duplicate requests)
 	router.Use(middleware.IdempotencyMiddleware(redisClient.GetClient()))
