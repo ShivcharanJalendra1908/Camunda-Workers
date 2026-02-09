@@ -288,14 +288,14 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 	params := h.paramExtractor.ParseWithFallback(response)
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{
-		"category":   params.Category,
-		"has_location": params.Location != nil,
+		"category":       params.Category,
+		"has_location":   params.Location != nil,
 		"has_investment": params.Investment != nil,
-		"has_rating": params.Rating != nil,
-		"has_space": params.Space != nil,
-		"has_staff": params.Staff != nil,
-		"has_outlets": params.Outlets != nil,
-		"has_roi": params.ROI != nil,
+		"has_rating":     params.Rating != nil,
+		"has_space":      params.Space != nil,
+		"has_staff":      params.Staff != nil,
+		"has_outlets":    params.Outlets != nil,
+		"has_roi":        params.ROI != nil,
 	})
 
 	return params
@@ -554,22 +554,22 @@ func (h *Handler) executeSearch(ctx context.Context, query map[string]interface{
 // ✅ UPDATED: Build response with ALL parameters
 func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters, results *SearchResults) map[string]interface{} {
 	extractedParams := map[string]interface{}{
-		"query":          input.Query,
-		"category":       "",
-		"location":       "",
-		"minInvestment":  0,
-		"maxInvestment":  0,
-		"minSpace":       0,
-		"maxSpace":       0,
-		"minStaff":       0,
-		"maxStaff":       0,
-		"minOutlets":     0,
-		"minRoi":         0.0,
-		"maxRoi":         0.0,
-		"minRating":      0.0,
-		"verified":       false,
-		"trustedSeller":  false,
-		"tags":           []string{},
+		"query":         input.Query,
+		"category":      "",
+		"location":      "",
+		"minInvestment": 0,
+		"maxInvestment": 0,
+		"minSpace":      0,
+		"maxSpace":      0,
+		"minStaff":      0,
+		"maxStaff":      0,
+		"minOutlets":    0,
+		"minRoi":        0.0,
+		"maxRoi":        0.0,
+		"minRating":     0.0,
+		"verified":      false,
+		"trustedSeller": false,
+		"tags":          []string{},
 	}
 
 	// Populate from extracted parameters
@@ -619,7 +619,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	}
 
 	return map[string]interface{}{
-		"success": true,
+		"success":         true,
 		"extractedParams": extractedParams,
 		"metadata": map[string]interface{}{
 			"processed_at": time.Now().UTC().Format(time.RFC3339),
