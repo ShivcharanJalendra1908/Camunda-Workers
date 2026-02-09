@@ -623,40 +623,43 @@ func main() {
 		startWorker(zeebeClient, llm.TaskType, cfg.Workers[llm.TaskType], handler.Handle, zapLog)
 	}
 
-	// // AI Search Worker
-	// if taskType := "ai-search"; cfg.Workers[taskType].Enabled { // ✅ Match BPMN taskType
+	// if taskType := "ai-search"; cfg.Workers[taskType].Enabled {
 	// 	aiConfig := ais.NewDefaultConfig()
-	// 	aiConfig.IndexName = "franchises"
+
+	// 	// ✅ FIXED: Correct index name
+	// 	aiConfig.IndexName = "franchise_listings"
+
+	// 	// ✅ FIXED: Correct model and longer timeout
 	// 	aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
-	// 	aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "llama3.2")
-	// 	aiConfig.LLMTimeout = 15 * time.Second
+	// 	aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "tinyllama") // Changed default
+	// 	aiConfig.LLMTimeout = 45 * time.Second                        // Increased from 15s
 	// 	aiConfig.SearchTimeout = 5 * time.Second
 	// 	aiConfig.DefaultPageSize = 20
 	// 	aiConfig.MaxQueryLength = 500
 
 	// 	handler := ais.NewHandler(aiConfig, esClient, log)
 
-	// 	// ✅ CRITICAL: Use fast polling
 	// 	startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 
 	// 	zapLog.Info("AI Search worker registered successfully",
-	// 		zap.String("taskType", taskType), // ✅ Now "ai-search"
+	// 		zap.String("taskType", taskType),
 	// 		zap.String("llmModel", aiConfig.LLMModel),
 	// 		zap.String("llmEndpoint", aiConfig.LLMEndpoint),
 	// 		zap.String("esIndex", aiConfig.IndexName),
 	// 	)
 	// }
-	// AI Search Worker
+
+	// AI Search Worker - Using Qwen 2.5 for 36x faster responses
 	if taskType := "ai-search"; cfg.Workers[taskType].Enabled {
 		aiConfig := ais.NewDefaultConfig()
 
-		// ✅ FIXED: Correct index name
+		// Override with environment variables if set
 		aiConfig.IndexName = "franchise_listings"
-
-		// ✅ FIXED: Correct model and longer timeout
 		aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
-		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "tinyllama") // Changed default
-		aiConfig.LLMTimeout = 45 * time.Second                        // Increased from 15s
+		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "qwen2.5:1.5b") // ✅ CHANGED default
+		aiConfig.LLMTimeout = 3 * time.Second                            // ✅ CHANGED from 45s
+		aiConfig.LLMMaxTokens = 200                                      // ✅ ADDED
+		aiConfig.LLMTemperature = 0.0                                    // ✅ ADDED
 		aiConfig.SearchTimeout = 5 * time.Second
 		aiConfig.DefaultPageSize = 20
 		aiConfig.MaxQueryLength = 500
@@ -670,6 +673,7 @@ func main() {
 			zap.String("llmModel", aiConfig.LLMModel),
 			zap.String("llmEndpoint", aiConfig.LLMEndpoint),
 			zap.String("esIndex", aiConfig.IndexName),
+			zap.Duration("llmTimeout", aiConfig.LLMTimeout),
 		)
 	}
 

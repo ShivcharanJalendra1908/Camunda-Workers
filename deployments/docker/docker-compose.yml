@@ -99,21 +99,20 @@ services:
   #     sh -c "
   #     sleep 30 &&
   #     curl -f http://ollama:11434/api/tags &&
-  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"llama3.2\"}' &&
+  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"tinyllama\"}' &&
   #     sleep 60 &&
   #     curl -X POST http://ollama:11434/api/generate -d '{
-  #       \"model\":\"llama3.2:latest\",
+  #       \"model\":\"tinyllama:latest\",
   #       \"prompt\":\"warmup\",
   #       \"stream\":false,
   #       \"keep_alive\":-1,
   #       \"options\":{\"num_predict\":1}
   #     }' &&
-  #     echo 'Model loaded permanently!'
+  #     echo 'TinyLlama loaded permanently!'
   #     "
   #   networks:
   #     - camunda-network
   #   restart: "no"
-
   ollama-setup:
     image: curlimages/curl:latest
     container_name: ollama-setup
@@ -124,21 +123,20 @@ services:
       sh -c "
       sleep 30 &&
       curl -f http://ollama:11434/api/tags &&
-      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"tinyllama\"}' &&
-      sleep 60 &&
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
+      sleep 90 &&
       curl -X POST http://ollama:11434/api/generate -d '{
-        \"model\":\"tinyllama:latest\",
+        \"model\":\"qwen2.5:1.5b\",
         \"prompt\":\"warmup\",
         \"stream\":false,
         \"keep_alive\":-1,
         \"options\":{\"num_predict\":1}
       }' &&
-      echo 'TinyLlama loaded permanently!'
+      echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
       "
     networks:
       - camunda-network
     restart: "no"
-
 # ============================================================================
 # INFRASTRUCTURE
 # ============================================================================

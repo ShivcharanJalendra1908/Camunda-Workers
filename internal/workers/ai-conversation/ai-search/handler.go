@@ -431,7 +431,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// Build bool query only if needed
 	if len(must) > 0 || len(filter) > 0 {
 		boolQuery := map[string]interface{}{}
-		
+
 		if len(must) > 0 {
 			boolQuery["must"] = must
 		} else {
@@ -440,11 +440,11 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 				map[string]interface{}{"match_all": map[string]interface{}{}},
 			}
 		}
-		
+
 		if len(filter) > 0 {
 			boolQuery["filter"] = filter
 		}
-		
+
 		query["query"] = map[string]interface{}{"bool": boolQuery}
 	} else {
 		// No filters at all - simple match_all

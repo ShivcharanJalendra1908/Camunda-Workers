@@ -45,11 +45,13 @@ func NewDefaultConfig() *Config {
 		RequestTimeout: 30 * time.Second,
 		LLMProvider:    "ollama",
 		// LLMModel:        "llama3.2",
-		LLMModel:        "tinyllama", // ✅ CHANGED
+		//LLMModel:        "tinyllama", // ✅ CHANGED
+		// ✅ CHANGED: Qwen 2.5 instead of TinyLlama
+		LLMModel:        "qwen2.5:1.5b",
 		LLMEndpoint:     "http://ollama:11434",
-		LLMTimeout:      45 * time.Second, // 15 -> 60
-		LLMMaxTokens:    500,
-		LLMTemperature:  0.1,
+		LLMTimeout:      3 * time.Second,
+		LLMMaxTokens:    200,
+		LLMTemperature:  0.0,
 		IndexName:       "franchise_listings", // ✅ FIXED: Matches actual ES index
 		SearchTimeout:   5 * time.Second,
 		DefaultPageSize: 20,

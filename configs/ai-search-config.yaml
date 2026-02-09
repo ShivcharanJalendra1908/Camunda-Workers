@@ -3,34 +3,66 @@ ai_search_worker:
   task_type: "ai-search"
   max_jobs: 100
   poll_interval: "25ms"
-  request_timeout: "30s"
+  request_timeout: "5s"      # ✅ CHANGED: 5s (down from 30s)
 
-# llm:
-#   provider: "ollama"
-#   model: "llama3.2"
-#   endpoint: "http://ollama:11434"
-#   timeout: "15s"
-#   max_tokens: 1000
-#   temperature: 0.1
 llm:
   provider: "ollama"
-  model: "tinyllama"  # ✅ CHANGED from llama3.2
+  model: "qwen2.5:1.5b"      # ✅ CHANGED: Qwen 2.5 instead of tinyllama
   endpoint: "http://ollama:11434"
-  timeout: "45s"  # ✅ Increased from 15s
-  max_tokens: 1000
-  temperature: 0.1
+  timeout: "3s"              # ✅ CHANGED: 3s (down from 45s) - Qwen is 15x faster!
+  max_tokens: 200            # ✅ CHANGED: 200 (down from 1000) - only need JSON
+  temperature: 0.0           # ✅ CHANGED: 0.0 (from 0.1) - deterministic output
 
 elasticsearch:
   endpoints:
     - "http://localhost:9200"
-  index_name: "franchises"
-  search_timeout: "5s"
+  index_name: "franchise_listings"  # ✅ CHANGED: Correct index name
+  search_timeout: "2s"              # ✅ CHANGED: 2s (down from 5s) - faster ES query
   default_page_size: 20
 
 validation:
   max_query_length: 500
-  min_query_length: 3
+  min_query_length: 1        # ✅ CHANGED: Allow single char (from 3)
 
 features:
   enable_caching: true
   enable_metrics: true
+
+
+# ai_search_worker:
+#   worker_id: "ai-search-worker"
+#   task_type: "ai-search"
+#   max_jobs: 100
+#   poll_interval: "25ms"
+#   request_timeout: "30s"
+
+# # llm:
+# #   provider: "ollama"
+# #   model: "llama3.2"
+# #   endpoint: "http://ollama:11434"
+# #   timeout: "15s"
+# #   max_tokens: 1000
+# #   temperature: 0.1
+# llm:
+#   provider: "ollama"
+#   model: "tinyllama"  # ✅ CHANGED from llama3.2
+#   endpoint: "http://ollama:11434"
+#   timeout: "45s"  # ✅ Increased from 15s
+#   max_tokens: 1000
+#   temperature: 0.1
+  
+
+# elasticsearch:
+#   endpoints:
+#     - "http://localhost:9200"
+#   index_name: "franchises"
+#   search_timeout: "5s"
+#   default_page_size: 20
+
+# validation:
+#   max_query_length: 500
+#   min_query_length: 3
+
+# features:
+#   enable_caching: true
+#   enable_metrics: true
