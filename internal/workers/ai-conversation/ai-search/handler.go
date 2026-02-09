@@ -301,56 +301,239 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 	return params
 }
 
-// ✅ UPDATED: Build query with ALL parameters
-func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
-	must := []interface{}{}
-	filter := []interface{}{}
-	hasFilters := false
+// // ✅ UPDATED: Build query with ALL parameters
+// func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
+// 	must := []interface{}{}
+// 	filter := []interface{}{}
+// 	hasFilters := false
 
-	// ✅ CATEGORY: Search in industry.name, industry.slug, name, tags
+// 	// ✅ CATEGORY: Search in industry.name, industry.slug, name, tags
+// 	if params.Category != "" {
+// 		hasFilters = true
+// 		must = append(must, map[string]interface{}{
+// 			"bool": map[string]interface{}{
+// 				"should": []interface{}{
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"industry.name": map[string]interface{}{
+// 								"query": params.Category,
+// 								"boost": 3.0,
+// 							},
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"industry.slug": map[string]interface{}{
+// 								"query": params.Category,
+// 								"boost": 2.5,
+// 							},
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"name": map[string]interface{}{
+// 								"query": params.Category,
+// 								"boost": 2.0,
+// 							},
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"term": map[string]interface{}{
+// 							"tags": strings.ToLower(params.Category),
+// 						},
+// 					},
+// 				},
+// 				"minimum_should_match": 1,
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ LOCATION: Match location field (string)
+// 	if params.Location != nil && params.Location.City != "" {
+// 		hasFilters = true
+// 		filter = append(filter, map[string]interface{}{
+// 			"match": map[string]interface{}{
+// 				"location": params.Location.City,
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ INVESTMENT: Range query on investment.min_investment and investment.max_investment
+// 	if params.Investment != nil && (params.Investment.Min > 0 || params.Investment.Max > 0) {
+// 		hasFilters = true
+// 		if params.Investment.Max > 0 {
+// 			filter = append(filter, map[string]interface{}{
+// 				"range": map[string]interface{}{
+// 					"investment.min_investment": map[string]interface{}{
+// 						"lte": params.Investment.Max,
+// 					},
+// 				},
+// 			})
+// 		}
+// 		if params.Investment.Min > 0 {
+// 			filter = append(filter, map[string]interface{}{
+// 				"range": map[string]interface{}{
+// 					"investment.max_investment": map[string]interface{}{
+// 						"gte": params.Investment.Min,
+// 					},
+// 				},
+// 			})
+// 		}
+// 	}
+
+// 	// ✅ RATING: Minimum rating filter
+// 	if params.Rating != nil && *params.Rating > 0 {
+// 		hasFilters = true
+// 		filter = append(filter, map[string]interface{}{
+// 			"range": map[string]interface{}{
+// 				"rating": map[string]interface{}{
+// 					"gte": *params.Rating,
+// 				},
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ SPACE: Range query on space.minSpace and space.maxSpace
+// 	if params.Space != nil && (params.Space.Min > 0 || params.Space.Max > 0) {
+// 		hasFilters = true
+// 		if params.Space.Max > 0 {
+// 			filter = append(filter, map[string]interface{}{
+// 				"range": map[string]interface{}{
+// 					"space.minSpace": map[string]interface{}{
+// 						"lte": params.Space.Max,
+// 					},
+// 				},
+// 			})
+// 		}
+// 		if params.Space.Min > 0 {
+// 			filter = append(filter, map[string]interface{}{
+// 				"range": map[string]interface{}{
+// 					"space.maxSpace": map[string]interface{}{
+// 						"gte": params.Space.Min,
+// 					},
+// 				},
+// 			})
+// 		}
+// 	}
+
+// 	// ✅ ROI: Range query (if your ES schema supports it)
+// 	if params.ROI != nil && (params.ROI.Min > 0 || params.ROI.Max > 0) {
+// 		hasFilters = true
+// 		roiFilter := map[string]interface{}{}
+// 		if params.ROI.Min > 0 {
+// 			roiFilter["gte"] = params.ROI.Min
+// 		}
+// 		if params.ROI.Max > 0 {
+// 			roiFilter["lte"] = params.ROI.Max
+// 		}
+// 		filter = append(filter, map[string]interface{}{
+// 			"range": map[string]interface{}{
+// 				"roi": roiFilter, // Assuming your schema has "roi" field
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ OUTLETS: Minimum outlets filter
+// 	if params.Outlets != nil && *params.Outlets > 0 {
+// 		hasFilters = true
+// 		filter = append(filter, map[string]interface{}{
+// 			"range": map[string]interface{}{
+// 				"total_outlets": map[string]interface{}{
+// 					"gte": *params.Outlets,
+// 				},
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ VERIFIED: Boolean filter
+// 	if params.Verified != nil && *params.Verified {
+// 		hasFilters = true
+// 		filter = append(filter, map[string]interface{}{
+// 			"term": map[string]interface{}{
+// 				"verified": true,
+// 			},
+// 		})
+// 	}
+
+// 	// ✅ TRUSTED SELLER: Boolean filter
+// 	if params.TrustedSeller != nil && *params.TrustedSeller {
+// 		hasFilters = true
+// 		filter = append(filter, map[string]interface{}{
+// 			"term": map[string]interface{}{
+// 				"trusted_seller": true,
+// 			},
+// 		})
+// 	}
+
+// 	// If no filters, use match_all
+// 	if !hasFilters {
+// 		must = append(must, map[string]interface{}{
+// 			"match_all": map[string]interface{}{},
+// 		})
+// 	}
+
+// 	// Build final query
+// 	query := map[string]interface{}{
+// 		"query": map[string]interface{}{
+// 			"bool": map[string]interface{}{
+// 				"must":   must,
+// 				"filter": filter,
+// 			},
+// 		},
+// 		"size": h.config.DefaultPageSize,
+// 		"from": 0,
+// 		"sort": []interface{}{
+// 			map[string]interface{}{"_score": map[string]interface{}{"order": "desc"}},
+// 			map[string]interface{}{"rating": map[string]interface{}{"order": "desc"}},
+// 			map[string]interface{}{"total_outlets": map[string]interface{}{"order": "desc"}},
+// 		},
+// 	}
+
+//		return query, nil
+//	}
+//
+// ✅ FIXED: Flattened query (max depth 4)
+func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
+	should := []interface{}{} // For category matching
+	filter := []interface{}{} // For all other filters
+
+	// ✅ CATEGORY: Flatten should clauses (no nested bool)
 	if params.Category != "" {
-		hasFilters = true
-		must = append(must, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query": params.Category,
-								"boost": 3.0,
-							},
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.slug": map[string]interface{}{
-								"query": params.Category,
-								"boost": 2.5,
-							},
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query": params.Category,
-								"boost": 2.0,
-							},
-						},
-					},
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"tags": strings.ToLower(params.Category),
-						},
+		should = append(should,
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"industry.name": map[string]interface{}{
+						"query": params.Category,
+						"boost": 3.0,
 					},
 				},
-				"minimum_should_match": 1,
 			},
-		})
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"industry.slug": map[string]interface{}{
+						"query": params.Category,
+						"boost": 2.5,
+					},
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"name": map[string]interface{}{
+						"query": params.Category,
+						"boost": 2.0,
+					},
+				},
+			},
+			map[string]interface{}{
+				"term": map[string]interface{}{
+					"tags": strings.ToLower(params.Category),
+				},
+			},
+		)
 	}
 
-	// ✅ LOCATION: Match location field (string)
+	// ✅ LOCATION
 	if params.Location != nil && params.Location.City != "" {
-		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"match": map[string]interface{}{
 				"location": params.Location.City,
@@ -358,32 +541,28 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ INVESTMENT: Range query on investment.min_investment and investment.max_investment
-	if params.Investment != nil && (params.Investment.Min > 0 || params.Investment.Max > 0) {
-		hasFilters = true
-		if params.Investment.Max > 0 {
-			filter = append(filter, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{
-						"lte": params.Investment.Max,
-					},
+	// ✅ INVESTMENT
+	if params.Investment != nil && params.Investment.Max > 0 {
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"investment.min_investment": map[string]interface{}{
+					"lte": params.Investment.Max,
 				},
-			})
-		}
-		if params.Investment.Min > 0 {
-			filter = append(filter, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{
-						"gte": params.Investment.Min,
-					},
+			},
+		})
+	}
+	if params.Investment != nil && params.Investment.Min > 0 {
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"investment.max_investment": map[string]interface{}{
+					"gte": params.Investment.Min,
 				},
-			})
-		}
+			},
+		})
 	}
 
-	// ✅ RATING: Minimum rating filter
+	// ✅ RATING
 	if params.Rating != nil && *params.Rating > 0 {
-		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"range": map[string]interface{}{
 				"rating": map[string]interface{}{
@@ -393,49 +572,60 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ SPACE: Range query on space.minSpace and space.maxSpace
-	if params.Space != nil && (params.Space.Min > 0 || params.Space.Max > 0) {
-		hasFilters = true
-		if params.Space.Max > 0 {
-			filter = append(filter, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.minSpace": map[string]interface{}{
-						"lte": params.Space.Max,
-					},
-				},
-			})
-		}
-		if params.Space.Min > 0 {
-			filter = append(filter, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.maxSpace": map[string]interface{}{
-						"gte": params.Space.Min,
-					},
-				},
-			})
-		}
-	}
-
-	// ✅ ROI: Range query (if your ES schema supports it)
-	if params.ROI != nil && (params.ROI.Min > 0 || params.ROI.Max > 0) {
-		hasFilters = true
-		roiFilter := map[string]interface{}{}
-		if params.ROI.Min > 0 {
-			roiFilter["gte"] = params.ROI.Min
-		}
-		if params.ROI.Max > 0 {
-			roiFilter["lte"] = params.ROI.Max
-		}
+	// ✅ SPACE
+	if params.Space != nil && params.Space.Max > 0 {
 		filter = append(filter, map[string]interface{}{
 			"range": map[string]interface{}{
-				"roi": roiFilter, // Assuming your schema has "roi" field
+				"space.minSpace": map[string]interface{}{
+					"lte": params.Space.Max,
+				},
+			},
+		})
+	}
+	if params.Space != nil && params.Space.Min > 0 {
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"space.maxSpace": map[string]interface{}{
+					"gte": params.Space.Min,
+				},
 			},
 		})
 	}
 
-	// ✅ OUTLETS: Minimum outlets filter
+	// ✅ ROI
+	if params.ROI != nil && (params.ROI.Min > 0 || params.ROI.Max > 0) {
+		roiRange := map[string]interface{}{}
+		if params.ROI.Min > 0 {
+			roiRange["gte"] = params.ROI.Min
+		}
+		if params.ROI.Max > 0 {
+			roiRange["lte"] = params.ROI.Max
+		}
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"roi": roiRange,
+			},
+		})
+	}
+
+	// ✅ STAFF
+	if params.Staff != nil && (params.Staff.Min > 0 || params.Staff.Max > 0) {
+		staffRange := map[string]interface{}{}
+		if params.Staff.Min > 0 {
+			staffRange["gte"] = params.Staff.Min
+		}
+		if params.Staff.Max > 0 {
+			staffRange["lte"] = params.Staff.Max
+		}
+		filter = append(filter, map[string]interface{}{
+			"range": map[string]interface{}{
+				"staff": staffRange,
+			},
+		})
+	}
+
+	// ✅ OUTLETS
 	if params.Outlets != nil && *params.Outlets > 0 {
-		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"range": map[string]interface{}{
 				"total_outlets": map[string]interface{}{
@@ -445,9 +635,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ VERIFIED: Boolean filter
+	// ✅ VERIFIED
 	if params.Verified != nil && *params.Verified {
-		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"term": map[string]interface{}{
 				"verified": true,
@@ -455,9 +644,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// ✅ TRUSTED SELLER: Boolean filter
+	// ✅ TRUSTED SELLER
 	if params.TrustedSeller != nil && *params.TrustedSeller {
-		hasFilters = true
 		filter = append(filter, map[string]interface{}{
 			"term": map[string]interface{}{
 				"trusted_seller": true,
@@ -465,21 +653,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// If no filters, use match_all
-	if !hasFilters {
-		must = append(must, map[string]interface{}{
-			"match_all": map[string]interface{}{},
-		})
-	}
-
-	// Build final query
+	// ✅ Build final query (FLAT structure)
 	query := map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must":   must,
-				"filter": filter,
-			},
-		},
 		"size": h.config.DefaultPageSize,
 		"from": 0,
 		"sort": []interface{}{
@@ -487,6 +662,40 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 			map[string]interface{}{"rating": map[string]interface{}{"order": "desc"}},
 			map[string]interface{}{"total_outlets": map[string]interface{}{"order": "desc"}},
 		},
+	}
+
+	// ✅ Case 1: Category search with filters
+	if len(should) > 0 && len(filter) > 0 {
+		query["query"] = map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should":               should,
+				"filter":               filter,
+				"minimum_should_match": 1,
+			},
+		}
+	} else if len(should) > 0 {
+		// ✅ Case 2: Only category search
+		query["query"] = map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should":               should,
+				"minimum_should_match": 1,
+			},
+		}
+	} else if len(filter) > 0 {
+		// ✅ Case 3: Only filters
+		query["query"] = map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []interface{}{
+					map[string]interface{}{"match_all": map[string]interface{}{}},
+				},
+				"filter": filter,
+			},
+		}
+	} else {
+		// ✅ Case 4: No filters at all
+		query["query"] = map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		}
 	}
 
 	return query, nil
