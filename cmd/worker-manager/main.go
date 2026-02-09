@@ -653,16 +653,21 @@ func main() {
 	if taskType := "ai-search"; cfg.Workers[taskType].Enabled {
 		aiConfig := ais.NewDefaultConfig()
 
-		// Override with environment variables if set
-		aiConfig.IndexName = "franchise_listings"
-		aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
-		aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "qwen2.5:1.5b") // ✅ CHANGED default
-		aiConfig.LLMTimeout = 30 * time.Second                           // ✅ CHANGED from 45s
-		aiConfig.LLMMaxTokens = 200                                      // ✅ ADDED
-		aiConfig.LLMTemperature = 0.0                                    // ✅ ADDED
-		aiConfig.SearchTimeout = 5 * time.Second
-		aiConfig.DefaultPageSize = 20
-		aiConfig.MaxQueryLength = 500
+		// ONLY env-based overrides
+		aiConfig.LLMEndpoint = getEnvOrDefault(
+			"OLLAMA_URL",
+			getEnvOrDefault("LLM_ENDPOINT", aiConfig.LLMEndpoint),
+		)
+		// // Override with environment variables if set
+		// aiConfig.IndexName = "franchise_listings"
+		// aiConfig.LLMEndpoint = getEnvOrDefault("OLLAMA_URL", getEnvOrDefault("LLM_ENDPOINT", "http://ollama:11434"))
+		// aiConfig.LLMModel = getEnvOrDefault("LLM_MODEL", "qwen2.5:0.5b") // ✅ CHANGED default
+		// aiConfig.LLMTimeout = 30 * time.Second                           // ✅ CHANGED from 45s
+		// aiConfig.LLMMaxTokens = 200                                      // ✅ ADDED
+		// aiConfig.LLMTemperature = 0.0                                    // ✅ ADDED
+		// aiConfig.SearchTimeout = 5 * time.Second
+		// aiConfig.DefaultPageSize = 20
+		// aiConfig.MaxQueryLength = 500
 
 		handler := ais.NewHandler(aiConfig, esClient, log)
 
