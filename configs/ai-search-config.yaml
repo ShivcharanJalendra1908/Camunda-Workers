@@ -7,16 +7,16 @@ ai_search_worker:
 
 llm:
   provider: "ollama"
-  model: "qwen2.5:1.5b"      # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+  model: "qwen2.5:0.5b"     # ✅ CHANGED: Qwen 2.5 instead of tinyllama
   endpoint: "http://ollama:11434"
-  timeout: "30s"              # ✅ CHANGED: 30s (down from 45s) - Qwen is 15x faster!
-  max_tokens: 200            # ✅ CHANGED: 200 (down from 1000) - only need JSON
-  temperature: 0.0           # ✅ CHANGED: 0.0 (from 0.1) - deterministic output
+  timeout: "15s"              
+  max_tokens: 200            
+  temperature: 0.0          
 
 elasticsearch:
   endpoints:
     - "http://localhost:9200"
-  index_name: "franchise_listings"  # ✅ CHANGED: Correct index name
+  index_name: "franchise_listings"  
   search_timeout: "5s"              # ✅ CHANGED: 2s (down from 5s) - faster ES query
   default_page_size: 20
 
