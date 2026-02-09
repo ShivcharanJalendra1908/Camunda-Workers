@@ -5,10 +5,12 @@
 package ai_search
 
 import (
-	"camunda-workers/internal/common/logger"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"camunda-workers/internal/common/logger"
 )
 
 // ============================================================
@@ -24,45 +26,6 @@ func (t *TestLogger) Error(msg string, fields map[string]interface{})        {}
 func (t *TestLogger) With(fields map[string]interface{}) logger.Logger       { return t }
 func (t *TestLogger) WithError(err error) logger.Logger                      { return t }
 func (t *TestLogger) WithFields(fields map[string]interface{}) logger.Logger { return t }
-
-// Test types for parameters
-type RangeFilter struct {
-	Min float64
-	Max float64
-}
-
-type InvestmentFilter struct {
-	Min int
-	Max int
-}
-
-type LocationFilter struct {
-	City string
-}
-
-type ExtractedParameters struct {
-	Category       string
-	Location       *LocationFilter
-	Investment     *InvestmentFilter
-	Rating         *float64
-	Space          *RangeFilter
-	Staff          *RangeFilter
-	Outlets        *int
-	ROI            *RangeFilter
-	Verified       *bool
-	TrustedSeller  *bool
-}
-
-type SearchInput struct {
-	Query string
-}
-
-type SearchResults struct {
-	Total    int64
-	MaxScore float64
-	TookMs   int64
-	Hits     []map[string]interface{}
-}
 
 // ============================================================
 // TEST UTILITIES
@@ -369,8 +332,8 @@ func TestBuildElasticsearchQuery(t *testing.T) {
 			wantQueryKeys: []string{"query", "size"},
 		},
 		{
-			name:   "Nil parameters - match_all query",
-			params: nil,
+			name:          "Nil parameters - match_all query",
+			params:        nil,
 			wantQueryKeys: []string{"query", "size"},
 		},
 	}
