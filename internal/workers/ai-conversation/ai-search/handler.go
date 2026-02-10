@@ -344,125 +344,26 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 	}
 }
 
-// ✅ Build refined query with LLM-extracted parameters
+// ✅ FIXED: Flat query with ALL parameters using post_filter (max depth 3)
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
-	must := []interface{}{}
-	filter := []interface{}{}
+	// ✅ STRATEGY:
+	// 1. Main query: simple_query_string for category/location (depth 2)
+	// 2. Post-filter: All range/term filters (depth 2 each, but separate from query)
+	// This keeps total depth at 3 maximum!
 
-	// Category search
+	// Build main query string for text search
+	var queryParts []string
+
 	if params.Category != "" {
-		must = append(must, map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":  params.Category,
-				"fields": []string{"industry.name^3", "industry.slug^2.5", "name^2", "tags"},
-				"type":   "best_fields",
-			},
-		})
+		queryParts = append(queryParts, params.Category)
 	}
 
-	// Location filter
 	if params.Location != nil && params.Location.City != "" {
-		filter = append(filter, map[string]interface{}{
-			"match": map[string]interface{}{
-				"location": params.Location.City,
-			},
-		})
+		queryParts = append(queryParts, params.Location.City)
 	}
 
-	// Investment range
-	if params.Investment != nil && params.Investment.Max > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"investment.min_investment": map[string]interface{}{"lte": params.Investment.Max},
-			},
-		})
-	}
-	if params.Investment != nil && params.Investment.Min > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"investment.max_investment": map[string]interface{}{"gte": params.Investment.Min},
-			},
-		})
-	}
-
-	// Rating filter
-	if params.Rating != nil && *params.Rating > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"rating": map[string]interface{}{"gte": *params.Rating},
-			},
-		})
-	}
-
-	// Space requirements
-	if params.Space != nil && params.Space.Max > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"space.minSpace": map[string]interface{}{"lte": params.Space.Max},
-			},
-		})
-	}
-	if params.Space != nil && params.Space.Min > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"space.maxSpace": map[string]interface{}{"gte": params.Space.Min},
-			},
-		})
-	}
-
-	// ROI range
-	if params.ROI != nil && (params.ROI.Min > 0 || params.ROI.Max > 0) {
-		roiRange := map[string]interface{}{}
-		if params.ROI.Min > 0 {
-			roiRange["gte"] = params.ROI.Min
-		}
-		if params.ROI.Max > 0 {
-			roiRange["lte"] = params.ROI.Max
-		}
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{"roi": roiRange},
-		})
-	}
-
-	// Staff requirements
-	if params.Staff != nil && (params.Staff.Min > 0 || params.Staff.Max > 0) {
-		staffRange := map[string]interface{}{}
-		if params.Staff.Min > 0 {
-			staffRange["gte"] = params.Staff.Min
-		}
-		if params.Staff.Max > 0 {
-			staffRange["lte"] = params.Staff.Max
-		}
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{"staff": staffRange},
-		})
-	}
-
-	// Outlets filter
-	if params.Outlets != nil && *params.Outlets > 0 {
-		filter = append(filter, map[string]interface{}{
-			"range": map[string]interface{}{
-				"total_outlets": map[string]interface{}{"gte": *params.Outlets},
-			},
-		})
-	}
-
-	// Verified flag
-	if params.Verified != nil && *params.Verified {
-		filter = append(filter, map[string]interface{}{
-			"term": map[string]interface{}{"verified": true},
-		})
-	}
-
-	// Trusted seller flag
-	if params.TrustedSeller != nil && *params.TrustedSeller {
-		filter = append(filter, map[string]interface{}{
-			"term": map[string]interface{}{"trusted_seller": true},
-		})
-	}
-
-	// Build final query
-	query := map[string]interface{}{
+	// Base query structure
+	esQuery := map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"from": 0,
 		"sort": []interface{}{
@@ -472,28 +373,141 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		},
 	}
 
-	// Add bool query if we have filters
-	if len(must) > 0 || len(filter) > 0 {
-		boolQuery := map[string]interface{}{}
-
-		if len(must) > 0 {
-			boolQuery["must"] = must
-		} else {
-			boolQuery["must"] = []interface{}{
-				map[string]interface{}{"match_all": map[string]interface{}{}},
-			}
+	// Main text query
+	if len(queryParts) > 0 {
+		queryString := strings.Join(queryParts, " ")
+		esQuery["query"] = map[string]interface{}{
+			"simple_query_string": map[string]interface{}{
+				"query":            queryString,
+				"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags", "location"},
+				"default_operator": "AND",
+			},
 		}
-
-		if len(filter) > 0 {
-			boolQuery["filter"] = filter
-		}
-
-		query["query"] = map[string]interface{}{"bool": boolQuery}
 	} else {
-		query["query"] = map[string]interface{}{"match_all": map[string]interface{}{}}
+		esQuery["query"] = map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		}
 	}
 
-	return query, nil
+	// ✅ POST_FILTER: All filters applied AFTER query (keeps depth flat!)
+	postFilters := []interface{}{}
+
+	// Investment range
+	if params.Investment != nil {
+		if params.Investment.Max > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{"lte": params.Investment.Max},
+				},
+			})
+		}
+		if params.Investment.Min > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{"gte": params.Investment.Min},
+				},
+			})
+		}
+	}
+
+	// Rating filter
+	if params.Rating != nil && *params.Rating > 0 {
+		postFilters = append(postFilters, map[string]interface{}{
+			"range": map[string]interface{}{
+				"rating": map[string]interface{}{"gte": *params.Rating},
+			},
+		})
+	}
+
+	// Space requirements
+	if params.Space != nil {
+		if params.Space.Max > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.minSpace": map[string]interface{}{"lte": params.Space.Max},
+				},
+			})
+		}
+		if params.Space.Min > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.maxSpace": map[string]interface{}{"gte": params.Space.Min},
+				},
+			})
+		}
+	}
+
+	// ROI range
+	if params.ROI != nil {
+		roiRange := map[string]interface{}{}
+		if params.ROI.Min > 0 {
+			roiRange["gte"] = params.ROI.Min
+		}
+		if params.ROI.Max > 0 {
+			roiRange["lte"] = params.ROI.Max
+		}
+		if len(roiRange) > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{"roi": roiRange},
+			})
+		}
+	}
+
+	// Staff requirements
+	if params.Staff != nil {
+		staffRange := map[string]interface{}{}
+		if params.Staff.Min > 0 {
+			staffRange["gte"] = params.Staff.Min
+		}
+		if params.Staff.Max > 0 {
+			staffRange["lte"] = params.Staff.Max
+		}
+		if len(staffRange) > 0 {
+			postFilters = append(postFilters, map[string]interface{}{
+				"range": map[string]interface{}{"staff": staffRange},
+			})
+		}
+	}
+
+	// Outlets filter
+	if params.Outlets != nil && *params.Outlets > 0 {
+		postFilters = append(postFilters, map[string]interface{}{
+			"range": map[string]interface{}{
+				"total_outlets": map[string]interface{}{"gte": *params.Outlets},
+			},
+		})
+	}
+
+	// Verified flag
+	if params.Verified != nil && *params.Verified {
+		postFilters = append(postFilters, map[string]interface{}{
+			"term": map[string]interface{}{"verified": true},
+		})
+	}
+
+	// Trusted seller flag
+	if params.TrustedSeller != nil && *params.TrustedSeller {
+		postFilters = append(postFilters, map[string]interface{}{
+			"term": map[string]interface{}{"trusted_seller": true},
+		})
+	}
+
+	// Apply post_filter if we have any filters
+	if len(postFilters) > 0 {
+		if len(postFilters) == 1 {
+			// Single filter - no bool needed
+			esQuery["post_filter"] = postFilters[0]
+		} else {
+			// Multiple filters - wrap in bool.must (still depth 3 max!)
+			esQuery["post_filter"] = map[string]interface{}{
+				"bool": map[string]interface{}{
+					"must": postFilters,
+				},
+			}
+		}
+	}
+
+	return esQuery, nil
 }
 
 // ============================================================
