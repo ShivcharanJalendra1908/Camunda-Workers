@@ -9,8 +9,8 @@ llm:
   provider: "ollama"
   model: "qwen2.5:0.5b"     # ✅ CHANGED: Qwen 2.5 instead of tinyllama
   endpoint: "http://ollama:11434"
-  timeout: "25s"              
-  max_tokens: 200            
+  timeout: "20s"              
+  max_tokens: 100            
   temperature: 0.0          
 
 elasticsearch:
