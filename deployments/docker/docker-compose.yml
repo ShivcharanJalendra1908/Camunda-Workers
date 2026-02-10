@@ -90,29 +90,56 @@ services:
       start_period: 60s
 
   ollama-setup:
-    image: curlimages/curl:latest
-    container_name: ollama-setup
-    depends_on:
-      ollama:
-        condition: service_started
-    command: >
-      sh -c "
-      sleep 30 &&
-      curl -f http://ollama:11434/api/tags &&
-      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
-      sleep 90 &&
-      curl -X POST http://ollama:11434/api/generate -d '{
-        \"model\":\"qwen2.5:1.5b\",
-        \"prompt\":\"warmup\",
-        \"stream\":false,
-        \"keep_alive\":-1,
-        \"options\":{\"num_predict\":1}
-      }' &&
-      echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
-      "
-    networks:
-      - camunda-network
-    restart: "no"
+  image: curlimages/curl:latest
+  container_name: ollama-setup
+  depends_on:
+    ollama:
+      condition: service_started
+  command: >
+    sh -c "
+    sleep 30 &&
+    curl -f http://ollama:11434/api/tags &&
+    echo 'Pulling Phi model (fastest for CPU)...' &&
+    curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"phi\"}' &&
+    sleep 90 &&
+    curl -X POST http://ollama:11434/api/generate -d '{
+      \"model\":\"phi\",
+      \"prompt\":\"test\",
+      \"stream\":false,
+      \"keep_alive\":-1,
+      \"options\":{\"num_predict\":10, \"num_ctx\":512}
+    }' &&
+    echo '✅ Phi model loaded - Ready for fast CPU inference!'
+    "
+  networks:
+    - camunda-network
+  restart: "no"
+
+  # ollama-setup:
+  #   image: curlimages/curl:latest
+  #   container_name: ollama-setup
+  #   depends_on:
+  #     ollama:
+  #       condition: service_started
+  #   command: >
+  #     sh -c "
+  #     sleep 30 &&
+  #     curl -f http://ollama:11434/api/tags &&
+  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
+  #     sleep 90 &&
+  #     curl -X POST http://ollama:11434/api/generate -d '{
+  #       \"model\":\"qwen2.5:1.5b\",
+  #       \"prompt\":\"warmup\",
+  #       \"stream\":false,
+  #       \"keep_alive\":-1,
+  #       \"options\":{\"num_predict\":1}
+  #     }' &&
+  #     echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
+  #     "
+  #   networks:
+  #     - camunda-network
+  #   restart: "no"
+  
   # ollama-setup:
   #   image: curlimages/curl:latest
   #   container_name: ollama-setup

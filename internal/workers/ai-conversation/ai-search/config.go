@@ -44,7 +44,8 @@ func NewDefaultConfig() *Config {
 		RequestTimeout: 30 * time.Second,
 		LLMProvider:    "ollama",
 		// LLMModel:        "qwen2.5:0.5b",
-		LLMModel:        "qwen2.5:1.5b",
+		// LLMModel:        "qwen2.5:1.5b",
+		LLMModel:        "phi",  // ✅ CHANGED to phi
 		LLMEndpoint:     "http://ollama:11434",
 		LLMTimeout:      20 * time.Second,
 		LLMMaxTokens:    100,

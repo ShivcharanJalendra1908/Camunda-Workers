@@ -286,7 +286,8 @@ workers:
       provider: "ollama"
       # model: "llama3.2"
       # model: "tinyllama"  # ✅ CHANGED from llama3.2
-      model: "qwen2.5:1.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+      # model: "qwen2.5:1.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+      model: "phi"  # ✅ CHANGED to phi
       endpoint: "http://ollama:11434"  
       timeout: 20000
       max_tokens: 100                     

@@ -128,6 +128,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 			"repeat_penalty": 1.1,
 			"top_k":          10,
 			"top_p":          0.9,
+			"seed":           42, // Deterministic responses (phi)
 		},
 		KeepAlive: "5m",
 	}

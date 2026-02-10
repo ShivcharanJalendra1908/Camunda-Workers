@@ -7,7 +7,8 @@ ai_search_worker:
 
 llm:
   provider: "ollama"
-  model: "qwen2.5:1.5b"     # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+  # model: "qwen2.5:1.5b"     # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+  model: "phi"  # ✅ CHANGED to phi
   endpoint: "http://ollama:11434"
   timeout: "20s"              
   max_tokens: 100            
