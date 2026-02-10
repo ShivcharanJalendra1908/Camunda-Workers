@@ -89,30 +89,6 @@ services:
       retries: 5
       start_period: 60s
 
-  # ollama-setup:
-  #   image: curlimages/curl:latest
-  #   container_name: ollama-setup
-  #   depends_on:
-  #     ollama:
-  #       condition: service_started
-  #   command: >
-  #     sh -c "
-  #     sleep 30 &&
-  #     curl -f http://ollama:11434/api/tags &&
-  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
-  #     sleep 90 &&
-  #     curl -X POST http://ollama:11434/api/generate -d '{
-  #       \"model\":\"qwen2.5:1.5b\",
-  #       \"prompt\":\"warmup\",
-  #       \"stream\":false,
-  #       \"keep_alive\":-1,
-  #       \"options\":{\"num_predict\":1}
-  #     }' &&
-  #     echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
-  #     "
-  #   networks:
-  #     - camunda-network
-  #   restart: "no"
   ollama-setup:
     image: curlimages/curl:latest
     container_name: ollama-setup
@@ -121,27 +97,51 @@ services:
         condition: service_started
     command: >
       sh -c "
-      echo '🔄 Waiting for Ollama...' &&
       sleep 30 &&
-      
-      echo '✅ Pulling Qwen 2.5:0.5b (ultra-light model)...' &&
-      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:0.5b\"}' &&
-      sleep 60 &&
-      
-      echo '🔥 Warming up model...' &&
+      curl -f http://ollama:11434/api/tags &&
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:1.5b\"}' &&
+      sleep 90 &&
       curl -X POST http://ollama:11434/api/generate -d '{
-        \"model\":\"qwen2.5:0.5b\",
-        \"prompt\":\"Extract: food franchise\",
+        \"model\":\"qwen2.5:1.5b\",
+        \"prompt\":\"warmup\",
         \"stream\":false,
         \"keep_alive\":-1,
-        \"options\":{\"num_predict\":50}
+        \"options\":{\"num_predict\":1}
       }' &&
-      
-      echo '✅ Qwen 2.5:0.5b ready - 3x faster on CPU!'
+      echo 'Qwen 2.5:1.5b loaded permanently - 36x faster than TinyLlama!'
       "
     networks:
       - camunda-network
     restart: "no"
+  # ollama-setup:
+  #   image: curlimages/curl:latest
+  #   container_name: ollama-setup
+  #   depends_on:
+  #     ollama:
+  #       condition: service_started
+  #   command: >
+  #     sh -c "
+  #     echo '🔄 Waiting for Ollama...' &&
+  #     sleep 30 &&
+      
+  #     echo '✅ Pulling Qwen 2.5:0.5b (ultra-light model)...' &&
+  #     curl -X POST http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:0.5b\"}' &&
+  #     sleep 60 &&
+      
+  #     echo '🔥 Warming up model...' &&
+  #     curl -X POST http://ollama:11434/api/generate -d '{
+  #       \"model\":\"qwen2.5:0.5b\",
+  #       \"prompt\":\"Extract: food franchise\",
+  #       \"stream\":false,
+  #       \"keep_alive\":-1,
+  #       \"options\":{\"num_predict\":50}
+  #     }' &&
+      
+  #     echo '✅ Qwen 2.5:0.5b ready - 3x faster on CPU!'
+  #     "
+  #   networks:
+  #     - camunda-network
+  #   restart: "no"
     
 # ============================================================================
 # INFRASTRUCTURE
