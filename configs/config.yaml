@@ -279,7 +279,7 @@ workers:
   ai-search:
     enabled: true
     max_jobs_active: 50
-    timeout: 25000  
+    timeout: 30000  
     poll_interval: 25
     concurrency: 10
     llm:
