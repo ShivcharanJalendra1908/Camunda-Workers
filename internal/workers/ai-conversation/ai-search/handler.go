@@ -128,9 +128,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 			"repeat_penalty": 1.1,
 			"top_k":          10,
 			"top_p":          0.9,
-			"num_thread":     4,
 		},
-		KeepAlive: "-1",
 	}
 
 	jsonData, err := json.Marshal(reqBody)
