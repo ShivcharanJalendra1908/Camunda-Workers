@@ -95,10 +95,10 @@ func NewOllamaService(config *Config, log logger.Logger) *OllamaService {
 				DisableKeepAlives:   false,
 				// ✅ Connection timeouts
 				DialContext: (&net.Dialer{
-					Timeout:   5 * time.Second,
+					Timeout:   3 * time.Second,
 					KeepAlive: 30 * time.Second,
 				}).DialContext,
-				TLSHandshakeTimeout: 5 * time.Second,
+				TLSHandshakeTimeout: 3 * time.Second,
 			},
 		},
 		logger: log,
@@ -128,9 +128,9 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 			"repeat_penalty": 1.1,
 			"top_k":          10,
 			"top_p":          0.9,
-			"seed":           42, // Deterministic responses (phi)
+			"num_thread":     4,
 		},
-		KeepAlive: "5m",
+		KeepAlive: "-1",
 	}
 
 	jsonData, err := json.Marshal(reqBody)
@@ -213,7 +213,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	// ✅ Start LLM extraction in background (non-blocking)
 	go func() {
-		llmCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		llmCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
 
 		params := h.extractParametersWithFallback(llmCtx, input)
