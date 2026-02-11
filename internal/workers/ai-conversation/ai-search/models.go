@@ -7,7 +7,9 @@ type SearchInput struct {
 }
 
 type ExtractedParameters struct {
+	Industry      string            `json:"industry,omitempty"`
 	Category      string            `json:"category,omitempty"`
+	Subcategory   string            `json:"subcategory,omitempty"`
 	Location      *LocationFilter   `json:"location,omitempty"`
 	ROI           *RangeFilter      `json:"roi,omitempty"`
 	Investment    *InvestmentFilter `json:"investment,omitempty"`
