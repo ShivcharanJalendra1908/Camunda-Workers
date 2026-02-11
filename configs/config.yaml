@@ -276,20 +276,34 @@ workflows:
 # ============================================================================
 workers:
  
+  # ai-search:
+  #   enabled: true
+  #   max_jobs_active: 50
+  #   timeout: 25000  
+  #   poll_interval: 25
+  #   concurrency: 10
+  #   llm:
+  #     provider: "ollama"
+  #     model: "qwen2.5:0.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+  #     endpoint: "http://ollama:11434"  
+  #     timeout: 20000
+  #     max_tokens: 100                     
+  #     temperature: 0.0     
+  
   ai-search:
     enabled: true
-    max_jobs_active: 50
-    timeout: 25000  
+    max_jobs_active: 50          # ✅ OPTIONAL: 50 se 25 bhi kar sakte ho (CPU save)
+    timeout: 30000               # ✅ CHANGE: 25000 se 30000 (30 seconds)
     poll_interval: 25
-    concurrency: 10
+    concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen2.5:0.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+      model: "qwen2.5:0.5b"
       endpoint: "http://ollama:11434"  
-      timeout: 20000
-      max_tokens: 100                     
-      temperature: 0.0     
- 
+      timeout: 25000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
+      max_tokens: 80             # ✅ CHANGE: 100 se 80
+      temperature: 0.0
+
   franchise_postgres:
     worker_name: "franchise-postgres-worker"
     job_type: "franchise-postgres"

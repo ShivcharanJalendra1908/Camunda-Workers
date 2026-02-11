@@ -86,7 +86,7 @@ func NewOllamaService(config *Config, log logger.Logger) *OllamaService {
 		temperature: config.LLMTemperature,
 		httpClient: &http.Client{
 			// ✅ OPTIMIZED: 20s timeout (reduced from 35s)
-			Timeout: 20 * time.Second,
+			Timeout: 25 * time.Second,
 			Transport: &http.Transport{
 				// ✅ Connection pooling for better performance
 				MaxIdleConns:        10,
@@ -115,19 +115,37 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		"timeout":    s.httpClient.Timeout.Seconds(),
 	})
 
-	// ✅ OPTIMIZED REQUEST: Smaller context, fewer tokens
+	// // ✅ OPTIMIZED REQUEST: Smaller context, fewer tokens
+	// reqBody := OllamaRequest{
+	// 	Model:  s.model,
+	// 	Prompt: prompt,
+	// 	Stream: false,
+	// 	Format: "json",
+	// 	Options: map[string]interface{}{
+	// 		"temperature":    s.temperature,
+	// 		"num_predict":    100, // ✅ Reduced from 200 (2x faster)
+	// 		"num_ctx":        512, // ✅ Small context (64x smaller than default)
+	// 		"repeat_penalty": 1.1,
+	// 		"top_k":          10,
+	// 		"top_p":          0.9,
+	// 	},
+	// }
 	reqBody := OllamaRequest{
-		Model:  s.model,
-		Prompt: prompt,
-		Stream: false,
-		Format: "json",
+		Model:     s.model,
+		Prompt:    prompt,
+		Stream:    false,
+		Format:    "json",
+		KeepAlive: "-1", // ✅ NAYA - Model ko memory mein rakho
 		Options: map[string]interface{}{
-			"temperature":    s.temperature,
-			"num_predict":    100, // ✅ Reduced from 200 (2x faster)
-			"num_ctx":        512, // ✅ Small context (64x smaller than default)
-			"repeat_penalty": 1.1,
-			"top_k":          10,
-			"top_p":          0.9,
+			"temperature":    0.0,  // ✅ CHANGE - 0.0 se fast hoga
+			"num_predict":    80,   // ✅ CHANGE - 100 se 80 (fast)
+			"num_ctx":        2048, // ✅ CRITICAL - 512 se 2048 (recompilation avoid)
+			"repeat_penalty": 1.0,  // ✅ CHANGE - penalty hataya
+			"top_k":          5,    // ✅ CHANGE - 10 se 5
+			"top_p":          0.8,  // ✅ CHANGE - 0.9 se 0.8
+			"num_thread":     0,    // ✅ NAYA - Auto-detect threads
+			"num_batch":      512,  // ✅ NAYA - Batch size
+			"low_vram":       true, // ✅ NAYA - Memory optimization
 		},
 	}
 
@@ -211,7 +229,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	// ✅ Start LLM extraction in background (non-blocking)
 	go func() {
-		llmCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		llmCtx, cancel := context.WithTimeout(ctx, 25*time.Second) //20
 		defer cancel()
 
 		params := h.extractParametersWithFallback(llmCtx, input)
@@ -239,7 +257,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			"has_category": params.Category != "",
 			"has_location": params.Location != nil,
 		})
-	case <-time.After(18 * time.Second):
+	case <-time.After(16 * time.Second):
 		h.logger.Warn("LLM extraction timeout, using empty params", nil)
 		params = &ExtractedParameters{}
 	}

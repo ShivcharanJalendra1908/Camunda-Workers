@@ -3,32 +3,32 @@ ai_search_worker:
   task_type: "ai-search"
   max_jobs: 100
   poll_interval: "25ms"
-  request_timeout: "5s"      # ✅ CHANGED: 5s (down from 30s)
+  request_timeout: "30s"      # ✅ CHANGE: 5s se 30s (zyada time do)
 
 llm:
   provider: "ollama"
-  model: "qwen2.5:0.5b"     # ✅ CHANGED: Qwen 2.5 instead of tinyllama
+  model: "qwen2.5:0.5b"
   endpoint: "http://ollama:11434"
-  timeout: "20s"              
-  max_tokens: 100            
+  timeout: "25s"              # ✅ CHANGE: 20s se 25s
+  max_tokens: 80              # ✅ CHANGE: 100 se 80 (fast)
   temperature: 0.0          
 
 elasticsearch:
   endpoints:
     - "http://localhost:9200"
   index_name: "franchise_listings"  
-  search_timeout: "5s"              # ✅ CHANGED: 2s (down from 5s) - faster ES query
+  search_timeout: "3s"        # ✅ CHANGE: 5s se 3s (basic search ke liye kaafi hai)
   default_page_size: 20
 
 validation:
   max_query_length: 500
-  min_query_length: 1        # ✅ CHANGED: Allow single char (from 3)
+  min_query_length: 1
 
 features:
   enable_caching: true
   enable_metrics: true
 
-
+  
 # ai_search_worker:
 #   worker_id: "ai-search-worker"
 #   task_type: "ai-search"
