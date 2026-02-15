@@ -73,16 +73,57 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 
 	ctx := context.Background()
 
-	keycloakProvider, err := keycloak.New(
-		ctx,
-		workerConfig.Issuer,
-		workerConfig.ClientID,
-		workerConfig.RedirectURL,
-		workerConfig.PublicBaseURL,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize keycloak provider: %w", err)
+	// ✅ RETRY LOGIC: Wait for Keycloak to be ready
+	var keycloakProvider *keycloak.Provider
+	maxRetries := 10
+	retryDelay := 3 * time.Second
+
+	loggerInstance.Info("Initializing Keycloak provider", map[string]interface{}{
+		"issuer":     workerConfig.Issuer,
+		"clientId":   workerConfig.ClientID,
+		"maxRetries": maxRetries,
+		"retryDelay": retryDelay.String(),
+	})
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		keycloakProvider, err = keycloak.New(
+			ctx,
+			workerConfig.Issuer,
+			workerConfig.ClientID,
+			workerConfig.RedirectURL,
+			workerConfig.PublicBaseURL,
+		)
+
+		if err == nil {
+			loggerInstance.Info("Keycloak provider initialized successfully", map[string]interface{}{
+				"attempt": attempt,
+			})
+			break
+		}
+
+		if attempt < maxRetries {
+			loggerInstance.Warn("Keycloak not ready, retrying...", map[string]interface{}{
+				"attempt":     attempt,
+				"maxRetries":  maxRetries,
+				"error":       err.Error(),
+				"nextRetryIn": retryDelay.String(),
+			})
+			time.Sleep(retryDelay)
+		} else {
+			return nil, fmt.Errorf("failed to initialize keycloak provider after %d attempts: %w", maxRetries, err)
+		}
 	}
+
+	// keycloakProvider, err := keycloak.New(
+	// 	ctx,
+	// 	workerConfig.Issuer,
+	// 	workerConfig.ClientID,
+	// 	workerConfig.RedirectURL,
+	// 	workerConfig.PublicBaseURL,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to initialize keycloak provider: %w", err)
+	// }
 
 	dbResolver := resolver.NewDBResolver(postgresClient)
 
