@@ -11,8 +11,17 @@ camunda:
     audience: "zeebe-api"
 
 auth:
+  # keycloak:
+  #   realm: "camunda-platform"  
   keycloak:
-    realm: "camunda-platform"  
+    issuer: "http://localhost:8081/realms/auth-service"
+    clientId: "frontend-app"
+    redirectUrl: "http://localhost:3000/callback"
+    publicBaseUrl: "http://localhost:8081"
+  
+  session:
+    secure: false  # Allow HTTP in dev
+    sameSite: "Lax"
 
 logging:
   level: debug

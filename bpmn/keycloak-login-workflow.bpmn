@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0" 
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="Camunda Modeler" 
+                  exporterVersion="5.14.0" 
+                  modeler:executionPlatform="Camunda Cloud" 
+                  modeler:executionPlatformVersion="8.2.0">
+  
+  <bpmn:process id="keycloak-login-workflow" name="Keycloak Login Workflow" isExecutable="true">
+    
+    <!-- START EVENT -->
+    <bpmn:startEvent id="StartEvent_LoginInitiated" name="User Clicks Login">
+      <bpmn:outgoing>Flow_ToInitiateOAuth</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- TASK 1: Initiate OAuth Flow -->
+    <bpmn:serviceTask id="Task_InitiateOAuth" name="Initiate OAuth Flow">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.keycloak-signin" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;initiate&#34;" target="action" />
+          <zeebe:input source="=&#34;keycloak&#34;" target="provider" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToInitiateOAuth</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToUserRedirect</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- USER TASK: Redirect to Keycloak -->
+    <bpmn:userTask id="Task_RedirectToKeycloak" name="Redirect to Keycloak (302)">
+      <bpmn:documentation>
+        Frontend receives authorizationUrl and redirects user to Keycloak login page.
+        User authenticates (email/password or social login).
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToUserRedirect</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCallbackReceived</bpmn:outgoing>
+    </bpmn:userTask>
+    
+    <!-- INTERMEDIATE EVENT: Callback Received -->
+    <bpmn:intermediateCatchEvent id="Event_CallbackReceived" name="Callback Received">
+      <bpmn:documentation>
+        User is redirected back with ?code=XXX&amp;state=YYY
+      </bpmn:documentation>
+      <bpmn:incoming>Flow_ToCallbackReceived</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToHandleCallback</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_Callback" messageRef="Message_OAuthCallback" />
+    </bpmn:intermediateCatchEvent>
+    
+    <!-- TASK 2: Handle Callback (Token Exchange) -->
+    <bpmn:serviceTask id="Task_HandleCallback" name="Handle OAuth Callback">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.keycloak-signin" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;callback&#34;" target="action" />
+          <zeebe:input source="=code" target="code" />
+          <zeebe:input source="=state" target="state" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToHandleCallback</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCheckNewUser</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- GATEWAY: Is New User? -->
+    <bpmn:exclusiveGateway id="Gateway_IsNewUser" name="New User?" default="Flow_ExistingUser">
+      <bpmn:incoming>Flow_ToCheckNewUser</bpmn:incoming>
+      <bpmn:outgoing>Flow_NewUser</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ExistingUser</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- PARALLEL GATEWAY: New User Actions -->
+    <bpmn:parallelGateway id="Gateway_ParallelNewUser" name="Parallel New User Tasks">
+      <bpmn:incoming>Flow_NewUser</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCRM</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToWelcomeEmail</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- TASK 3a: Sync to CRM -->
+    <bpmn:serviceTask id="Task_SyncToCRM" name="Sync to Zoho CRM">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="crm.crm-user-create" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=email" target="email" />
+          <zeebe:input source="=&#34;oauth_registration&#34;" target="source" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCRM</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromCRM</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- TASK 3b: Send Welcome Email -->
+    <bpmn:serviceTask id="Task_SendWelcomeEmail" name="Send Welcome Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="communication.email-send" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=email" target="to" />
+          <zeebe:input source="=&#34;Welcome to LeMiCi!&#34;" target="subject" />
+          <zeebe:input source="=&#34;welcome-template&#34;" target="templateId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToWelcomeEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- JOIN GATEWAY: Wait for parallel tasks -->
+    <bpmn:parallelGateway id="Gateway_JoinNewUser" name="Join New User Tasks">
+      <bpmn:incoming>Flow_FromCRM</bpmn:incoming>
+      <bpmn:incoming>Flow_FromEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCreateSession</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    
+    <!-- MERGE GATEWAY: Merge new/existing user flows -->
+    <bpmn:exclusiveGateway id="Gateway_MergeUsers" name="Merge User Flows">
+      <bpmn:incoming>Flow_ToCreateSession</bpmn:incoming>
+      <bpmn:incoming>Flow_ExistingUser</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSessionCreate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- TASK 4: Create Session -->
+    <bpmn:serviceTask id="Task_CreateSession" name="Create Session">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="auth.session-manager" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;create&#34;" target="action" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=email" target="email" />
+          <zeebe:input source="=86400" target="expiresIn" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToSessionCreate</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToBuildResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- TASK 5: Build Success Response -->
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Success Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="infrastructure.build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;authenticated&#34;" target="status" />
+          <zeebe:input source="=&#34;/home&#34;" target="redirectUrl" />
+          <zeebe:input source="=sessionId" target="sessionId" />
+          <zeebe:input source="=cookieHeader" target="cookieHeader" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToBuildResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- END EVENT -->
+    <bpmn:endEvent id="EndEvent_LoginSuccess" name="Login Success (302 /home)">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- SEQUENCE FLOWS -->
+    <bpmn:sequenceFlow id="Flow_ToInitiateOAuth" sourceRef="StartEvent_LoginInitiated" targetRef="Task_InitiateOAuth" />
+    <bpmn:sequenceFlow id="Flow_ToUserRedirect" sourceRef="Task_InitiateOAuth" targetRef="Task_RedirectToKeycloak" />
+    <bpmn:sequenceFlow id="Flow_ToCallbackReceived" sourceRef="Task_RedirectToKeycloak" targetRef="Event_CallbackReceived" />
+    <bpmn:sequenceFlow id="Flow_ToHandleCallback" sourceRef="Event_CallbackReceived" targetRef="Task_HandleCallback" />
+    <bpmn:sequenceFlow id="Flow_ToCheckNewUser" sourceRef="Task_HandleCallback" targetRef="Gateway_IsNewUser" />
+    
+    <bpmn:sequenceFlow id="Flow_NewUser" name="Yes" sourceRef="Gateway_IsNewUser" targetRef="Gateway_ParallelNewUser">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isNewUser = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ExistingUser" name="No" sourceRef="Gateway_IsNewUser" targetRef="Gateway_MergeUsers" />
+    
+    <bpmn:sequenceFlow id="Flow_ToCRM" sourceRef="Gateway_ParallelNewUser" targetRef="Task_SyncToCRM" />
+    <bpmn:sequenceFlow id="Flow_ToWelcomeEmail" sourceRef="Gateway_ParallelNewUser" targetRef="Task_SendWelcomeEmail" />
+    <bpmn:sequenceFlow id="Flow_FromCRM" sourceRef="Task_SyncToCRM" targetRef="Gateway_JoinNewUser" />
+    <bpmn:sequenceFlow id="Flow_FromEmail" sourceRef="Task_SendWelcomeEmail" targetRef="Gateway_JoinNewUser" />
+    <bpmn:sequenceFlow id="Flow_ToCreateSession" sourceRef="Gateway_JoinNewUser" targetRef="Gateway_MergeUsers" />
+    
+    <bpmn:sequenceFlow id="Flow_ToSessionCreate" sourceRef="Gateway_MergeUsers" targetRef="Task_CreateSession" />
+    <bpmn:sequenceFlow id="Flow_ToBuildResponse" sourceRef="Task_CreateSession" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_BuildResponse" targetRef="EndEvent_LoginSuccess" />
+    
+  </bpmn:process>
+  
+  <!-- MESSAGE DEFINITION -->
+  <bpmn:message id="Message_OAuthCallback" name="oauth_callback">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=state" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  
+  <!-- DIAGRAM (Visual Layout) -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="keycloak-login-workflow">
+      
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_LoginInitiated_di" bpmnElement="StartEvent_LoginInitiated">
+        <dc:Bounds x="152" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="132" y="145" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 1 -->
+      <bpmndi:BPMNShape id="Task_InitiateOAuth_di" bpmnElement="Task_InitiateOAuth">
+        <dc:Bounds x="240" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- User Task -->
+      <bpmndi:BPMNShape id="Task_RedirectToKeycloak_di" bpmnElement="Task_RedirectToKeycloak">
+        <dc:Bounds x="390" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Intermediate Event -->
+      <bpmndi:BPMNShape id="Event_CallbackReceived_di" bpmnElement="Event_CallbackReceived">
+        <dc:Bounds x="542" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="537" y="145" width="47" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 2 -->
+      <bpmndi:BPMNShape id="Task_HandleCallback_di" bpmnElement="Task_HandleCallback">
+        <dc:Bounds x="630" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Gateway: Is New User -->
+      <bpmndi:BPMNShape id="Gateway_IsNewUser_di" bpmnElement="Gateway_IsNewUser" isMarkerVisible="true">
+        <dc:Bounds x="785" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="782" y="65" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      
+      <!-- Parallel Gateway: Split -->
+      <bpmndi:BPMNShape id="Gateway_ParallelNewUser_di" bpmnElement="Gateway_ParallelNewUser">
+        <dc:Bounds x="885" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 3a: CRM -->
+      <bpmndi:BPMNShape id="Task_SyncToCRM_di" bpmnElement="Task_SyncToCRM">
+        <dc:Bounds x="990" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 3b: Email -->
+      <bpmndi:BPMNShape id="Task_SendWelcomeEmail_di" bpmnElement="Task_SendWelcomeEmail">
+        <dc:Bounds x="990" y="150" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Parallel Gateway: Join -->
+      <bpmndi:BPMNShape id="Gateway_JoinNewUser_di" bpmnElement="Gateway_JoinNewUser">
+        <dc:Bounds x="1145" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Merge Gateway -->
+      <bpmndi:BPMNShape id="Gateway_MergeUsers_di" bpmnElement="Gateway_MergeUsers" isMarkerVisible="true">
+        <dc:Bounds x="1245" y="95" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 4: Session -->
+      <bpmndi:BPMNShape id="Task_CreateSession_di" bpmnElement="Task_CreateSession">
+        <dc:Bounds x="1350" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- Task 5: Response -->
+      <bpmndi:BPMNShape id="Task_BuildResponse_di" bpmnElement="Task_BuildResponse">
+        <dc:Bounds x="1500" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      
+      <!-- End Event -->
+      <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
+        <dc:Bounds x="1652" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1628" y="145" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      
+      <!-- EDGES -->
+      <bpmndi:BPMNEdge id="Flow_ToInitiateOAuth_di" bpmnElement="Flow_ToInitiateOAuth">
+        <di:waypoint x="188" y="120" />
+        <di:waypoint x="240" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToUserRedirect_di" bpmnElement="Flow_ToUserRedirect">
+        <di:waypoint x="340" y="120" />
+        <di:waypoint x="390" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToCallbackReceived_di" bpmnElement="Flow_ToCallbackReceived">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="542" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToHandleCallback_di" bpmnElement="Flow_ToHandleCallback">
+        <di:waypoint x="578" y="120" />
+        <di:waypoint x="630" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToCheckNewUser_di" bpmnElement="Flow_ToCheckNewUser">
+        <di:waypoint x="730" y="120" />
+        <di:waypoint x="785" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_NewUser_di" bpmnElement="Flow_NewUser">
+        <di:waypoint x="835" y="120" />
+        <di:waypoint x="885" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="102" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ExistingUser_di" bpmnElement="Flow_ExistingUser">
+        <di:waypoint x="810" y="145" />
+        <di:waypoint x="810" y="260" />
+        <di:waypoint x="1270" y="260" />
+        <di:waypoint x="1270" y="145" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="822" y="163" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToCRM_di" bpmnElement="Flow_ToCRM">
+        <di:waypoint x="910" y="95" />
+        <di:waypoint x="910" y="70" />
+        <di:waypoint x="990" y="70" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToWelcomeEmail_di" bpmnElement="Flow_ToWelcomeEmail">
+        <di:waypoint x="910" y="145" />
+        <di:waypoint x="910" y="190" />
+        <di:waypoint x="990" y="190" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_FromCRM_di" bpmnElement="Flow_FromCRM">
+        <di:waypoint x="1090" y="70" />
+        <di:waypoint x="1170" y="70" />
+        <di:waypoint x="1170" y="95" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_FromEmail_di" bpmnElement="Flow_FromEmail">
+        <di:waypoint x="1090" y="190" />
+        <di:waypoint x="1170" y="190" />
+        <di:waypoint x="1170" y="145" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToCreateSession_di" bpmnElement="Flow_ToCreateSession">
+        <di:waypoint x="1195" y="120" />
+        <di:waypoint x="1245" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToSessionCreate_di" bpmnElement="Flow_ToSessionCreate">
+        <di:waypoint x="1295" y="120" />
+        <di:waypoint x="1350" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToBuildResponse_di" bpmnElement="Flow_ToBuildResponse">
+        <di:waypoint x="1450" y="120" />
+        <di:waypoint x="1500" y="120" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
+        <di:waypoint x="1600" y="120" />
+        <di:waypoint x="1652" y="120" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+  
+</bpmn:definitions>

@@ -1483,6 +1483,110 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 }
 
 // ============================================================================
+// KEYCLOAK UNIFIED LOGIN/LOGOUT
+// ============================================================================
+
+// StartKeycloakLogin - Single endpoint for both initiate + callback
+func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
+	var input struct {
+		Code        string                 `json:"code"`
+		State       string                 `json:"state"`
+		Provider    string                 `json:"provider"`
+		RedirectURL string                 `json:"redirectUrl"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"requestId":    uuid.New().String(),
+	}
+
+	// ✅ SMART DETECTION: Code + State present? → Callback, otherwise → Initiate
+	if input.Code != "" && input.State != "" {
+		// CALLBACK FLOW (after Keycloak redirects back)
+		variables["action"] = "callback"
+		variables["code"] = input.Code
+		variables["state"] = input.State
+		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+
+		if err := h.validateString(input.Code, 1, 500); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
+			return
+		}
+
+		if err := h.validateString(input.State, 1, 500); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
+			return
+		}
+
+	} else {
+		// INITIATE FLOW (first click from frontend)
+		variables["action"] = "initiate"
+		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+		variables["redirectUrl"] = input.RedirectURL
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "keycloak-login-workflow", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// StartKeycloakLogout - Logout endpoint
+func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
+	var input struct {
+		SessionID   string                 `json:"sessionId"`
+		LogoutAll   bool                   `json:"logoutAll"`
+		RedirectURL string                 `json:"redirectUrl"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	sessionID := input.SessionID
+	if sessionID == "" {
+		sessionID = claims.SessionID
+	}
+
+	variables := map[string]interface{}{
+		"sessionId":    sessionID,
+		"userId":       claims.UserID,
+		"logoutAll":    input.LogoutAll,
+		"redirectUrl":  input.RedirectURL,
+		"sourceSystem": claims.SourceSystem,
+		"requestId":    uuid.New().String(),
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
 

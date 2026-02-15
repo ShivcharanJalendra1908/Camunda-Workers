@@ -271,24 +271,30 @@ workflows:
     backend: "redis"
     ttl: 3600
 
+
+# ============================================================================
+# AUTH (KEYCLOAK LOGIN)
+# ============================================================================
+auth:
+  # Keycloak Configuration
+  keycloak:
+    issuer: "http://localhost:8081/realms/auth-service"
+    clientId: "frontend-app"
+    redirectUrl: "http://localhost:3000/callback"
+    publicBaseUrl: "http://localhost:8081"
+  
+  # Session Configuration
+  session:
+    ttl: 86400000  # 24 hours in milliseconds
+    cookieName: "session_id"
+    secure: true
+    httpOnly: true
+    sameSite: "Lax"
+
 # ============================================================================
 # WORKER CONFIGURATION
 # ============================================================================
 workers:
- 
-  # ai-search:
-  #   enabled: true
-  #   max_jobs_active: 50
-  #   timeout: 25000  
-  #   poll_interval: 25
-  #   concurrency: 10
-  #   llm:
-  #     provider: "ollama"
-  #     model: "qwen2.5:0.5b"  # ✅ CHANGED: Qwen 2.5 instead of tinyllama
-  #     endpoint: "http://ollama:11434"  
-  #     timeout: 20000
-  #     max_tokens: 100                     
-  #     temperature: 0.0     
   
   ai-search:
     enabled: true
@@ -475,6 +481,28 @@ workers:
     poll_interval: 25
     concurrency: 10
 
+   # Keycloak Signin Worker
+  keycloak-signin:
+    enabled: true
+    maxJobsActive: 10
+    timeout: 30000  # 30 seconds
+    issuer: "http://localhost:8081/realms/auth-service"
+    clientId: "frontend-app"
+    redirectUrl: "http://localhost:3000/callback"
+    publicBaseUrl: "http://localhost:8081"
+    stateTtl: 300000  # 5 minutes in milliseconds
+  
+  # Session Manager Worker
+  session-manager:
+    enabled: true
+    maxJobsActive: 10
+    timeout: 10000  # 10 seconds
+    defaultTtl: 86400000  # 24 hours in milliseconds
+    cookieName: "session_id"
+    secure: true
+    httpOnly: true
+    sameSite: "Lax"
+    
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================

@@ -12,6 +12,12 @@ function create_user_and_database() {
 EOSQL
 }
 
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "lemici_dev" <<-EOSQL
+    \i /docker-entrypoint-initdb.d/auth-schema.sql
+EOSQL
+
+echo "Auth schema created successfully"
+
 if [ -n "$POSTGRES_MULTIPLE_DATABASES" ]; then
     echo "=========================================="
     echo "🚀 INITIALIZING MULTIPLE DATABASES"

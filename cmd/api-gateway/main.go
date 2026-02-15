@@ -197,9 +197,6 @@ func main() {
 		camundaClient,
 		log,
 		redisClient.GetClient())
-	//franchiseHandler := handlers.NewFranchiseHandler(esClient, postgresDB, log)
-
-	//franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log)
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient())
 
@@ -220,23 +217,14 @@ func main() {
 		// ========================================================================
 		authGroup := publicAPI.Group("/auth")
 		{
-			// Google OAuth workflows
-			authGroup.POST("/google/signup", workflowHandler.StartGoogleSignup)
-			authGroup.POST("/google/signin", workflowHandler.StartGoogleSignin)
+			// ✅ KEYCLOAK UNIFIED LOGIN (Email/Password + Google + LinkedIn)
+			authGroup.POST("/login", workflowHandler.StartKeycloakLogin)
 
-			// LinkedIn OAuth workflows
-			authGroup.POST("/linkedin/signup", workflowHandler.StartLinkedInSignup)
-			authGroup.POST("/linkedin/signin", workflowHandler.StartLinkedInSignin)
+			// ✅ KEYCLOAK LOGOUT
+			authGroup.POST("/logout", workflowHandler.StartKeycloakLogout)
 
-			// Email/Password Auth workflows
-			authGroup.POST("/login", workflowHandler.StartUserSignin)
-			authGroup.POST("/signup", workflowHandler.StartUserSignup)
-
-			// Password Reset workflow
+			// Password Reset workflow (keep if needed)
 			authGroup.POST("/password/reset", workflowHandler.StartPasswordReset)
-
-			// Logout workflow
-			authGroup.POST("/logout", workflowHandler.StartUserLogout)
 		}
 
 		// ========================================================================
@@ -520,12 +508,7 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		"🔓 PUBLIC ROUTES (No Authentication):",
 		"",
 		"  🔐 Auth Workflows (API → Camunda → Workers → Keycloak/DB):",
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/google/signup", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/google/signin", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/linkedin/signup", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/linkedin/signin", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/login", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/signup", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/logout", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/auth/password/reset", port),
 		"",
