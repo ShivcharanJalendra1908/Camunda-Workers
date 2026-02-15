@@ -61,19 +61,18 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		loggerInstance = logger.NewStructured("info", "json")
 	}
 
-	// ✅ FIX: Use database.NewPostgres instead of auth.New
 	postgresClient, err := database.NewPostgres(opts.AppConfig.Database.Postgres)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize postgres: %w", err)
 	}
 
-	// ✅ FIX: Run migrations using database.RunKeystoneMigration
-	ctx := context.Background()
-	if err := database.RunKeystoneMigration(ctx, postgresClient.DB); err != nil {
-		return nil, fmt.Errorf("failed to run database migrations: %w", err)
-	}
+	// ctx := context.Background()
+	// if err := database.RunKeystoneMigration(ctx, postgresClient.DB); err != nil {
+	// 	return nil, fmt.Errorf("failed to run database migrations: %w", err)
+	// }
 
-	// ✅ FIX: Use keycloak.New directly (not auth.NewKeycloakProvider)
+	ctx := context.Background()
+
 	keycloakProvider, err := keycloak.New(
 		ctx,
 		workerConfig.Issuer,
@@ -85,7 +84,6 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize keycloak provider: %w", err)
 	}
 
-	// ✅ FIX: Use resolver.NewDBResolver directly
 	dbResolver := resolver.NewDBResolver(postgresClient)
 
 	handler := &Handler{

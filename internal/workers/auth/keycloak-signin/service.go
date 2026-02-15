@@ -58,7 +58,7 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 }
 
-func (s *Service) handleInitiate(ctx context.Context, input *Input) (*Output, error) {
+func (s *Service) handleInitiate(ctx context.Context, _ *Input) (*Output, error) {
 	// 1. Generate state
 	state, err := generateState()
 	if err != nil {

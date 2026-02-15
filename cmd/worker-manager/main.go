@@ -37,7 +37,7 @@ import (
 	td "camunda-workers/internal/workers/infrastructure/template-driven"
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
-	// Data Access Workers (3)
+	// Data Access Workers (4)
 	esindexer "camunda-workers/internal/workers/data-access/franchise-es-indexer"
 	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
@@ -62,7 +62,7 @@ import (
 	pui "camunda-workers/internal/workers/ai-conversation/parse-user-intent"
 	qid "camunda-workers/internal/workers/ai-conversation/query-internal-data"
 
-	// Authentication & Utility Workers (8)
+	// Authentication & Utility Workers (10)
 	alo "camunda-workers/internal/workers/auth/auth-logout"
 	asig "camunda-workers/internal/workers/auth/auth-signin-google"
 	asil "camunda-workers/internal/workers/auth/auth-signin-linkedin"
@@ -475,7 +475,7 @@ func main() {
 		)
 	}
 
-	// --- 3. Business Logic Workers (5 + 5 = 10) ---
+	// --- 3. Business Logic Workers (9) ---
 
 	// First check for search-franchises worker
 	if taskType := "search-franchises"; cfg.Workers[taskType].Enabled {
@@ -648,7 +648,7 @@ func main() {
 		)
 	}
 
-	// --- 5. Authentication & Utility Workers (8) ---
+	// --- 5. Authentication & Utility Workers (10) ---
 
 	if taskType := "keycloak-signin"; cfg.Workers[taskType].Enabled {
 		handler, err := keycloaksignin.NewHandler(keycloaksignin.HandlerOptions{
@@ -797,7 +797,7 @@ func main() {
 	}
 
 	zapLog.Info("All workers registered successfully",
-		zap.Int("totalWorkers", 30))
+		zap.Int("totalWorkers", 33))
 
 	// ============================================================================
 	// START IDEMPOTENCY CLEANUP JOB
