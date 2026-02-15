@@ -26,42 +26,35 @@ func GetInputSchema() validation.JSONSchema {
 				Default: "keycloak",
 			},
 		},
-		Required:             []string{"action"},
-		AdditionalProperties: false,
+		Required: []string{"action"},
 	}
 }
 
-func ValidateInput(input map[string]interface{}) error {
-	// First, apply defaults
-	schema := GetInputSchema()
-
-	// Apply default values
-	for fieldName, prop := range schema.Properties {
-		if prop.Default != nil {
-			if _, exists := input[fieldName]; !exists {
-				input[fieldName] = prop.Default
-			}
+func ValidateInput(inputMap map[string]interface{}) error {
+	action, ok := inputMap["action"].(string)
+	if !ok || action == "" {
+		return &cerrors.StandardError{
+			Code:      "INVALID_ACTION",
+			Message:   "Action is required and must be a string",
+			Retryable: false,
+			Timestamp: time.Now(),
 		}
 	}
 
-	// Validate against schema
-	result := validation.ValidateInput(input, schema)
-	if !result.Valid {
-		// Convert the first error to StandardError
-		if len(result.Errors) > 0 {
-			err := result.Errors[0]
-			return &cerrors.StandardError{
-				Code:      cerrors.ErrorCode(err.Code),
-				Message:   err.Message,
-				Retryable: false,
-				Timestamp: time.Now(),
-			}
+	if action != "initiate" && action != "callback" {
+		return &cerrors.StandardError{
+			Code:      "INVALID_ACTION",
+			Message:   "Action must be 'initiate' or 'callback'",
+			Retryable: false,
+			Timestamp: time.Now(),
 		}
 	}
 
-	// Additional custom validation for callback action
-	if action, ok := input["action"].(string); ok && action == "callback" {
-		if code, ok := input["code"].(string); !ok || code == "" {
+	if action == "callback" {
+		code, codeOk := inputMap["code"].(string)
+		state, stateOk := inputMap["state"].(string)
+
+		if !codeOk || code == "" {
 			return &cerrors.StandardError{
 				Code:      "MISSING_CODE",
 				Message:   "Authorization code is required for callback action",
@@ -69,7 +62,8 @@ func ValidateInput(input map[string]interface{}) error {
 				Timestamp: time.Now(),
 			}
 		}
-		if state, ok := input["state"].(string); !ok || state == "" {
+
+		if !stateOk || state == "" {
 			return &cerrors.StandardError{
 				Code:      "MISSING_STATE",
 				Message:   "State parameter is required for callback action",
