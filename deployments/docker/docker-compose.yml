@@ -331,6 +331,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_healthy
+      keycloak:                    # ✅ ADD THIS
+        condition: service_healthy 
     volumes:
       - ../../configs:/app/configs:ro
       - ../../bpmn:/app/bpmn:ro
