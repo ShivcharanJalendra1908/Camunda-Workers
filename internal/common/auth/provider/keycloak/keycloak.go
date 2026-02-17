@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	auth "camunda-workers/internal/common/auth/types"
 
@@ -42,7 +43,9 @@ func New(
 	})
 
 	ep := oidcProvider.Endpoint()
-	ep.AuthURL = publicBaseURL + "/realms/auth-service/protocol/openid-connect/auth"
+	//ep.AuthURL = publicBaseURL + "/realms/auth-service/protocol/openid-connect/auth"
+	// ✅ NAYA - SAHI
+	ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
 
 	oauthCfg := &oauth2.Config{
 		ClientID:    clientID,
