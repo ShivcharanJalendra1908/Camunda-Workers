@@ -58,15 +58,6 @@ auth:
     refreshExpiryHours: 168
     algorithm: "HS256"
   
-  # Keycloak Configuration
-  # keycloak:
-  #   url: "http://keycloak:8080"
-  #   realm: "camunda-platform"
-  #   client_id: "camunda-worker-client"
-  #   client_secret: "worker-client-secret"
-  #   admin_client_id: "admin-cli"
-  #   admin_client_secret: "admin-client-secret"
-  
   keycloak:
     url: "http://keycloak:8080"
     realm: "camunda-platform"
@@ -75,7 +66,8 @@ auth:
     admin_client_id: "admin-cli"
     admin_client_secret: "admin-client-secret"
     redirectUrl: "http://localhost:3000/callback"
-    publicBaseUrl: "http://keycloak:8180"
+    # publicBaseUrl: "http://keycloak:8180"
+    publicBaseUrl: "http://localhost:8180" 
   
   # Session Configuration
   session:
