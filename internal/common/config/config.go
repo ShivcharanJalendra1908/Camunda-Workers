@@ -209,7 +209,7 @@ type AuthConfig struct {
 		ClientID      string `mapstructure:"client_id"`
 		ClientSecret  string `mapstructure:"client_secret"`
 		Issuer        string `mapstructure:"issuer"`        // ✅ ADD
-		RedirectURL   string `mapstructure:"redirect_url"`  // ✅ ADD
+		RedirectURL   string `mapstructure:"redirectUrl"`   // ✅ ADD
 		PublicBaseURL string `mapstructure:"publicBaseUrl"` // ✅ ADD
 	} `mapstructure:"keycloak"`
 
