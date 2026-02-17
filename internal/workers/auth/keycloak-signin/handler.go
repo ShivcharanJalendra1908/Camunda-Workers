@@ -484,7 +484,8 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 				strings.TrimSuffix(appConfig.Auth.Keycloak.URL, "/"),
 				appConfig.Auth.Keycloak.Realm)
 			cfg.ClientID = appConfig.Auth.Keycloak.ClientID
-			cfg.PublicBaseURL = appConfig.Auth.Keycloak.URL
+			//cfg.PublicBaseURL = appConfig.Auth.Keycloak.URL
+			cfg.PublicBaseURL = appConfig.Auth.Keycloak.PublicBaseURL
 
 			// RedirectURL from config if exists, else use default
 			if appConfig.Auth.Keycloak.RedirectURL != "" {

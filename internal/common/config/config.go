@@ -208,9 +208,9 @@ type AuthConfig struct {
 		Realm         string `mapstructure:"realm"`
 		ClientID      string `mapstructure:"client_id"`
 		ClientSecret  string `mapstructure:"client_secret"`
-		Issuer        string `mapstructure:"issuer"`          // ✅ ADD
-		RedirectURL   string `mapstructure:"redirect_url"`    // ✅ ADD
-		PublicBaseURL string `mapstructure:"public_base_url"` // ✅ ADD
+		Issuer        string `mapstructure:"issuer"`        // ✅ ADD
+		RedirectURL   string `mapstructure:"redirect_url"`  // ✅ ADD
+		PublicBaseURL string `mapstructure:"publicBaseUrl"` // ✅ ADD
 	} `mapstructure:"keycloak"`
 
 	OAuthProviders struct {
