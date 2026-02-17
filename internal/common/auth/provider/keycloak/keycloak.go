@@ -21,7 +21,13 @@ type Provider struct {
 }
 
 // New initializes a Keycloak OIDC provider using discovery.
-func New(ctx context.Context, issuer string, clientID string, redirectURL string, publicBaseURL string) (*Provider, error) {
+func New(
+	ctx context.Context,
+	issuer string,
+	clientID string,
+	redirectURL string,
+	publicBaseURL string,
+) (*Provider, error) {
 
 	if issuer == "" || clientID == "" || redirectURL == "" || publicBaseURL == "" {
 		return nil, errors.New("keycloak oauth config missing required fields")
@@ -33,15 +39,12 @@ func New(ctx context.Context, issuer string, clientID string, redirectURL string
 	}
 
 	verifier := oidcProvider.Verifier(&oidc.Config{
-		ClientID: clientID,
+		ClientID:        clientID,
+		SkipIssuerCheck: true,
 	})
 
 	ep := oidcProvider.Endpoint()
-	//ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
-
-	realmPart := issuer[strings.LastIndex(issuer, "/realms/")+8:]
-	ep.AuthURL = publicBaseURL + "/realms/" + realmPart + "/protocol/openid-connect/auth"
-	ep.TokenURL = issuer + "/protocol/openid-connect/token"
+	ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
 
 	oauthCfg := &oauth2.Config{
 		ClientID:    clientID,
