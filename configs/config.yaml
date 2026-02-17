@@ -70,8 +70,8 @@ auth:
   keycloak:
     url: "http://keycloak:8080"
     realm: "camunda-platform"
-    client_id: "camunda-worker-client"
-    client_secret: "worker-client-secret"
+    client_id: "lemici-frontend"
+    client_secret: "client-secret"
     admin_client_id: "admin-cli"
     admin_client_secret: "admin-client-secret"
     redirectUrl: "http://localhost:3000/callback"
