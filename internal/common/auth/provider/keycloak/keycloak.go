@@ -20,57 +20,14 @@ type Provider struct {
 	verifier    *oidc.IDTokenVerifier
 }
 
-// // New initializes a Keycloak OIDC provider using discovery.
-// func New(ctx context.Context, issuer string, clientID string, redirectURL string, publicBaseURL string,) (*Provider, error) {
-
-// 	if issuer == "" || clientID == "" || redirectURL == "" || publicBaseURL == "" {
-// 		return nil, errors.New("keycloak oauth config missing required fields")
-// 	}
-
-// 	oidcProvider, err := oidc.NewProvider(ctx, issuer)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to init keycloak oidc provider: %w", err)
-// 	}
-
-// 	verifier := oidcProvider.Verifier(&oidc.Config{
-// 		ClientID: clientID,
-// 	})
-
-// 	ep := oidcProvider.Endpoint()
-// 	//ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
-
-// 	realmPart := issuer[strings.LastIndex(issuer, "/realms/")+8:]
-// 	ep.AuthURL = publicBaseURL + "/realms/" + realmPart + "/protocol/openid-connect/auth"
-// 	ep.TokenURL = issuer + "/protocol/openid-connect/token"
-
-// 	oauthCfg := &oauth2.Config{
-// 		ClientID:    clientID,
-// 		RedirectURL: redirectURL,
-// 		Endpoint:    ep,
-// 		Scopes: []string{
-// 			oidc.ScopeOpenID,
-// 			"email",
-// 			"profile",
-// 		},
-// 	}
-
-//		return &Provider{
-//			oauthConfig: oauthCfg,
-//			verifier:    verifier,
-//		}, nil
-//	}
+// New initializes a Keycloak OIDC provider using discovery.
 func New(ctx context.Context, issuer string, clientID string, redirectURL string, publicBaseURL string) (*Provider, error) {
 
 	if issuer == "" || clientID == "" || redirectURL == "" || publicBaseURL == "" {
 		return nil, errors.New("keycloak oauth config missing required fields")
 	}
 
-	// ✅ ADD: Build public issuer (matches token's `iss` claim)
-	realmPart := issuer[strings.LastIndex(issuer, "/realms/")+8:]
-	publicIssuer := publicBaseURL + "/realms/" + realmPart
-
-	// ✅ CHANGE: issuer → publicIssuer
-	oidcProvider, err := oidc.NewProvider(ctx, publicIssuer)
+	oidcProvider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init keycloak oidc provider: %w", err)
 	}
@@ -80,8 +37,10 @@ func New(ctx context.Context, issuer string, clientID string, redirectURL string
 	})
 
 	ep := oidcProvider.Endpoint()
+	//ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
+
+	realmPart := issuer[strings.LastIndex(issuer, "/realms/")+8:]
 	ep.AuthURL = publicBaseURL + "/realms/" + realmPart + "/protocol/openid-connect/auth"
-	// ✅ CHANGE: internal URL use karo token exchange ke liye (container-to-container)
 	ep.TokenURL = issuer + "/protocol/openid-connect/token"
 
 	oauthCfg := &oauth2.Config{
