@@ -484,7 +484,7 @@ workers:
     enabled: true
     maxJobsActive: 10
     timeout: 30000  # 30 seconds
-    # issuer: "http://localhost:8081/realms/auth-service"
+    # issuer: "http://localhost:8081/realms/"camunda-platform""
     # clientId: "frontend-app"
     # redirectUrl: "http://localhost:3000/callback"
     # publicBaseUrl: "http://localhost:8081"
