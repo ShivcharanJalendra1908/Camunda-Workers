@@ -75,7 +75,7 @@ auth:
     admin_client_id: "admin-cli"
     admin_client_secret: "admin-client-secret"
     redirectUrl: "http://localhost:3000/callback"
-    publicBaseUrl: "http://keycloak:8080"
+    publicBaseUrl: "http://keycloak:8180"
   
   # Session Configuration
   session:
