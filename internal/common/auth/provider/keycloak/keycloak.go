@@ -43,9 +43,11 @@ func New(
 	})
 
 	ep := oidcProvider.Endpoint()
-	//ep.AuthURL = publicBaseURL + "/realms/auth-service/protocol/openid-connect/auth"
-	// ✅ NAYA - SAHI
-	ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
+	//ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
+
+	realmPart := issuer[strings.LastIndex(issuer, "/realms/")+8:]
+	ep.AuthURL = publicBaseURL + "/realms/" + realmPart + "/protocol/openid-connect/auth"
+	ep.TokenURL = issuer + "/protocol/openid-connect/token"
 
 	oauthCfg := &oauth2.Config{
 		ClientID:    clientID,
