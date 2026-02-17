@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const TaskType = "auth.session-manager"
+const TaskType = "session-manager"
 
 type Handler struct {
 	config       *Config

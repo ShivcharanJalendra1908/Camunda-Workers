@@ -26,7 +26,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const TaskType = "auth.keycloak-signin"
+const TaskType = "keycloak-signin"
 
 type Handler struct {
 	config       *Config

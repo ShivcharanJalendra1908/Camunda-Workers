@@ -23,7 +23,7 @@
     <!-- TASK 1: Get Session from Cookie -->
     <bpmn:serviceTask id="Task_GetSession" name="Get Session">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="auth.session-manager" />
+        <zeebe:taskDefinition type="session-manager" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;get&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
@@ -57,7 +57,7 @@
     <!-- TASK 3: Delete Session from Redis -->
     <bpmn:serviceTask id="Task_DeleteSession" name="Delete Session">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="auth.session-manager" />
+        <zeebe:taskDefinition type="session-manager" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;delete&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
