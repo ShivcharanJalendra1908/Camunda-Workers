@@ -31,7 +31,7 @@ func GetInputSchema() validation.JSONSchema {
 			},
 		},
 		Required:             []string{"action"},
-		AdditionalProperties: false,
+		AdditionalProperties: true, // ✅ false → true
 	}
 }
 
