@@ -274,31 +274,59 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		}
 	}
 
-	schema := GetInputSchema()
-	validationResult := validation.ValidateInput(variables, schema)
-	if !validationResult.Valid {
+	actionVal, ok := variables["action"]
+	if !ok {
 		return nil, &cerrors.StandardError{
 			Code:      "VALIDATION_FAILED",
 			Message:   "Input validation failed",
-			Details:   fmt.Sprintf("Validation errors: %v", validationResult.GetErrorMessages()),
+			Details:   "missing required field: action",
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
+	action, ok := actionVal.(string)
+	if !ok || (action != "initiate" && action != "callback") {
+		return nil, &cerrors.StandardError{
+			Code:      "VALIDATION_FAILED",
+			Message:   "Input validation failed",
+			Details:   fmt.Sprintf("action must be 'initiate' or 'callback', got: %v", actionVal),
 			Retryable: false,
 			Timestamp: time.Now(),
 		}
 	}
 
+	if action == "callback" {
+		if _, hasCode := variables["code"]; !hasCode {
+			return nil, &cerrors.StandardError{
+				Code:      "VALIDATION_FAILED",
+				Message:   "Input validation failed",
+				Details:   "missing required field: code (required for callback action)",
+				Retryable: false,
+				Timestamp: time.Now(),
+			}
+		}
+		if _, hasState := variables["state"]; !hasState {
+			return nil, &cerrors.StandardError{
+				Code:      "VALIDATION_FAILED",
+				Message:   "Input validation failed",
+				Details:   "missing required field: state (required for callback action)",
+				Retryable: false,
+				Timestamp: time.Now(),
+			}
+		}
+	}
+
 	input := &Input{
-		Action:   variables["action"].(string),
+		Action:   action,
 		Provider: "keycloak",
 	}
 
 	if code, ok := variables["code"].(string); ok {
 		input.Code = code
 	}
-
 	if state, ok := variables["state"].(string); ok {
 		input.State = state
 	}
-
 	if metadata, ok := variables["metadata"].(map[string]interface{}); ok {
 		input.Metadata = metadata
 	}
