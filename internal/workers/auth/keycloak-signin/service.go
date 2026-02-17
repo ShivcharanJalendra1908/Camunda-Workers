@@ -129,6 +129,11 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 	// 3. Exchange authorization code for tokens
 	identity, err := s.keycloak.ExchangeCode(ctx, input.Code, verifier)
 	if err != nil {
+		s.logger.Error("Token exchange error details", map[string]interface{}{
+			"error":    err.Error(),
+			"code":     input.Code[:20],
+			"verifier": verifier[:10],
+		})
 		return nil, &cerrors.StandardError{
 			Code:      "TOKEN_EXCHANGE_FAILED",
 			Message:   "Failed to exchange authorization code",
