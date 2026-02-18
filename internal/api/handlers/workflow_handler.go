@@ -1548,6 +1548,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 // StartKeycloakLogout - Logout endpoint
 func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 	var input struct {
+		UserID      string                 `json:"userId"`
 		SessionID   string                 `json:"sessionId"`
 		LogoutAll   bool                   `json:"logoutAll"`
 		RedirectURL string                 `json:"redirectUrl"`
@@ -1570,8 +1571,9 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 	}
 
 	variables := map[string]interface{}{
-		"sessionId":    sessionID,
-		"userId":       claims.UserID,
+		"sessionId": sessionID,
+		//	"userId":       claims.UserID,
+		"userId":       getOrDefault(input.UserID, claims.UserID),
 		"logoutAll":    input.LogoutAll,
 		"redirectUrl":  input.RedirectURL,
 		"sourceSystem": claims.SourceSystem,

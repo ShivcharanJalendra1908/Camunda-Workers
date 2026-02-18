@@ -27,6 +27,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;get&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
+          <zeebe:input source="=userId" target="userId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToGetSession</bpmn:incoming>
@@ -61,6 +62,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;delete&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
+          <zeebe:input source="=userId" target="userId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToDeleteSession</bpmn:incoming>
