@@ -176,8 +176,7 @@ func (k *KeycloakClient) doRequest(req *http.Request) (*http.Response, error) {
 // ============================================================================
 
 // getAccessToken fetches a new access token using the client credentials flow.
-// It caches the token until expiry with a 60-second buffer for safety.
-// This method is thread-safe using double-checked locking pattern.
+// It uses adminClientID and adminClientSecret for admin operations.
 func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 	// Quick check without lock (read lock)
 	k.mu.RLock()
@@ -200,8 +199,16 @@ func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", k.clientID)
-	data.Set("client_secret", k.clientSecret)
+
+	// ✅ FIX: Use admin credentials for admin operations
+	if k.adminClientID != "" && k.adminClientSecret != "" {
+		data.Set("client_id", k.adminClientID)
+		data.Set("client_secret", k.adminClientSecret)
+	} else {
+		// Fallback to regular client credentials
+		data.Set("client_id", k.clientID)
+		data.Set("client_secret", k.clientSecret)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -231,6 +238,63 @@ func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 
 	return nil
 }
+
+// // getAccessToken fetches a new access token using the client credentials flow.
+// // It caches the token until expiry with a 60-second buffer for safety.
+// // This method is thread-safe using double-checked locking pattern.
+// func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
+// 	// Quick check without lock (read lock)
+// 	k.mu.RLock()
+// 	if time.Now().Add(60*time.Second).Before(k.tokenExpiry) && k.accessToken != "" {
+// 		k.mu.RUnlock()
+// 		return nil
+// 	}
+// 	k.mu.RUnlock()
+
+// 	// Acquire write lock for token refresh
+// 	k.mu.Lock()
+// 	defer k.mu.Unlock()
+
+// 	// Double-check after acquiring lock (another goroutine might have refreshed)
+// 	if time.Now().Add(60*time.Second).Before(k.tokenExpiry) && k.accessToken != "" {
+// 		return nil
+// 	}
+
+// 	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token", k.baseURL, k.realm)
+
+// 	data := url.Values{}
+// 	data.Set("grant_type", "client_credentials")
+// 	data.Set("client_id", k.clientID)
+// 	data.Set("client_secret", k.clientSecret)
+
+// 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
+// 	if err != nil {
+// 		return fmt.Errorf("failed to create token request: %w", err)
+// 	}
+
+// 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+// 	resp, err := k.doRequest(req)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to execute token request: %w", err)
+// 	}
+// 	defer resp.Body.Close()
+
+// 	if resp.StatusCode != http.StatusOK {
+// 		body, _ := io.ReadAll(resp.Body)
+// 		return fmt.Errorf("keycloak token request failed with status %d: %s", resp.StatusCode, string(body))
+// 	}
+
+// 	var tokenResp TokenResponse
+// 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+// 		return fmt.Errorf("failed to decode token response: %w", err)
+// 	}
+
+// 	k.accessToken = tokenResp.AccessToken
+// 	k.tokenExpiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+// 	return nil
+// }
 
 // ExchangeCodeForToken exchanges an authorization code for tokens (OAuth2 Authorization Code Flow).
 func (k *KeycloakClient) ExchangeCodeForToken(ctx context.Context, code, redirectURI string) (*TokenResponse, error) {

@@ -256,8 +256,8 @@ func main() {
 		cfg.Auth.Keycloak.Realm,
 		cfg.Auth.Keycloak.ClientID,
 		cfg.Auth.Keycloak.ClientSecret,
-		cfg.Auth.Keycloak.ClientID,     // hardcode: use same as clientID
-		cfg.Auth.Keycloak.ClientSecret, // hardcode: use same as clientSecret
+		cfg.Auth.Keycloak.ClientID,     // ← ADD
+		cfg.Auth.Keycloak.ClientSecret, // ← ADD
 	)
 
 	// ===== IDEMPOTENCY CHECKER SETUP =====
