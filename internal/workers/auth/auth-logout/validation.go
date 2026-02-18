@@ -43,9 +43,15 @@ func ValidateInput(input *Input) error {
 
 	// ===== TEMPLATE SECTION 3: Session ID (Session Token validation) =====
 	if input.SessionID != "" {
+		// if err := ozzo.Validate(input.SessionID,
+		// 	ozzo.Length(1, 255).Error("sessionId must be between 1 and 255 characters"),
+		// 	validation.IDString,
+		// 	validation.SafeSQLString,
+		// ); err != nil {
+		// 	return errors.NewValidationError("sessionId", err.Error())
+		// }
 		if err := ozzo.Validate(input.SessionID,
 			ozzo.Length(1, 255).Error("sessionId must be between 1 and 255 characters"),
-			validation.IDString,
 			validation.SafeSQLString,
 		); err != nil {
 			return errors.NewValidationError("sessionId", err.Error())
