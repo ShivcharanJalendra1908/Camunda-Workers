@@ -750,6 +750,7 @@ func main() {
 			CBManager:   cbManager,
 			Keycloak:    keycloakClient,
 			RedisClient: redis.GetClient(),
+			DB:          pg.DB,
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-logout handler", zap.Error(err))

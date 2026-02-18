@@ -3,6 +3,7 @@ package authlogout
 import (
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/logger"
+	"database/sql"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -35,4 +36,5 @@ type ServiceDependencies struct {
 	Keycloak    *auth.KeycloakClient // Keycloak client for token revocation
 	Logger      logger.Logger
 	RedisClient *redis.Client
+	DB          *sql.DB
 }

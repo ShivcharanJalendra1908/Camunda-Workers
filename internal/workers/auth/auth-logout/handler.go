@@ -18,7 +18,7 @@ import (
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/metrics"
 	"camunda-workers/internal/common/validation"
-
+"database/sql"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -49,6 +49,7 @@ type HandlerOptions struct {
 	Logger       logger.Logger
 	CBManager    *circuitbreaker.Manager
 	RedisClient  *redis.Client
+	DB           *sql.DB 
 }
 
 func NewHandler(opts HandlerOptions) (*Handler, error) {
@@ -88,6 +89,7 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		Keycloak:    handler.keycloak,
 		Logger:      loggerInstance,
 		RedisClient: opts.RedisClient,
+		DB:          opts.DB, 
 	}, handler.config)
 
 	return handler, nil
