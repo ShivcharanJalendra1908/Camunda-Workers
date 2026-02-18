@@ -740,7 +740,7 @@ func main() {
 	}
 
 	// Auth Logout
-	if taskType := "auth.logout"; cfg.Workers[taskType].Enabled {
+	if taskType := "auth-logout"; cfg.Workers[taskType].Enabled {
 		handler, err := alo.NewHandler(alo.HandlerOptions{
 			AppConfig:   cfg,
 			Camunda:     nil,
@@ -752,7 +752,7 @@ func main() {
 		if err != nil {
 			zapLog.Fatal("failed to create auth-logout handler", zap.Error(err))
 		}
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
+		startWorker(zeebeClient, "auth.logout", cfg.Workers[taskType], handler.Handle, zapLog)
 	}
 
 	// Captcha Verify
