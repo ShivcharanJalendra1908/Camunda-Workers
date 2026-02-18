@@ -126,7 +126,7 @@ func validateField(fieldName string, value interface{}, prop Property) []Validat
 		}
 
 		// Enum validation
-		if prop.Enum != nil && len(prop.Enum) > 0 {
+		if prop.Enum != nil {
 			found := false
 			for _, enumVal := range prop.Enum {
 				if strVal == enumVal {
