@@ -94,14 +94,53 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 
 	// 	tokenRevoked = true
 	// }
+	// // Step 2: Global logout - revoke ALL sessions in Keycloak
+	// if input.LogoutAll && s.keycloak != nil {
+	// 	kcUserID := input.KeycloakUserID
+	// 	if kcUserID == "" {
+	// 		kcUserID = input.UserID
+	// 	}
+	// 	err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
+	// 	if err != nil {
+	// 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
+	// 			s.logger.Warn("User not found in Keycloak, treating as already logged out", map[string]interface{}{
+	// 				"userId": kcUserID,
+	// 			})
+	// 		} else {
+	// 			return nil, &errors.StandardError{
+	// 				Code:      "KEYCLOAK_LOGOUT_FAILED",
+	// 				Message:   "Failed to revoke all user sessions in Keycloak",
+	// 				Details:   err.Error(),
+	// 				Retryable: true,
+	// 				Timestamp: time.Now(),
+	// 			}
+	// 		}
+	// 	}
+	// 	tokenRevoked = true
+	// }
+
 	// Step 2: Global logout - revoke ALL sessions in Keycloak
 	if input.LogoutAll && s.keycloak != nil {
 		kcUserID := input.KeycloakUserID
 		if kcUserID == "" {
 			kcUserID = input.UserID
 		}
+
+		// DEBUG LOGS - WITHOUT EXPOSED FIELDS
+		s.logger.Info("Attempting Keycloak revoke all sessions", map[string]interface{}{
+			"userId": kcUserID,
+			"realm":  "camunda-platform", // Hardcode for now
+		})
+
 		err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
 		if err != nil {
+			// EXACT ERROR MESSAGE
+			s.logger.Error("Keycloak revoke error DETAILS", map[string]interface{}{
+				"error":      err.Error(),
+				"error_type": fmt.Sprintf("%T", err),
+				"userId":     kcUserID,
+			})
+
 			if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
 				s.logger.Warn("User not found in Keycloak, treating as already logged out", map[string]interface{}{
 					"userId": kcUserID,
@@ -115,10 +154,13 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 					Timestamp: time.Now(),
 				}
 			}
+		} else {
+			s.logger.Info("Keycloak revoke all sessions successful", map[string]interface{}{
+				"userId": kcUserID,
+			})
+			tokenRevoked = true
 		}
-		tokenRevoked = true
 	}
-
 	// Step 3: Clean up local Redis sessions
 	if s.redisClient != nil {
 		err := s.cleanupLocalSessions(ctx, input)
