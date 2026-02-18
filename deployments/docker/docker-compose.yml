@@ -261,7 +261,7 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: camunda-platform
       KEYCLOAK_CLIENT_ID: worker-client
-      KEYCLOAK_CLIENT_SECRET: worker-secret
+      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
       LOG_LEVEL: debug
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
@@ -313,7 +313,7 @@ services:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: camunda-platform
       KEYCLOAK_CLIENT_ID: worker-client
-      KEYCLOAK_CLIENT_SECRET: worker-secret
+      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
       OLLAMA_URL: http://172.31.47.136:11434
       LLM_ENDPOINT: http://172.31.47.136:11434
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
