@@ -200,8 +200,8 @@ func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", k.adminClientID)
-	data.Set("client_secret", k.adminClientSecret)
+	data.Set("client_id", k.clientID)
+	data.Set("client_secret", k.clientSecret)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
