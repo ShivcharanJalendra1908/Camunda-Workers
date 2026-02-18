@@ -44,7 +44,7 @@
     <!-- TASK 2: Revoke Keycloak Session -->
     <bpmn:serviceTask id="Task_RevokeKeycloakSession" name="Revoke Keycloak Session">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="auth.logout" />
+        <zeebe:taskDefinition type="auth-logout" />
         <zeebe:ioMapping>
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=sessionId" target="sessionId" />

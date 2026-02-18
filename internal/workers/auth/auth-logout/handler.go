@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	TaskType = "auth.logout"
+	TaskType = "auth-logout"
 )
 
 type Handler struct {
