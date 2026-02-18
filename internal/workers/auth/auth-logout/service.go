@@ -10,7 +10,7 @@ import (
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 type Service struct {
@@ -35,7 +35,6 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 		logger:      deps.Logger,
 		keycloak:    deps.Keycloak,
 		redisClient: deps.RedisClient,
-		
 	}
 }
 

@@ -5,7 +5,7 @@ import (
 	"camunda-workers/internal/common/logger"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 )
 
 // Input represents the input variables for the logout worker

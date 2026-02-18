@@ -740,7 +740,7 @@ func main() {
 	}
 
 	// Auth Logout
-	if taskType := "auth-logout"; cfg.Workers[taskType].Enabled {
+	if taskType := "auth.logout"; cfg.Workers[taskType].Enabled {
 		handler, err := alo.NewHandler(alo.HandlerOptions{
 			AppConfig:   cfg,
 			Camunda:     nil,

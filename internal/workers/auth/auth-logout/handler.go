@@ -8,7 +8,7 @@ import (
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/camunda"
