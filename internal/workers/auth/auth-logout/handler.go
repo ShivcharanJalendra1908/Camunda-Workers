@@ -8,6 +8,7 @@ import (
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
+	"github.com/go-redis/redis/v8"
 
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/camunda"
@@ -47,6 +48,7 @@ type HandlerOptions struct {
 	CustomConfig *Config
 	Logger       logger.Logger
 	CBManager    *circuitbreaker.Manager
+	RedisClient  *redis.Client
 }
 
 func NewHandler(opts HandlerOptions) (*Handler, error) {
@@ -83,8 +85,9 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 	}
 
 	handler.service = NewService(ServiceDependencies{
-		Keycloak: handler.keycloak,
-		Logger:   loggerInstance,
+		Keycloak:    handler.keycloak,
+		Logger:      loggerInstance,
+		RedisClient: opts.RedisClient,
 	}, handler.config)
 
 	return handler, nil

@@ -4,6 +4,8 @@ import (
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/logger"
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
 // Input represents the input variables for the logout worker
@@ -29,6 +31,7 @@ type Output struct {
 
 // ServiceDependencies contains all external dependencies for the service
 type ServiceDependencies struct {
-	Keycloak *auth.KeycloakClient // Keycloak client for token revocation
-	Logger   logger.Logger
+	Keycloak    *auth.KeycloakClient // Keycloak client for token revocation
+	Logger      logger.Logger
+	RedisClient *redis.Client
 }

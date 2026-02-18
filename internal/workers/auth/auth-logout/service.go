@@ -21,20 +21,21 @@ type Service struct {
 }
 
 func NewService(deps ServiceDependencies, config *Config) *Service {
-	var redisClient *redis.Client
-	if config.RedisHost != "" {
-		redisClient = redis.NewClient(&redis.Options{
-			Addr:     fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
-			Password: config.RedisPassword,
-			DB:       config.RedisDB,
-		})
-	}
+	// var redisClient *redis.Client
+	// if config.RedisHost != "" {
+	// 	redisClient = redis.NewClient(&redis.Options{
+	// 		Addr:     fmt.Sprintf("%s:%d", config.RedisHost, config.RedisPort),
+	// 		Password: config.RedisPassword,
+	// 		DB:       config.RedisDB,
+	// 	})
+	// }
 
 	return &Service{
 		config:      config,
 		logger:      deps.Logger,
 		keycloak:    deps.Keycloak,
-		redisClient: redisClient,
+		redisClient: deps.RedisClient,
+		
 	}
 }
 

@@ -22,7 +22,7 @@ func DefaultConfig() *Config {
 		Enabled:       true,
 		MaxJobsActive: 5,
 		Timeout:       10 * time.Second,
-		RedisHost:     "localhost",
+		RedisHost:     "redis",
 		RedisPort:     6379,
 		RedisPassword: "",
 		RedisDB:       0,

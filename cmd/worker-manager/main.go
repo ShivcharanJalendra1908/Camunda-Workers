@@ -742,11 +742,12 @@ func main() {
 	// Auth Logout
 	if taskType := "auth-logout"; cfg.Workers[taskType].Enabled {
 		handler, err := alo.NewHandler(alo.HandlerOptions{
-			AppConfig: cfg,
-			Camunda:   nil,
-			Logger:    log,
-			CBManager: cbManager,
-			Keycloak:  keycloakClient,
+			AppConfig:   cfg,
+			Camunda:     nil,
+			Logger:      log,
+			CBManager:   cbManager,
+			Keycloak:    keycloakClient,
+			RedisClient: redis.GetClient(),
 		})
 		if err != nil {
 			zapLog.Fatal("failed to create auth-logout handler", zap.Error(err))
