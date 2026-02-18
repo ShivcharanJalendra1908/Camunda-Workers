@@ -77,6 +77,8 @@ func main() {
 		cfg.Auth.Keycloak.Realm,
 		cfg.Auth.Keycloak.ClientID,
 		cfg.Auth.Keycloak.ClientSecret,
+		cfg.Auth.Keycloak.AdminClientID,     // ← ADD
+		cfg.Auth.Keycloak.AdminClientSecret, // ← ADD
 	)
 
 	log.Info("Connected to Keycloak", map[string]interface{}{

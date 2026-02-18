@@ -204,13 +204,15 @@ type AuthConfig struct {
 	OIDC           OIDCConfig           `mapstructure:"oidc"`
 
 	Keycloak struct {
-		URL           string `mapstructure:"url"`
-		Realm         string `mapstructure:"realm"`
-		ClientID      string `mapstructure:"client_id"`
-		ClientSecret  string `mapstructure:"client_secret"`
-		Issuer        string `mapstructure:"issuer"`        // ✅ ADD
-		RedirectURL   string `mapstructure:"redirectUrl"`   // ✅ ADD
-		PublicBaseURL string `mapstructure:"publicBaseUrl"` // ✅ ADD
+		URL               string `mapstructure:"url"`
+		Realm             string `mapstructure:"realm"`
+		ClientID          string `mapstructure:"client_id"`
+		ClientSecret      string `mapstructure:"client_secret"`
+		AdminClientID     string `mapstructure:"admin_client_id"`     // ← ADD
+		AdminClientSecret string `mapstructure:"admin_client_secret"` // ← ADD
+		Issuer            string `mapstructure:"issuer"`              // ✅ ADD
+		RedirectURL       string `mapstructure:"redirectUrl"`         // ✅ ADD
+		PublicBaseURL     string `mapstructure:"publicBaseUrl"`       // ✅ ADD
 	} `mapstructure:"keycloak"`
 
 	OAuthProviders struct {

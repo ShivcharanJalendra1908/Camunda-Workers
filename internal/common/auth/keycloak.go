@@ -23,17 +23,17 @@ import (
 // KeycloakClient provides thread-safe methods to interact with Keycloak for
 // user management and authentication.
 type KeycloakClient struct {
-	baseURL      string
-	realm        string
-	clientID     string
-	clientSecret string
-	httpClient   *http.Client
-	cb           *circuitbreaker.CircuitBreaker
-
-	// Token caching with thread-safety
-	mu          sync.RWMutex
-	accessToken string
-	tokenExpiry time.Time
+	baseURL           string
+	realm             string
+	clientID          string
+	clientSecret      string
+	adminClientID     string // ← ADD
+	adminClientSecret string // ← ADD
+	httpClient        *http.Client
+	cb                *circuitbreaker.CircuitBreaker
+	mu                sync.RWMutex
+	accessToken       string
+	tokenExpiry       time.Time
 }
 
 // ============================================================================
@@ -113,12 +113,14 @@ type UserSession struct {
 // ============================================================================
 
 // NewKeycloakClient creates a new instance of KeycloakClient with sensible defaults.
-func NewKeycloakClient(baseURL, realm, clientID, clientSecret string) *KeycloakClient {
+func NewKeycloakClient(baseURL, realm, clientID, clientSecret, adminClientID, adminClientSecret string) *KeycloakClient {
 	return &KeycloakClient{
-		baseURL:      strings.TrimSuffix(baseURL, "/"),
-		realm:        realm,
-		clientID:     clientID,
-		clientSecret: clientSecret,
+		baseURL:           strings.TrimSuffix(baseURL, "/"),
+		realm:             realm,
+		clientID:          clientID,
+		clientSecret:      clientSecret,
+		adminClientID:     adminClientID,     // ← ADD
+		adminClientSecret: adminClientSecret, // ← ADD
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -198,8 +200,8 @@ func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", k.clientID)
-	data.Set("client_secret", k.clientSecret)
+	data.Set("client_id", k.adminClientID)
+	data.Set("client_secret", k.adminClientSecret)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
