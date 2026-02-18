@@ -371,6 +371,24 @@ func overrideEmptyConfig(cfg *Config) {
 			cfg.Auth.Keycloak.ClientSecret = val
 		}
 	}
+	if cfg.Auth.Keycloak.AdminClientID == "" {
+		if val := os.Getenv("KEYCLOAK_ADMIN_CLIENT_ID"); val != "" {
+			cfg.Auth.Keycloak.AdminClientID = val
+		}
+		// Fallback to regular client if admin not set
+		if cfg.Auth.Keycloak.AdminClientID == "" {
+			cfg.Auth.Keycloak.AdminClientID = cfg.Auth.Keycloak.ClientID
+		}
+	}
+	if cfg.Auth.Keycloak.AdminClientSecret == "" {
+		if val := os.Getenv("KEYCLOAK_ADMIN_CLIENT_SECRET"); val != "" {
+			cfg.Auth.Keycloak.AdminClientSecret = val
+		}
+		// Fallback to regular secret if admin not set
+		if cfg.Auth.Keycloak.AdminClientSecret == "" {
+			cfg.Auth.Keycloak.AdminClientSecret = cfg.Auth.Keycloak.ClientSecret
+		}
+	}
 
 	// ============================================================================
 	// EXTERNAL INTEGRATIONS
