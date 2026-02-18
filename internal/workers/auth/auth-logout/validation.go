@@ -195,7 +195,7 @@ func GetInputSchema() validation.JSONSchema {
 				Description: "Additional metadata for audit logging",
 			},
 		},
-		AdditionalProperties: false,
+		AdditionalProperties: true,
 	}
 }
 
