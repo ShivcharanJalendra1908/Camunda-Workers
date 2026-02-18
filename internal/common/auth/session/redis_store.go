@@ -26,6 +26,23 @@ func (r *RedisStore) key(sessionID string) string {
 	return r.prefix + sessionID
 }
 
+// func (r *RedisStore) Create(ctx context.Context, s Session) error {
+// 	if s.SessionID == "" || s.UserID == "" {
+// 		return fmt.Errorf("session: missing session_id or user_id")
+// 	}
+
+// 	ttl := time.Until(s.ExpiresAt)
+// 	if ttl <= 0 {
+// 		return fmt.Errorf("session: expires_at must be in the future")
+// 	}
+
+// 	data, err := json.Marshal(s)
+// 	if err != nil {
+// 		return fmt.Errorf("session: failed to marshal: %w", err)
+// 	}
+
+//		return r.client.Set(ctx, r.key(s.SessionID), data, ttl).Err()
+//	}
 func (r *RedisStore) Create(ctx context.Context, s Session) error {
 	if s.SessionID == "" || s.UserID == "" {
 		return fmt.Errorf("session: missing session_id or user_id")
@@ -41,7 +58,12 @@ func (r *RedisStore) Create(ctx context.Context, s Session) error {
 		return fmt.Errorf("session: failed to marshal: %w", err)
 	}
 
-	return r.client.Set(ctx, r.key(s.SessionID), data, ttl).Err()
+	// Pipeline: session data + user sessions set (same as auth-service)
+	pipe := r.client.TxPipeline()
+	pipe.Set(ctx, r.key(s.SessionID), data, ttl)
+	pipe.SAdd(ctx, "user_sessions:"+s.UserID, s.SessionID)
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (r *RedisStore) Get(ctx context.Context, sessionID string) (*Session, error) {
@@ -61,8 +83,25 @@ func (r *RedisStore) Get(ctx context.Context, sessionID string) (*Session, error
 	return &s, nil
 }
 
+// func (r *RedisStore) Delete(ctx context.Context, sessionID string) error {
+// 	return r.client.Del(ctx, r.key(sessionID)).Err()
+// }
+
 func (r *RedisStore) Delete(ctx context.Context, sessionID string) error {
-	return r.client.Del(ctx, r.key(sessionID)).Err()
+	// Fetch session first to get userID
+	s, err := r.Get(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if s == nil {
+		return nil // already gone
+	}
+
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, r.key(sessionID))
+	pipe.SRem(ctx, "user_sessions:"+s.UserID, sessionID)
+	_, err = pipe.Exec(ctx)
+	return err
 }
 
 func (r *RedisStore) Update(ctx context.Context, s Session) error {

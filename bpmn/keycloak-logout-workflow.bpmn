@@ -49,6 +49,7 @@
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=sessionId" target="sessionId" />
           <zeebe:input source="=true" target="logoutAll" />
+          <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SessionValid</bpmn:incoming>

@@ -242,6 +242,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		UserID: variables["userId"].(string),
 	}
 
+	if keycloakUserID, ok := variables["keycloakUserId"].(string); ok {
+		input.KeycloakUserID = keycloakUserID
+	}
+
 	// RefreshToken is optional but recommended for single session logout
 	if refreshToken, ok := variables["refreshToken"].(string); ok && refreshToken != "" {
 		input.RefreshToken = refreshToken

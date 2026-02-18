@@ -10,14 +10,15 @@ import (
 
 // Input represents the input variables for the logout worker
 type Input struct {
-	UserID       string                 `json:"userId"`              // Keycloak user ID (required for global logout)
-	RefreshToken string                 `json:"refreshToken"`        // Keycloak refresh token (required for single session logout)
-	AccessToken  string                 `json:"accessToken"`         // Keycloak access token (optional, for revocation list)
-	SessionID    string                 `json:"sessionId,omitempty"` // Local session ID (optional)
-	DeviceID     string                 `json:"deviceId,omitempty"`  // Device identifier (optional)
-	LogoutAll    bool                   `json:"logoutAll,omitempty"` // Global logout flag
-	Reason       string                 `json:"reason,omitempty"`    // Logout reason for audit
-	Metadata     map[string]interface{} `json:"metadata,omitempty"`  // Additional metadata
+	UserID         string                 `json:"userId"` // Keycloak user ID (required for global logout)
+	KeycloakUserID string                 `json:"keycloakUserId,omitempty"`
+	RefreshToken   string                 `json:"refreshToken"`        // Keycloak refresh token (required for single session logout)
+	AccessToken    string                 `json:"accessToken"`         // Keycloak access token (optional, for revocation list)
+	SessionID      string                 `json:"sessionId,omitempty"` // Local session ID (optional)
+	DeviceID       string                 `json:"deviceId,omitempty"`  // Device identifier (optional)
+	LogoutAll      bool                   `json:"logoutAll,omitempty"` // Global logout flag
+	Reason         string                 `json:"reason,omitempty"`    // Logout reason for audit
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`  // Additional metadata
 }
 
 // Output represents the output variables after logout
