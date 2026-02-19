@@ -178,6 +178,14 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	output, err := h.service.Execute(ctxExec, input)
 	spanExec.End()
 	if err != nil {
+		// ✅ SESSION_NOT_FOUND — error nahi, gracefully complete karo
+		if stdErr, ok := err.(*cerrors.StandardError); ok && stdErr.Code == "SESSION_NOT_FOUND" {
+			h.completeJob(ctx, client, job, &Output{
+				Success: false,
+				Message: "Session not found or expired",
+			})
+			return
+		}
 		span.RecordError(err)
 		span.SetAttributes(attribute.Bool("error", true))
 		errorCode := extractErrorCode(err)

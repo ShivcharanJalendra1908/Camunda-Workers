@@ -27,7 +27,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=sessionId" target="sessionId" />
-          <zeebe:input source="=true" target="logoutAll" />
+          <zeebe:input source="=logoutAll" target="logoutAll" />
           <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -44,30 +44,19 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToDeleteSession</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToClearCookie</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToMerge</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="Gateway_MergeLogout" name="Merge Flows">
-      <bpmn:incoming>Flow_ToClearCookie</bpmn:incoming>
+      <bpmn:incoming>Flow_ToMerge</bpmn:incoming>
       <bpmn:incoming>Flow_SessionInvalid</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToBuildResponse</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="Task_BuildLogoutResponse" name="Build Logout Response">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="build-response" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;home&#34;" target="pageType" />
-          <zeebe:input source="=requestId" target="correlationKey" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_ToBuildResponse</bpmn:incoming>
       <bpmn:outgoing>Flow_ToSendResponse</bpmn:outgoing>
-    </bpmn:serviceTask>
+    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=requestId" target="correlationKey" />
-          <zeebe:input source="=response" target="response" />
+          <zeebe:input source="={&#34;success&#34;: true, &#34;message&#34;: &#34;Logged out successfully&#34;}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToSendResponse</bpmn:incoming>
@@ -83,9 +72,8 @@
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_SessionInvalid" name="No / Skip" sourceRef="Gateway_SessionValid" targetRef="Gateway_MergeLogout" />
     <bpmn:sequenceFlow id="Flow_ToDeleteSession" sourceRef="Task_RevokeKeycloakSession" targetRef="Task_DeleteSession" />
-    <bpmn:sequenceFlow id="Flow_ToClearCookie" sourceRef="Task_DeleteSession" targetRef="Gateway_MergeLogout" />
-    <bpmn:sequenceFlow id="Flow_ToBuildResponse" sourceRef="Gateway_MergeLogout" targetRef="Task_BuildLogoutResponse" />
-    <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Task_BuildLogoutResponse" targetRef="Task_SendResponse" />
+    <bpmn:sequenceFlow id="Flow_ToMerge" sourceRef="Task_DeleteSession" targetRef="Gateway_MergeLogout" />
+    <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_MergeLogout" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_LogoutSuccess" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_Logout">
@@ -117,16 +105,13 @@
           <dc:Bounds x="808" y="71" width="63" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_BuildLogoutResponse_di" bpmnElement="Task_BuildLogoutResponse">
+      <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
         <dc:Bounds x="920" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="1070" y="80" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_LogoutSuccess_di" bpmnElement="EndEvent_LogoutSuccess">
-        <dc:Bounds x="1220" y="102" width="36" height="36" />
+        <dc:Bounds x="1070" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1196" y="145" width="85" height="27" />
+          <dc:Bounds x="1046" y="145" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_ToGetSession_di" bpmnElement="Flow_ToGetSession">
@@ -157,21 +142,17 @@
         <di:waypoint x="600" y="120" />
         <di:waypoint x="660" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToClearCookie_di" bpmnElement="Flow_ToClearCookie">
+      <bpmndi:BPMNEdge id="Flow_ToMerge_di" bpmnElement="Flow_ToMerge">
         <di:waypoint x="760" y="120" />
         <di:waypoint x="815" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToBuildResponse_di" bpmnElement="Flow_ToBuildResponse">
+      <bpmndi:BPMNEdge id="Flow_ToSendResponse_di" bpmnElement="Flow_ToSendResponse">
         <di:waypoint x="865" y="120" />
         <di:waypoint x="920" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToSendResponse_di" bpmnElement="Flow_ToSendResponse">
+      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
         <di:waypoint x="1020" y="120" />
         <di:waypoint x="1070" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="1170" y="120" />
-        <di:waypoint x="1220" y="120" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
