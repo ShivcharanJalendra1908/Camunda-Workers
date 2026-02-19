@@ -1489,7 +1489,79 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 // KEYCLOAK UNIFIED LOGIN/LOGOUT
 // ============================================================================
 
-// StartKeycloakLogin - Single endpoint for both initiate + callback
+// // StartKeycloakLogin - Single endpoint for both initiate + callback
+// func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
+// 	var input struct {
+// 		Code        string                 `json:"code"`
+// 		State       string                 `json:"state"`
+// 		Provider    string                 `json:"provider"`
+// 		RedirectURL string                 `json:"redirectUrl"`
+// 		Metadata    map[string]interface{} `json:"metadata"`
+// 	}
+
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	claims := middleware.ExtractClaims(c)
+// 	if claims == nil {
+// 		claims = &middleware.Claims{}
+// 	}
+
+// 	correlationKey := uuid.New().String()
+
+// 	variables := map[string]interface{}{
+// 		"sessionId":      claims.SessionID,
+// 		"sourceSystem":   claims.SourceSystem,
+// 		"requestId":      uuid.New().String(),
+// 		"correlationKey": correlationKey,
+// 	}
+
+// 	// ✅ SMART DETECTION: Code + State present? → Callback, otherwise → Initiate
+// 	if input.Code != "" && input.State != "" {
+// 		// CALLBACK FLOW (after Keycloak redirects back)
+// 		variables["action"] = "callback"
+// 		variables["code"] = input.Code
+// 		variables["state"] = input.State
+// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+
+// 		if err := h.validateString(input.Code, 1, 500); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
+// 			return
+// 		}
+
+// 		if err := h.validateString(input.State, 1, 500); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
+// 			return
+// 		}
+
+// 	} else {
+// 		// INITIATE FLOW (first click from frontend)
+// 		variables["action"] = "initiate"
+// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+// 		variables["redirectUrl"] = input.RedirectURL
+// 	}
+
+// 	if input.Metadata != nil {
+// 		variables["metadata"] = input.Metadata
+// 	}
+// 	// ✅ Subscribe BEFORE workflow starts
+// 	ctx := c.Request.Context()
+
+// 	// Start workflow
+// 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
+
+// 	// Wait for response via Redis pub/sub
+// 	response, err := waitForRedisResponse(ctx, h.redisClient, correlationKey, 30*time.Second)
+// 	if err != nil {
+// 		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "timeout waiting for response"})
+// 		return
+// 	}
+
+//		//response := h.startWorkflow(c.Request.Context(), "keycloak-login-workflow", variables)
+//		c.JSON(http.StatusOK, response)
+//	}
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
 		Code        string                 `json:"code"`
@@ -1510,6 +1582,18 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	}
 
 	correlationKey := uuid.New().String()
+	ctx := c.Request.Context()
+
+	// ✅ STEP 1: PEHLE subscribe karo
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	// ✅ STEP 2: Subscription confirm hone ka wait karo
+	if _, err := pubsub.Receive(ctx); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "subscription failed"})
+		return
+	}
 
 	variables := map[string]interface{}{
 		"sessionId":      claims.SessionID,
@@ -1518,26 +1602,20 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		"correlationKey": correlationKey,
 	}
 
-	// ✅ SMART DETECTION: Code + State present? → Callback, otherwise → Initiate
 	if input.Code != "" && input.State != "" {
-		// CALLBACK FLOW (after Keycloak redirects back)
-		variables["action"] = "callback"
-		variables["code"] = input.Code
-		variables["state"] = input.State
-		variables["provider"] = getOrDefault(input.Provider, "keycloak")
-
 		if err := h.validateString(input.Code, 1, 500); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
 			return
 		}
-
 		if err := h.validateString(input.State, 1, 500); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
 			return
 		}
-
+		variables["action"] = "callback"
+		variables["code"] = input.Code
+		variables["state"] = input.State
+		variables["provider"] = getOrDefault(input.Provider, "keycloak")
 	} else {
-		// INITIATE FLOW (first click from frontend)
 		variables["action"] = "initiate"
 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
 		variables["redirectUrl"] = input.RedirectURL
@@ -1546,21 +1624,36 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	if input.Metadata != nil {
 		variables["metadata"] = input.Metadata
 	}
-	// ✅ Subscribe BEFORE workflow starts
-	ctx := c.Request.Context()
 
-	// Start workflow
+	// ✅ STEP 3: AB workflow start karo
 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
 
-	// Wait for response via Redis pub/sub
-	response, err := waitForRedisResponse(ctx, h.redisClient, correlationKey, 30*time.Second)
-	if err != nil {
-		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "timeout waiting for response"})
-		return
-	}
+	// ✅ STEP 4: Response wait karo
+	select {
+	case msg := <-pubsub.Channel():
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse response"})
+			return
+		}
+		c.JSON(http.StatusOK, response)
 
-	//response := h.startWorkflow(c.Request.Context(), "keycloak-login-workflow", variables)
-	c.JSON(http.StatusOK, response)
+	case <-time.After(30 * time.Second):
+		// Fallback: cache check
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if json.Unmarshal([]byte(cached), &response) == nil {
+				c.JSON(http.StatusOK, response)
+				return
+			}
+		}
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "timeout waiting for response"})
+
+	case <-ctx.Done():
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
+	}
 }
 
 // StartKeycloakLogout - Logout endpoint
