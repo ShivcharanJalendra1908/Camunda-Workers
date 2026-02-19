@@ -5,6 +5,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/redis/go-redis/v9"
 )
 
 // ============================================================================
@@ -484,6 +486,77 @@ func BlacklistMiddleware(blacklist TokenBlacklist) gin.HandlerFunc {
 				}
 			}
 		}
+		c.Next()
+	}
+}
+
+func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin.HandlerFunc {
+	jwtService := NewJWTService(jwtConfig)
+
+	return func(c *gin.Context) {
+		// ✅ STEP 1: Session cookie try karo pehle
+		cookie, err := c.Cookie("session_id")
+		if err == nil && cookie != "" {
+			val, err := redisClient.Get(c.Request.Context(), "session:"+cookie).Result()
+			if err == nil {
+				var sess struct {
+					SessionID string    `json:"SessionID"`
+					UserID    string    `json:"UserID"`
+					ExpiresAt time.Time `json:"ExpiresAt"`
+				}
+				if json.Unmarshal([]byte(val), &sess) == nil && time.Now().Before(sess.ExpiresAt) {
+					// Sliding window extend
+					redisClient.Expire(c.Request.Context(), "session:"+cookie, 30*time.Minute)
+
+					c.Set("userId", sess.UserID)
+					c.Set("sessionId", sess.SessionID)
+					c.Set("claims", &Claims{
+						UserID:    sess.UserID,
+						SessionID: sess.SessionID,
+					})
+					c.Next()
+					return
+				}
+			}
+			// Session expired/invalid — cookie delete karo
+			c.SetCookie("session_id", "", -1, "/", "", true, true)
+		}
+
+		// ✅ STEP 2: JWT Bearer fallback
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			respondWithError(c, http.StatusUnauthorized, "AUTH_REQUIRED", "session cookie or bearer token required", nil)
+			c.Abort()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			respondWithError(c, http.StatusUnauthorized, "AUTH_INVALID_FORMAT", "invalid authorization header format", nil)
+			c.Abort()
+			return
+		}
+
+		claims, err := jwtService.ValidateToken(parts[1])
+		if err != nil {
+			respondWithError(c, http.StatusUnauthorized, "AUTH_INVALID_TOKEN", "invalid token", map[string]interface{}{
+				"details": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("claims", claims)
+		c.Set("userId", claims.UserID)
+		c.Set("email", claims.Email)
+		c.Set("sessionId", claims.SessionID)
+		c.Set("sourceSystem", claims.SourceSystem)
+		c.Set("subscriptionTier", claims.SubscriptionTier)
+		c.Set("roles", claims.Roles)
+
+		ctx := context.WithValue(c.Request.Context(), claimsKey, claims)
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 	}
 }

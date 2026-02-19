@@ -266,7 +266,8 @@ func main() {
 	if cfg.API.RateLimit.Enabled {
 		protectedAPI.Use(middleware.RateLimiter(cfg.API.RateLimit))
 	}
-	protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
+	//protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
+	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	{
 		// ========================================================================
 		// AI CONVERSATION WORKFLOWS
@@ -372,7 +373,8 @@ func main() {
 		Burst:             50,
 	}
 	adminAPI.Use(middleware.RateLimiter(adminRateLimit))
-	adminAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
+	//adminAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
+	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
 	{
 		// Workflow management

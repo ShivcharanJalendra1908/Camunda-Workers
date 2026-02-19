@@ -83,6 +83,20 @@ CREATE INDEX idx_users_email ON users(email);
 
 COMMENT ON TABLE users IS 'Platform users - franchise seekers, franchisors, and admins';
 
+CREATE TABLE IF NOT EXISTS identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider text NOT NULL,
+    provider_user_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    CONSTRAINT identities_provider_unique
+        UNIQUE (provider, provider_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS identities_user_id_idx
+ON identities (user_id);
+
 -- ========================================
 -- IDEMPOTENCY KEYS TABLE
 -- ========================================

@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -16,7 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9" // ✅ FIXED: Use v9 instead of v8
+	"github.com/redis/go-redis/v9"
 
 	"camunda-workers/internal/common/validation"
 
@@ -31,6 +32,7 @@ type WorkflowHandler struct {
 	sanitizer    *validation.Sanitizer
 	redisStore   *idempotency.RedisStore   // ✅ NEW
 	keyGenerator *idempotency.KeyGenerator // ✅ NEW
+	redisClient  *redis.Client             // ← ADD THIS
 }
 
 func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client) *WorkflowHandler {
@@ -46,6 +48,7 @@ func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClie
 		sanitizer:    validation.NewSanitizer(),
 		redisStore:   redisStore,
 		keyGenerator: idempotency.NewKeyGenerator(),
+		redisClient:  redisClient,
 	}
 }
 
@@ -1506,10 +1509,13 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		claims = &middleware.Claims{}
 	}
 
+	correlationKey := uuid.New().String()
+
 	variables := map[string]interface{}{
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"sessionId":      claims.SessionID,
+		"sourceSystem":   claims.SourceSystem,
+		"requestId":      uuid.New().String(),
+		"correlationKey": correlationKey,
 	}
 
 	// ✅ SMART DETECTION: Code + State present? → Callback, otherwise → Initiate
@@ -1540,8 +1546,20 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	if input.Metadata != nil {
 		variables["metadata"] = input.Metadata
 	}
+	// ✅ Subscribe BEFORE workflow starts
+	ctx := c.Request.Context()
 
-	response := h.startWorkflow(c.Request.Context(), "keycloak-login-workflow", variables)
+	// Start workflow
+	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
+
+	// Wait for response via Redis pub/sub
+	response, err := waitForRedisResponse(ctx, h.redisClient, correlationKey, 30*time.Second)
+	if err != nil {
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "timeout waiting for response"})
+		return
+	}
+
+	//response := h.startWorkflow(c.Request.Context(), "keycloak-login-workflow", variables)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -1780,6 +1798,39 @@ func getOrDefault(value, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func waitForRedisResponse(ctx context.Context, client *redis.Client, correlationKey string, timeout time.Duration) (map[string]interface{}, error) {
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+
+	pubsub := client.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	if _, err := pubsub.Receive(ctx); err != nil {
+		return nil, err
+	}
+
+	select {
+	case msg := <-pubsub.Channel():
+		var response map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+			return nil, err
+		}
+		return response, nil
+	case <-time.After(timeout):
+		// Fallback: check cache
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		cached, err := client.Get(ctx, cacheKey).Result()
+		if err == nil {
+			var response map[string]interface{}
+			if json.Unmarshal([]byte(cached), &response) == nil {
+				return response, nil
+			}
+		}
+		return nil, fmt.Errorf("timeout")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // // internal/api/handlers/workflow_handler.go

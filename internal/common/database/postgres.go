@@ -178,14 +178,21 @@ func (t *TxWrapper) Query(ctx context.Context, query string, args ...interface{}
 	return t.Tx.QueryContext(ctx, query, args...)
 }
 
-// QueryRow executes a single-row query within transaction
+ // QueryRow executes a single-row query within transaction
+//
+//	func (t *TxWrapper) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+//		if err := validateQuery(query, args); err != nil {
+//			// Return a row that will error on Scan
+//			rows, _ := t.Tx.QueryContext(ctx, "SELECT NULL WHERE FALSE")
+//			if rows != nil {
+//				rows.Close()
+//			}
+//			return t.Tx.QueryRowContext(ctx, "SELECT NULL WHERE FALSE")
+//		}
+//		return t.Tx.QueryRowContext(ctx, query, args...)
+//	}
 func (t *TxWrapper) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	if err := validateQuery(query, args); err != nil {
-		// Return a row that will error on Scan
-		rows, _ := t.Tx.QueryContext(ctx, "SELECT NULL WHERE FALSE")
-		if rows != nil {
-			rows.Close()
-		}
 		return t.Tx.QueryRowContext(ctx, "SELECT NULL WHERE FALSE")
 	}
 	return t.Tx.QueryRowContext(ctx, query, args...)
