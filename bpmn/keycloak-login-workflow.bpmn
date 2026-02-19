@@ -16,9 +16,21 @@
           <zeebe:input source="=&#34;initiate&#34;" target="action" />
           <zeebe:input source="=&#34;keycloak&#34;" target="provider" />
           <zeebe:input source="=redirectUrl" target="redirectUrl" />
+          <zeebe:input source="=correlationKey" target="correlationKey" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToInitiate</bpmn:incoming>
+      <bpmn:outgoing>Flow_InitiateToSendResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendInitiateResponse" name="Send Auth URL Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&quot;success&quot;: true, &quot;authorizationUrl&quot;: authorizationUrl, &quot;state&quot;: state}" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_InitiateToSendResponse</bpmn:incoming>
       <bpmn:outgoing>Flow_FromInitiate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_InitiateSuccess" name="Return Auth URL">
@@ -32,6 +44,7 @@
           <zeebe:input source="=code" target="code" />
           <zeebe:input source="=state" target="state" />
           <zeebe:input source="=&#34;keycloak&#34;" target="provider" />
+          <zeebe:input source="=correlationKey" target="correlationKey" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToCallback</bpmn:incoming>
@@ -45,9 +58,21 @@
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=email" target="email" />
           <zeebe:input source="=86400" target="expiresIn" />
+          <zeebe:input source="=correlationKey" target="correlationKey" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToSession</bpmn:incoming>
+      <bpmn:outgoing>Flow_SessionToSendResponse</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendCallbackResponse" name="Send Login Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId}" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SessionToSendResponse</bpmn:incoming>
       <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_LoginSuccess" name="Login Complete">
@@ -55,79 +80,101 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_ToRouteAction" sourceRef="StartEvent_Login" targetRef="Gateway_RouteAction" />
     <bpmn:sequenceFlow id="Flow_ToInitiate" name="initiate" sourceRef="Gateway_RouteAction" targetRef="Task_InitiateOAuth" />
-    <bpmn:sequenceFlow id="Flow_FromInitiate" sourceRef="Task_InitiateOAuth" targetRef="EndEvent_InitiateSuccess" />
+    <bpmn:sequenceFlow id="Flow_InitiateToSendResponse" sourceRef="Task_InitiateOAuth" targetRef="Task_SendInitiateResponse" />
+    <bpmn:sequenceFlow id="Flow_FromInitiate" sourceRef="Task_SendInitiateResponse" targetRef="EndEvent_InitiateSuccess" />
     <bpmn:sequenceFlow id="Flow_ToCallback" name="callback" sourceRef="Gateway_RouteAction" targetRef="Task_HandleCallback">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=action = "callback"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_ToSession" sourceRef="Task_HandleCallback" targetRef="Task_CreateSession" />
-    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_CreateSession" targetRef="EndEvent_LoginSuccess" />
+    <bpmn:sequenceFlow id="Flow_SessionToSendResponse" sourceRef="Task_CreateSession" targetRef="Task_SendCallbackResponse" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendCallbackResponse" targetRef="EndEvent_LoginSuccess" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="keycloak-login-workflow">
-      <bpmndi:BPMNShape id="StartEvent_Login_di" bpmnElement="StartEvent_Login">
-        <dc:Bounds x="152" y="162" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="136" y="205" width="69" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_RouteAction_di" bpmnElement="Gateway_RouteAction" isMarkerVisible="true">
         <dc:Bounds x="255" y="155" width="50" height="50" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="307.5" y="173" width="63" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_InitiateOAuth_di" bpmnElement="Task_InitiateOAuth">
-        <dc:Bounds x="360" y="80" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_InitiateSuccess_di" bpmnElement="EndEvent_InitiateSuccess">
-        <dc:Bounds x="522" y="102" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="501" y="145" width="80" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_HandleCallback_di" bpmnElement="Task_HandleCallback">
-        <dc:Bounds x="360" y="200" width="100" height="80" />
+        <dc:Bounds x="360" y="210" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_CreateSession_di" bpmnElement="Task_CreateSession">
-        <dc:Bounds x="520" y="200" width="100" height="80" />
+        <dc:Bounds x="508" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendCallbackResponse_di" bpmnElement="Task_SendCallbackResponse">
+        <dc:Bounds x="660" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Login_di" bpmnElement="StartEvent_Login">
+        <dc:Bounds x="182" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="166" y="205" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_InitiateOAuth_di" bpmnElement="Task_InitiateOAuth">
+        <dc:Bounds x="360" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendInitiateResponse_di" bpmnElement="Task_SendInitiateResponse">
+        <dc:Bounds x="508" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_InitiateSuccess_di" bpmnElement="EndEvent_InitiateSuccess">
+        <dc:Bounds x="662" y="92" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="640" y="68" width="80" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
-        <dc:Bounds x="680" y="222" width="36" height="36" />
+        <dc:Bounds x="802" y="232" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="662" y="265" width="73" height="14" />
+          <dc:Bounds x="784" y="275" width="73" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_ToRouteAction_di" bpmnElement="Flow_ToRouteAction">
-        <di:waypoint x="188" y="180" />
+        <di:waypoint x="218" y="180" />
         <di:waypoint x="255" y="180" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToInitiate_di" bpmnElement="Flow_ToInitiate">
         <di:waypoint x="280" y="155" />
-        <di:waypoint x="280" y="120" />
-        <di:waypoint x="360" y="120" />
+        <di:waypoint x="280" y="110" />
+        <di:waypoint x="360" y="110" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="300" y="102" width="30" height="14" />
+          <dc:Bounds x="309" y="93" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_InitiateToSendResponse_di" bpmnElement="Flow_InitiateToSendResponse">
+        <di:waypoint x="460" y="110" />
+        <di:waypoint x="508" y="110" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="392" y="162" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_FromInitiate_di" bpmnElement="Flow_FromInitiate">
-        <di:waypoint x="460" y="120" />
-        <di:waypoint x="522" y="120" />
+        <di:waypoint x="608" y="110" />
+        <di:waypoint x="662" y="110" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToCallback_di" bpmnElement="Flow_ToCallback">
         <di:waypoint x="280" y="205" />
-        <di:waypoint x="280" y="240" />
-        <di:waypoint x="360" y="240" />
+        <di:waypoint x="280" y="250" />
+        <di:waypoint x="360" y="250" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="304" y="222" width="39" height="14" />
+          <dc:Bounds x="304" y="232" width="39" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToSession_di" bpmnElement="Flow_ToSession">
-        <di:waypoint x="460" y="240" />
-        <di:waypoint x="520" y="240" />
+        <di:waypoint x="460" y="250" />
+        <di:waypoint x="508" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SessionToSendResponse_di" bpmnElement="Flow_SessionToSendResponse">
+        <di:waypoint x="608" y="250" />
+        <di:waypoint x="660" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="632" y="322" width="90" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="620" y="240" />
-        <di:waypoint x="680" y="240" />
+        <di:waypoint x="760" y="250" />
+        <di:waypoint x="802" y="250" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
