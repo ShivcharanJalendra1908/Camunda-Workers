@@ -6,7 +6,7 @@
 FROM golang:1.24-alpine AS builder
 
 # Set Go proxy with fallbacks
-ENV GOPROXY=https://goproxy.io,https://proxy.golang.org,direct
+ENV GOPROXY=https://proxy.golang.org,direct
 ENV GOSUMDB=sum.golang.org
 ENV GO111MODULE=on
 
