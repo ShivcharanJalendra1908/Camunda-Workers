@@ -4,8 +4,6 @@
 -- Place this file in: deployments/docker/postgres/load-csv-data.sql
 -- ============================================================
 
-\c franchises
-
 -- Disable triggers temporarily for faster loading
 SET session_replication_role = 'replica';
 
@@ -19,7 +17,13 @@ COPY industries(
     meta_title, meta_description
 )
 FROM '/csv-data/industries.csv'
-DELIMITER ',' CSV HEADER;
+WITH (
+  FORMAT csv,
+  HEADER true,
+  DELIMITER ',',
+  QUOTE '"',
+  ESCAPE '"'
+);
 
 \echo '✅ Industries loaded'
 
