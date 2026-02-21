@@ -61,27 +61,27 @@ jobs:
         if: github.event_name == 'push'
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push Gateway image (multi-arch)
+      - name: Build & push Gateway image 
         if: github.event_name == 'push'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/arm64 \
             -f deployments/docker/Dockerfile.gateway \
             -t $ECR_URL/backend-gateway:${{ github.sha }} \
             -t $ECR_URL/backend-gateway:latest \
             --push .
 
-      - name: Build & push Worker image (multi-arch)
+      - name: Build & push Worker image 
         if: github.event_name == 'push'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/arm64 \
             -f deployments/docker/Dockerfile.worker \
             -t $ECR_URL/backend-worker:${{ github.sha }} \
             -t $ECR_URL/backend-worker:latest \
