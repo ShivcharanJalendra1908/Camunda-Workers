@@ -5,7 +5,6 @@
 -- ============================================================
 
 -- Drop existing tables (reverse order due to foreign key constraints)
-\connect franchises
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS application_history CASCADE;
 DROP TABLE IF EXISTS franchise_applications CASCADE;
