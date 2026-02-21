@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -e
 set -u
 
@@ -7,12 +6,8 @@ echo "=========================================="
 echo "🚀 POSTGRES MULTI-DB INITIALIZATION START"
 echo "=========================================="
 
-# --------------------------------------------------
-# Helper: create database if it does not exist
-# --------------------------------------------------
 create_database() {
   local db="$1"
-
   echo "📦 Ensuring database exists: $db"
 
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
@@ -26,12 +21,10 @@ EOSQL
 }
 
 # --------------------------------------------------
-# Step 1: Create all databases
+# Step 1: Create required databases FIRST
 # --------------------------------------------------
 if [ -n "${POSTGRES_MULTIPLE_DATABASES:-}" ]; then
   echo "Databases to create: $POSTGRES_MULTIPLE_DATABASES"
-  echo ""
-
   for db in $(echo "$POSTGRES_MULTIPLE_DATABASES" | tr ',' ' '); do
     create_database "$db"
     echo "   ✅ Ready: $db"
@@ -40,43 +33,34 @@ else
   echo "⚠️  POSTGRES_MULTIPLE_DATABASES not set"
 fi
 
-echo ""
-echo "=========================================="
-echo "📄 APPLYING DATABASE SCHEMAS"
-echo "=========================================="
-
 # --------------------------------------------------
-# Step 2: Apply auth schema (Keycloak-related)
+# Step 2: Apply auth schema (Keycloak DB)
 # --------------------------------------------------
 if [ -f "/docker-entrypoint-initdb.d/auth-schema.sql" ]; then
-  echo "Applying auth schema to 'keycloak' database..."
+  echo "📄 Applying auth schema to 'lemici_dev' database..."
   psql -v ON_ERROR_STOP=1 \
-       --username "$POSTGRES_USER" \
-       --dbname "keycloak" \
-       -f "/docker-entrypoint-initdb.d/auth-schema.sql"
+    --username "$POSTGRES_USER" \
+    --dbname "lemici_dev" \
+    -f "/docker-entrypoint-initdb.d/auth-schema.sql"
   echo "   ✅ Auth schema applied"
 else
-  echo "⚠️  auth-schema.sql not found, skipping"
+  echo "⚠️  auth-schema.sql not found"
 fi
 
 # --------------------------------------------------
 # Step 3: Apply franchises schema
 # --------------------------------------------------
 if [ -f "/docker-entrypoint-initdb.d/schema.sql" ]; then
-  echo "Applying schema to 'franchises' database..."
+  echo "📄 Applying schema to 'franchises' database..."
   psql -v ON_ERROR_STOP=1 \
-       --username "$POSTGRES_USER" \
-       --dbname "franchises" \
-       -f "/docker-entrypoint-initdb.d/schema.sql"
+    --username "$POSTGRES_USER" \
+    --dbname "franchises" \
+    -f "/docker-entrypoint-initdb.d/schema.sql"
   echo "   ✅ Franchises schema applied"
 else
-  echo "⚠️  schema.sql not found, skipping"
+  echo "⚠️  schema.sql not found"
 fi
 
-echo ""
 echo "=========================================="
 echo "🎉 DATABASE INITIALIZATION COMPLETE"
 echo "=========================================="
-echo "Databases initialized:"
-echo " - $POSTGRES_MULTIPLE_DATABASES"
-echo ""
