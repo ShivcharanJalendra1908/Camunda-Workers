@@ -37,11 +37,11 @@ fi
 # Step 2: Apply auth schema (Keycloak DB)
 # --------------------------------------------------
 if [ -f "/docker-entrypoint-initdb.d/auth-schema.sql" ]; then
-  echo "📄 Applying auth schema to 'lemici_dev' database..."
+  echo "📄 Applying auth schema to 'keycloak' database..."
   psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
-    --dbname "lemici_dev" \
-    -f "/docker-entrypoint-initdb.d/auth-schema.sql"
+    --dbname "keycloak" \
+    -f "/docker-entrypoint-initdb.d/20-auth-schema.sql"
   echo "   ✅ Auth schema applied"
 else
   echo "⚠️  auth-schema.sql not found"
@@ -55,7 +55,7 @@ if [ -f "/docker-entrypoint-initdb.d/schema.sql" ]; then
   psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
     --dbname "franchises" \
-    -f "/docker-entrypoint-initdb.d/schema.sql"
+    -f "/docker-entrypoint-initdb.d/30-schema.sql"
   echo "   ✅ Franchises schema applied"
 else
   echo "⚠️  schema.sql not found"
