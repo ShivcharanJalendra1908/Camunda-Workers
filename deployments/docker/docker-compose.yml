@@ -199,9 +199,8 @@ services:
     image: quay.io/keycloak/keycloak:23.0
     container_name: keycloak
     command:
-      - sh
-      - -c
-      - "sleep 45 && /opt/keycloak/bin/kc.sh start-dev --import-realm"
+       - start-dev 
+       - --import-realm
     ports:
       - "8180:8080"
     environment:
