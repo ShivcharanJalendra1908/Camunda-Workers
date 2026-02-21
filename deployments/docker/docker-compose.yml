@@ -89,7 +89,7 @@ services:
       - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
       - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
       - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
-      - ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
+      #- ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
       - camunda-network
