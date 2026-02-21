@@ -108,7 +108,7 @@ jobs:
             aws ecr get-login-password --region ap-south-1 \
               | docker login --username AWS --password-stdin 177925987307.dkr.ecr.ap-south-1.amazonaws.com
 
-            docker compose down -v
+            docker compose down
             echo "Pulling latest images..."
             docker compose pull
 
