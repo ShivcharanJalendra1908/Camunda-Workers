@@ -199,8 +199,8 @@ services:
     image: quay.io/keycloak/keycloak:23.0
     container_name: keycloak
     command:
-       - start-dev 
-       - --import-realm
+      - start-dev
+      - --import-realm
     ports:
       - "8180:8080"
     environment:
@@ -241,6 +241,7 @@ services:
   api-gateway:
     image: 177925987307.dkr.ecr.ap-south-1.amazonaws.com/backend-gateway:latest
     container_name: api-gateway
+    platform: linux/amd64
     ports:
       - "8080:8080"
       - "9090:9090"
@@ -292,6 +293,7 @@ services:
   camunda-workers:
     image: 177925987307.dkr.ecr.ap-south-1.amazonaws.com/backend-worker:latest
     container_name: camunda-workers
+    platform: linux/amd64
     environment:
       APP_NAME: camunda-workers
       APP_ENVIRONMENT: development
