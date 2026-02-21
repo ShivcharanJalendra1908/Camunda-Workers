@@ -86,9 +86,9 @@ services:
       - max_connections=200
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
-      - ./postgres/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./postgres/auth-schema.sql:/docker-entrypoint-initdb.d/auth-schema.sql:ro
+      - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
+      - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
+      - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
       - ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
