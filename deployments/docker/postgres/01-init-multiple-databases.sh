@@ -10,16 +10,14 @@ create_database() {
   local db="$1"
   echo "📦 Ensuring database exists: $db"
 
-  psql -v ON_ERROR_STOP=1 \
-    --username "$POSTGRES_USER" \
-    --dbname "postgres" <<-EOSQL
-    SELECT 'CREATE DATABASE $db'
-    WHERE NOT EXISTS (
-      SELECT FROM pg_database WHERE datname = '$db'
-    )\gexec;
-
-    GRANT ALL PRIVILEGES ON DATABASE $db TO $POSTGRES_USER;
-EOSQL
+  if psql -U "$POSTGRES_USER" -d postgres -tAc \
+      "SELECT 1 FROM pg_database WHERE datname='${db}'" | grep -q 1; then
+    echo "   ℹ️  Database '$db' already exists"
+  else
+    psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE ${db};"
+    psql -U "$POSTGRES_USER" -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE ${db} TO ${POSTGRES_USER};"
+    echo "   ✅ Created database '$db'"
+  fi
 }
 
 # --------------------------------------------------
