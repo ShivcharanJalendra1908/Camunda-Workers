@@ -42,10 +42,6 @@ jobs:
             | grep -v "/internal/workers/auth/captcha-verify")
           go test $PKGS
 
-      - name: Set up QEMU
-        if: github.event_name == 'push'
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         if: github.event_name == 'push'
         uses: docker/setup-buildx-action@v3
