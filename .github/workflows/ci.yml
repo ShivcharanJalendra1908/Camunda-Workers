@@ -8,11 +8,11 @@ on:
   pull_request:
     branches:
       - mvp
-
+      
 permissions:
-  contents: read
-  id-token: write
-  actions: read
+ contents: read
+ id-token: write
+ actions: read     
 
 jobs:
   ci:
@@ -40,11 +40,21 @@ jobs:
             | grep -v "/test/e2e" \
             | grep -v "/cmd/tools/registry-updater" \
             | grep -v "/internal/workers/auth/captcha-verify")
-          go test $PKGS
 
-      - name: Set up Docker Buildx
-        if: github.event_name == 'push'
-        uses: docker/setup-buildx-action@v3
+          go test $PKGS
+       
+      - name: Build Gateway image
+        run: |
+          docker build -t backend-gateway:${{ github.sha }} \
+            -f deployments/docker/Dockerfile.gateway \
+            .
+
+      - name: Build Worker image
+        run: |
+          docker build -t backend-worker:${{ github.sha }} \
+            -f deployments/docker/Dockerfile.worker \
+            .
+
 
       - name: Configure AWS credentials
         if: github.event_name == 'push'
@@ -57,33 +67,34 @@ jobs:
         if: github.event_name == 'push'
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & push Gateway image 
+      - name: Tag images for ECR
         if: github.event_name == 'push'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
 
-          docker buildx build \
-            --platform linux/arm64 \
-            -f deployments/docker/Dockerfile.gateway \
-            -t $ECR_URL/backend-gateway:${{ github.sha }} \
-            -t $ECR_URL/backend-gateway:latest \
-            --push .
+          # Tag with SHA
+          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:${{ github.sha }}
+          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:${{ github.sha }}
 
-      - name: Build & push Worker image 
+          # Tag with latest
+          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:latest
+          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:latest
+
+          echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
+
+      - name: Push images to ECR
         if: github.event_name == 'push'
         run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+          docker push $ECR_URL/backend-gateway:${{ github.sha }}
+          docker push $ECR_URL/backend-worker:${{ github.sha }}
 
-          docker buildx build \
-            --platform linux/arm64 \
-            -f deployments/docker/Dockerfile.worker \
-            -t $ECR_URL/backend-worker:${{ github.sha }} \
-            -t $ECR_URL/backend-worker:latest \
-            --push .
+          docker push $ECR_URL/backend-gateway:latest
+          docker push $ECR_URL/backend-worker:latest
 
-      - name: Deploy to EC2
+
+
+      - name: Deploy to EC2 (T3)
         if: github.ref == 'refs/heads/mvp'
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -93,11 +104,15 @@ jobs:
           script: |
             cd ~/Workflow-and-Workers/deployments/docker
 
+            echo "Logging into ECR..."
             aws ecr get-login-password --region ap-south-1 \
               | docker login --username AWS --password-stdin 177925987307.dkr.ecr.ap-south-1.amazonaws.com
 
             docker compose down
+            echo "Pulling latest images..."
             docker compose pull
+
+            echo "Recreating containers..."
             docker compose up -d --remove-orphans
 
             echo "Deployment complete"
