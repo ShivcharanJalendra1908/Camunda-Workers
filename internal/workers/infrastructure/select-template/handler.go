@@ -45,10 +45,10 @@ func NewHandler(config *Config, log logger.Logger) *Handler {
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	// ✅ EXTRACT TRACE CONTEXT
 	ctx := context.Background()
-	
+
 	var traceID, parentSpanID string
 	var jobVars map[string]interface{}
-	
+
 	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
 		if tid, ok := jobVars["traceId"].(string); ok {
 			traceID = tid
@@ -57,7 +57,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			parentSpanID = psid
 		}
 	}
-	
+
 	// ✅ CREATE WORKER SPAN
 	tracer := otel.Tracer("worker-manager")
 	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
@@ -71,7 +71,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		),
 	)
 	defer span.End()
-	
+
 	h.logger.Info("processing job",
 		map[string]interface{}{
 			"jobKey":      job.Key,
@@ -111,7 +111,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctxExec, "select-template.Execute")
 	output, err := h.Execute(ctxExec, &input)
 	spanExec.End()
-	
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetAttributes(attribute.Bool("error", true))
@@ -266,10 +266,10 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 			selected = template
 			h.logger.Info("selected route template",
 				map[string]interface{}{
-					"route":     input.RoutePath,
-					"tier":      input.SubscriptionTier,
-					"template":  selected,
-					"traceId":   trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+					"route":    input.RoutePath,
+					"tier":     input.SubscriptionTier,
+					"template": selected,
+					"traceId":  trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 				})
 			return &Output{SelectedTemplateId: selected}, nil
 		}
@@ -282,9 +282,9 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 			selected = template
 			h.logger.Warn("used fallback template",
 				map[string]interface{}{
-					"route":     input.RoutePath,
-					"template":  selected,
-					"traceId":   trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
+					"route":    input.RoutePath,
+					"template": selected,
+					"traceId":  trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 				})
 			return &Output{SelectedTemplateId: selected}, nil
 		}
@@ -342,187 +342,22 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 	if err != nil {
 		span := trace.SpanFromContext(ctx)
 		span.RecordError(err)
-		h.logger.Error("failed to create complete job command", 
+		h.logger.Error("failed to create complete job command",
 			map[string]interface{}{
 				"error":   err.Error(),
 				"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 			})
 		return
 	}
-	
+
 	_, err = cmd.Send(ctx)
 	if err != nil {
 		span := trace.SpanFromContext(ctx)
 		span.RecordError(err)
-		h.logger.Error("failed to send complete job command", 
+		h.logger.Error("failed to send complete job command",
 			map[string]interface{}{
 				"error":   err.Error(),
 				"traceId": trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
 			})
 	}
 }
-
-// package selecttemplate
-
-// import (
-// 	"context"
-// 	"encoding/json"
-// 	"fmt"
-// 	"time"
-
-// 	"camunda-workers/internal/common/logger"
-// 	appErrs "camunda-workers/internal/common/errors"
-
-// 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
-// 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-
-// 	"go.opentelemetry.io/otel"
-// )
-
-// const (
-// 	TaskType = "select-template"
-// )
-
-// type Handler struct {
-// 	config       *Config
-// 	logger       logger.Logger
-// 	errorHandler *appErrs.ErrorHandler
-// }
-
-// func NewHandler(config *Config, log logger.Logger) *Handler {
-// 	return &Handler{
-// 		config:       config,
-// 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
-// 		errorHandler: appErrs.NewErrorHandler(log),
-// 	}
-// }
-
-// func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-// 	h.logger.Info("processing job",
-// 		map[string]interface{}{
-// 			"jobKey":      job.Key,
-// 			"workflowKey": job.ProcessInstanceKey,
-// 		})
-
-// 	var input Input
-// 	_, spanParse := otel.Tracer("worker-manager").Start(context.Background(), "select-template.parseInput")
-// 	if err := json.Unmarshal([]byte(job.Variables), &input); err != nil {
-// 		h.errorHandler.HandleJobError(context.Background(), client, job, appErrs.NewBusinessRuleError("Parse input failed", fmt.Sprintf("%v", err)))
-// 		spanParse.End()
-// 		return
-// 	}
-// 	spanParse.End()
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-// 	defer cancel()
-
-// 	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "select-template.Execute")
-// 	output, err := h.Execute(ctxExec, &input)
-// 	spanExec.End()
-// 	if err != nil {
-// 		var stdErr *appErrs.StandardError
-// 		// Map config/template errors to standardized constructors
-// 		if err.Error() == "missing route template rules in config" {
-// 			stdErr = appErrs.NewTemplateNotFoundError("route-rules")
-// 		} else {
-// 			stdErr = appErrs.NewTemplateValidationFailedError(err.Error())
-// 		}
-// 		h.errorHandler.HandleJobError(ctx, client, job, stdErr)
-// 		return
-// 	}
-
-// 	_, spanComp := otel.Tracer("worker-manager").Start(ctx, "select-template.completeJob")
-// 	h.completeJob(client, job, output)
-// 	spanComp.End()
-// }
-
-// func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-// 	var selected string
-
-// 	// Route-based selection
-// 	if input.RoutePath != "" {
-// 		routeRules, exists := h.config.TemplateRules["route"]
-// 		if !exists {
-// 			return nil, fmt.Errorf("missing route template rules in config")
-// 		}
-
-// 		routeKey := input.RoutePath
-// 		switch input.SubscriptionTier {
-// 		case "free":
-// 			routeKey += ":free"
-// 		case "premium":
-// 			routeKey += ":premium"
-// 		default:
-// 			// Unknown tier, try fallback
-// 			routeKey += ":fallback"
-// 		}
-
-// 		if template, ok := routeRules[routeKey]; ok {
-// 			selected = template
-// 			h.logger.Info("selected route template",
-// 				map[string]interface{}{
-// 					"route":    input.RoutePath,
-// 					"tier":     input.SubscriptionTier,
-// 					"template": selected,
-// 				})
-// 			return &Output{SelectedTemplateId: selected}, nil
-// 		}
-// 	}
-
-// 	// Fallback: try generic route
-// 	if input.RoutePath != "" {
-// 		fallbackKey := input.RoutePath + ":fallback"
-// 		if template, ok := h.config.TemplateRules["route"][fallbackKey]; ok {
-// 			selected = template
-// 			h.logger.Warn("used fallback template",
-// 				map[string]interface{}{
-// 					"route":    input.RoutePath,
-// 					"template": selected,
-// 				})
-// 			return &Output{SelectedTemplateId: selected}, nil
-// 		}
-// 	}
-
-// 	// Confidence-based selection (AI responses)
-// 	if input.TemplateType == "ai-response" {
-// 		// Clamp negative confidence to 0
-// 		confidence := input.Confidence
-// 		if confidence < 0 {
-// 			confidence = 0
-// 		}
-
-// 		if confidence >= 0.8 {
-// 			selected = "ai-detailed"
-// 		} else {
-// 			selected = "ai-tentative"
-// 		}
-// 		h.logger.Info("selected AI template",
-// 			map[string]interface{}{
-// 				"confidence": input.Confidence,
-// 				"template":   selected,
-// 			})
-// 		return &Output{SelectedTemplateId: selected}, nil
-// 	}
-
-// 	// Final fallback
-// 	selected = "default-template"
-// 	h.logger.Warn("used default fallback template",
-// 		map[string]interface{}{
-// 			"input": input,
-// 		})
-// 	return &Output{SelectedTemplateId: selected}, nil
-// }
-
-// func (h *Handler) completeJob(client worker.JobClient, job entities.Job, output *Output) {
-// 	cmd, err := client.NewCompleteJobCommand().
-// 		JobKey(job.Key).
-// 		VariablesFromObject(output)
-// 	if err != nil {
-// 		h.logger.Error("failed to create complete job command", map[string]interface{}{"error": err})
-// 		return
-// 	}
-// 	_, err = cmd.Send(context.Background())
-// 	if err != nil {
-// 		h.logger.Error("failed to send complete job command", map[string]interface{}{"error": err})
-// 	}
-// }

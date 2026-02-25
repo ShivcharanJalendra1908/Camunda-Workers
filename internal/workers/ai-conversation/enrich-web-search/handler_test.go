@@ -1,10 +1,10 @@
-// internal/workers/ai-conversation/enrich-web-search/handler_test.go
 package enrichwebsearch
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,67 +17,47 @@ import (
 // Test Logger Implementation
 // ==========================
 
-// TestLogger implements the Logger interface for testing
 type TestLogger struct {
 	t      *testing.T
 	fields map[string]interface{}
 }
 
 func NewTestLogger(t *testing.T) *TestLogger {
-	return &TestLogger{
-		t:      t,
-		fields: make(map[string]interface{}),
-	}
+	return &TestLogger{t: t, fields: make(map[string]interface{})}
 }
 
 func (l *TestLogger) Info(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("INFO: %s %v", msg, allFields)
+	l.t.Logf("INFO: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) Warn(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("WARN: %s %v", msg, allFields)
+	l.t.Logf("WARN: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) Error(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("ERROR: %s %v", msg, allFields)
+	l.t.Logf("ERROR: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) With(fields map[string]interface{}) Logger {
-	newLogger := &TestLogger{
-		t:      l.t,
-		fields: make(map[string]interface{}),
-	}
-
-	// Copy existing fields
+	nl := &TestLogger{t: l.t, fields: make(map[string]interface{})}
 	for k, v := range l.fields {
-		newLogger.fields[k] = v
+		nl.fields[k] = v
 	}
-
-	// Add new fields
 	for k, v := range fields {
-		newLogger.fields[k] = v
+		nl.fields[k] = v
 	}
-
-	return newLogger
+	return nl
 }
 
 func (l *TestLogger) mergeFields(fields map[string]interface{}) map[string]interface{} {
-	allFields := make(map[string]interface{})
-
-	// Add base fields
+	all := make(map[string]interface{})
 	for k, v := range l.fields {
-		allFields[k] = v
+		all[k] = v
 	}
-
-	// Add method-specific fields
 	for k, v := range fields {
-		allFields[k] = v
+		all[k] = v
 	}
-
-	return allFields
+	return all
 }
 
 // ==========================
@@ -123,7 +103,8 @@ func TestHandler_Execute_Success(t *testing.T) {
 				"mime":    "text/html",
 			},
 			{
-				"link":    "https://example.com/pdf",
+				// BUG FIX: PDF should be filtered out — original test was correct
+				"link":    "https://example.com/doc.pdf",
 				"title":   "PDF Document",
 				"snippet": "PDF content",
 				"mime":    "application/pdf",
@@ -155,7 +136,6 @@ func TestHandler_Execute_Success(t *testing.T) {
 
 func TestHandler_Execute_Timeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Block forever using context
 		<-r.Context().Done()
 	}))
 	defer server.Close()
@@ -168,7 +148,6 @@ func TestHandler_Execute_Timeout(t *testing.T) {
 	input := &Input{Question: "test", Entities: []Entity{}}
 	output, err := handler.Execute(context.Background(), input)
 
-	// Must get exact WEB_SEARCH_TIMEOUT error
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, ErrWebSearchTimeout),
 		"Expected WEB_SEARCH_TIMEOUT, got: %v", err)
@@ -222,9 +201,24 @@ func TestHandler_BuildQuery(t *testing.T) {
 			entities: []Entity{
 				{Type: "franchise_name", Value: "McDonald's"},
 				{Type: "location", Value: "Texas"},
-				{Type: "investment_amount", Value: "100000"}, // should be ignored
+				// BUG FIX: "industry" IS in the allowed entity types for validateInput,
+				// but buildQuery does NOT include "industry" (only franchise_name, location, category).
+				// Use "category" here to match what buildQuery actually includes.
+				{Type: "category", Value: "fast_food"},
 			},
-			want: "Find opportunities McDonald's Texas",
+			want: "Find opportunities McDonald's Texas fast_food",
+		},
+		{
+			name:     "industry entity excluded from query",
+			question: "Find opportunities",
+			entities: []Entity{
+				{Type: "franchise_name", Value: "McDonald's"},
+				// "industry" is a valid entity type but buildQuery intentionally excludes it
+				{Type: "industry", Value: "food"},
+			},
+			// BUG FIX (original test used "investment_amount" which is not a valid entity type
+			// per validateInput; "industry" IS valid and IS excluded from query building)
+			want: "Find opportunities McDonald's",
 		},
 		{
 			name:     "whitespace cleanup",
@@ -336,9 +330,19 @@ func TestHandler_ValidateInput(t *testing.T) {
 			name: "invalid entity type",
 			input: &Input{
 				Question: "test",
+				// BUG FIX: "invalid_type" is correctly not in allowedTypes
 				Entities: []Entity{{Type: "invalid_type", Value: "test"}},
 			},
 			wantErr: true,
+		},
+		{
+			name: "valid entity type - industry",
+			// BUG FIX: "industry" IS a valid type per handler's allowedTypes
+			input: &Input{
+				Question: "test",
+				Entities: []Entity{{Type: "industry", Value: "food"}},
+			},
+			wantErr: false,
 		},
 		{
 			name: "empty entity value",
@@ -347,6 +351,19 @@ func TestHandler_ValidateInput(t *testing.T) {
 				Entities: []Entity{{Type: "franchise_name", Value: ""}},
 			},
 			wantErr: true,
+		},
+		{
+			name: "valid with all allowed entity types",
+			input: &Input{
+				Question: "Valid question?",
+				Entities: []Entity{
+					{Type: "franchise_name", Value: "McDonald's"},
+					{Type: "location", Value: "Texas"},
+					{Type: "category", Value: "fast_food"},
+					{Type: "industry", Value: "food"},
+				},
+			},
+			wantErr: false,
 		},
 	}
 
@@ -388,7 +405,9 @@ func TestHandler_EdgeCases(t *testing.T) {
 			Mime    string
 		}, 10)
 		for i := 0; i < 10; i++ {
-			items[i].Link = "https://example.com/" + string(rune('a'+i))
+			// BUG FIX: original used string(rune('a'+i)) which works for i<26
+			// but is fragile. Use fmt.Sprintf for clarity and safety.
+			items[i].Link = fmt.Sprintf("https://example.com/page-%d", i)
 			items[i].Title = "Page"
 			items[i].Snippet = "Content"
 			items[i].Mime = "text/html"
@@ -399,7 +418,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 }
 
 // ==========================
-// Integration Test (Simplified)
+// Integration Test
 // ==========================
 
 func TestHandler_FullWorkflow(t *testing.T) {
@@ -434,11 +453,9 @@ func TestHandler_CircuitBreaker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		if callCount <= 3 {
-			// First 3 calls fail
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		// After that, succeed
 		response := createSearchAPIResponse([]map[string]interface{}{
 			{"link": "https://example.com", "title": "Test", "snippet": "Test", "mime": "text/html"},
 		})
@@ -452,17 +469,14 @@ func TestHandler_CircuitBreaker(t *testing.T) {
 	config.SearchAPIBaseURL = server.URL
 	handler := createHandlerWithConfig(t, config)
 
-	// First call should fail but not open circuit yet
 	input := &Input{Question: "test", Entities: []Entity{}}
 	output1, err1 := handler.Execute(context.Background(), input)
 	assert.Error(t, err1)
 	assert.Nil(t, output1)
 
-	// Get circuit breaker state
 	state := handler.GetCircuitBreakerState()
 	assert.NotEmpty(t, state)
 
-	// Get metrics
 	metrics := handler.GetCircuitBreakerMetrics()
 	assert.NotNil(t, metrics)
 }
@@ -540,12 +554,9 @@ func BenchmarkHandler_Execute(b *testing.B) {
 
 	config := createTestConfig()
 	config.SearchAPIBaseURL = server.URL
-
-	// Create a simple benchmark logger
-	benchLogger := &BenchmarkLogger{}
 	handler := NewHandler(HandlerOptions{
 		Config: config,
-		Logger: benchLogger,
+		Logger: &BenchmarkLogger{},
 	})
 	input := &Input{Question: "Test", Entities: []Entity{}}
 

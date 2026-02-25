@@ -4,38 +4,38 @@
 -- Version: 2.0 (With 3-Level Taxonomy: Industry → Category → Sub-Category)
 -- ============================================================
 
--- Drop existing tables (reverse order due to foreign key constraints)
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS application_history CASCADE;
-DROP TABLE IF EXISTS franchise_applications CASCADE;
-DROP TABLE IF EXISTS idempotency_keys CASCADE;
-DROP TABLE IF EXISTS franchise_operations CASCADE;
-DROP TABLE IF EXISTS franchise_investment_requirement CASCADE;
-DROP TABLE IF EXISTS franchise_business_overview CASCADE;
-DROP TABLE IF EXISTS franchise_social_links CASCADE;
-DROP TABLE IF EXISTS franchise_stats CASCADE;
-DROP TABLE IF EXISTS franchise_cities CASCADE;
-DROP TABLE IF EXISTS category_questions CASCADE;
-DROP TABLE IF EXISTS franchise_outlets CASCADE;
-DROP TABLE IF EXISTS saved_searches CASCADE;
-DROP TABLE IF EXISTS user_favorites CASCADE;
-DROP TABLE IF EXISTS franchise_categories CASCADE;
-DROP TABLE IF EXISTS sub_categories CASCADE;
-DROP TABLE IF EXISTS categories CASCADE;
-DROP TABLE IF EXISTS industries CASCADE;
-DROP TABLE IF EXISTS franchises CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS industry_market_insights CASCADE;
+-- -- Drop existing tables (reverse order due to foreign key constraints)
+-- DROP TABLE IF EXISTS notifications CASCADE;
+-- DROP TABLE IF EXISTS application_history CASCADE;
+-- DROP TABLE IF EXISTS franchise_applications CASCADE;
+-- DROP TABLE IF EXISTS idempotency_keys CASCADE;
+-- DROP TABLE IF EXISTS franchise_operations CASCADE;
+-- DROP TABLE IF EXISTS franchise_investment_requirement CASCADE;
+-- DROP TABLE IF EXISTS franchise_business_overview CASCADE;
+-- DROP TABLE IF EXISTS franchise_social_links CASCADE;
+-- DROP TABLE IF EXISTS franchise_stats CASCADE;
+-- DROP TABLE IF EXISTS franchise_cities CASCADE;
+-- DROP TABLE IF EXISTS category_questions CASCADE;
+-- DROP TABLE IF EXISTS franchise_outlets CASCADE;
+-- DROP TABLE IF EXISTS saved_searches CASCADE;
+-- DROP TABLE IF EXISTS user_favorites CASCADE;
+-- DROP TABLE IF EXISTS franchise_categories CASCADE;
+-- DROP TABLE IF EXISTS sub_categories CASCADE;
+-- DROP TABLE IF EXISTS categories CASCADE;
+-- DROP TABLE IF EXISTS industries CASCADE;
+-- DROP TABLE IF EXISTS franchises CASCADE;
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS industry_market_insights CASCADE;
 
 
--- Drop views if exist
-DROP VIEW IF EXISTS v_franchise_taxonomy CASCADE;
-DROP VIEW IF EXISTS v_industry_stats CASCADE;
+-- -- Drop views if exist
+-- DROP VIEW IF EXISTS v_franchise_taxonomy CASCADE;
+-- DROP VIEW IF EXISTS v_industry_stats CASCADE;
 
--- Drop functions if exist
-DROP FUNCTION IF EXISTS get_franchise_hierarchy(UUID) CASCADE;
-DROP FUNCTION IF EXISTS get_franchises_by_category(UUID) CASCADE;
-DROP FUNCTION IF EXISTS update_category_franchise_count() CASCADE;
+-- -- Drop functions if exist
+-- DROP FUNCTION IF EXISTS get_franchise_hierarchy(UUID) CASCADE;
+-- DROP FUNCTION IF EXISTS get_franchises_by_category(UUID) CASCADE;
+-- DROP FUNCTION IF EXISTS update_category_franchise_count() CASCADE;
 
 -- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";

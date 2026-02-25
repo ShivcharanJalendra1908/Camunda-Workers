@@ -76,93 +76,6 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		}
 	}
 
-	// // Step 2: Global logout - revoke ALL sessions in Keycloak
-	// if input.LogoutAll && input.UserID != "" && s.keycloak != nil {
-	// 	err := s.keycloak.RevokeAllUserSessions(ctx, input.UserID)
-	// 	if err != nil {
-	// 		return nil, &errors.StandardError{
-	// 			Code:      "KEYCLOAK_LOGOUT_FAILED",
-	// 			Message:   "Failed to revoke all user sessions in Keycloak",
-	// 			Details:   err.Error(),
-	// 			Retryable: true,
-	// 			Timestamp: time.Now(),
-	// 		}
-	// 	}
-
-	// 	if s.redisClient != nil {
-	// 		count, _ := s.countUserSessions(ctx, input.UserID)
-	// 		sessionsInvalidated = count
-	// 	}
-
-	// 	tokenRevoked = true
-	// }
-	// // Step 2: Global logout - revoke ALL sessions in Keycloak
-	// if input.LogoutAll && s.keycloak != nil {
-	// 	kcUserID := input.KeycloakUserID
-	// 	if kcUserID == "" {
-	// 		kcUserID = input.UserID
-	// 	}
-	// 	err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
-	// 	if err != nil {
-	// 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
-	// 			s.logger.Warn("User not found in Keycloak, treating as already logged out", map[string]interface{}{
-	// 				"userId": kcUserID,
-	// 			})
-	// 		} else {
-	// 			return nil, &errors.StandardError{
-	// 				Code:      "KEYCLOAK_LOGOUT_FAILED",
-	// 				Message:   "Failed to revoke all user sessions in Keycloak",
-	// 				Details:   err.Error(),
-	// 				Retryable: true,
-	// 				Timestamp: time.Now(),
-	// 			}
-	// 		}
-	// 	}
-	// 	tokenRevoked = true
-	// }
-
-	// // Step 2: Global logout - revoke ALL sessions in Keycloak
-	// if input.LogoutAll && s.keycloak != nil {
-	// 	kcUserID := input.KeycloakUserID
-	// 	if kcUserID == "" {
-	// 		kcUserID = input.UserID
-	// 	}
-
-	// 	// DEBUG LOGS - WITHOUT EXPOSED FIELDS
-	// 	s.logger.Info("Attempting Keycloak revoke all sessions", map[string]interface{}{
-	// 		"userId": kcUserID,
-	// 		"realm":  "camunda-platform", // Hardcode for now
-	// 	})
-
-	// 	err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
-	// 	if err != nil {
-	// 		// EXACT ERROR MESSAGE
-	// 		s.logger.Error("Keycloak revoke error DETAILS", map[string]interface{}{
-	// 			"error":      err.Error(),
-	// 			"error_type": fmt.Sprintf("%T", err),
-	// 			"userId":     kcUserID,
-	// 		})
-
-	// 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
-	// 			s.logger.Warn("User not found in Keycloak, treating as already logged out", map[string]interface{}{
-	// 				"userId": kcUserID,
-	// 			})
-	// 		} else {
-	// 			return nil, &errors.StandardError{
-	// 				Code:      "KEYCLOAK_LOGOUT_FAILED",
-	// 				Message:   "Failed to revoke all user sessions in Keycloak",
-	// 				Details:   err.Error(),
-	// 				Retryable: true,
-	// 				Timestamp: time.Now(),
-	// 			}
-	// 		}
-	// 	} else {
-	// 		s.logger.Info("Keycloak revoke all sessions successful", map[string]interface{}{
-	// 			"userId": kcUserID,
-	// 		})
-	// 		tokenRevoked = true
-	// 	}
-	// }
     // Step 2: Global logout - revoke ALL sessions in Keycloak
 	if input.LogoutAll && s.keycloak != nil {
 		kcUserID := input.KeycloakUserID
@@ -277,14 +190,6 @@ func (s *Service) validateInput(input *Input) error {
 	return nil
 }
 
-//	func (s *Service) countUserSessions(ctx context.Context, userID string) (int, error) {
-//		pattern := fmt.Sprintf("session:%s:*", userID)
-//		keys, err := s.redisClient.Keys(ctx, pattern).Result()
-//		if err != nil {
-//			return 0, err
-//		}
-//		return len(keys), nil
-//	}
 func (s *Service) countUserSessions(ctx context.Context, userID string) (int, error) {
 	count, err := s.redisClient.SCard(ctx, "user_sessions:"+userID).Result()
 	return int(count), err
@@ -323,39 +228,6 @@ func (s *Service) invalidateLocalSession(ctx context.Context, userID, sessionID 
 	return nil
 }
 
-// func (s *Service) invalidateAllLocalSessions(ctx context.Context, userID string) error {
-// 	// Find and delete all sessions
-// 	sessionPattern := fmt.Sprintf("session:%s:*", userID)
-// 	sessionKeys, err := s.redisClient.Keys(ctx, sessionPattern).Result()
-// 	if err != nil {
-// 		return fmt.Errorf("failed to find sessions: %w", err)
-// 	}
-
-// 	if len(sessionKeys) > 0 {
-// 		err = s.redisClient.Del(ctx, sessionKeys...).Err()
-// 		if err != nil {
-// 			return fmt.Errorf("failed to delete sessions: %w", err)
-// 		}
-// 	}
-
-// 	// Find and delete all refresh token mappings
-// 	refreshPattern := fmt.Sprintf("refresh_token:%s:*", userID)
-// 	refreshKeys, err := s.redisClient.Keys(ctx, refreshPattern).Result()
-// 	if err != nil {
-// 		s.logger.Warn("Failed to find refresh tokens", map[string]interface{}{
-// 			"error": err.Error(),
-// 		})
-// 	} else if len(refreshKeys) > 0 {
-// 		s.redisClient.Del(ctx, refreshKeys...)
-// 	}
-
-// 	s.logger.Info("All local sessions invalidated", map[string]interface{}{
-// 		"userId":       userID,
-// 		"sessionCount": len(sessionKeys),
-// 	})
-
-//		return nil
-//	}
 func (s *Service) invalidateAllLocalSessions(ctx context.Context, userID string) error {
 	userKey := "user_sessions:" + userID
 

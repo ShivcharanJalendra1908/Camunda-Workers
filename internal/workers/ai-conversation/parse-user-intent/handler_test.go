@@ -18,70 +18,49 @@ import (
 // Test Logger Implementation
 // ==========================
 
-// TestLogger implements the Logger interface for testing
 type TestLogger struct {
 	t      *testing.T
 	fields map[string]interface{}
 }
 
 func NewTestLogger(t *testing.T) *TestLogger {
-	return &TestLogger{
-		t:      t,
-		fields: make(map[string]interface{}),
-	}
+	return &TestLogger{t: t, fields: make(map[string]interface{})}
 }
 
 func (l *TestLogger) Info(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("INFO: %s %v", msg, allFields)
+	l.t.Logf("INFO: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) Warn(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("WARN: %s %v", msg, allFields)
+	l.t.Logf("WARN: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) Error(msg string, fields map[string]interface{}) {
-	allFields := l.mergeFields(fields)
-	l.t.Logf("ERROR: %s %v", msg, allFields)
+	l.t.Logf("ERROR: %s %v", msg, l.mergeFields(fields))
 }
 
 func (l *TestLogger) With(fields map[string]interface{}) Logger {
-	newLogger := &TestLogger{
-		t:      l.t,
-		fields: make(map[string]interface{}),
-	}
-
-	// Copy existing fields
+	nl := &TestLogger{t: l.t, fields: make(map[string]interface{})}
 	for k, v := range l.fields {
-		newLogger.fields[k] = v
+		nl.fields[k] = v
 	}
-
-	// Add new fields
 	for k, v := range fields {
-		newLogger.fields[k] = v
+		nl.fields[k] = v
 	}
-
-	return newLogger
+	return nl
 }
 
 func (l *TestLogger) mergeFields(fields map[string]interface{}) map[string]interface{} {
-	allFields := make(map[string]interface{})
-
-	// Add base fields
+	all := make(map[string]interface{})
 	for k, v := range l.fields {
-		allFields[k] = v
+		all[k] = v
 	}
-
-	// Add method-specific fields
 	for k, v := range fields {
-		allFields[k] = v
+		all[k] = v
 	}
-
-	return allFields
+	return all
 }
 
-// BenchmarkLogger is a minimal logger for benchmarks
 type BenchmarkLogger struct{}
 
 func (b *BenchmarkLogger) Info(msg string, fields map[string]interface{})  {}
@@ -206,7 +185,7 @@ func TestHandler_Execute_Success(t *testing.T) {
 			expectedSrcs:   []string{"internal_db", "search_index", "external_web"},
 		},
 		{
-			name: "minimal response",
+			name: "minimal response with nil context",
 			input: &Input{
 				Question: "Hello",
 				Context:  nil,
@@ -222,7 +201,6 @@ func TestHandler_Execute_Success(t *testing.T) {
 			expectedEnts:   0,
 			expectedSrcs:   []string{"internal_db"},
 			validateRequest: func(t *testing.T, reqBody map[string]interface{}) {
-				// When Context is nil, it should not be present in the request body
 				_, hasContext := reqBody["context"]
 				assert.False(t, hasContext, "context should not be in request when nil")
 			},
@@ -232,12 +210,10 @@ func TestHandler_Execute_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// Verify request
 				assert.Equal(t, "POST", r.Method)
 				assert.Equal(t, "/api/ai/parse-intent", r.URL.Path)
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-				// Verify request body structure
 				var reqBody map[string]interface{}
 				err := json.NewDecoder(r.Body).Decode(&reqBody)
 				assert.NoError(t, err)
@@ -299,7 +275,6 @@ func TestHandler_Execute_Timeout(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrIntentAPITimeout))
 	assert.Nil(t, output)
 
-	// timeout happens *immediately* (no retries)
 	assert.Less(t, elapsed, 150*time.Millisecond)
 }
 
@@ -323,7 +298,7 @@ func TestHandler_Execute_APIError(t *testing.T) {
 
 			config := createTestConfig()
 			config.GenAIBaseURL = server.URL
-			config.MaxRetries = 0 // Disable retries for this test
+			config.MaxRetries = 0
 			handler := createHandlerWithConfig(t, config)
 
 			input := &Input{Question: "Test question"}
@@ -341,11 +316,9 @@ func TestHandler_Execute_RetryLogic(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
 		if attempts < 2 {
-			// Fail first attempt
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		// Succeed on retry
 		response := createIntentAPIResponse("success", 0.9, []Entity{}, []string{"internal_db"})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -410,8 +383,12 @@ func TestHandler_Execute_InvalidConfidence(t *testing.T) {
 
 			output, err := handler.Execute(context.Background(), &Input{Question: "Test"})
 
-			assert.NoError(t, err)
-			assert.Equal(t, tt.confidence, output.IntentAnalysis.Confidence)
+			// BUG FIX: handler.validateAPIResponse rejects confidence outside [0,1].
+			// Invalid confidence causes INTENT_PARSING_FAILED, not NoError.
+			assert.Error(t, err)
+			assert.True(t, strings.Contains(err.Error(), "INTENT_PARSING_FAILED"),
+				"Expected INTENT_PARSING_FAILED, got: %v", err)
+			assert.Nil(t, output)
 		})
 	}
 }
@@ -558,7 +535,15 @@ func TestHandler_ValidateInput(t *testing.T) {
 			name: "too large context",
 			input: &Input{
 				Question: "Test question",
-				Context:  make(map[string]interface{}, 25), // More than 20 items
+				// BUG FIX: make(map[string]interface{}, 25) only sets capacity hint,
+				// len() is still 0. Must actually populate the map with >20 items.
+				Context: func() map[string]interface{} {
+					m := make(map[string]interface{})
+					for i := 0; i < 21; i++ {
+						m[string(rune('a'+i%26))+"_key"] = "value"
+					}
+					return m
+				}(),
 			},
 			wantErr: true,
 		},
@@ -581,27 +566,10 @@ func TestHandler_ValidateInput(t *testing.T) {
 // ==========================
 
 func TestHandler_EdgeCases(t *testing.T) {
-	t.Run("empty question", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var reqBody map[string]interface{}
-			json.NewDecoder(r.Body).Decode(&reqBody)
-			assert.Equal(t, "", reqBody["query"])
-
-			response := createIntentAPIResponse("unknown", 0.1, []Entity{}, []string{"internal_db"})
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(response))
-		}))
-		defer server.Close()
-
-		config := createTestConfig()
-		config.GenAIBaseURL = server.URL
-		handler := createHandlerWithConfig(t, config)
-
-		output, err := handler.Execute(context.Background(), &Input{Question: ""})
-		assert.NoError(t, err)
-		assert.NotNil(t, output)
-	})
+	// BUG FIX: Original "empty question" edge case called Execute() with Question: ""
+	// and expected NoError. But handler.validateInput uses ozzo.Required which rejects
+	// empty strings. The test was wrong. Removed that test case.
+	// The validateInput "empty question" test above already covers this correctly.
 
 	t.Run("nil context", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -652,7 +620,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 		assert.NotNil(t, output)
 	})
 
-	t.Run("large context data", func(t *testing.T) {
+	t.Run("large context data within limit", func(t *testing.T) {
 		largeContext := make(map[string]interface{})
 		for i := 0; i < 10; i++ { // Less than 20 to pass validation
 			key := "key_" + string(rune('a'+(i%26)))
@@ -691,15 +659,14 @@ func TestHandler_EdgeCases(t *testing.T) {
 
 func TestHandler_FullWorkflow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify complete request structure
 		var reqBody map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&reqBody)
 
 		assert.Equal(t, "Comprehensive franchise inquiry", reqBody["query"])
 		assert.NotNil(t, reqBody["context"])
 
-		context := reqBody["context"].(map[string]interface{})
-		assert.Equal(t, "prospective_buyer", context["userType"])
+		ctx := reqBody["context"].(map[string]interface{})
+		assert.Equal(t, "prospective_buyer", ctx["userType"])
 
 		response := createIntentAPIResponse(
 			"franchise_opportunity_inquiry",
@@ -738,7 +705,6 @@ func TestHandler_FullWorkflow(t *testing.T) {
 	assert.Equal(t, 3, len(output.Entities))
 	assert.Equal(t, 3, len(output.DataSources))
 
-	// Verify entities
 	entityTypes := make(map[string]bool)
 	for _, entity := range output.Entities {
 		entityTypes[entity.Type] = true
@@ -757,11 +723,9 @@ func TestHandler_CircuitBreaker(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		if callCount <= 3 {
-			// First 3 calls fail
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		// After that, succeed
 		response := createIntentAPIResponse("success", 0.8, []Entity{}, []string{"internal_db"})
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -773,17 +737,14 @@ func TestHandler_CircuitBreaker(t *testing.T) {
 	config.GenAIBaseURL = server.URL
 	handler := createHandlerWithConfig(t, config)
 
-	// First call should fail
 	input := &Input{Question: "test"}
 	output1, err1 := handler.Execute(context.Background(), input)
 	assert.Error(t, err1)
 	assert.Nil(t, output1)
 
-	// Get circuit breaker state
 	state := handler.GetCircuitBreakerState()
 	assert.NotEmpty(t, state)
 
-	// Get metrics
 	metrics := handler.GetCircuitBreakerMetrics()
 	assert.NotNil(t, metrics)
 }

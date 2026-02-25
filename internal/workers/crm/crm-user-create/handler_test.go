@@ -103,6 +103,15 @@ func createValidConfig() *Config {
 	}
 }
 
+// createHandlerWithMockService creates a Handler wired with a MockService via ServiceInterface.
+func createHandlerWithMockService(svc ServiceInterface) *Handler {
+	return &Handler{
+		config:  createValidConfig(),
+		logger:  logger.NewStructured("info", "json"),
+		service: svc,
+	}
+}
+
 // ==========================
 // Handler Creation Tests
 // ==========================
@@ -409,6 +418,115 @@ func TestHandler_ParseInput(t *testing.T) {
 }
 
 // ==========================
+// Execute Tests (NEW — was missing entirely)
+// ==========================
+
+func TestHandler_Execute(t *testing.T) {
+	t.Run("new contact created successfully", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+		expected := createValidOutput()
+
+		mockSvc.On("Execute", mock.Anything, mock.MatchedBy(func(i *Input) bool {
+			return i.Email == input.Email
+		})).Return(expected, nil)
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		assert.True(t, output.Success)
+		assert.Equal(t, "zoho-contact-12345", output.ContactID)
+		assert.Equal(t, "zoho", output.CRMProvider)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("service returns CRM API error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "CRM_API_ERROR",
+			Message:   "Zoho API rate limit exceeded",
+			Retryable: true,
+			Timestamp: time.Now(),
+		})
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.Equal(t, errors.ErrorCode("CRM_API_ERROR"), stdErr.Code)
+		assert.True(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("service returns non-retryable error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "CRM_NOT_CONFIGURED",
+			Message:   "Missing CRM configuration",
+			Retryable: false,
+			Timestamp: time.Now(),
+		})
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.False(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("invalid input fails validation before service call", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := &Input{
+			Email:     "", // invalid
+			FirstName: "Jane",
+			LastName:  "Doe",
+		}
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		// Service should NOT be called when validation fails
+		mockSvc.AssertNotCalled(t, "Execute")
+	})
+
+	t.Run("context cancellation propagated to service", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("context canceled"))
+
+		output, err := handler.Execute(ctx, input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		mockSvc.AssertExpectations(t)
+	})
+}
+
+// ==========================
 // Error Handling Tests
 // ==========================
 
@@ -643,7 +761,7 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 			},
 		},
 		{
-			name:      "custom config used when provided",
+			name:      "custom config with timeout used directly",
 			appConfig: nil,
 			customConfig: &Config{
 				Enabled:       false,
@@ -733,7 +851,6 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 				ZohoOAuthToken: "custom-token",
 			},
 			validate: func(t *testing.T, cfg *Config) {
-				// Custom config should override
 				assert.Equal(t, "custom-key", cfg.ZohoAPIKey)
 				assert.Equal(t, "custom-token", cfg.ZohoOAuthToken)
 			},
@@ -772,13 +889,11 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 				Enabled: false,
 			},
 			validate: func(t *testing.T, cfg *Config) {
-				// Worker settings from app config
 				assert.Equal(t, 15, cfg.MaxJobsActive)
 				assert.Equal(t, 60*time.Second, cfg.Timeout)
-				// Zoho settings from app config
 				assert.Equal(t, "merge-api-key", cfg.ZohoAPIKey)
 				assert.Equal(t, "merge-auth-token", cfg.ZohoOAuthToken)
-				// Enabled from custom config (overrides)
+				// Enabled overridden by custom config
 				assert.False(t, cfg.Enabled)
 			},
 		},
@@ -830,10 +945,10 @@ func TestHandler_IsEnabled(t *testing.T) {
 }
 
 func TestHandler_GetConfig(t *testing.T) {
-	config := createValidConfig()
-	handler := &Handler{config: config}
+	cfg := createValidConfig()
+	handler := &Handler{config: cfg}
 
-	assert.Equal(t, config, handler.GetConfig())
+	assert.Equal(t, cfg, handler.GetConfig())
 	assert.Equal(t, "test-api-key", handler.GetConfig().ZohoAPIKey)
 	assert.Equal(t, "test-oauth-token", handler.GetConfig().ZohoOAuthToken)
 }
@@ -851,7 +966,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Contains(t, schema.Required, "lastName")
 	assert.Len(t, schema.Required, 3)
 
-	// Verify key properties exist
 	assert.Contains(t, schema.Properties, "email")
 	assert.Contains(t, schema.Properties, "firstName")
 	assert.Contains(t, schema.Properties, "lastName")
@@ -863,14 +977,12 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Contains(t, schema.Properties, "customFields")
 	assert.Contains(t, schema.Properties, "metadata")
 
-	// Verify type constraints
 	assert.Equal(t, "string", schema.Properties["email"].Type)
 	assert.Equal(t, "string", schema.Properties["firstName"].Type)
 	assert.Equal(t, "string", schema.Properties["lastName"].Type)
 	assert.Equal(t, "array", schema.Properties["tags"].Type)
 	assert.Equal(t, "object", schema.Properties["customFields"].Type)
 
-	// Verify length constraints
 	assert.NotNil(t, schema.Properties["email"].MinLength)
 	assert.Equal(t, 5, *schema.Properties["email"].MinLength)
 	assert.NotNil(t, schema.Properties["firstName"].MinLength)
@@ -884,7 +996,6 @@ func TestGetOutputSchema(t *testing.T) {
 
 	assert.Equal(t, "object", schema.Type)
 
-	// Verify output properties
 	assert.Contains(t, schema.Properties, "success")
 	assert.Contains(t, schema.Properties, "message")
 	assert.Contains(t, schema.Properties, "contactId")
@@ -893,7 +1004,6 @@ func TestGetOutputSchema(t *testing.T) {
 	assert.Contains(t, schema.Properties, "crmProvider")
 	assert.Contains(t, schema.Properties, "createdAt")
 
-	// Verify types
 	assert.Equal(t, "boolean", schema.Properties["success"].Type)
 	assert.Equal(t, "string", schema.Properties["message"].Type)
 	assert.Equal(t, "string", schema.Properties["contactId"].Type)
@@ -909,12 +1019,10 @@ func TestGetOutputSchema(t *testing.T) {
 func TestInput_JSONSerialization(t *testing.T) {
 	input := createValidInput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(input)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Input
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -932,12 +1040,10 @@ func TestInput_JSONSerialization(t *testing.T) {
 func TestOutput_JSONSerialization(t *testing.T) {
 	output := createValidOutput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(output)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Output
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -945,13 +1051,11 @@ func TestOutput_JSONSerialization(t *testing.T) {
 	assert.Equal(t, output.Message, decoded.Message)
 	assert.Equal(t, output.ContactID, decoded.ContactID)
 	assert.Equal(t, output.CRMProvider, decoded.CRMProvider)
-	// Note: CreatedAt might not match exactly due to time serialization
 }
 
 func TestOutput_WorkflowVariables(t *testing.T) {
 	output := createValidOutput()
 
-	// Simulate how output would be converted to workflow variables
 	vars := map[string]interface{}{
 		"success":     output.Success,
 		"message":     output.Message,
@@ -968,12 +1072,14 @@ func TestOutput_WorkflowVariables(t *testing.T) {
 }
 
 // ==========================
-// Service Integration Tests
+// Service Integration Tests (via MockService through ServiceInterface)
 // ==========================
 
 func TestService_Integration(t *testing.T) {
 	t.Run("service executes with valid input", func(t *testing.T) {
 		mockService := new(MockService)
+		handler := createHandlerWithMockService(mockService)
+
 		input := createValidInput()
 		output := createValidOutput()
 
@@ -981,7 +1087,8 @@ func TestService_Integration(t *testing.T) {
 			return i.Email == input.Email
 		})).Return(output, nil)
 
-		result, err := mockService.Execute(context.Background(), input)
+		// Call through handler.Execute so mock is actually used
+		result, err := handler.Execute(context.Background(), input)
 
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
@@ -994,6 +1101,8 @@ func TestService_Integration(t *testing.T) {
 
 	t.Run("service handles CRM API error", func(t *testing.T) {
 		mockService := new(MockService)
+		handler := createHandlerWithMockService(mockService)
+
 		input := createValidInput()
 
 		mockService.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
@@ -1002,7 +1111,7 @@ func TestService_Integration(t *testing.T) {
 			Details: "Too many requests",
 		})
 
-		result, err := mockService.Execute(context.Background(), input)
+		result, err := handler.Execute(context.Background(), input)
 
 		assert.Error(t, err)
 		assert.Nil(t, result)

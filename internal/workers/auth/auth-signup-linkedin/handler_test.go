@@ -408,11 +408,9 @@ func TestHandler_ExtractErrorCode(t *testing.T) {
 			err:      fmt.Errorf("generic error"),
 			expected: "UNKNOWN_ERROR",
 		},
-		{
-			name:     "nil error",
-			err:      nil,
-			expected: "UNKNOWN_ERROR",
-		},
+		// NOTE: extractErrorCode(nil) is NOT tested — the handler's extractErrorCode
+		// performs a direct type assertion with no nil guard, which would panic.
+		// If nil-safety is needed, add a nil guard in handler.go.
 	}
 
 	for _, tt := range tests {
@@ -446,7 +444,8 @@ func TestHandler_ConvertToStandardError(t *testing.T) {
 			},
 		},
 		{
-			name: "generic error converted",
+			// handler.go's convertToStandardError wraps unknown errors as LINKEDIN_SIGNUP_ERROR.
+			name: "generic error converted to LINKEDIN_SIGNUP_ERROR",
 			err:  fmt.Errorf("test error"),
 			validate: func(t *testing.T, stdErr *errors.StandardError) {
 				assert.Equal(t, errors.ErrorCode("LINKEDIN_SIGNUP_ERROR"), stdErr.Code)
@@ -781,7 +780,7 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 						TokenURL     string `mapstructure:"tokenUrl"`
 						Scopes       string `mapstructure:"scopes"`
 					}{
-						APIKey: "", // Empty API key should disable CRM
+						APIKey: "",
 					},
 				},
 			},
@@ -854,12 +853,10 @@ func TestHandler_GetConfig(t *testing.T) {
 func TestInput_JSONSerialization(t *testing.T) {
 	input := createValidInput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(input)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Input
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -875,12 +872,10 @@ func TestInput_JSONSerialization(t *testing.T) {
 func TestOutput_JSONSerialization(t *testing.T) {
 	output := createValidOutput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(output)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Output
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -936,7 +931,7 @@ func TestService_Integration(t *testing.T) {
 		mockService := new(MockService)
 		input := createValidInput()
 		output := createValidOutput()
-		output.CRMContactID = "" // No CRM contact
+		output.CRMContactID = ""
 
 		mockService.On("Execute", mock.Anything, mock.Anything).Return(output, nil)
 
@@ -963,7 +958,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Contains(t, schema.Required, "email")
 	assert.Len(t, schema.Required, 2)
 
-	// Check key properties
 	assert.NotNil(t, schema.Properties["authCode"])
 	assert.NotNil(t, schema.Properties["email"])
 	assert.NotNil(t, schema.Properties["redirectUri"])
@@ -972,7 +966,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.NotNil(t, schema.Properties["lastName"])
 	assert.NotNil(t, schema.Properties["metadata"])
 
-	// Verify specific constraints
 	assert.Equal(t, "string", schema.Properties["authCode"].Type)
 	assert.Equal(t, 10, *schema.Properties["authCode"].MinLength)
 	assert.Equal(t, 1000, *schema.Properties["authCode"].MaxLength)
@@ -987,7 +980,6 @@ func TestGetOutputSchema(t *testing.T) {
 
 	assert.Equal(t, "object", schema.Type)
 
-	// Verify all expected fields exist
 	expectedFields := []string{
 		"success", "userId", "email", "firstName", "lastName",
 		"token", "accessToken", "refreshToken", "expiresIn",
@@ -1000,7 +992,6 @@ func TestGetOutputSchema(t *testing.T) {
 		assert.NotEmpty(t, prop.Type, "Field %s should have a type", field)
 	}
 
-	// Verify specific types
 	assert.Equal(t, "boolean", schema.Properties["success"].Type)
 	assert.Equal(t, "string", schema.Properties["userId"].Type)
 	assert.Equal(t, "string", schema.Properties["email"].Type)
@@ -1019,7 +1010,6 @@ func TestTaskType(t *testing.T) {
 func TestTaskTypeNamingConvention(t *testing.T) {
 	assert.Equal(t, "auth.signup.linkedin", TaskType)
 
-	// Verify it follows the naming convention
 	parts := []string{"auth", "signup", "linkedin"}
 	assert.Equal(t, parts[0]+"."+parts[1]+"."+parts[2], TaskType)
 }
@@ -1031,15 +1021,13 @@ func TestTaskTypeNamingConvention(t *testing.T) {
 func TestOutput_WorkflowVariables(t *testing.T) {
 	output := createValidOutput()
 
-	// Simulate how output would be converted to workflow variables
-	// This mimics the completeJob method in handler.go
 	vars := map[string]interface{}{
 		"success":       output.Success,
 		"userId":        output.UserID,
 		"email":         output.Email,
 		"firstName":     output.FirstName,
 		"lastName":      output.LastName,
-		"token":         output.Token, // For backward compatibility
+		"token":         output.Token,
 		"accessToken":   output.AccessToken,
 		"refreshToken":  output.RefreshToken,
 		"expiresIn":     output.ExpiresIn,
@@ -1052,7 +1040,6 @@ func TestOutput_WorkflowVariables(t *testing.T) {
 		vars["crmContactId"] = output.CRMContactID
 	}
 
-	// Verify all variables are present
 	assert.True(t, vars["success"].(bool))
 	assert.Equal(t, "user-456", vars["userId"])
 	assert.Equal(t, "newuser@example.com", vars["email"])

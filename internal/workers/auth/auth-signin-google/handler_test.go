@@ -262,7 +262,7 @@ func TestHandler_ParseInput(t *testing.T) {
 			},
 		},
 		{
-			name: "valid input minimal fields",
+			name: "valid input minimal fields - uses default redirectURI",
 			variables: map[string]interface{}{
 				"authCode": "test-auth-code-12345",
 			},
@@ -477,12 +477,10 @@ func TestHandler_IsEnabled(t *testing.T) {
 func TestInput_JSONSerialization(t *testing.T) {
 	input := createValidInput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(input)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Input
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -495,12 +493,10 @@ func TestInput_JSONSerialization(t *testing.T) {
 func TestOutput_JSONSerialization(t *testing.T) {
 	output := createValidOutput()
 
-	// Test JSON marshaling
 	data, err := json.Marshal(output)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 
-	// Test JSON unmarshaling
 	var decoded Output
 	err = json.Unmarshal(data, &decoded)
 	assert.NoError(t, err)
@@ -522,7 +518,6 @@ func TestOutput_JSONSerialization(t *testing.T) {
 func TestOutput_WorkflowVariables(t *testing.T) {
 	output := createValidOutput()
 
-	// Simulate how output would be converted to workflow variables
 	vars := map[string]interface{}{
 		"success":       output.Success,
 		"userId":        output.UserID,
@@ -616,9 +611,9 @@ func TestTaskTypeNamingConvention(t *testing.T) {
 
 	parts := strings.Split(taskType, ".")
 	assert.Len(t, parts, 3, "Task type must have exactly 3 parts")
-	assert.Equal(t, "auth", parts[0], "Domain should be 'auth'")
-	assert.Equal(t, "signin", parts[1], "Subdomain should be 'signin'")
-	assert.Equal(t, "google", parts[2], "Action should be 'google'")
+	assert.Equal(t, "auth", parts[0])
+	assert.Equal(t, "signin", parts[1])
+	assert.Equal(t, "google", parts[2])
 
 	assert.Equal(t, strings.ToLower(taskType), taskType, "Task type should be lowercase")
 }
@@ -664,12 +659,9 @@ func TestGetOutputSchema(t *testing.T) {
 	assert.Equal(t, "object", schema.Type)
 	assert.NotNil(t, schema.Properties)
 
-	// The schema needs to be updated to match the new Output structure
 	expectedFields := []string{
 		"success", "userId", "email", "firstName",
 		"lastName", "token", "isNewUser", "crmContactId",
-		// Note: The schema currently doesn't include the new token fields
-		// You may need to update the GetOutputSchema() function
 	}
 
 	for _, field := range expectedFields {

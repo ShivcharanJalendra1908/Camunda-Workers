@@ -147,12 +147,6 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="Diagram_Listing">
     <bpmndi:BPMNPlane id="Plane_Listing" bpmnElement="franchise-listing-page">
-      <bpmndi:BPMNShape id="Shape_Start_Listing" bpmnElement="Start_Listing">
-        <dc:Bounds x="152" y="252" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="140" y="295" width="60" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Gateway_Parallel" bpmnElement="Gateway_Parallel">
         <dc:Bounds x="238" y="245" width="50" height="50" />
       </bpmndi:BPMNShape>
@@ -189,8 +183,14 @@
           <dc:Bounds x="879" y="295" width="74" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Start_Listing" bpmnElement="Start_Listing">
+        <dc:Bounds x="172" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="153" y="295" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Edge_Flow_To_Parallel" bpmnElement="Flow_To_Parallel">
-        <di:waypoint x="188" y="270" />
+        <di:waypoint x="208" y="270" />
         <di:waypoint x="238" y="270" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_To_Industry" bpmnElement="Flow_To_Industry">

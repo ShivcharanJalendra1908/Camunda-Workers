@@ -39,6 +39,14 @@ func (m *MockService) TestConnection(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *MockService) GetCircuitBreakerMetrics() map[string]interface{} {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(map[string]interface{})
+}
+
 // ==========================
 // Mock Job Helper
 // ==========================
@@ -114,6 +122,15 @@ func createValidConfig() *Config {
 		SMTPPassword:  "test-password",
 		UseTLS:        true,
 		DefaultFrom:   "noreply@example.com",
+	}
+}
+
+// createHandlerWithMockService creates a Handler wired with a MockService via ServiceInterface.
+func createHandlerWithMockService(svc ServiceInterface) *Handler {
+	return &Handler{
+		config:  createValidConfig(),
+		logger:  logger.NewStructured("info", "json"),
+		service: svc,
 	}
 }
 
@@ -492,7 +509,6 @@ func TestHandler_ParseInput(t *testing.T) {
 	}
 }
 
-// Add this test after TestHandler_ParseInput
 func TestHandler_ParseHTMLInput(t *testing.T) {
 	handler := &Handler{
 		config: &Config{
@@ -525,14 +541,211 @@ func TestHandler_ParseHTMLInput(t *testing.T) {
 	assert.Equal(t, htmlInput.ReplyTo, input.ReplyTo)
 }
 
-func TestService_OutputStructure(t *testing.T) {
-	output := createValidOutput()
+func TestHandler_ParseInputWithInvalidJSON(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
 
-	assert.True(t, output.Success)
-	assert.Equal(t, "Email sent successfully", output.Message)
-	assert.NotEmpty(t, output.MessageID)
-	assert.Equal(t, "SMTP", output.Provider)
-	assert.False(t, output.SentAt.IsZero())
+	activatedJob := &pb.ActivatedJob{
+		Key:       12345,
+		Type:      "email.send",
+		Variables: "invalid json{",
+	}
+	job := entities.Job{ActivatedJob: activatedJob}
+
+	_, err := handler.parseInput(job)
+
+	require.Error(t, err)
+	stdErr, ok := err.(*errors.StandardError)
+	require.True(t, ok)
+	assert.Equal(t, errors.ErrorCode("INPUT_PARSING_FAILED"), stdErr.Code)
+}
+
+func TestHandler_ParseInputWithMultipleRecipients(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	variables := map[string]interface{}{
+		"to":      "recipient1@example.com",
+		"cc":      "cc1@example.com,cc2@example.com",
+		"bcc":     "bcc1@example.com,bcc2@example.com,bcc3@example.com",
+		"subject": "Test",
+		"body":    "Body",
+	}
+
+	job := createMockJob(12345, variables)
+	input, err := handler.parseInput(job)
+
+	require.NoError(t, err)
+	assert.Equal(t, "cc1@example.com,cc2@example.com", input.CC)
+	assert.Equal(t, "bcc1@example.com,bcc2@example.com,bcc3@example.com", input.BCC)
+}
+
+func TestHandler_ParseInputWithComplexMetadata(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	variables := map[string]interface{}{
+		"to":      "recipient@example.com",
+		"subject": "Test",
+		"body":    "Body",
+		"metadata": map[string]interface{}{
+			"campaignId":   "campaign-123",
+			"userId":       "user-456",
+			"templateId":   "template-789",
+			"tracking":     true,
+			"customField1": "value1",
+			"customField2": 12345,
+			"nested": map[string]interface{}{
+				"key": "value",
+			},
+		},
+	}
+
+	job := createMockJob(12345, variables)
+	input, err := handler.parseInput(job)
+
+	require.NoError(t, err)
+	require.NotNil(t, input.Metadata)
+	assert.Equal(t, "campaign-123", input.Metadata["campaignId"])
+	assert.Equal(t, "user-456", input.Metadata["userId"])
+	assert.Equal(t, true, input.Metadata["tracking"])
+	assert.Equal(t, float64(12345), input.Metadata["customField2"])
+
+	nested, ok := input.Metadata["nested"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "value", nested["key"])
+}
+
+func TestHandler_ParseInputWithPriorityVariations(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	priorities := []string{"high", "normal", "low", "urgent", ""}
+
+	for _, priority := range priorities {
+		t.Run(fmt.Sprintf("priority_%s", priority), func(t *testing.T) {
+			variables := map[string]interface{}{
+				"to":       "recipient@example.com",
+				"subject":  "Test",
+				"body":     "Body",
+				"priority": priority,
+			}
+
+			job := createMockJob(12345, variables)
+			input, err := handler.parseInput(job)
+
+			require.NoError(t, err)
+			assert.Equal(t, priority, input.Priority)
+		})
+	}
+}
+
+// ==========================
+// Execute Tests (via MockService through ServiceInterface)
+// ==========================
+
+func TestHandler_Execute(t *testing.T) {
+	t.Run("email sent successfully", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+		expected := createValidOutput()
+
+		mockSvc.On("Execute", mock.Anything, mock.MatchedBy(func(i *Input) bool {
+			return i.To == input.To
+		})).Return(expected, nil)
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		assert.True(t, output.Success)
+		assert.Equal(t, "<123456@smtp.example.com>", output.MessageID)
+		assert.Equal(t, "SMTP", output.Provider)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("service returns SMTP error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "SMTP_ERROR",
+			Message:   "Failed to connect to SMTP server",
+			Retryable: true,
+			Timestamp: time.Now(),
+		})
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.Equal(t, errors.ErrorCode("SMTP_ERROR"), stdErr.Code)
+		assert.True(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("service returns non-retryable error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "SMTP_AUTH_FAILED",
+			Message:   "Authentication failed",
+			Retryable: false,
+			Timestamp: time.Now(),
+		})
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.False(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("invalid input fails validation before service call", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := &Input{
+			To:      "", // invalid
+			Subject: "Test",
+			Body:    "Body",
+		}
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		// Service must NOT be called when input is invalid
+		mockSvc.AssertNotCalled(t, "Execute")
+	})
 }
 
 // ==========================
@@ -585,6 +798,51 @@ func TestHandler_ExtractErrorCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			code := extractErrorCode(tt.err)
 			assert.Equal(t, tt.expected, code)
+		})
+	}
+}
+
+func TestHandler_ErrorCodeExtraction(t *testing.T) {
+	testCases := []struct {
+		name         string
+		error        error
+		expectedCode string
+	}{
+		{
+			name: "SMTP connection error",
+			error: &errors.StandardError{
+				Code:    "SMTP_CONNECTION_ERROR",
+				Message: "Cannot connect",
+			},
+			expectedCode: "SMTP_CONNECTION_ERROR",
+		},
+		{
+			name: "Authentication failed",
+			error: &errors.StandardError{
+				Code:    "SMTP_AUTH_FAILED",
+				Message: "Invalid credentials",
+			},
+			expectedCode: "SMTP_AUTH_FAILED",
+		},
+		{
+			name: "Rate limit exceeded",
+			error: &errors.StandardError{
+				Code:    "RATE_LIMIT_EXCEEDED",
+				Message: "Too many requests",
+			},
+			expectedCode: "RATE_LIMIT_EXCEEDED",
+		},
+		{
+			name:         "Unknown error",
+			error:        fmt.Errorf("something went wrong"),
+			expectedCode: "UNKNOWN_ERROR",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			code := extractErrorCode(tc.error)
+			assert.Equal(t, tc.expectedCode, code)
 		})
 	}
 }
@@ -783,52 +1041,6 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 						Timeout:       45000,
 					},
 				},
-				Integrations: config.IntegrationConfig{
-					SMTP: struct {
-						Host           string `mapstructure:"host"`
-						Port           int    `mapstructure:"port"`
-						Username       string `mapstructure:"username"`
-						Password       string `mapstructure:"password"`
-						UseTLS         bool   `mapstructure:"use_tls"`
-						UseSSL         bool   `mapstructure:"use_ssl"`
-						DefaultFrom    string `mapstructure:"default_from"`
-						FromName       string `mapstructure:"fromName"`
-						AuthType       string `mapstructure:"authType"`
-						Timeout        int    `mapstructure:"timeout"`
-						MaxConnections int    `mapstructure:"maxConnections"`
-					}{
-						Host:        "smtp.mailgun.org",
-						Port:        465,
-						Username:    "mailgun-user",
-						Password:    "mailgun-pass",
-						UseTLS:      true,
-						DefaultFrom: "system@example.com",
-					},
-				},
-			},
-			customConfig: nil,
-			validate: func(t *testing.T, cfg *Config) {
-				assert.Equal(t, "smtp.mailgun.org", cfg.SMTPHost)
-				assert.Equal(t, 465, cfg.SMTPPort)
-				assert.Equal(t, "mailgun-user", cfg.SMTPUsername)
-				assert.Equal(t, "mailgun-pass", cfg.SMTPPassword)
-				assert.True(t, cfg.UseTLS)
-				assert.Equal(t, "system@example.com", cfg.DefaultFrom)
-				assert.Equal(t, 10, cfg.MaxJobsActive)
-				assert.Equal(t, 45*time.Second, cfg.Timeout)
-				assert.True(t, cfg.Enabled)
-			},
-		},
-		{
-			name: "loads from app config",
-			appConfig: &config.Config{
-				Workers: map[string]config.WorkerConfig{
-					"email-send": {
-						Enabled:       true,
-						MaxJobsActive: 10,
-						Timeout:       45000,
-					},
-				},
 				Integrations: func() config.IntegrationConfig {
 					ic := config.IntegrationConfig{}
 					ic.SMTP.Host = "smtp.mailgun.org"
@@ -934,10 +1146,10 @@ func TestHandler_IsEnabled(t *testing.T) {
 }
 
 func TestHandler_GetConfig(t *testing.T) {
-	config := createValidConfig()
-	handler := &Handler{config: config}
+	cfg := createValidConfig()
+	handler := &Handler{config: cfg}
 
-	assert.Equal(t, config, handler.GetConfig())
+	assert.Equal(t, cfg, handler.GetConfig())
 	assert.Equal(t, "smtp.example.com", handler.GetConfig().SMTPHost)
 	assert.Equal(t, 587, handler.GetConfig().SMTPPort)
 	assert.Equal(t, "test-user", handler.GetConfig().SMTPUsername)
@@ -957,7 +1169,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Contains(t, schema.Required, "body")
 	assert.Len(t, schema.Required, 3)
 
-	// Verify key properties exist
 	assert.Contains(t, schema.Properties, "from")
 	assert.Contains(t, schema.Properties, "to")
 	assert.Contains(t, schema.Properties, "cc")
@@ -970,7 +1181,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Contains(t, schema.Properties, "attachments")
 	assert.Contains(t, schema.Properties, "metadata")
 
-	// Verify type constraints
 	assert.Equal(t, "string", schema.Properties["to"].Type)
 	assert.Equal(t, "string", schema.Properties["subject"].Type)
 	assert.Equal(t, "string", schema.Properties["body"].Type)
@@ -978,7 +1188,6 @@ func TestGetInputSchema(t *testing.T) {
 	assert.Equal(t, "array", schema.Properties["attachments"].Type)
 	assert.Equal(t, "object", schema.Properties["metadata"].Type)
 
-	// Verify length constraints
 	assert.NotNil(t, schema.Properties["to"].MinLength)
 	assert.Equal(t, 5, *schema.Properties["to"].MinLength)
 	assert.NotNil(t, schema.Properties["subject"].MinLength)
@@ -994,14 +1203,12 @@ func TestGetOutputSchema(t *testing.T) {
 
 	assert.Equal(t, "object", schema.Type)
 
-	// Verify output properties
 	assert.Contains(t, schema.Properties, "success")
 	assert.Contains(t, schema.Properties, "message")
 	assert.Contains(t, schema.Properties, "messageId")
 	assert.Contains(t, schema.Properties, "provider")
 	assert.Contains(t, schema.Properties, "sentAt")
 
-	// Verify types
 	assert.Equal(t, "boolean", schema.Properties["success"].Type)
 	assert.Equal(t, "string", schema.Properties["message"].Type)
 	assert.Equal(t, "string", schema.Properties["messageId"].Type)
@@ -1012,267 +1219,15 @@ func TestGetOutputSchema(t *testing.T) {
 }
 
 // ==========================
-// Integration-Style Tests
+// Output Structure Tests
 // ==========================
 
-// ==========================
-// Integration-Style Tests
-// ==========================
+func TestService_OutputStructure(t *testing.T) {
+	output := createValidOutput()
 
-func TestHandler_HandleDisabledWorker(t *testing.T) {
-	// Create a real service with test config
-	testConfig := &Config{
-		Enabled:       false,
-		DefaultFrom:   "noreply@example.com",
-		MaxJobsActive: 5,
-		Timeout:       30 * time.Second,
-		SMTPHost:      "localhost",
-		SMTPPort:      25,
-	}
-
-	handler := &Handler{
-		config: testConfig,
-		logger: logger.NewStructured("info", "json"),
-		service: NewService(ServiceDependencies{
-			Logger: logger.NewStructured("info", "json"),
-		}, testConfig),
-	}
-
-	// Verify handler configuration
-	assert.False(t, handler.IsEnabled())
-	assert.NotNil(t, handler.config)
-	assert.NotNil(t, handler.service)
-
-	// Test that disabled worker won't process jobs
-	variables := map[string]interface{}{
-		"to":      "recipient@example.com",
-		"subject": "Test",
-		"body":    "Body",
-	}
-
-	job := createMockJob(12345, variables)
-
-	// Verify we can parse input even when disabled
-	input, err := handler.parseInput(job)
-	require.NoError(t, err)
-	assert.Equal(t, "recipient@example.com", input.To)
-}
-
-func TestHandler_HandleValidEmail(t *testing.T) {
-	// Test handler configuration without using mockService directly
-	handler := &Handler{
-		config: createValidConfig(),
-		service: NewService(ServiceDependencies{
-			Logger: logger.NewStructured("info", "json"),
-		}, createValidConfig()),
-	}
-
-	// Verify handler is properly configured
-	assert.True(t, handler.IsEnabled())
-	assert.Equal(t, "email.send", handler.GetTaskType())
-	assert.NotNil(t, handler.service)
-	assert.NotNil(t, handler.config)
-
-	// Test input parsing
-	input := createValidInput()
-	assert.Equal(t, "sender@example.com", input.From)
-	assert.Equal(t, "recipient@example.com", input.To)
-	assert.Equal(t, "Test Email", input.Subject)
-}
-
-func TestHandler_HandleServiceError(t *testing.T) {
-	// Test error handling without using mockService directly
-	serviceError := &errors.StandardError{
-		Code:      "SMTP_ERROR",
-		Message:   "Failed to connect to SMTP server",
-		Details:   "Connection timeout",
-		Retryable: true,
-		Timestamp: time.Now(),
-	}
-
-	handler := &Handler{
-		config: createValidConfig(),
-		service: NewService(ServiceDependencies{
-			Logger: logger.NewStructured("info", "json"),
-		}, createValidConfig()),
-	}
-
-	// Verify error handling configuration
-	stdErr := serviceError
-	assert.Equal(t, errors.ErrorCode("SMTP_ERROR"), stdErr.Code)
-	assert.True(t, stdErr.Retryable)
-	assert.Equal(t, "Failed to connect to SMTP server", stdErr.Message)
-
-	// Verify handler can extract error codes
-	code := extractErrorCode(serviceError)
-	assert.Equal(t, "SMTP_ERROR", code)
-
-	// Verify handler is properly configured
-	assert.NotNil(t, handler.service)
-	assert.NotNil(t, handler.config)
-}
-
-// ==========================
-// Additional Edge Case Tests
-// ==========================
-
-func TestHandler_ParseInputWithInvalidJSON(t *testing.T) {
-	handler := &Handler{
-		config: &Config{
-			DefaultFrom: "default@example.com",
-		},
-		logger: logger.NewStructured("info", "json"),
-	}
-
-	// Create job with invalid variables structure
-	activatedJob := &pb.ActivatedJob{
-		Key:       12345,
-		Type:      "email.send",
-		Variables: "invalid json{",
-	}
-	job := entities.Job{ActivatedJob: activatedJob}
-
-	_, err := handler.parseInput(job)
-
-	require.Error(t, err)
-	stdErr, ok := err.(*errors.StandardError)
-	require.True(t, ok)
-	assert.Equal(t, errors.ErrorCode("INPUT_PARSING_FAILED"), stdErr.Code)
-}
-
-func TestHandler_ParseInputWithMultipleRecipients(t *testing.T) {
-	handler := &Handler{
-		config: &Config{
-			DefaultFrom: "default@example.com",
-		},
-		logger: logger.NewStructured("info", "json"),
-	}
-
-	variables := map[string]interface{}{
-		"to":      "recipient1@example.com",
-		"cc":      "cc1@example.com,cc2@example.com",
-		"bcc":     "bcc1@example.com,bcc2@example.com,bcc3@example.com",
-		"subject": "Test",
-		"body":    "Body",
-	}
-
-	job := createMockJob(12345, variables)
-	input, err := handler.parseInput(job)
-
-	require.NoError(t, err)
-	assert.Equal(t, "cc1@example.com,cc2@example.com", input.CC)
-	assert.Equal(t, "bcc1@example.com,bcc2@example.com,bcc3@example.com", input.BCC)
-}
-
-func TestHandler_ParseInputWithComplexMetadata(t *testing.T) {
-	handler := &Handler{
-		config: &Config{
-			DefaultFrom: "default@example.com",
-		},
-		logger: logger.NewStructured("info", "json"),
-	}
-
-	variables := map[string]interface{}{
-		"to":      "recipient@example.com",
-		"subject": "Test",
-		"body":    "Body",
-		"metadata": map[string]interface{}{
-			"campaignId":   "campaign-123",
-			"userId":       "user-456",
-			"templateId":   "template-789",
-			"tracking":     true,
-			"customField1": "value1",
-			"customField2": 12345,
-			"nested": map[string]interface{}{
-				"key": "value",
-			},
-		},
-	}
-
-	job := createMockJob(12345, variables)
-	input, err := handler.parseInput(job)
-
-	require.NoError(t, err)
-	require.NotNil(t, input.Metadata)
-	assert.Equal(t, "campaign-123", input.Metadata["campaignId"])
-	assert.Equal(t, "user-456", input.Metadata["userId"])
-	assert.Equal(t, true, input.Metadata["tracking"])
-	assert.Equal(t, float64(12345), input.Metadata["customField2"])
-
-	nested, ok := input.Metadata["nested"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "value", nested["key"])
-}
-
-func TestHandler_ParseInputWithPriorityVariations(t *testing.T) {
-	handler := &Handler{
-		config: &Config{
-			DefaultFrom: "default@example.com",
-		},
-		logger: logger.NewStructured("info", "json"),
-	}
-
-	priorities := []string{"high", "normal", "low", "urgent", ""}
-
-	for _, priority := range priorities {
-		t.Run(fmt.Sprintf("priority_%s", priority), func(t *testing.T) {
-			variables := map[string]interface{}{
-				"to":       "recipient@example.com",
-				"subject":  "Test",
-				"body":     "Body",
-				"priority": priority,
-			}
-
-			job := createMockJob(12345, variables)
-			input, err := handler.parseInput(job)
-
-			require.NoError(t, err)
-			assert.Equal(t, priority, input.Priority)
-		})
-	}
-}
-
-func TestHandler_ErrorCodeExtraction(t *testing.T) {
-	testCases := []struct {
-		name         string
-		error        error
-		expectedCode string
-	}{
-		{
-			name: "SMTP connection error",
-			error: &errors.StandardError{
-				Code:    "SMTP_CONNECTION_ERROR",
-				Message: "Cannot connect",
-			},
-			expectedCode: "SMTP_CONNECTION_ERROR",
-		},
-		{
-			name: "Authentication failed",
-			error: &errors.StandardError{
-				Code:    "SMTP_AUTH_FAILED",
-				Message: "Invalid credentials",
-			},
-			expectedCode: "SMTP_AUTH_FAILED",
-		},
-		{
-			name: "Rate limit exceeded",
-			error: &errors.StandardError{
-				Code:    "RATE_LIMIT_EXCEEDED",
-				Message: "Too many requests",
-			},
-			expectedCode: "RATE_LIMIT_EXCEEDED",
-		},
-		{
-			name:         "Unknown error",
-			error:        fmt.Errorf("something went wrong"),
-			expectedCode: "UNKNOWN_ERROR",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			code := extractErrorCode(tc.error)
-			assert.Equal(t, tc.expectedCode, code)
-		})
-	}
+	assert.True(t, output.Success)
+	assert.Equal(t, "Email sent successfully", output.Message)
+	assert.NotEmpty(t, output.MessageID)
+	assert.Equal(t, "SMTP", output.Provider)
+	assert.False(t, output.SentAt.IsZero())
 }

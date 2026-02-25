@@ -66,11 +66,6 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		return nil, fmt.Errorf("failed to initialize postgres: %w", err)
 	}
 
-	// ctx := context.Background()
-	// if err := database.RunKeystoneMigration(ctx, postgresClient.DB); err != nil {
-	// 	return nil, fmt.Errorf("failed to run database migrations: %w", err)
-	// }
-
 	ctx := context.Background()
 
 	// ✅ RETRY LOGIC: Wait for Keycloak to be ready
@@ -114,16 +109,6 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		}
 	}
 
-	// keycloakProvider, err := keycloak.New(
-	// 	ctx,
-	// 	workerConfig.Issuer,
-	// 	workerConfig.ClientID,
-	// 	workerConfig.RedirectURL,
-	// 	workerConfig.PublicBaseURL,
-	// )
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to initialize keycloak provider: %w", err)
-	// }
 
 	dbResolver := resolver.NewDBResolver(postgresClient)
 

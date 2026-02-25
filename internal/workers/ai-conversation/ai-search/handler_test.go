@@ -1,35 +1,41 @@
-// ============================================================
 // FILE: internal/workers/ai-conversation/ai-search/handler_test.go
-// ============================================================
-
 package ai_search
 
 import (
-	"fmt"
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"camunda-workers/internal/common/logger"
 )
 
-// ============================================================
-// BASIC TYPE DEFINITIONS FOR TESTING
-// ============================================================
+// MockLogger
+type MockLogger struct{ mock.Mock }
 
-type TestLogger struct{}
+func (m *MockLogger) Debug(msg string, fields map[string]interface{})        {}
+func (m *MockLogger) Info(msg string, fields map[string]interface{})         {}
+func (m *MockLogger) Warn(msg string, fields map[string]interface{})         {}
+func (m *MockLogger) Error(msg string, fields map[string]interface{})        {}
+func (m *MockLogger) With(fields map[string]interface{}) logger.Logger       { return m }
+func (m *MockLogger) WithError(err error) logger.Logger                      { return m }
+func (m *MockLogger) WithFields(fields map[string]interface{}) logger.Logger { return m }
 
-func (t *TestLogger) Debug(msg string, fields map[string]interface{})        {}
-func (t *TestLogger) Info(msg string, fields map[string]interface{})         {}
-func (t *TestLogger) Warn(msg string, fields map[string]interface{})         {}
-func (t *TestLogger) Error(msg string, fields map[string]interface{})        {}
-func (t *TestLogger) With(fields map[string]interface{}) logger.Logger       { return t }
-func (t *TestLogger) WithError(err error) logger.Logger                      { return t }
-func (t *TestLogger) WithFields(fields map[string]interface{}) logger.Logger { return t }
-
-// ============================================================
-// TEST UTILITIES
-// ============================================================
+// newJobWithVariables constructs a real entities.Job value with Variables set.
+func newJobWithVariables(variables string) entities.Job {
+	return entities.Job{
+		ActivatedJob: &pb.ActivatedJob{
+			Variables: variables,
+		},
+	}
+}
 
 func createTestConfig() *Config {
 	return &Config{
@@ -37,628 +43,524 @@ func createTestConfig() *Config {
 		LLMModel:        "llama2",
 		LLMMaxTokens:    1000,
 		LLMTemperature:  0.1,
-		LLMTimeout:      30 * time.Second,
-		SearchTimeout:   10 * time.Second,
 		DefaultPageSize: 20,
 		MaxQueryLength:  500,
 		IndexName:       "franchises",
 	}
 }
 
-// Helper function to validate parameters (moved from test to helper)
-func validateParameters(params *ExtractedParameters) error {
-	if params == nil {
-		return nil // Handler allows nil params
-	}
-
-	// Validate ROI
-	if params.ROI != nil {
-		if params.ROI.Min > params.ROI.Max {
-			return fmt.Errorf("ROI min cannot be greater than max")
-		}
-		if params.ROI.Min < 0 || params.ROI.Max > 100 {
-			return fmt.Errorf("ROI must be between 0 and 100")
-		}
-	}
-
-	// Validate investment
-	if params.Investment != nil {
-		if params.Investment.Min < 0 {
-			return fmt.Errorf("investment cannot be negative")
-		}
-		if params.Investment.Min > params.Investment.Max {
-			return fmt.Errorf("investment min cannot be greater than max")
-		}
-	}
-
-	// Validate rating
-	if params.Rating != nil {
-		if *params.Rating < 0 || *params.Rating > 5 {
-			return fmt.Errorf("rating must be between 0 and 5")
-		}
-	}
-
-	// Validate space
-	if params.Space != nil {
-		if params.Space.Min < 0 {
-			return fmt.Errorf("space cannot be negative")
-		}
-		if params.Space.Min > params.Space.Max {
-			return fmt.Errorf("space min cannot be greater than max")
-		}
-	}
-
-	// Validate staff
-	if params.Staff != nil {
-		if params.Staff.Min < 0 {
-			return fmt.Errorf("staff cannot be negative")
-		}
-		if params.Staff.Min > params.Staff.Max {
-			return fmt.Errorf("staff min cannot be greater than max")
-		}
-	}
-
-	return nil
-}
-
 // ============================================================
-// SIMPLE UNIT TESTS
+// PARAMETER EXTRACTOR TESTS
 // ============================================================
 
-func TestValidateInput(t *testing.T) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
+func TestParameterExtractor_BuildPrompt(t *testing.T) {
+	config := createTestConfig()
+	pe := NewParameterExtractor(config)
 
 	tests := []struct {
-		name    string
-		input   *SearchInput
-		wantErr bool
+		name         string
+		query        string
+		wantContains []string
 	}{
 		{
-			name:    "Nil input - should error",
-			input:   nil,
-			wantErr: true,
+			name:  "Prompt includes taxonomy structure",
+			query: "ice cream franchise in kolkata",
+			wantContains: []string{
+				"TAXONOMY:", "Industry → Category → Subcategory",
+				"Return ONLY valid JSON:", "ice cream franchise in kolkata",
+			},
 		},
 		{
-			name: "Empty query - should pass (handler sets default)",
-			input: &SearchInput{
-				Query: "",
+			name:  "Prompt includes all parameter fields",
+			query: "test",
+			wantContains: []string{
+				`"industry":`, `"category":`, `"subcategory":`,
+				`"location":`, `"investment":`, `"rating":`,
+				`"space":`, `"staff":`, `"outlets":`, `"roi":`,
+				`"verified":`, `"trusted_seller":`,
 			},
-			wantErr: false, // Handler will set it to "*" in validateInput
-		},
-		{
-			name: "Valid query - should pass",
-			input: &SearchInput{
-				Query: "food franchises in Mumbai",
-			},
-			wantErr: false,
-		},
-		{
-			name: "Query too long - should error",
-			input: &SearchInput{
-				Query: strings.Repeat("a", 501),
-			},
-			wantErr: true,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := handler.validateInput(tt.input)
-
-			if tt.wantErr && err == nil {
-				t.Errorf("Expected error for test case: %s", tt.name)
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("Unexpected error for test case %s: %v", tt.name, err)
+			prompt := pe.BuildPrompt(tt.query)
+			for _, want := range tt.wantContains {
+				assert.Contains(t, prompt, want)
 			}
 		})
 	}
 }
 
-func TestValidateParameters(t *testing.T) {
+func TestParameterExtractor_Parse(t *testing.T) {
+	config := createTestConfig()
+	pe := NewParameterExtractor(config)
+
 	tests := []struct {
-		name    string
-		params  *ExtractedParameters
-		wantErr bool
+		name        string
+		llmResponse string
+		wantErr     bool
+		errContains string
+		assertions  func(*testing.T, *ExtractedParameters)
 	}{
 		{
-			name:    "Nil parameters - should pass (handler allows nil)",
-			params:  nil,
-			wantErr: false,
+			name:        "Valid JSON response",
+			llmResponse: `{"industry":"Food & Beverage","category":"Dessert & Frozen Treats","location":{"city":"Kolkata","country":"India"}}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Food & Beverage", p.Industry)
+				assert.Equal(t, "Dessert & Frozen Treats", p.Category)
+				assert.Equal(t, "Kolkata", p.Location.City)
+				assert.Equal(t, "India", p.Location.Country)
+			},
 		},
 		{
-			name: "Valid ROI - should pass",
-			params: &ExtractedParameters{
-				ROI: &RangeFilter{Min: 10, Max: 20},
+			name:        "JSON with markdown code blocks",
+			llmResponse: "```json\n{\"industry\":\"Education\",\"category\":\"Tutoring\"}\n```",
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Education", p.Industry)
+				assert.Equal(t, "Tutoring", p.Category)
 			},
-			wantErr: false,
 		},
 		{
-			name: "ROI min > max - should error",
-			params: &ExtractedParameters{
-				ROI: &RangeFilter{Min: 30, Max: 20},
+			name:        "JSON with extra text",
+			llmResponse: `Sure! {"category":"Fashion"} Hope this helps!`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Fashion", p.Category)
 			},
-			wantErr: true,
 		},
 		{
-			name: "ROI out of range - should error",
-			params: &ExtractedParameters{
-				ROI: &RangeFilter{Min: -10, Max: 150},
-			},
-			wantErr: true,
+			name:        "Invalid JSON - should error",
+			llmResponse: `{"industry": "Food", invalid}`,
+			wantErr:     true,
+			errContains: "JSON parse failed",
 		},
 		{
-			name: "Valid investment - should pass",
-			params: &ExtractedParameters{
-				Investment: &InvestmentFilter{Min: 1000000, Max: 5000000},
-			},
-			wantErr: false,
+			name:        "No JSON object found",
+			llmResponse: "I couldn't extract parameters",
+			wantErr:     true,
+			errContains: "no valid JSON object found",
 		},
 		{
-			name: "Negative investment - should error",
-			params: &ExtractedParameters{
-				Investment: &InvestmentFilter{Min: -1000000, Max: 5000000},
+			name:        "Location normalization",
+			llmResponse: `{"location":{"city":"mumbai"}}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Mumbai", p.Location.City)
+				assert.Equal(t, "India", p.Location.Country)
 			},
-			wantErr: true,
 		},
 		{
-			name: "Valid rating - should pass",
-			params: &ExtractedParameters{
-				Rating: func() *float64 { r := 4.5; return &r }(),
+			name:        "Investment min/max swap",
+			llmResponse: `{"investment":{"min":5000000,"max":1000000}}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, float64(1000000), p.Investment.Min)
+				assert.Equal(t, float64(5000000), p.Investment.Max)
 			},
-			wantErr: false,
 		},
 		{
-			name: "Rating too high - should error",
-			params: &ExtractedParameters{
-				Rating: func() *float64 { r := 6.0; return &r }(),
+			name:        "ROI out of range",
+			llmResponse: `{"roi":{"min":-10,"max":150}}`,
+			wantErr:     true,
+			errContains: "ROI must be between 0 and 100",
+		},
+		{
+			name:        "Rating clamped to 0-5",
+			llmResponse: `{"rating":7.5}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 5.0, *p.Rating)
 			},
-			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateParameters(tt.params)
-
-			if tt.wantErr && err == nil {
-				t.Errorf("Expected error for test case: %s", tt.name)
+			params, err := pe.Parse(tt.llmResponse)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+				assert.Nil(t, params)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, params)
+				if tt.assertions != nil {
+					tt.assertions(t, params)
+				}
 			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("Unexpected error for test case %s: %v", tt.name, err)
+		})
+	}
+}
+
+func TestParameterExtractor_ParseWithFallback(t *testing.T) {
+	pe := NewParameterExtractor(createTestConfig())
+
+	t.Run("Valid response", func(t *testing.T) {
+		params := pe.ParseWithFallback(`{"industry":"Food & Beverage","category":"Quick Service"}`)
+		assert.NotNil(t, params)
+		assert.Equal(t, "Food & Beverage", params.Industry)
+	})
+	t.Run("Invalid JSON returns empty", func(t *testing.T) {
+		params := pe.ParseWithFallback(`{"invalid": json}`)
+		assert.NotNil(t, params)
+		assert.Equal(t, "", params.Industry)
+		assert.Nil(t, params.Location)
+	})
+	t.Run("Empty response returns empty", func(t *testing.T) {
+		params := pe.ParseWithFallback("")
+		assert.NotNil(t, params)
+		assert.Equal(t, "", params.Category)
+	})
+}
+
+func TestParameterExtractor_normalizeParameters(t *testing.T) {
+	pe := NewParameterExtractor(createTestConfig())
+
+	tests := []struct {
+		name       string
+		input      *ExtractedParameters
+		wantErr    bool
+		assertions func(*testing.T, *ExtractedParameters)
+	}{
+		{
+			name:  "String fields trimmed",
+			input: &ExtractedParameters{Industry: "  Food & Beverage  ", Category: "\tRetail\n", Subcategory: "  "},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Food & Beverage", p.Industry)
+				assert.Equal(t, "Retail", p.Category)
+				assert.Equal(t, "", p.Subcategory)
+			},
+		},
+		{
+			name:  "Location title-cased, country defaulted",
+			input: &ExtractedParameters{Location: &LocationFilter{City: "mumbai", State: "maharashtra"}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, "Mumbai", p.Location.City)
+				assert.Equal(t, "Maharashtra", p.Location.State)
+				assert.Equal(t, "India", p.Location.Country)
+			},
+		},
+		{
+			name:  "Investment swapped when reversed",
+			input: &ExtractedParameters{Investment: &InvestmentFilter{Min: 5000000, Max: 1000000}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, float64(1000000), p.Investment.Min)
+				assert.Equal(t, float64(5000000), p.Investment.Max)
+			},
+		},
+		{
+			name:  "Investment auto-fills missing max (10x)",
+			input: &ExtractedParameters{Investment: &InvestmentFilter{Min: 1000000, Max: 0}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, float64(1000000), p.Investment.Min)
+				assert.Equal(t, float64(10000000), p.Investment.Max)
+			},
+		},
+		{
+			name:  "ROI auto-fills min",
+			input: &ExtractedParameters{ROI: &RangeFilter{Min: 0, Max: 20}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 18.0, p.ROI.Min)
+				assert.Equal(t, 20.0, p.ROI.Max)
+			},
+		},
+		{
+			name:    "ROI negative - error",
+			input:   &ExtractedParameters{ROI: &RangeFilter{Min: -5, Max: 10}},
+			wantErr: true,
+		},
+		{
+			name:  "Rating clamped to 5.0",
+			input: &ExtractedParameters{Rating: func() *float64 { v := 7.5; return &v }()},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 5.0, *p.Rating)
+			},
+		},
+		{
+			name:  "Space auto-fills max (5x)",
+			input: &ExtractedParameters{Space: &RangeFilter{Min: 500, Max: 0}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 500.0, p.Space.Min)
+				assert.Equal(t, 2500.0, p.Space.Max)
+			},
+		},
+		{
+			name:  "Staff auto-fills max (3x)",
+			input: &ExtractedParameters{Staff: &RangeFilter{Min: 2, Max: 0}},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 2.0, p.Staff.Min)
+				assert.Equal(t, 6.0, p.Staff.Max)
+			},
+		},
+		{
+			name:  "Negative outlets clamped to 0",
+			input: &ExtractedParameters{Outlets: func() *int { v := -5; return &v }()},
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 0, *p.Outlets)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := pe.normalizeParameters(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.assertions != nil {
+					tt.assertions(t, tt.input)
+				}
+			}
+		})
+	}
+}
+
+// ============================================================
+// HANDLER UNIT TESTS
+// ============================================================
+
+func TestValidateInput(t *testing.T) {
+	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
+
+	tests := []struct {
+		name      string
+		input     *SearchInput
+		wantErr   bool
+		wantQuery string
+	}{
+		{name: "Nil input", input: nil, wantErr: true},
+		{name: "Empty → wildcard", input: &SearchInput{Query: ""}, wantQuery: "*"},
+		{name: "Whitespace → wildcard", input: &SearchInput{Query: "   "}, wantQuery: "*"},
+		{name: "Valid query", input: &SearchInput{Query: "food franchises"}, wantQuery: "food franchises"},
+		{name: "Too long", input: &SearchInput{Query: strings.Repeat("a", 501)}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handler.validateInput(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				if tt.wantQuery != "" {
+					assert.Equal(t, tt.wantQuery, tt.input.Query)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildBasicQuery(t *testing.T) {
+	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
+	tests := []struct {
+		query, wantType string
+	}{
+		{"*", "match_all"},
+		{"   ", "match_all"},
+		{"food franchises", "multi_match"},
+	}
+	for _, tt := range tests {
+		q := handler.buildBasicQuery(tt.query)
+		assert.Equal(t, handler.config.DefaultPageSize, q["size"])
+		queryMap := q["query"].(map[string]interface{})
+		assert.Contains(t, queryMap, tt.wantType)
+		if tt.wantType == "multi_match" {
+			assert.Equal(t, tt.query, queryMap["multi_match"].(map[string]interface{})["query"])
+		}
+	}
+}
+
+func TestBuildElasticsearchQuery(t *testing.T) {
+	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
+	tests := []struct {
+		name           string
+		params         *ExtractedParameters
+		wantQueryType  string
+		wantPostFilter bool
+	}{
+		{
+			name:          "Category only → simple_query_string",
+			params:        &ExtractedParameters{Category: "Food & Beverage"},
+			wantQueryType: "simple_query_string",
+		},
+		{
+			name:           "With ROI → post_filter",
+			params:         &ExtractedParameters{Category: "Education", ROI: &RangeFilter{Min: 15, Max: 25}},
+			wantQueryType:  "simple_query_string",
+			wantPostFilter: true,
+		},
+		{
+			name:          "Nil params → match_all",
+			params:        nil,
+			wantQueryType: "match_all",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q, err := handler.buildElasticsearchQuery(tt.params)
+			assert.NoError(t, err)
+			assert.Contains(t, q["query"].(map[string]interface{}), tt.wantQueryType)
+			if tt.wantPostFilter {
+				assert.Contains(t, q, "post_filter")
+			} else {
+				assert.NotContains(t, q, "post_filter")
 			}
 		})
 	}
 }
 
 func TestBuildResponse(t *testing.T) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
-
-	input := &SearchInput{
-		Query: "food franchises in Delhi",
-	}
-
+	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
+	input := &SearchInput{Query: "food in Delhi"}
 	params := &ExtractedParameters{
-		Category: "Food",
-		Location: &LocationFilter{City: "Delhi"},
+		Category:   "Food",
+		Location:   &LocationFilter{City: "Delhi"},
+		Investment: &InvestmentFilter{Min: 2000000, Max: 3000000},
 	}
+	results := &SearchResults{Total: 5, MaxScore: 1.5, TookMs: 20, Hits: []map[string]interface{}{}}
 
-	results := &SearchResults{
-		Total:    5,
-		MaxScore: 1.5,
-		TookMs:   20,
-		Hits: []map[string]interface{}{
-			{"_source": map[string]interface{}{"name": "Franchise 1"}},
-			{"_source": map[string]interface{}{"name": "Franchise 2"}},
-		},
-	}
+	resp := handler.buildResponse(input, params, results)
+	assert.Equal(t, true, resp["success"])
+	ep := resp["extractedParams"].(map[string]interface{})
+	assert.Equal(t, "Food", ep["category"])
+	assert.Equal(t, "Delhi", ep["location"])
+	assert.Equal(t, float64(2000000), ep["minInvestment"])
+	assert.Contains(t, ep["tags"].([]string), "Food")
 
-	response := handler.buildResponse(input, params, results)
-
-	// Basic response structure validation
-	if response == nil {
-		t.Fatal("Response should not be nil")
-	}
-
-	// Check success flag
-	if success, ok := response["success"].(bool); !ok || !success {
-		t.Error("Response should have success=true")
-	}
-
-	// Check extractedParams
-	if extractedParams, ok := response["extractedParams"].(map[string]interface{}); !ok {
-		t.Error("Response should have extractedParams field")
-	} else {
-		if query, ok := extractedParams["query"].(string); !ok || query != input.Query {
-			t.Error("extractedParams should contain original query")
-		}
-	}
-
-	// Check metadata
-	if metadata, ok := response["metadata"].(map[string]interface{}); !ok {
-		t.Error("Response should have metadata")
-	} else {
-		if _, ok := metadata["processed_at"].(string); !ok {
-			t.Error("Metadata should have processed_at timestamp")
-		}
-		if total, ok := metadata["total_found"].(int64); !ok || total != results.Total {
-			t.Error("Metadata should contain total_found")
-		}
-	}
+	meta := resp["metadata"].(map[string]interface{})
+	assert.Contains(t, meta, "processed_at")
+	assert.Equal(t, int64(5), meta["total_found"])
 }
 
 // ============================================================
-// BUILD ES QUERY TESTS
+// TestParseInput — real entities.Job, no MockJob
 // ============================================================
 
-func TestBuildElasticsearchQuery(t *testing.T) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
+func TestParseInput(t *testing.T) {
+	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
 
 	tests := []struct {
-		name          string
-		params        *ExtractedParameters
-		wantQueryKeys []string
+		name      string
+		variables string
+		wantQuery string
+		wantErr   bool
 	}{
-		{
-			name: "Category only query",
-			params: &ExtractedParameters{
-				Category: "Food & Beverage",
-			},
-			wantQueryKeys: []string{"query", "size"},
-		},
-		{
-			name: "Query with location",
-			params: &ExtractedParameters{
-				Category: "Retail",
-				Location: &LocationFilter{City: "Mumbai"},
-			},
-			wantQueryKeys: []string{"query", "size"},
-		},
-		{
-			name: "Query with ROI filter",
-			params: &ExtractedParameters{
-				Category: "Education",
-				ROI:      &RangeFilter{Min: 15, Max: 25},
-			},
-			wantQueryKeys: []string{"query", "size"},
-		},
-		{
-			name:          "Nil parameters - match_all query",
-			params:        nil,
-			wantQueryKeys: []string{"query", "size"},
-		},
+		{name: "query field", variables: `{"query":"food"}`, wantQuery: "food"},
+		{name: "searchQuery fallback", variables: `{"searchQuery":"retail"}`, wantQuery: "retail"},
+		{name: "search_query fallback", variables: `{"search_query":"edu"}`, wantQuery: "edu"},
+		{name: "text fallback", variables: `{"text":"fashion"}`, wantQuery: "fashion"},
+		{name: "invalid JSON", variables: `{"bad": json}`, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			query, err := handler.buildElasticsearchQuery(tt.params)
-
-			if err != nil {
-				t.Errorf("Unexpected error: %v", err)
-				return
-			}
-
-			if query == nil {
-				t.Error("Query should not be nil")
-				return
-			}
-
-			// Check required fields exist
-			for _, key := range tt.wantQueryKeys {
-				if _, ok := query[key]; !ok {
-					t.Errorf("Query should have '%s' field", key)
-				}
-			}
-
-			// Check size matches config
-			if size, ok := query["size"].(int); !ok || size != handler.config.DefaultPageSize {
-				t.Errorf("Expected size %d, got %v", handler.config.DefaultPageSize, query["size"])
+			job := newJobWithVariables(tt.variables)
+			input, err := handler.parseInput(job)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantQuery, input.Query)
 			}
 		})
 	}
 }
 
+func TestExtractParametersWithFallback(t *testing.T) {
+	config := createTestConfig()
+	handler := &Handler{
+		config:         config,
+		logger:         &MockLogger{},
+		paramExtractor: NewParameterExtractor(config),
+	}
+
+	t.Run("Wildcard returns empty", func(t *testing.T) {
+		p := handler.extractParametersWithFallback(context.Background(), &SearchInput{Query: "*"})
+		assert.NotNil(t, p)
+		assert.Equal(t, "", p.Category)
+	})
+	t.Run("Empty returns empty", func(t *testing.T) {
+		p := handler.extractParametersWithFallback(context.Background(), &SearchInput{Query: "   "})
+		assert.NotNil(t, p)
+		assert.Equal(t, "", p.Industry)
+	})
+}
+
 // ============================================================
-// EDGE CASE TESTS
+// OLLAMA SERVICE TESTS
+// ============================================================
+
+func TestOllamaService_Extract(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/generate", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"model":"llama2","response":"{\"category\":\"Food\"}","done":true}`))
+	}))
+	defer server.Close()
+
+	svc := NewOllamaService(&Config{LLMEndpoint: server.URL, LLMModel: "llama2", LLMMaxTokens: 1000}, &MockLogger{})
+
+	t.Run("Success", func(t *testing.T) {
+		resp, err := svc.Extract(context.Background(), "test")
+		assert.NoError(t, err)
+		assert.Contains(t, resp, "Food")
+	})
+	t.Run("Timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+		_, err := svc.Extract(ctx, "test")
+		assert.Error(t, err)
+	})
+}
+
+// ============================================================
+// EDGE CASES
 // ============================================================
 
 func TestEdgeCases(t *testing.T) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
+	h := &Handler{config: createTestConfig(), logger: &MockLogger{}}
 
-	t.Run("Zero values in ranges", func(t *testing.T) {
-		params := &ExtractedParameters{
-			ROI:        &RangeFilter{Min: 0, Max: 0},
-			Investment: &InvestmentFilter{Min: 0, Max: 0},
-		}
-
-		err := validateParameters(params)
-		if err != nil {
-			t.Errorf("Zero values should be valid: %v", err)
-		}
+	t.Run("Zero range values", func(t *testing.T) {
+		q, err := h.buildElasticsearchQuery(&ExtractedParameters{
+			ROI: &RangeFilter{Min: 0, Max: 0}, Investment: &InvestmentFilter{Min: 0, Max: 0},
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, q)
 	})
-
-	t.Run("Empty category with other filters", func(t *testing.T) {
-		params := &ExtractedParameters{
-			Category: "",
-			Location: &LocationFilter{City: "Delhi"},
-			Verified: func() *bool { v := true; return &v }(),
-		}
-
-		query, err := handler.buildElasticsearchQuery(params)
-		if err != nil {
-			t.Errorf("Should build query even with empty category: %v", err)
-		}
-		if query == nil {
-			t.Error("Query should not be nil")
-		}
+	t.Run("Empty text fields → match_all", func(t *testing.T) {
+		q, err := h.buildElasticsearchQuery(&ExtractedParameters{Location: &LocationFilter{City: ""}})
+		assert.NoError(t, err)
+		assert.Contains(t, q["query"].(map[string]interface{}), "match_all")
+	})
+	t.Run("Empty struct → no post_filter", func(t *testing.T) {
+		q, err := h.buildElasticsearchQuery(&ExtractedParameters{})
+		assert.NoError(t, err)
+		assert.NotContains(t, q, "post_filter")
 	})
 }
 
 // ============================================================
-// INTEGRATION TESTS (Full Flow Simulation)
-// ============================================================
-
-func TestCompleteSearchFlow(t *testing.T) {
-	// Test the entire flow from input to response
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
-
-	t.Run("Full search flow simulation", func(t *testing.T) {
-		// Step 1: Create input
-		input := &SearchInput{
-			Query: "Find food franchises in Delhi with 20-30 lakhs investment",
-		}
-
-		// Step 2: Validate input
-		err := handler.validateInput(input)
-		if err != nil {
-			t.Fatalf("Input validation failed: %v", err)
-		}
-
-		// Step 3: Simulate extracted parameters (normally done by LLM)
-		params := &ExtractedParameters{
-			Category:   "Food",
-			Location:   &LocationFilter{City: "Delhi"},
-			Investment: &InvestmentFilter{Min: 2000000, Max: 3000000},
-			Rating:     func() *float64 { r := 4.0; return &r }(),
-		}
-
-		// Step 4: Validate parameters using helper
-		err = validateParameters(params)
-		if err != nil {
-			t.Fatalf("Parameters validation failed: %v", err)
-		}
-
-		// Step 5: Build ES query
-		esQuery, err := handler.buildElasticsearchQuery(params)
-		if err != nil {
-			t.Fatalf("Query building failed: %v", err)
-		}
-
-		// Step 6: Verify query structure
-		if esQuery == nil {
-			t.Fatal("ES query should not be nil")
-		}
-
-		// Check query has proper structure
-		if _, ok := esQuery["query"]; !ok {
-			t.Error("ES query should have 'query' field")
-		}
-		if _, ok := esQuery["size"]; !ok {
-			t.Error("ES query should have 'size' field")
-		}
-
-		// Step 7: Simulate search results
-		results := &SearchResults{
-			Total:    3,
-			MaxScore: 2.1,
-			TookMs:   45,
-			Hits: []map[string]interface{}{
-				{
-					"_source": map[string]interface{}{
-						"name":     "Burger King",
-						"industry": "Food & Beverage",
-						"investment": map[string]interface{}{
-							"min_investment": 2500000,
-							"max_investment": 4000000,
-						},
-					},
-				},
-				{
-					"_source": map[string]interface{}{
-						"name":     "Domino's Pizza",
-						"industry": "Food & Beverage",
-						"investment": map[string]interface{}{
-							"min_investment": 1500000,
-							"max_investment": 3000000,
-						},
-					},
-				},
-			},
-		}
-
-		// Step 8: Build final response
-		response := handler.buildResponse(input, params, results)
-
-		// Step 9: Verify response
-		if response == nil {
-			t.Fatal("Response should not be nil")
-		}
-
-		// Check all required fields
-		requiredFields := []string{"success", "extractedParams", "metadata"}
-		for _, field := range requiredFields {
-			if _, ok := response[field]; !ok {
-				t.Errorf("Response missing required field: %s", field)
-			}
-		}
-
-		// Verify success flag
-		if success, ok := response["success"].(bool); !ok || !success {
-			t.Error("Response should indicate success")
-		}
-
-		// Verify extractedParams has query
-		if extractedParams, ok := response["extractedParams"].(map[string]interface{}); ok {
-			if query, ok := extractedParams["query"].(string); !ok || query != input.Query {
-				t.Error("extractedParams should contain original query")
-			}
-		}
-
-		// Verify metadata has total_found
-		if metadata, ok := response["metadata"].(map[string]interface{}); ok {
-			if total, ok := metadata["total_found"].(int64); !ok || total != results.Total {
-				t.Errorf("Expected %d results in metadata, got %v", results.Total, total)
-			}
-		}
-	})
-
-	t.Run("Error flow simulation", func(t *testing.T) {
-		// Test error scenarios
-		testCases := []struct {
-			name      string
-			input     *SearchInput
-			params    *ExtractedParameters
-			expectErr bool
-		}{
-			{
-				name:      "Invalid input - query too long",
-				input:     &SearchInput{Query: strings.Repeat("a", 501)},
-				params:    nil,
-				expectErr: true,
-			},
-			{
-				name:      "Invalid parameters - ROI out of range",
-				input:     &SearchInput{Query: "test query"},
-				params:    &ExtractedParameters{ROI: &RangeFilter{Min: -10, Max: 200}},
-				expectErr: true,
-			},
-			{
-				name:      "Valid flow",
-				input:     &SearchInput{Query: "valid query"},
-				params:    &ExtractedParameters{Category: "Food"},
-				expectErr: false,
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				// Validate input
-				inputErr := handler.validateInput(tc.input)
-
-				// Validate parameters if provided
-				var paramsErr error
-				if tc.params != nil {
-					paramsErr = validateParameters(tc.params)
-				}
-
-				// Check if we got expected errors
-				hasErr := inputErr != nil || paramsErr != nil
-				if hasErr != tc.expectErr {
-					t.Errorf("Expected error: %v, got inputErr: %v, paramsErr: %v",
-						tc.expectErr, inputErr, paramsErr)
-				}
-
-				// If no errors expected, try to build query
-				if !tc.expectErr && tc.params != nil {
-					query, err := handler.buildElasticsearchQuery(tc.params)
-					if err != nil {
-						t.Errorf("Should build query without error, got: %v", err)
-					}
-					if query == nil {
-						t.Error("Query should not be nil")
-					}
-				}
-			})
-		}
-	})
-}
-
-// ============================================================
-// PERFORMANCE TESTS
+// BENCHMARKS
 // ============================================================
 
 func BenchmarkBuildElasticsearchQuery(b *testing.B) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
+	h := &Handler{config: createTestConfig(), logger: &MockLogger{}}
+	p := &ExtractedParameters{
+		Category: "Retail", Location: &LocationFilter{City: "Mumbai"},
+		ROI: &RangeFilter{Min: 15, Max: 25}, Investment: &InvestmentFilter{Min: 1000000, Max: 5000000},
+		Rating:   func() *float64 { v := 4.0; return &v }(),
+		Verified: func() *bool { v := true; return &v }(),
 	}
-
-	params := &ExtractedParameters{
-		Category:   "Retail",
-		Location:   &LocationFilter{City: "Mumbai"},
-		ROI:        &RangeFilter{Min: 15, Max: 25},
-		Investment: &InvestmentFilter{Min: 1000000, Max: 5000000},
-		Rating:     func() *float64 { r := 4.0; return &r }(),
-		Verified:   func() *bool { v := true; return &v }(),
-	}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = handler.buildElasticsearchQuery(params)
+		_, _ = h.buildElasticsearchQuery(p)
 	}
 }
 
-func BenchmarkValidateParameters(b *testing.B) {
-	params := &ExtractedParameters{
-		Category:   "Food",
-		Location:   &LocationFilter{City: "Delhi"},
-		ROI:        &RangeFilter{Min: 10, Max: 20},
-		Investment: &InvestmentFilter{Min: 2000000, Max: 5000000},
-		Rating:     func() *float64 { r := 4.5; return &r }(),
-		Verified:   func() *bool { v := true; return &v }(),
-	}
-
+func BenchmarkParameterExtractor_Parse(b *testing.B) {
+	pe := NewParameterExtractor(createTestConfig())
+	resp := `{"industry":"Food & Beverage","category":"Quick Service","location":{"city":"Mumbai","country":"India"},"investment":{"min":1000000,"max":5000000}}`
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = validateParameters(params)
-	}
-}
-
-func BenchmarkCompleteSearchFlow(b *testing.B) {
-	handler := &Handler{
-		config: createTestConfig(),
-		logger: &TestLogger{},
-	}
-
-	input := &SearchInput{
-		Query: "Find retail franchises in Mumbai with good ROI",
-	}
-
-	params := &ExtractedParameters{
-		Category: "Retail",
-		Location: &LocationFilter{City: "Mumbai"},
-		ROI:      &RangeFilter{Min: 15, Max: 30},
-		Rating:   func() *float64 { r := 4.0; return &r }(),
-	}
-
-	results := &SearchResults{
-		Total:    10,
-		MaxScore: 3.2,
-		TookMs:   30,
-		Hits:     []map[string]interface{}{},
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		// Simulate full flow
-		_ = handler.validateInput(input)
-		_ = validateParameters(params)
-		_, _ = handler.buildElasticsearchQuery(params)
-		_ = handler.buildResponse(input, params, results)
+		_, _ = pe.Parse(resp)
 	}
 }
