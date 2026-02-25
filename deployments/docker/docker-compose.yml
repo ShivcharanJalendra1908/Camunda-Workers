@@ -86,10 +86,10 @@ services:
       - max_connections=200
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh:ro
-      - ./postgres/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
-      - ./postgres/auth-schema.sql:/docker-entrypoint-initdb.d/auth-schema.sql:ro
-      - ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
+      - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
+      - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
+      - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
+      #- ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
       - camunda-network
@@ -318,8 +318,8 @@ services:
       KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
       KEYCLOAK_ADMIN_CLIENT_ID: worker-client
       KEYCLOAK_ADMIN_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
-      OLLAMA_URL: http://172.31.2.138:11434
-      LLM_ENDPOINT: http://172.31.2.138:11434
+      OLLAMA_URL: http://172.31.10.44:11434
+      LLM_ENDPOINT: http://172.31.10.44:11434
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_SERVICE_NAME: camunda-workers

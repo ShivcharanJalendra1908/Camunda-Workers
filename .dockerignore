@@ -85,3 +85,11 @@ k8s/
 *.bak
 *.backup
 *.old
+
+data/
+postgres/
+deployments/docker/postgres
+**/*.csv
+**/*.log
+**/*.zip
+**/*.tar*
