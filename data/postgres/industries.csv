@@ -1,13 +1,13 @@
 id,name,slug,icon_name,icon_url,color_hex,color_name,listing_title,listing_description,display_order,is_active,is_featured,meta_title,meta_description,created_at,updated_at
-5ed3c109-2d23-4148-a019-f347fda26ed4,Automotive,automotive,,,#D32F2F,Engine Red,Automotive Franchises,,1,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-42467fa8-06f1-4047-baf5-212e10ea66d8,Beauty,beauty,,,#E91E63,Rose Pink,Beauty & Salon Franchises,,2,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-f26791cd-9656-452d-8326-9b9296125906,Health,health,,,#00897B,Medical Teal,Health & Wellness Franchises,,3,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-c39ecac8-9a1f-4ad3-af64-069b9b315926,Business Services,business-services,,,#1E3A8A,Corporate Blue,Business Services Franchises,,4,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-cc637398-2762-4b5b-a999-c1a8c5567cfe,Dealers & Distributors,dealers-distributors,,,#F59E0B,Industrious Yellow,Dealer & Distributor Franchises,,5,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-f5fe36f6-02ef-4ca5-b884-30d22b5402cf,Education,education,,,#3949AB,Knowledge Blue,Education Franchises,,6,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-3b1b6be7-d616-4c46-a470-2a2fc1d16691,Fashion,fashion,,,#111111,Luxury Black,Fashion & Apparel Franchises,,7,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-7b332bd1-117a-4b40-92a1-aa8c5267a02b,Food & Beverage,food-beverage,,,#FF7043,Food Orange,Food & Beverage Franchises,,8,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
-1e4a2772-e991-4e90-b77b-2724809f5dbc,Home-Based Business,home-based-business,,,#546E7A,Comfort Gray,Home-Based Business Franchises,,9,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+5ed3c109-2d23-4148-a019-f347fda26ed4,Automotive,automotive,,/FranchiseHomePage/industry-automobiles.png,#D32F2F,Engine Red,Automotive Franchises,,1,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+42467fa8-06f1-4047-baf5-212e10ea66d8,Beauty,beauty,,/FranchiseHomePage/industry-beauty-salon.png,#E91E63,Rose Pink,Beauty & Salon Franchises,,2,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+f26791cd-9656-452d-8326-9b9296125906,Health,health,,/FranchiseHomePage/industry-health-wellness.png,#00897B,Medical Teal,Health & Wellness Franchises,,3,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+c39ecac8-9a1f-4ad3-af64-069b9b315926,Business Services,business-services,,/FranchiseHomePage/industry-business.png,#1E3A8A,Corporate Blue,Business Services Franchises,,4,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+cc637398-2762-4b5b-a999-c1a8c5567cfe,Dealers & Distributors,dealers-distributors,,/FranchiseHomePage/industry-dealers-distribution.png,#F59E0B,Industrious Yellow,Dealer & Distributor Franchises,,5,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+f5fe36f6-02ef-4ca5-b884-30d22b5402cf,Education,education,,/FranchiseHomePage/industry-education.png,#3949AB,Knowledge Blue,Education Franchises,,6,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+3b1b6be7-d616-4c46-a470-2a2fc1d16691,Fashion,fashion,,/FranchiseHomePage/fashion.png,#111111,Luxury Black,Fashion & Apparel Franchises,,7,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+7b332bd1-117a-4b40-92a1-aa8c5267a02b,Food & Beverage,food-beverage,,/FranchiseHomePage/industry-food.png,#FF7043,Food Orange,Food & Beverage Franchises,,8,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
+1e4a2772-e991-4e90-b77b-2724809f5dbc,Home-Based Business,home-based-business,,/FranchiseHomePage/industry-retail.png,#546E7A,Comfort Gray,Home-Based Business Franchises,,9,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
 d8e835b1-07dd-4279-93b4-5049cfb1c6d6,"Hotel, Travel & Tourism",hotel-travel-tourism,,,#0066CC,Travel Blue,"Hotel, Travel & Tourism Franchises",,10,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
 ae11be80-bea3-4d0e-a35a-c964451b1a20,Retail,retail,,,#EF5350,Retail Red,Retail Franchises,,11,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
 ead42b5a-26e6-4bd2-a2e3-bb8709ede483,Sports & Fitness,sports-fitness,,,#198754,Active Green,Sports & Fitness Franchises,,12,TRUE,TRUE,,,2026-1-8 20:55,2026-1-8 20:55
