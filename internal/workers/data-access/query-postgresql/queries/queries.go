@@ -151,18 +151,43 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 }
 
 // CategoriesFeatured8 - Get 8 featured categories for listing page
+// func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	query := `
+// 		SELECT c.id, c.name, c.slug, c.icon_url
+// 		FROM categories c
+// 		WHERE c.is_active = true
+// 		ORDER BY c.display_order
+// 		LIMIT 8
+// 	`
+
+// rows, err := db.QueryContext(ctx, query)
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	query := `
-		SELECT c.id, c.name, c.slug, c.icon_url
-		FROM categories c
-		WHERE c.is_active = true
-		ORDER BY c.display_order
-		LIMIT 8
-	`
+	industryID, hasIndustry := params["industryId"].(string)
 
-	rows, err := db.QueryContext(ctx, query)
+	var rows *sql.Rows
+	var err error
+
+	if hasIndustry && industryID != "" {
+		rows, err = db.QueryContext(ctx, `
+			SELECT c.id, c.name, c.slug, c.icon_url
+			FROM categories c
+			WHERE c.industry_id = $1 AND c.is_active = true
+			ORDER BY c.display_order
+			LIMIT 8
+		`, industryID)
+	} else {
+		rows, err = db.QueryContext(ctx, `
+			SELECT c.id, c.name, c.slug, c.icon_url
+			FROM categories c
+			WHERE c.is_active = true
+			ORDER BY c.display_order
+			LIMIT 8
+		`)
+	}
 	if err != nil {
 		return nil, 0, 0, err
 	}
