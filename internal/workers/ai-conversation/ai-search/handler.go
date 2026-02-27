@@ -309,9 +309,39 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 // QUERY BUILDERS
 // ============================================================
 
-// ✅ NEW: Build basic query without waiting for LLM
+// // ✅ NEW: Build basic query without waiting for LLM
+// func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
+// 	// Handle wildcard or empty query
+// 	if query == "*" || strings.TrimSpace(query) == "" {
+// 		return map[string]interface{}{
+// 			"size": h.config.DefaultPageSize,
+// 			"query": map[string]interface{}{
+// 				"match_all": map[string]interface{}{},
+// 			},
+// 			"sort": []interface{}{
+// 				map[string]interface{}{"rating": "desc"},
+// 				map[string]interface{}{"total_outlets": "desc"},
+// 			},
+// 		}
+// 	}
+
+//		// Simple multi-field search
+//		return map[string]interface{}{
+//			"size": h.config.DefaultPageSize,
+//			"query": map[string]interface{}{
+//				"multi_match": map[string]interface{}{
+//					"query":  query,
+//					"fields": []string{"name^3", "industry.name^2", "tags", "location"},
+//					"type":   "best_fields",
+//				},
+//			},
+//			"sort": []interface{}{
+//				map[string]interface{}{"_score": "desc"},
+//				map[string]interface{}{"rating": "desc"},
+//			},
+//		}
+//	}
 func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
-	// Handle wildcard or empty query
 	if query == "*" || strings.TrimSpace(query) == "" {
 		return map[string]interface{}{
 			"size": h.config.DefaultPageSize,
@@ -325,14 +355,19 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		}
 	}
 
-	// Simple multi-field search
+	cleanQuery := stripLocationFromQuery(query)
+	if strings.TrimSpace(cleanQuery) == "" {
+		cleanQuery = query
+	}
+
 	return map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"query": map[string]interface{}{
 			"multi_match": map[string]interface{}{
-				"query":  query,
-				"fields": []string{"name^3", "industry.name^2", "tags", "location"},
-				"type":   "best_fields",
+				"query":     cleanQuery,
+				"fields":    []string{"name^3", "industry.name^2", "tags"},
+				"type":      "best_fields",
+				"fuzziness": "AUTO",
 			},
 		},
 		"sort": []interface{}{
@@ -367,10 +402,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		queryParts = append(queryParts, params.Subcategory)
 	}
 
-	// Add location to query
-	if params.Location != nil && params.Location.City != "" {
-		queryParts = append(queryParts, params.Location.City)
-	}
+	// // Add location to query
+	// if params.Location != nil && params.Location.City != "" {
+	// 	queryParts = append(queryParts, params.Location.City)
+	// }
 
 	// Base query structure
 	esQuery := map[string]interface{}{
@@ -401,6 +436,30 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// ✅ POST_FILTER: All filters applied AFTER query (keeps depth flat!)
 	postFilters := []interface{}{}
+
+	if params.Location != nil && params.Location.City != "" {
+		city := strings.ToLower(params.Location.City)
+		postFilters = append(postFilters, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{
+						"wildcard": map[string]interface{}{
+							"location": map[string]interface{}{
+								"value":            city,
+								"case_insensitive": true,
+							},
+						},
+					},
+					map[string]interface{}{
+						"terms": map[string]interface{}{
+							"location": []string{"Pan India", "Pan-India", "All major Indian cities", "North Indian Cities"},
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		})
+	}
 
 	// Investment range
 	if params.Investment != nil {
@@ -800,4 +859,15 @@ func (h *Handler) handleError(client worker.JobClient, job entities.Job, err err
 		Retries(job.Retries - 1).
 		ErrorMessage(fmt.Sprintf("%s: %v", errorCode, err)).
 		Send(ctx)
+}
+
+func stripLocationFromQuery(query string) string {
+	prepositions := []string{" in ", " at ", " near ", " from ", " around "}
+	result := " " + strings.ToLower(strings.TrimSpace(query)) + " "
+	for _, prep := range prepositions {
+		if idx := strings.Index(result, prep); idx != -1 {
+			result = result[:idx]
+		}
+	}
+	return strings.TrimSpace(result)
 }

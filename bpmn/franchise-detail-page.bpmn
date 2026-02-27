@@ -139,7 +139,6 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORIES_FEATURED_8&#34;" target="queryType" />
-          <zeebe:input source="=industryId" target="industryId" />
           <zeebe:output source="=data" target="categories" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

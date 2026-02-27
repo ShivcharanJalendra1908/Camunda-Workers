@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"camunda-workers/internal/models"
@@ -813,7 +814,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"multi_match": map[string]interface{}{
 				"query":     searchQuery,
-				"fields":    []string{"name^3", "description^2", "tags", "industry.name", "location"},
+				"fields":    []string{"name^3", "description^2", "tags", "industry.name"}, //, "location"
 				"type":      "best_fields",
 				"fuzziness": "AUTO",
 			},
@@ -834,13 +835,36 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Location filter
+	// if location, ok := filters["location"].(string); ok && location != "" {
+	// 	filterClauses = append(filterClauses, map[string]interface{}{
+	// 		"wildcard": map[string]interface{}{
+	// 			"location": map[string]interface{}{
+	// 				"value":            "*" + location + "*",
+	// 				"case_insensitive": true,
+	// 			},
+	// 		},
+	// 	})
+	// }
 	if location, ok := filters["location"].(string); ok && location != "" {
+		city := strings.ToLower(location)
 		filterClauses = append(filterClauses, map[string]interface{}{
-			"wildcard": map[string]interface{}{
-				"location": map[string]interface{}{
-					"value":            "*" + location + "*",
-					"case_insensitive": true,
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{
+						"wildcard": map[string]interface{}{
+							"location": map[string]interface{}{
+								"value":            city,
+								"case_insensitive": true,
+							},
+						},
+					},
+					map[string]interface{}{
+						"terms": map[string]interface{}{
+							"location": []string{"Pan India", "Pan-India", "All major Indian cities", "North Indian Cities"},
+						},
+					},
 				},
+				"minimum_should_match": 1,
 			},
 		})
 	}
