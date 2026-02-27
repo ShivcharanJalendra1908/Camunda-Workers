@@ -698,13 +698,24 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				industryName = industry
 			}
 
+			// NAYA - logo object se URL nikalo
+			logoURL := ""
+			if logo, ok := rec["logo"].(map[string]interface{}); ok {
+				if url, ok := logo["url"].(string); ok {
+					logoURL = url
+				}
+			} else if url, ok := rec["logo_url"].(string); ok {
+				logoURL = url
+			}
+
 			transformed := map[string]interface{}{
 				"id":       rec["id"],
 				"brand":    rec["brand"],
 				"industry": industryName, // ✅ String, not object
 				"slug":     rec["slug"],
 				"image": map[string]interface{}{ // ✅ ADD THIS
-					"url": rec["logo_url"],
+					//"url": rec["logo_url"],
+					"url": logoURL,
 					"alt": rec["brand"],
 				},
 			}
@@ -832,13 +843,23 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 				industryName = industry
 			}
 
+			logoURL := ""
+			if logo, ok := rec["logo"].(map[string]interface{}); ok {
+				if url, ok := logo["url"].(string); ok {
+					logoURL = url
+				}
+			} else if url, ok := rec["logo_url"].(string); ok {
+				logoURL = url
+			}
+
 			transformed := map[string]interface{}{
 				"id":       rec["id"],
 				"brand":    rec["brand"],
 				"industry": industryName, // ✅ String, not object
 				"slug":     rec["slug"],
 				"image": map[string]interface{}{ // ✅ ADD THIS
-					"url": rec["logo_url"],
+					//"url": rec["logo_url"],
+					"url": logoURL,
 					"alt": rec["brand"],
 				},
 			}
