@@ -274,11 +274,15 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 
 		// ✅ Fixed document - added logo_url field
 		doc := map[string]interface{}{
-			"franchise_id":  id,
-			"name":          name,
-			"slug":          slug,
-			"description":   cleanDesc,
-			"logo_url":      logoURL.String, // ✅ Logo URL added here
+			"franchise_id": id,
+			"name":         name,
+			"slug":         slug,
+			"description":  cleanDesc,
+			//"logo_url":      logoURL.String, // ✅ Logo URL added here
+			"logo": map[string]interface{}{
+				"url": logoURL.String,
+				"alt": name,
+			},
 			"location":      location,
 			"tags":          tags,
 			"rating":        rating,
