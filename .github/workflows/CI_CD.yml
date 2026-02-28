@@ -94,7 +94,7 @@ jobs:
 
 
 
-      - name: Deploy to EC2 (T3)
+      - name: Deploy to EC2 
         if: github.ref == 'refs/heads/mvp'
         uses: appleboy/ssh-action@v0.1.10
         with:
