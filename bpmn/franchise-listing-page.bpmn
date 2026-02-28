@@ -45,6 +45,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORIES_FEATURED_8&#34;" target="queryType" />
+          <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="categories" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

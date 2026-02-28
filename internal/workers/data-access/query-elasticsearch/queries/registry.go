@@ -91,7 +91,7 @@ func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[
 			"franchise_id",
 			"name",
 			"slug",
-			"logo_url",
+			"logo", //"logo_url",
 		},
 	}
 
@@ -162,7 +162,15 @@ func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[
 			"name":    getStringField(source, "name", ""),
 			"slug":    getStringField(source, "slug", ""),
 			"logo": map[string]interface{}{ // Create logo object
-				"url": getStringField(source, "logo_url", ""),
+				//"url": getStringField(source, "logo_url", ""),
+				"url": func() string {
+					if logo, ok := source["logo"].(map[string]interface{}); ok {
+						if url, ok := logo["url"].(string); ok {
+							return url
+						}
+					}
+					return ""
+				}(),
 				"alt": getStringField(source, "name", ""),
 			},
 		}

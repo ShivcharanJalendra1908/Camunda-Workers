@@ -148,7 +148,7 @@ CREATE TABLE industries (
     
     CONSTRAINT chk_color_hex_format 
         CHECK (color_hex ~* '^#[0-9A-F]{6}$'),
-    CHECK (icon_url IS NULL OR icon_url = '' OR icon_url ~* '^https?://'),
+    CHECK (icon_url IS NULL OR icon_url = '' OR icon_url ~* '^https?://' OR icon_url ~* '^/'),
     CONSTRAINT chk_display_order_positive 
         CHECK (display_order >= 0)
 );
@@ -186,7 +186,7 @@ CREATE TABLE categories (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_icon_url 
-        CHECK (icon_url IS NULL OR icon_url ~* '^https?://'),
+        CHECK (icon_url IS NULL OR icon_url ~* '^https?://' OR icon_url ~* '^/'),
     CONSTRAINT chk_display_order_positive 
         CHECK (display_order >= 0),
     
@@ -269,7 +269,7 @@ CREATE TABLE franchises (
     CONSTRAINT chk_email_format 
         CHECK (contact_email IS NULL OR contact_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     CONSTRAINT chk_logo_url 
-        CHECK (logo_url IS NULL OR logo_url ~* '^https?://'),
+        CHECK (logo_url IS NULL OR logo_url ~* '^https?://' OR logo_url ~* '^/'),
     CONSTRAINT chk_total_outlets_positive 
         CHECK (total_outlets >= 0),
     CONSTRAINT chk_units_count_positive 
