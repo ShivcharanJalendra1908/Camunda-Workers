@@ -53,10 +53,10 @@ fi
 # --------------------------------------------------
 if [ -f "/docker-entrypoint-initdb.d/30-schema.sql" ]; then
   echo "📄 Applying franchises schema..."
-  psql \
+  psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
     --dbname "franchises" \
-    -f "/docker-entrypoint-initdb.d/30-schema.sql" || true
+    -f "/docker-entrypoint-initdb.d/30-schema.sql"
 else
   echo "❌ 30-schema.sql not found"
   exit 1
