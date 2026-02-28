@@ -10,12 +10,11 @@ volumes:
   es-data:
   redis-data:
   keycloak-data:
-  ollama-data:
 
 services:
 
 # ============================================================================
-# CAMUNDA 8
+# CAMUNDA 8 - MOVED TO TOP FOR PRIORITY
 # ============================================================================
 
   zeebe:
@@ -46,7 +45,9 @@ services:
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE: 1
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY: 1
       ZEEBE_LOG_LEVEL: info
-      JAVA_OPTS: "-Xms1g -Xmx1g"
+      JAVA_OPTS: "-Xms1g -Xmx1g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/usr/local/zeebe/data/heapdump.hprof"
+      ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK: 0.85
+      ZEEBE_BROKER_DATA_DISKUSAGEREPLICATIONWATERMARK: 0.87
     volumes:
       - zeebe-data:/usr/local/zeebe/data
     depends_on:
@@ -54,7 +55,14 @@ services:
         condition: service_healthy
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/9600' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
     restart: on-failure:5
+
 
 # ============================================================================
 # INFRASTRUCTURE
@@ -70,13 +78,25 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_MULTIPLE_DATABASES: "franchises,keycloak,camunda"
+    command:
+      - postgres
+      - -c
+      - listen_addresses=*
+      - -c
+      - max_connections=200
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
+      - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
+      - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
+      #- ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
+      - ../../data/postgres:/csv-data:ro
     networks:
       - camunda-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
+      timeout: 60s
       retries: 10
 
   redis:
@@ -88,6 +108,11 @@ services:
       - redis-data:/data
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.9.0
@@ -97,11 +122,22 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
       ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      ingest.geoip.downloader.enabled: "false"
+      cluster.name: camunda-cluster
+      network.host: 0.0.0.0
+      http.port: 9200
     volumes:
       - es-data:/usr/share/elasticsearch/data
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
 
 # ============================================================================
 # OBSERVABILITY
@@ -113,8 +149,47 @@ services:
     ports:
       - "16686:16686"
       - "14268:14268"
+      - "14250:14250"
+      - "6831:6831/udp"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: memory
+      LOG_LEVEL: info
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  operate:
+    image: camunda/operate:8.3.9
+    container_name: operate
+    ports:
+      - "8082:8080"
+    environment:
+      CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS: zeebe:26500
+      CAMUNDA_OPERATE_ELASTICSEARCH_URL: http://elasticsearch:9200
+      CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
+      SPRING_PROFILES_ACTIVE: dev
+
+      CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: false
+      CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
+      CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
+      CAMUNDA_OPERATE_ELASTICSEARCH_REQUESTTIMEOUT: 10000
+    depends_on:
+      zeebe:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - camunda-network
+    restart: on-failure:3
 
 # ============================================================================
 # KEYCLOAK
@@ -123,41 +198,41 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:23.0
     container_name: keycloak
-    command: start-dev --import-realm
+    command:
+      - start-dev
+      - --import-realm
     ports:
       - "8180:8080"
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_DB: postgres
       KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: 5432
       KC_DB_URL_DATABASE: keycloak
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: postgres
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
     volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - camunda-network
-
-# ============================================================================
-# OLLAMA
-# ============================================================================
-
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    environment:
-      OLLAMA_HOST: 0.0.0.0
-    networks:
-      - camunda-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
+    restart: on-failure:5
 
 # ============================================================================
 # APPLICATION
@@ -168,37 +243,109 @@ services:
     container_name: api-gateway
     ports:
       - "8080:8080"
+      - "9090:9090"
     environment:
+      APP_NAME: api-gateway
+      APP_ENVIRONMENT: development
+      API_PORT: 8080
       ZEEBE_ADDRESS: zeebe:26500
+      ZEEBE_CLIENT_REQUEST_TIMEOUT: 45s
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: franchises
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
       KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: camunda-platform
+      KEYCLOAK_CLIENT_ID: worker-client
+      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      KEYCLOAK_ADMIN_CLIENT_ID: worker-client
+      KEYCLOAK_ADMIN_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      LOG_LEVEL: debug
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      OTEL_SERVICE_NAME: api-gateway
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       zeebe:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: on-failure:3
 
   camunda-workers:
     image: 177925987307.dkr.ecr.ap-south-1.amazonaws.com/backend-worker:latest
     container_name: camunda-workers
     environment:
+      APP_NAME: camunda-workers
+      APP_ENVIRONMENT: development
       ZEEBE_ADDRESS: zeebe:26500
+      ZEEBE_CLIENT_MODE: plain
+      ZEEBE_CLIENT_REQUEST_TIMEOUT: 45s
       POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: franchises
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_SSLMODE: disable
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: franchises
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
       KEYCLOAK_URL: http://keycloak:8080
-      OLLAMA_URL: http://ollama:11434
-      LLM_ENDPOINT: http://ollama:11434
+      KEYCLOAK_REALM: camunda-platform
+      KEYCLOAK_CLIENT_ID: worker-client
+      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      KEYCLOAK_ADMIN_CLIENT_ID: worker-client
+      KEYCLOAK_ADMIN_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      OLLAMA_URL: http://172.31.10.44:11434
+      LLM_ENDPOINT: http://172.31.10.44:11434
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      OTEL_SERVICE_NAME: camunda-workers
       LOG_LEVEL: info
     depends_on:
-      ollama:
-        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       zeebe:
         condition: service_healthy
+      jaeger:
+        condition: service_healthy
+      keycloak:                    # ✅ ADD THIS
+        condition: service_healthy 
+    volumes:
+      - ../../configs:/app/configs:ro
+      - ../../bpmn:/app/bpmn:ro
     networks:
       - camunda-network
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep worker-manager || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     restart: on-failure:3
