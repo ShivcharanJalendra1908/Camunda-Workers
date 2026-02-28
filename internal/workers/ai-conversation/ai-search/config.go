@@ -43,7 +43,7 @@ func NewDefaultConfig() *Config {
 		PollInterval:    25 * time.Millisecond,
 		RequestTimeout:  30 * time.Second, // ✅ CHANGE: Was 30s - KEEP IT
 		LLMProvider:     "ollama",
-		LLMModel:        "qwen2.5:0.5b",
+		LLMModel:        "qwen2.5:3b",
 		LLMEndpoint:     "http://ollama:11434",
 		LLMTimeout:      25 * time.Second, // ✅ CHANGE: 20s se 25s
 		LLMMaxTokens:    80,               // ✅ CHANGE: 100 se 80

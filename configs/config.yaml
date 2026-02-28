@@ -294,7 +294,7 @@ workers:
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen2.5:0.5b"
+      model: "qwen2.5:3b"
       endpoint: "http://ollama:11434"  
       timeout: 25000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
       max_tokens: 80             # ✅ CHANGE: 100 se 80

@@ -14,92 +14,62 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 	return &ParameterExtractor{config: config}
 }
 
-// ✅ OPTIMIZED: Full taxonomy-aware prompt with industry/category/subcategory
 func (pe *ParameterExtractor) BuildPrompt(query string) string {
-	return fmt.Sprintf(`Extract franchise search params from: "%s"
+	return fmt.Sprintf(`You are a JSON extractor. Extract franchise search parameters from the query below.
 
-TAXONOMY:
-Industry → Category → Subcategory
-Examples:
-- "Food & Beverage" → "Dessert & Frozen Treats" → "Ice cream parlors"
-- "Education" → "Tutoring & Coaching" → "Math learning centers"
-- "Fashion" → "Apparel & Clothing Stores" → "Ethnic wear"
+Query: "%s"
 
-Return ONLY valid JSON:
-{
-  "industry": "Food & Beverage|Education|Fashion|Automotive|etc or null",
-  "category": "Category name or null",
-  "subcategory": "Subcategory name or null",
-  "location": {"city": "string", "state": "string", "country": "India"} or null,
-  "investment": {"min": number, "max": number} or null,
-  "rating": number (0-5) or null,
-  "space": {"min": number, "max": number} sqft or null,
-  "staff": {"min": number, "max": number} or null,
-  "outlets": number or null,
-  "roi": {"min": number, "max": number} percentage or null,
-  "verified": boolean or null,
-  "trusted_seller": boolean or null
+IMPORTANT RULES:
+- industry: MUST be exactly one of these strings:
+  "Food & Beverage" → food, cafe, restaurant, chai, coffee, ice cream
+  "Sports & Fitness" → gym, fitness, sports, cricket, yoga, workout
+  "Beauty" → salon, beauty, spa, hair, makeup
+  "Automotive" → auto, car, bike, vehicle, garage, ev
+  "Education" → education, school, tutor, coaching
+  "Fashion" → fashion, clothes, wear, apparel, saree, kurti
+  "Health" → health, clinic, medical, pharmacy, hospital
+  "Hotel, Travel & Tourism" → hotel, travel, tourism, holiday, trip, tour
+  "Retail" → retail, shop, grocery, kirana, supermarket
+  "Technology / IT" → tech, software, it, digital, computer
+  "Real Estate" → real estate, property, interior, home, kitchen
+  "Finance / Banking" → finance, banking, insurance, loan
+  "Entertainment" → entertainment, gaming, kids, toys, pet
+  Use null ONLY if no business type mentioned.
+- category: specific type like "Gym", "Ice Cream", "Car Wash". null if not specific.
+- subcategory: null unless very specific.
+- rating: NUMBER only. EXAMPLES: "best gym"→4, "top franchise"→4, "top rated"→4, "highly rated"→4.5. If query has "best" or "top" set rating=4. null if not mentioned.
+- investment: "under 10 lakh"={"min":0,"max":1000000}, "under 20 lakh"={"min":0,"max":2000000}, "10-20 lakh"={"min":1000000,"max":2000000}, "1 crore"={"min":5000000,"max":10000000}. null if not mentioned.
+- space: {"min": number, "max": number} sqft. null if not mentioned.
+- roi: {"min": number, "max": number} percentage. null if not mentioned.
+- staff: {"min": number, "max": number}. null if not mentioned.
+- verified: true only if explicitly mentioned. null otherwise.
+- trusted_seller: true only if explicitly mentioned. null otherwise.
+- location: {"city": "city name", "state": "", "country": "India"}
+
+Respond with ONLY this JSON:
+{"industry":null,"category":null,"subcategory":null,"location":{"city":"","state":"","country":"India"},"investment":null,"rating":null,"space":null,"staff":null,"outlets":null,"roi":null,"verified":null,"trusted_seller":null}`, query)
 }
 
-RULES:
-1. Industry: Main business type (Food & Beverage, Education, Fashion, etc)
-2. Category: Sub-industry (Dessert & Frozen Treats, Tutoring & Coaching, etc)
-3. Subcategory: Specific type (Ice cream parlors, Math learning centers, etc)
-4. Location: Extract city/state if mentioned. Default country: India
-5. Investment: Convert lakhs/crores (1L=100000, 1Cr=10000000)
-6. Use null if not mentioned
+// func (pe *ParameterExtractor) BuildPrompt(query string) string {
+// 	return fmt.Sprintf(`You are a JSON extractor. Extract franchise search parameters from the query below.
 
-EXAMPLES:
-Query: "ice cream franchise in kolkata"
-{
-  "industry": "Food & Beverage",
-  "category": "Dessert & Frozen Treats",
-  "subcategory": "Ice cream parlors",
-  "location": {"city": "Kolkata", "state": "West Bengal", "country": "India"},
-  "investment": null,
-  "rating": null,
-  "space": null,
-  "staff": null,
-  "outlets": null,
-  "roi": null,
-  "verified": null,
-  "trusted_seller": null
-}
+// Query: "%s"
 
-Query: "education franchise under 10 lakh"
-{
-  "industry": "Education",
-  "category": null,
-  "subcategory": null,
-  "location": null,
-  "investment": {"min": 100000, "max": 1000000},
-  "rating": null,
-  "space": null,
-  "staff": null,
-  "outlets": null,
-  "roi": null,
-  "verified": null,
-  "trusted_seller": null
-}
+// Rules:
+// - industry: MUST identify. "food/cafe/restaurant/eat" = "Food & Beverage", "education/school/tutor" = "Education", "fashion/clothes/wear" = "Fashion", "gym/fitness/health/salon/beauty" = "Healthcare & Wellness". Use null ONLY if no business type mentioned.
+// - category: Specific sub-type. Use null if not mentioned.
+// - location.city: City name if mentioned, else empty string.
+// - investment: "under 20 lakh" = {"min":0,"max":2000000}, "under 5 lakh" = {"min":0,"max":500000}, "10 lakh" = {"min":500000,"max":1000000}. null if not mentioned.
+// - space: sqft range. "500 sqft" = {"min":500,"max":1000}. null if not mentioned.
+// - roi: percentage range. "20 percent roi" = {"min":20,"max":100}. null if not mentioned.
+// - rating: minimum rating. "top rated/best" = 4, "highly rated" = 4.5. null if not mentioned.
+// - staff: number range. "minimum 5 staff" = {"min":5,"max":50}. null if not mentioned.
+// - verified: true only if explicitly asked. null otherwise.
+// - Use JSON null (not string "null").
 
-Query: "fashion boutique in delhi with 500 sqft space"
-{
-  "industry": "Fashion",
-  "category": "Apparel & Clothing Stores",
-  "subcategory": null,
-  "location": {"city": "Delhi", "state": "Delhi", "country": "India"},
-  "investment": null,
-  "rating": null,
-  "space": {"min": 500, "max": 1000},
-  "staff": null,
-  "outlets": null,
-  "roi": null,
-  "verified": null,
-  "trusted_seller": null
-}
-
-JSON:`, query)
-}
+// Respond with ONLY this JSON:
+// {"industry":null,"category":null,"subcategory":null,"location":{"city":"","state":"","country":"India"},"investment":null,"rating":null,"space":null,"staff":null,"outlets":null,"roi":null,"verified":null,"trusted_seller":null}`, query)
+// }
 
 // Parse extracts parameters from LLM response with robust error handling
 func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, error) {
