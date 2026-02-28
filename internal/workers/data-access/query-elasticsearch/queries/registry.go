@@ -398,7 +398,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry", "logo_url"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
 		}
 	} else {
 		query = map[string]interface{}{
@@ -409,7 +409,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry", "logo_url"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
 		}
 	}
 
