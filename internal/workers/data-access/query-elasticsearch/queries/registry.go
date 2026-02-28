@@ -246,7 +246,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 		}
 	} else {
 		// Get any top franchises
@@ -258,7 +258,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc"}},
 			},
-			"_source": []string{"franchise_id", "name", "slug", "industry"},
+			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 		}
 	}
 
