@@ -81,7 +81,7 @@ func NewOllamaService(config *Config, log logger.Logger) *OllamaService {
 		temperature: config.LLMTemperature,
 		httpClient: &http.Client{
 			// ✅ OPTIMIZED: 20s timeout (reduced from 35s)
-			Timeout: 25 * time.Second,
+			Timeout: 40 * time.Second,
 			Transport: &http.Transport{
 				// ✅ Connection pooling for better performance
 				MaxIdleConns:        10,
@@ -117,7 +117,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		Format: "json",
 		Options: map[string]interface{}{
 			"temperature":    0.0,  // ✅ CHANGE - 0.0 se fast hoga
-			"num_predict":    80,   // ✅ CHANGE - 100 se 80 (fast)
+			"num_predict":    150,  // ✅ CHANGE - 100 se 80 (fast)
 			"num_ctx":        2048, // ✅ CRITICAL - 512 se 2048 (recompilation avoid)
 			"repeat_penalty": 1.0,  // ✅ CHANGE - penalty hataya
 			"top_k":          5,    // ✅ CHANGE - 10 se 5
@@ -204,6 +204,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	// ✅ PARALLEL EXECUTION: LLM + Basic ES query run simultaneously
 	paramsChan := make(chan *ExtractedParameters, 1)
+	resultsChan := make(chan *SearchResults, 1)
 	errChan := make(chan error, 1)
 
 	// ✅ Start LLM extraction in background (non-blocking)
@@ -216,19 +217,32 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}()
 
 	// ✅ Start basic ES query immediately (don't wait for LLM)
-	var basicResults *SearchResults
 	go func() {
-		basicQuery := h.buildBasicQuery(input.Query)
+		basicQuery := h.buildBasicQuery(input.Query) // ✅ yahan define hoga
 		results, err := h.executeSearch(ctx, basicQuery)
 		if err != nil {
 			errChan <- err
 			return
 		}
-		basicResults = results
+		resultsChan <- results
 		errChan <- nil
 	}()
 
-	// ✅ Wait for LLM with timeout (max 18s)
+	// ✅ Wait for basic ES query (should be fast, max 5s)
+	var basicResults *SearchResults
+	select {
+	case err := <-errChan:
+		if err != nil {
+			h.handleError(client, job, err, "BASIC_SEARCH_ERROR")
+			return
+		}
+		basicResults = <-resultsChan
+	case <-time.After(5 * time.Second):
+		h.handleError(client, job, fmt.Errorf("basic search timeout"), "SEARCH_TIMEOUT")
+		return
+	}
+
+	// ✅ Wait for LLM with timeout (max 30s)
 	var params *ExtractedParameters
 	select {
 	case params = <-paramsChan:
@@ -420,12 +434,20 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Main text query
 	if len(queryParts) > 0 {
-		queryString := strings.Join(queryParts, " ")
+		// queryString := strings.Join(queryParts, " ")
+		// esQuery["query"] = map[string]interface{}{
+		// 	"simple_query_string": map[string]interface{}{
+		// 		"query":            queryString,
+		// 		"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags", "location"},
+		// 		"default_operator": "AND",
+		// 	},
+		// }
+		queryString := strings.ReplaceAll(strings.Join(queryParts, " "), "&", "and")
 		esQuery["query"] = map[string]interface{}{
 			"simple_query_string": map[string]interface{}{
 				"query":            queryString,
-				"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags", "location"},
-				"default_operator": "AND",
+				"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags"},
+				"default_operator": "OR", // AND → OR
 			},
 		}
 	} else {
@@ -439,24 +461,22 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	if params.Location != nil && params.Location.City != "" {
 		city := strings.ToLower(params.Location.City)
+		cityTitle := strings.ToUpper(city[:1]) + city[1:] // strings.Title ka replacement
+
 		postFilters = append(postFilters, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"wildcard": map[string]interface{}{
-							"location": map[string]interface{}{
-								"value":            city,
-								"case_insensitive": true,
-							},
-						},
-					},
-					map[string]interface{}{
-						"terms": map[string]interface{}{
-							"location": []string{"Pan India", "Pan-India", "All major Indian cities", "North Indian Cities"},
-						},
-					},
+			"terms": map[string]interface{}{
+				"location": []string{
+					cityTitle,
+					city,
+					strings.ToUpper(city),
+					"Pan India",
+					"Pan-India",
+					"All major Indian cities",
+					"North Indian Cities",
+					"South Indian Cities",
+					"East Indian Cities",
+					"West Indian Cities",
 				},
-				"minimum_should_match": 1,
 			},
 		})
 	}
