@@ -124,7 +124,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 			"top_p":          0.8,  // ✅ CHANGE - 0.9 se 0.8
 			"num_thread":     0,    // ✅ NAYA - Auto-detect threads
 			"num_batch":      512,  // ✅ NAYA - Batch size
-			"low_vram":       true, // ✅ NAYA - Memory optimization
+			//"low_vram":       true, // ✅ NAYA - Memory optimization
 		},
 	}
 
@@ -208,7 +208,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	// ✅ Start LLM extraction in background (non-blocking)
 	go func() {
-		llmCtx, cancel := context.WithTimeout(ctx, 25*time.Second) //20
+		llmCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
 		defer cancel()
 
 		params := h.extractParametersWithFallback(llmCtx, input)
@@ -238,7 +238,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			"has_subcategory": params.Subcategory != "",
 			"has_location":    params.Location != nil,
 		})
-	case <-time.After(16 * time.Second):
+	case <-time.After(30 * time.Second):
 		h.logger.Warn("LLM extraction timeout, using empty params", nil)
 		params = &ExtractedParameters{}
 	}
