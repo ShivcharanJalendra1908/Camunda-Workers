@@ -257,17 +257,17 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		params = &ExtractedParameters{}
 	}
 
-	// ✅ Wait for basic ES query (should be fast, max 5s)
-	select {
-	case err := <-errChan:
-		if err != nil {
-			h.handleError(client, job, err, "BASIC_SEARCH_ERROR")
-			return
-		}
-	case <-time.After(5 * time.Second):
-		h.handleError(client, job, fmt.Errorf("basic search timeout"), "SEARCH_TIMEOUT")
-		return
-	}
+	// // ✅ Wait for basic ES query (should be fast, max 5s)
+	// select {
+	// case err := <-errChan:
+	// 	if err != nil {
+	// 		h.handleError(client, job, err, "BASIC_SEARCH_ERROR")
+	// 		return
+	// 	}
+	// case <-time.After(5 * time.Second):
+	// 	h.handleError(client, job, fmt.Errorf("basic search timeout"), "SEARCH_TIMEOUT")
+	// 	return
+	// }
 
 	// ✅ If LLM gave us useful params, refine the search
 	var finalResults *SearchResults
@@ -323,38 +323,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 // QUERY BUILDERS
 // ============================================================
 
-// // ✅ NEW: Build basic query without waiting for LLM
-// func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
-// 	// Handle wildcard or empty query
-// 	if query == "*" || strings.TrimSpace(query) == "" {
-// 		return map[string]interface{}{
-// 			"size": h.config.DefaultPageSize,
-// 			"query": map[string]interface{}{
-// 				"match_all": map[string]interface{}{},
-// 			},
-// 			"sort": []interface{}{
-// 				map[string]interface{}{"rating": "desc"},
-// 				map[string]interface{}{"total_outlets": "desc"},
-// 			},
-// 		}
-// 	}
-
-//		// Simple multi-field search
-//		return map[string]interface{}{
-//			"size": h.config.DefaultPageSize,
-//			"query": map[string]interface{}{
-//				"multi_match": map[string]interface{}{
-//					"query":  query,
-//					"fields": []string{"name^3", "industry.name^2", "tags", "location"},
-//					"type":   "best_fields",
-//				},
-//			},
-//			"sort": []interface{}{
-//				map[string]interface{}{"_score": "desc"},
-//				map[string]interface{}{"rating": "desc"},
-//			},
-//		}
-//	}
+// ✅ NEW: Build basic query without waiting for LLM
 func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 	if query == "*" || strings.TrimSpace(query) == "" {
 		return map[string]interface{}{
