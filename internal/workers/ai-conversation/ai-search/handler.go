@@ -257,18 +257,6 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		params = &ExtractedParameters{}
 	}
 
-	// // ✅ Wait for basic ES query (should be fast, max 5s)
-	// select {
-	// case err := <-errChan:
-	// 	if err != nil {
-	// 		h.handleError(client, job, err, "BASIC_SEARCH_ERROR")
-	// 		return
-	// 	}
-	// case <-time.After(5 * time.Second):
-	// 	h.handleError(client, job, fmt.Errorf("basic search timeout"), "SEARCH_TIMEOUT")
-	// 	return
-	// }
-
 	// ✅ If LLM gave us useful params, refine the search
 	var finalResults *SearchResults
 	if params.Industry != "" || params.Category != "" || params.Subcategory != "" || params.Location != nil {
@@ -343,14 +331,44 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		cleanQuery = query
 	}
 
+	// return map[string]interface{}{
+	// 	"size": h.config.DefaultPageSize,
+	// 	"query": map[string]interface{}{
+	// 		"multi_match": map[string]interface{}{
+	// 			"query":     cleanQuery,
+	// 			"fields":    []string{"name^3", "industry.name^2", "tags"},
+	// 			"type":      "best_fields",
+	// 			"fuzziness": "AUTO",
+	// 		},
+	// 	},
+	// 	"sort": []interface{}{
+	// 		map[string]interface{}{"_score": "desc"},
+	// 		map[string]interface{}{"rating": "desc"},
+	// 	},
+	// }
+	// buildBasicQuery mein ye change karo:
 	return map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"query": map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":     cleanQuery,
-				"fields":    []string{"name^3", "industry.name^2", "tags"},
-				"type":      "best_fields",
-				"fuzziness": "AUTO",
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					// Text fields pe fuzzy search
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":     cleanQuery,
+							"fields":    []string{"name^3", "tags^2", "description"},
+							"type":      "best_fields",
+							"fuzziness": "AUTO",
+						},
+					},
+					// Industry name exact match
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.name": cleanQuery,
+						},
+					},
+				},
+				"minimum_should_match": 1,
 			},
 		},
 		"sort": []interface{}{
@@ -362,10 +380,6 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 
 // ✅ FIXED: Flat query with ALL parameters using post_filter (max depth 3)
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
-	// ✅ STRATEGY:
-	// 1. Main query: simple_query_string for industry/category/subcategory/location (depth 2)
-	// 2. Post-filter: All range/term filters (depth 2 each, but separate from query)
-	// This keeps total depth at 3 maximum!
 
 	// Build main query string for text search
 	var queryParts []string
@@ -402,21 +416,41 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	// Main text query
+	// if len(queryParts) > 0 {
+	// 	queryString := strings.ReplaceAll(strings.Join(queryParts, " "), "&", "and")
+	// 	esQuery["query"] = map[string]interface{}{
+	// 		"simple_query_string": map[string]interface{}{
+	// 			"query":            queryString,
+	// 			"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags"},
+	// 			"default_operator": "OR", // AND → OR
+	// 		},
+	// 	}
+	// }
 	if len(queryParts) > 0 {
-		// queryString := strings.Join(queryParts, " ")
-		// esQuery["query"] = map[string]interface{}{
-		// 	"simple_query_string": map[string]interface{}{
-		// 		"query":            queryString,
-		// 		"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags", "location"},
-		// 		"default_operator": "AND",
-		// 	},
-		// }
-		queryString := strings.ReplaceAll(strings.Join(queryParts, " "), "&", "and")
 		esQuery["query"] = map[string]interface{}{
-			"simple_query_string": map[string]interface{}{
-				"query":            queryString,
-				"fields":           []string{"industry.name^3", "industry.slug^2", "name^2", "tags"},
-				"default_operator": "OR", // AND → OR
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					// Industry exact match (keyword field)
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.name": params.Industry,
+						},
+					},
+					// Industry slug match
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.slug": strings.ToLower(strings.ReplaceAll(params.Industry, " ", "-")),
+						},
+					},
+					// Name/tags text search
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":  strings.Join(queryParts, " "),
+							"fields": []string{"name^2", "tags"},
+						},
+					},
+				},
+				"minimum_should_match": 1,
 			},
 		}
 	} else {
@@ -453,20 +487,38 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// Investment range
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
+			maxLakhs := params.Investment.Max / 100000 // rupees → lakhs
 			postFilters = append(postFilters, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": params.Investment.Max},
+					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
 				},
 			})
 		}
 		if params.Investment.Min > 0 {
+			minLakhs := params.Investment.Min / 100000
 			postFilters = append(postFilters, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{"gte": params.Investment.Min},
+					"investment.max_investment": map[string]interface{}{"gte": minLakhs},
 				},
 			})
 		}
 	}
+	// if params.Investment != nil {
+	// 	if params.Investment.Max > 0 {
+	// 		postFilters = append(postFilters, map[string]interface{}{
+	// 			"range": map[string]interface{}{
+	// 				"investment.min_investment": map[string]interface{}{"lte": params.Investment.Max},
+	// 			},
+	// 		})
+	// 	}
+	// 	if params.Investment.Min > 0 {
+	// 		postFilters = append(postFilters, map[string]interface{}{
+	// 			"range": map[string]interface{}{
+	// 				"investment.max_investment": map[string]interface{}{"gte": params.Investment.Min},
+	// 			},
+	// 		})
+	// 	}
+	// }
 
 	// Rating filter
 	if params.Rating != nil && *params.Rating > 0 {
