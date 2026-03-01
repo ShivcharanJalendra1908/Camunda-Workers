@@ -289,14 +289,14 @@ workers:
   ai-search:
     enabled: true
     max_jobs_active: 50          # ✅ OPTIONAL: 50 se 25 bhi kar sakte ho (CPU save)
-    timeout: 30000               # ✅ CHANGE: 25000 se 30000 (30 seconds)
+    timeout: 40000               # ✅ CHANGE: 25000 se 30000 (30 seconds)
     poll_interval: 25
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
       model: "qwen2.5:3b"
       endpoint: "http://ollama:11434"  
-      timeout: 25000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
+      timeout: 35000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
       max_tokens: 80             # ✅ CHANGE: 100 se 80
       temperature: 0.0
 

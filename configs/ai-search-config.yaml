@@ -3,13 +3,13 @@ ai_search_worker:
   task_type: "ai-search"
   max_jobs: 100
   poll_interval: "25ms"
-  request_timeout: "30s"      # ✅ CHANGE: 5s se 30s (zyada time do)
+  request_timeout: "40s"      # ✅ CHANGE: 5s se 30s (zyada time do)
 
 llm:
   provider: "ollama"
   model: "qwen2.5:3b"
   endpoint: "http://ollama:11434"
-  timeout: "25s"              # ✅ CHANGE: 20s se 25s
+  timeout: "35s"              # ✅ CHANGE: 20s se 25s
   max_tokens: 80              # ✅ CHANGE: 100 se 80 (fast)
   temperature: 0.0          
 
