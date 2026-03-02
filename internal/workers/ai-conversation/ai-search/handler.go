@@ -590,14 +590,16 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Apply post_filter if we have any filters
 	if len(postFilters) > 0 {
-		if len(postFilters) == 1 {
-			// Single filter - no bool needed
-			esQuery["post_filter"] = postFilters[0]
+		// Current query ko get karo
+		currentQuery := esQuery["query"].(map[string]interface{})
+		boolQuery, hasBool := currentQuery["bool"].(map[string]interface{})
+		if hasBool {
+			boolQuery["filter"] = postFilters
 		} else {
-			// Multiple filters - wrap in bool.must (still depth 3 max!)
-			esQuery["post_filter"] = map[string]interface{}{
+			esQuery["query"] = map[string]interface{}{
 				"bool": map[string]interface{}{
-					"must": postFilters,
+					"must":   currentQuery,
+					"filter": postFilters,
 				},
 			}
 		}
