@@ -107,19 +107,19 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 	})
 
 	reqBody := OllamaRequest{
-		Model:  s.model,
-		Prompt: prompt,
-		Stream: false,
-		Format: "json",
+		Model:     s.model,
+		Prompt:    prompt,
+		Stream:    false,
+		Format:    "json",
+		KeepAlive: "30m", // Model ko memory mein rakho — cold start avoid
 		Options: map[string]interface{}{
-			"temperature":    0.0,
-			"num_predict":    150,
-			"num_ctx":        2048,
-			"repeat_penalty": 1.0,
-			"top_k":          5,
-			"top_p":          0.8,
-			"num_thread":     0,
-			"num_batch":      512,
+			"temperature": 0.0,
+			"num_predict": 300,
+			"num_ctx":     2048,
+			"num_thread":  0,
+			"num_batch":   512,
+			// server.py se exactly copy kiye stop tokens
+			"stop": []string{"<|im_end|>", "<|im_start|>"},
 		},
 	}
 
@@ -240,9 +240,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	select {
 	case params = <-paramsChan:
 		h.logger.Info("LLM parameters extracted", map[string]interface{}{
-			"industry":    params.Industry,
-			"category":    params.Category,
-			"has_location": params.Location != nil,
+			"industry":       params.Industry,
+			"category":       params.Category,
+			"has_location":   params.Location != nil,
 			"has_investment": params.Investment != nil,
 		})
 	case <-time.After(30 * time.Second):
@@ -290,10 +290,10 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	metrics.WorkerJobDuration.WithLabelValues("ai-search-franchise").Observe(duration.Seconds())
 
 	h.logger.Info("AI search completed", map[string]interface{}{
-		"job_key":      job.Key,
+		"job_key":       job.Key,
 		"total_results": finalResults.Total,
-		"took_ms":      duration.Milliseconds(),
-		"llm_used":     params.Industry != "" || params.Category != "" || params.Location != nil,
+		"took_ms":       duration.Milliseconds(),
+		"llm_used":      params.Industry != "" || params.Category != "" || params.Location != nil,
 	})
 }
 
@@ -630,9 +630,9 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 	params := h.paramExtractor.ParseWithFallback(response)
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{
-		"industry":       params.Industry,
-		"category":       params.Category,
-		"location_city":  func() string {
+		"industry": params.Industry,
+		"category": params.Category,
+		"location_city": func() string {
 			if params.Location != nil {
 				return params.Location.City
 			}
@@ -713,8 +713,8 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"category":      "",
 		"subcategory":   "",
 		"location":      "",
-		"minInvestment": 0,  // rupees mein (frontend ke liye)
-		"maxInvestment": 0,  // rupees mein (frontend ke liye)
+		"minInvestment": 0, // rupees mein (frontend ke liye)
+		"maxInvestment": 0, // rupees mein (frontend ke liye)
 		"minSpace":      0,
 		"maxSpace":      0,
 		"roi":           0.0,

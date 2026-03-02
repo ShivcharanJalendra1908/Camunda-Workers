@@ -294,10 +294,10 @@ workers:
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen2.5:0.5b"
+      model: "qwen-franchise-extractor"
       endpoint: "http://ollama:11434"  
       timeout: 35000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
-      max_tokens: 120
+      max_tokens: 300
       temperature: 0.0
 
   franchise_postgres:

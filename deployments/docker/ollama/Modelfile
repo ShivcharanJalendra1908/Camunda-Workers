@@ -1,0 +1,17 @@
+FROM /models/qwen-extractor.gguf
+
+# ChatML template — exactly as fine-tuned model was trained on
+TEMPLATE """<|im_start|>system
+{{ .System }}<|im_end|>
+<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+# Exact system prompt used during training
+SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
+
+PARAMETER temperature 0.0
+PARAMETER num_predict 300
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "<|im_start|>"

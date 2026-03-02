@@ -7,10 +7,10 @@ ai_search_worker:
 
 llm:
   provider: "ollama"
-  model: "qwen2.5:0.5b"
+  model: "qwen-franchise-extractor"
   endpoint: "http://ollama:11434"
   timeout: "35s"              
-  max_tokens: 120              
+  max_tokens: 300              
   temperature: 0.0          
 
 elasticsearch:

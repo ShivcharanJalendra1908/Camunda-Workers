@@ -14,40 +14,24 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 	return &ParameterExtractor{config: config}
 }
 
-// BuildPrompt - Fine-tuned model ke exact schema ke saath aligned
-// Notebook ka system_prompt: "Extract parameters from the query into strict JSON based on the franchise schema."
-// Notebook ka output schema: Industry, Category, Subcategory, Minimum_Investment, Maximum_Investment, Location, Area_Requirement, ROI
+// BuildPrompt - Modelfile mein TEMPLATE + SYSTEM already set hai
+// Ollama automatically ChatML wrap karta hai jab /api/generate call hoti hai
+// Isliye sirf plain query bhejna hai — server.py bhi yahi karta tha internally
 func (pe *ParameterExtractor) BuildPrompt(query string) string {
-	return fmt.Sprintf(`Extract parameters from the query into strict JSON based on the franchise schema.
-
-Query: "%s"
-
-Rules:
-- Industry: One of these ONLY: "Food & Beverage", "Sports & Fitness", "Beauty", "Automotive", "Education", "Fashion", "Health", "Hotel, Travel & Tourism", "Retail", "Technology / IT", "Real Estate", "Finance / Banking", "Entertainment". null if not mentioned.
-- Category: Specific type like "Gym", "Ice Cream Parlour", "Car Wash", "Cafe". null if not mentioned.
-- Subcategory: Very specific sub-type. null if not mentioned.
-- Location: City name as string only (e.g. "Mumbai", "Delhi"). null if not mentioned.
-- Minimum_Investment: Minimum budget in rupees as a number. "10 lakh"=1000000, "1 crore"=10000000. null if not mentioned.
-- Maximum_Investment: Maximum budget in rupees as a number. null if not mentioned.
-- Area_Requirement: Space needed in sq ft as a number. null if not mentioned.
-- ROI: Expected ROI percentage as a number (e.g. 20). null if not mentioned.
-- error: null for valid franchise queries. "out of domain error" if query is NOT about franchises (weather, cricket, cooking, etc.).
-
-Respond with ONLY this JSON, nothing else:
-{"error":null,"Industry":null,"Category":null,"Subcategory":null,"Location":null,"Minimum_Investment":null,"Maximum_Investment":null,"Area_Requirement":null,"ROI":null}`, query)
+	return query
 }
 
 // ftModelOutput - Fine-tuned model ka exact output schema (notebook se)
 type ftModelOutput struct {
-	Error             interface{} `json:"error"`
-	Industry          interface{} `json:"Industry"`
-	Category          interface{} `json:"Category"`
-	Subcategory       interface{} `json:"Subcategory"`
-	Location          interface{} `json:"Location"`
-	MinimumInvestment interface{} `json:"Minimum_Investment"`
-	MaximumInvestment interface{} `json:"Maximum_Investment"`
-	AreaRequirement   interface{} `json:"Area_Requirement"`
-	ROI               interface{} `json:"ROI"`
+	Error              interface{} `json:"error"`
+	Industry           interface{} `json:"Industry"`
+	Category           interface{} `json:"Category"`
+	Subcategory        interface{} `json:"Subcategory"`
+	Location           interface{} `json:"Location"`
+	MinimumInvestment  interface{} `json:"Minimum_Investment"`
+	MaximumInvestment  interface{} `json:"Maximum_Investment"`
+	AreaRequirement    interface{} `json:"Area_Requirement"`
+	ROI                interface{} `json:"ROI"`
 }
 
 // Parse - Fine-tuned model ke flat schema ko Go ke ExtractedParameters mein convert karta hai
