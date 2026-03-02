@@ -413,30 +413,52 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// 	}
 	// }
 	if len(queryParts) > 0 {
-		esQuery["query"] = map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					// Industry exact match (keyword field)
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.name": params.Industry,
-						},
-					},
-					// Industry slug match
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.slug": strings.ToLower(strings.ReplaceAll(params.Industry, " ", "-")),
-						},
-					},
-					// Name/tags text search
-					map[string]interface{}{
-						"multi_match": map[string]interface{}{
-							"query":  strings.Join(queryParts, " "),
-							"fields": []string{"name^2", "tags"},
-						},
+		// Industry match clauses
+		shouldClauses := []interface{}{
+			map[string]interface{}{
+				"term": map[string]interface{}{"industry.name": params.Industry},
+			},
+			map[string]interface{}{
+				"term": map[string]interface{}{
+					"industry.slug": strings.ToLower(strings.ReplaceAll(params.Industry, " ", "-")),
+				},
+			},
+			map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query":  strings.Join(queryParts, " "),
+					"fields": []string{"name^2", "tags"},
+				},
+			},
+		}
+
+		mustClauses := []interface{}{
+			map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldClauses,
+					"minimum_should_match": 1,
+				},
+			},
+		}
+
+		// Location must mein daalo (post_filter nahi!)
+		if params.Location != nil && params.Location.City != "" {
+			city := strings.ToLower(params.Location.City)
+			cityTitle := strings.ToUpper(city[:1]) + city[1:]
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"terms": map[string]interface{}{
+					"location": []string{
+						cityTitle, city, strings.ToUpper(city),
+						"Pan India", "Pan-India", "All major Indian cities",
+						"North Indian Cities", "South Indian Cities",
+						"East Indian Cities", "West Indian Cities",
 					},
 				},
-				"minimum_should_match": 1,
+			})
+		}
+
+		esQuery["query"] = map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": mustClauses,
 			},
 		}
 	} else {
@@ -447,28 +469,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// ✅ POST_FILTER: All filters applied AFTER query (keeps depth flat!)
 	postFilters := []interface{}{}
-
-	if params.Location != nil && params.Location.City != "" {
-		city := strings.ToLower(params.Location.City)
-		cityTitle := strings.ToUpper(city[:1]) + city[1:] // strings.Title ka replacement
-
-		postFilters = append(postFilters, map[string]interface{}{
-			"terms": map[string]interface{}{
-				"location": []string{
-					cityTitle,
-					city,
-					strings.ToUpper(city),
-					"Pan India",
-					"Pan-India",
-					"All major Indian cities",
-					"North Indian Cities",
-					"South Indian Cities",
-					"East Indian Cities",
-					"West Indian Cities",
-				},
-			},
-		})
-	}
 
 	// Investment range
 	if params.Investment != nil {
