@@ -350,25 +350,11 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 	return map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					// Text fields pe fuzzy search
-					map[string]interface{}{
-						"multi_match": map[string]interface{}{
-							"query":     cleanQuery,
-							"fields":    []string{"name^3", "tags^2", "description"},
-							"type":      "best_fields",
-							"fuzziness": "AUTO",
-						},
-					},
-					// Industry name exact match
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.name": cleanQuery,
-						},
-					},
-				},
-				"minimum_should_match": 1,
+			"multi_match": map[string]interface{}{
+				"query":     cleanQuery,
+				"fields":    []string{"name^3", "tags^2", "description"},
+				"type":      "best_fields",
+				"fuzziness": "AUTO",
 			},
 		},
 		"sort": []interface{}{
