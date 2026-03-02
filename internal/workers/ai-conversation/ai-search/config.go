@@ -41,41 +41,16 @@ func NewDefaultConfig() *Config {
 		TaskType:        "ai-search",
 		MaxJobs:         50,
 		PollInterval:    25 * time.Millisecond,
-		RequestTimeout:  30 * time.Second, // ✅ CHANGE: Was 30s - KEEP IT
+		RequestTimeout:  30 * time.Second,
 		LLMProvider:     "ollama",
-		LLMModel:        "qwen2.5:3b",
-		LLMEndpoint:     "http://ollama:11434",
-		LLMTimeout:      25 * time.Second, // ✅ CHANGE: 20s se 25s
-		LLMMaxTokens:    80,               // ✅ CHANGE: 100 se 80
+		LLMModel:        "qwen2.5:0.5b",
+		LLMEndpoint:     ollamaURL,
+		LLMTimeout:      25 * time.Second,
+		LLMMaxTokens:    120,
 		LLMTemperature:  0.0,
 		IndexName:       "franchise_listings",
-		SearchTimeout:   3 * time.Second, // ✅ CHANGE: Was 3s - KEEP IT
+		SearchTimeout:   3 * time.Second,
 		DefaultPageSize: 20,
 		MaxQueryLength:  500,
 	}
 }
-
-// func NewDefaultConfig() *Config {
-// 	ollamaURL := os.Getenv("OLLAMA_URL")
-// 	if ollamaURL == "" {
-// 		ollamaURL = "http://ollama:11434" // Default for Docker
-// 	}
-
-// 	return &Config{
-// 		WorkerID:        "ai-search-worker",
-// 		TaskType:        "ai-search",
-// 		MaxJobs:         50,
-// 		PollInterval:    25 * time.Millisecond,
-// 		RequestTimeout:  30 * time.Second,
-// 		LLMProvider:     "ollama",
-// 		LLMModel:        "qwen2.5:0.5b",
-// 		LLMEndpoint:     "http://ollama:11434",
-// 		LLMTimeout:      20 * time.Second,
-// 		LLMMaxTokens:    100,
-// 		LLMTemperature:  0.0,
-// 		IndexName:       "franchise_listings",
-// 		SearchTimeout:   3 * time.Second,
-// 		DefaultPageSize: 20,
-// 		MaxQueryLength:  500,
-// 	}
-// }

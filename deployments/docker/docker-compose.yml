@@ -269,8 +269,8 @@ services:
       - camunda-network
     restart: "no"
     command: >
-      sh -c "curl -s -X POST http://ollama:11434/api/generate 
-      -d '{\"model\":\"qwen2.5:3b\",\"prompt\":\"hi\",\"stream\":false}' 
+      sh -c "curl -s -X POST http://ollama:11434/api/generate
+      -d '{\"model\":\"qwen2.5:0.5b\",\"prompt\":\"hi\",\"stream\":false}'
       && echo 'Model warmed up'"
       
 # ============================================================================

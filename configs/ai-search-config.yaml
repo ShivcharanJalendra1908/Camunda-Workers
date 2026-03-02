@@ -7,10 +7,10 @@ ai_search_worker:
 
 llm:
   provider: "ollama"
-  model: "qwen2.5:3b"
+  model: "qwen2.5:0.5b"
   endpoint: "http://ollama:11434"
-  timeout: "35s"              # ✅ CHANGE: 20s se 25s
-  max_tokens: 80              # ✅ CHANGE: 100 se 80 (fast)
+  timeout: "35s"              
+  max_tokens: 120              
   temperature: 0.0          
 
 elasticsearch:
