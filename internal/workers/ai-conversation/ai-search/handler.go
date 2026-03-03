@@ -259,10 +259,13 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			finalResults = basicResults
 		} else {
 			refinedResults, err := h.executeSearch(ctx, refinedQuery)
-			if err != nil || refinedResults.Total == 0 {
-				// ✅ FIX: Refined search 0 results deta hai toh basic results use karo
+			if err != nil || refinedResults == nil || refinedResults.Total == 0 {
+				refinedTotal := int64(0)
+				if refinedResults != nil {
+					refinedTotal = refinedResults.Total
+				}
 				h.logger.Warn("Refined search empty/failed, falling back to basic", map[string]interface{}{
-					"refined_total": refinedResults.Total,
+					"refined_total": refinedTotal,
 					"error":         fmt.Sprintf("%v", err),
 				})
 				finalResults = basicResults
