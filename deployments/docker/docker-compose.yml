@@ -255,36 +255,26 @@ services:
     networks:
       - camunda-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  ollama-setup:                              # ← PURANA warmup hatao, YEH NAYA DAALO
-    image: curlimages/curl:latest
+    
+  ollama-setup:
+    image: ollama/ollama:latest
     container_name: ollama-setup
     depends_on:
-      ollama:
-        condition: service_healthy
+      - ollama
     networks:
       - camunda-network
     restart: "no"
-    command: >
-      sh -c "
-        echo 'Registering qwen-franchise-extractor...' &&
-        curl -f -s -X POST http://ollama:11434/api/create
-          -H 'Content-Type: application/json'
-          -d @- << 'PAYLOAD'
-        {\"name\":\"qwen-franchise-extractor\",\"path\":\"/models/Modelfile\"}
-        PAYLOAD
-        echo 'Warming up model...' &&
-        curl -s -X POST http://ollama:11434/api/generate
-          -H 'Content-Type: application/json'
-          -d '{\"model\":\"qwen-franchise-extractor\",\"prompt\":\"cafe in Mumbai\",\"stream\":false}' > /dev/null &&
-        echo 'Done! Model ready.'
-      "
-      
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 20 &&
+        echo 'Registering model...' &&
+        OLLAMA_HOST=http://ollama:11434 ollama create qwen-franchise-extractor -f /models/Modelfile &&
+        echo 'Done!'
+    volumes:
+      - ./ollama/Modelfile:/models/Modelfile
+      - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
+
 # ============================================================================
 # APPLICATION
 # ============================================================================
