@@ -413,31 +413,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// // ✅ FIX: Location — City match with Pan India fallback
-	// if params.Location != nil && params.Location.City != "" {
-	// 	city := params.Location.City
-	// 	cityLower := strings.ToLower(city)
-	// 	cityTitle := strings.ToUpper(cityLower[:1]) + cityLower[1:]
-
-	// 	mustClauses = append(mustClauses, map[string]interface{}{
-	// 		"terms": map[string]interface{}{
-	// 			"location": []string{
-	// 				cityTitle,
-	// 				city,
-	// 				strings.ToUpper(city),
-	// 				cityLower,
-	// 				"Pan India",
-	// 				"Pan-India",
-	// 				"All major Indian cities",
-	// 				"North Indian Cities",
-	// 				"South Indian Cities",
-	// 				"East Indian Cities",
-	// 				"West Indian Cities",
-	// 			},
-	// 		},
-	// 	})
-	// }
-
 	// Set main query
 	if len(mustClauses) > 0 {
 		esQuery["query"] = map[string]interface{}{
