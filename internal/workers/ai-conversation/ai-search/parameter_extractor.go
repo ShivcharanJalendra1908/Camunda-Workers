@@ -3,6 +3,7 @@ package ai_search
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -23,15 +24,15 @@ func (pe *ParameterExtractor) BuildPrompt(query string) string {
 
 // ftModelOutput - Fine-tuned model ka exact output schema (notebook se)
 type ftModelOutput struct {
-	Error              interface{} `json:"error"`
-	Industry           interface{} `json:"Industry"`
-	Category           interface{} `json:"Category"`
-	Subcategory        interface{} `json:"Subcategory"`
-	Location           interface{} `json:"Location"`
-	MinimumInvestment  interface{} `json:"Minimum_Investment"`
-	MaximumInvestment  interface{} `json:"Maximum_Investment"`
-	AreaRequirement    interface{} `json:"Area_Requirement"`
-	ROI                interface{} `json:"ROI"`
+	Error             interface{} `json:"error"`
+	Industry          interface{} `json:"Industry"`
+	Category          interface{} `json:"Category"`
+	Subcategory       interface{} `json:"Subcategory"`
+	Location          interface{} `json:"Location"`
+	MinimumInvestment interface{} `json:"Minimum_Investment"`
+	MaximumInvestment interface{} `json:"Maximum_Investment"`
+	AreaRequirement   interface{} `json:"Area_Requirement"`
+	ROI               interface{} `json:"ROI"`
 }
 
 // Parse - Fine-tuned model ke flat schema ko Go ke ExtractedParameters mein convert karta hai
@@ -143,6 +144,24 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 }
 
 // toFloat64 - interface{} ko safely float64 mein convert karta hai
+//
+//	func toFloat64(v interface{}) float64 {
+//		if v == nil {
+//			return 0
+//		}
+//		switch val := v.(type) {
+//		case float64:
+//			return val
+//		case int:
+//			return float64(val)
+//		case int64:
+//			return float64(val)
+//		case string:
+//			// "null" ya empty string handle
+//			return 0
+//		}
+//		return 0
+//	}
 func toFloat64(v interface{}) float64 {
 	if v == nil {
 		return 0
@@ -155,7 +174,22 @@ func toFloat64(v interface{}) float64 {
 	case int64:
 		return float64(val)
 	case string:
-		// "null" ya empty string handle
+		val = strings.TrimSpace(strings.ToUpper(val))
+		if val == "" || val == "NULL" {
+			return 0
+		}
+		// "20L" → 2000000, "1.5CR" → 15000000
+		multiplier := 1.0
+		if strings.HasSuffix(val, "CR") {
+			multiplier = 10000000
+			val = strings.TrimSuffix(val, "CR")
+		} else if strings.HasSuffix(val, "L") {
+			multiplier = 100000
+			val = strings.TrimSuffix(val, "L")
+		}
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f * multiplier
+		}
 		return 0
 	}
 	return 0
