@@ -356,37 +356,13 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	mustClauses := []interface{}{}
 
-	// ✅ FIX: Industry matching — & aur / wale characters ko slug mein sahi handle karo
+	// Industry match
 	if params.Industry != "" {
-		industrySlug := strings.ToLower(params.Industry)
-		industrySlug = strings.ReplaceAll(industrySlug, " & ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, " / ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, "&", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, "/", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, " ", "-")
-
-		industryClauses := []interface{}{
-			// Exact name match (case insensitive ke liye match query)
-			map[string]interface{}{
-				"match": map[string]interface{}{
-					"industry.name": map[string]interface{}{
-						"query": params.Industry,
-						"boost": 3,
-					},
-				},
-			},
-			// Slug match
-			map[string]interface{}{
-				"term": map[string]interface{}{
-					"industry.slug": industrySlug,
-				},
-			},
-		}
-
 		mustClauses = append(mustClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should":               industryClauses,
-				"minimum_should_match": 1,
+			"multi_match": map[string]interface{}{
+				"query":  params.Industry,
+				"fields": []string{"industry.name^3", "industry.slug^2"},
+				"type":   "best_fields",
 			},
 		})
 	}
@@ -426,7 +402,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// ✅ FILTER SECTION (post-query filters)
+	// FILTER SECTION
 	filterClauses := []interface{}{}
 
 	if params.Location != nil && params.Location.City != "" {
@@ -447,9 +423,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// Investment filter
-	// ✅ FIX: Fine-tuned model rupees mein deta hai, ES index lakhs mein store karta hai
-	// Conversion: rupees / 100000 = lakhs
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
 			maxLakhs := params.Investment.Max / 100000
@@ -469,7 +442,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Space/Area filter
 	if params.Space != nil {
 		if params.Space.Max > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
@@ -487,7 +459,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// ROI filter
 	if params.ROI != nil {
 		roiRange := map[string]interface{}{}
 		if params.ROI.Min > 0 {
@@ -503,7 +474,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Rating filter (fine-tuned model mein nahi hai but agar future mein add ho)
 	if params.Rating != nil && *params.Rating > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -512,7 +482,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// Staff filter
 	if params.Staff != nil {
 		staffRange := map[string]interface{}{}
 		if params.Staff.Min > 0 {
@@ -528,7 +497,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Outlets filter
 	if params.Outlets != nil && *params.Outlets > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
@@ -537,14 +505,12 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// Verified filter
 	if params.Verified != nil && *params.Verified {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"term": map[string]interface{}{"verified": true},
 		})
 	}
 
-	// Trusted seller filter
 	if params.TrustedSeller != nil && *params.TrustedSeller {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"term": map[string]interface{}{"trusted_seller": true},
