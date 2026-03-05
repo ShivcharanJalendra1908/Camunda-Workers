@@ -524,7 +524,7 @@ func validateElasticsearchQuery(query map[string]interface{}) error {
 	}
 
 	// Check query depth (prevent deeply nested queries)
-	if err := checkQueryDepth(query, 0, 8); err != nil {
+	if err := checkQueryDepth(query, 0, 15); err != nil {
 		return err
 	}
 

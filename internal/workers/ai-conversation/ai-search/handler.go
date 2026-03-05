@@ -357,6 +357,16 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	mustClauses := []interface{}{}
 
 	// Industry match
+	// if params.Industry != "" {
+	// 	mustClauses = append(mustClauses, map[string]interface{}{
+	// 		"multi_match": map[string]interface{}{
+	// 			"query":  params.Industry,
+	// 			"fields": []string{"industry.name^3", "industry.slug^2"},
+	// 			"type":   "best_fields",
+	// 		},
+	// 	})
+	// }
+
 	if params.Industry != "" {
 		industrySlug := strings.ToLower(params.Industry)
 		industrySlug = strings.ReplaceAll(industrySlug, " & ", " ")
