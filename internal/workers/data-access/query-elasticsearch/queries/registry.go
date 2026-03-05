@@ -201,22 +201,6 @@ func getStringField(data map[string]interface{}, key string, defaultVal string) 
 	return defaultVal
 }
 
-// // HeroBrands - Get top 9 hero brands by rating
-// func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
-// 	query := map[string]interface{}{
-// 		"query": map[string]interface{}{
-// 			"match_all": map[string]interface{}{},
-// 		},
-// 		"size": 9,
-// 		"sort": []map[string]interface{}{
-// 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
-// 		},
-// 		"_source": []string{"franchise_id", "name", "slug"},
-// 	}
-
-// 	return executeQuery(ctx, esClient, "franchise_listings", query)
-// }
-
 // PopularListings - Get 12 popular franchise listings
 func PopularListings(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	query := map[string]interface{}{
@@ -376,11 +360,6 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 
 	if industrySlug != "" {
 		// Same industry, exclude current
-		// boolQuery := map[string]interface{}{
-		// 	"must": []map[string]interface{}{
-		// 		{"term": map[string]interface{}{"industry.slug": industrySlug}},
-		// 	},
-		// }
 		boolQuery := map[string]interface{}{
 			"must": []map[string]interface{}{
 				{"match": map[string]interface{}{
@@ -791,15 +770,6 @@ func GetByID(ctx context.Context, esClient *elasticsearch.Client, params map[str
 		"size": 1,
 	}
 
-	// query := map[string]interface{}{
-	// "query": map[string]interface{}{
-	// 	"term": map[string]interface{}{
-	// 		"franchise_id.keyword": franchiseID,
-	// 	},
-	// },
-	// "size": 1,
-	// }
-
 	return executeQuery(ctx, esClient, "franchise_listings", query)
 }
 
@@ -821,18 +791,6 @@ func CountByFilter(ctx context.Context, esClient *elasticsearch.Client, params m
 func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	mustClauses := []map[string]interface{}{}
 	filterClauses := []map[string]interface{}{}
-
-	// Text search
-	// if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
-	// 	mustClauses = append(mustClauses, map[string]interface{}{
-	// 		"multi_match": map[string]interface{}{
-	// 			"query":     searchQuery,
-	// 			"fields":    []string{"name^3", "description^2", "tags", "industry.name"}, //, "location"
-	// 			"type":      "best_fields",
-	// 			"fuzziness": "AUTO",
-	// 		},
-	// 	})
-	// }
 
 	// Text search
 	if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
@@ -939,23 +897,45 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 
 	// Tags filter
 	if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
-		tagTerms := []map[string]interface{}{}
+		tagShoulds := []interface{}{}
 		for _, tag := range tags {
 			if tagStr, ok := tag.(string); ok {
-				tagTerms = append(tagTerms, map[string]interface{}{
-					"term": map[string]interface{}{"tags.keyword": tagStr},
+				tagShoulds = append(tagShoulds, map[string]interface{}{
+					"match": map[string]interface{}{"industry.name": tagStr},
+				})
+				tagShoulds = append(tagShoulds, map[string]interface{}{
+					"term": map[string]interface{}{"tags": strings.ToLower(tagStr)},
 				})
 			}
 		}
-		if len(tagTerms) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
+		if len(tagShoulds) > 0 {
+			mustClauses = append(mustClauses, map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should":               tagTerms,
-					"minimum_should_match": 1,
+					"should": tagShoulds,
+					// minimum_should_match NAHI — optional boost
 				},
 			})
 		}
 	}
+
+	// if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
+	// 	tagTerms := []map[string]interface{}{}
+	// 	for _, tag := range tags {
+	// 		if tagStr, ok := tag.(string); ok {
+	// 			tagTerms = append(tagTerms, map[string]interface{}{
+	// 				"term": map[string]interface{}{"tags.keyword": tagStr},
+	// 			})
+	// 		}
+	// 	}
+	// 	if len(tagTerms) > 0 {
+	// 		filterClauses = append(filterClauses, map[string]interface{}{
+	// 			"bool": map[string]interface{}{
+	// 				"should":               tagTerms,
+	// 				"minimum_should_match": 1,
+	// 			},
+	// 		})
+	// 	}
+	// }
 
 	// Min rating filter
 	if minRating, ok := filters["minRating"].(float64); ok && minRating > 0 {
