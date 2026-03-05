@@ -411,44 +411,13 @@ func (h *Handler) validateQueryTypeRequirements(input *Input) error {
 		}
 
 	case models.ESQueryTypeSearchWithFilters, models.ESQueryTypeSearchWithAggregations:
-		if len(input.Filters) == 0 && input.Params == nil {
-			return appErrs.NewValidationError("filters", "search queries require filters or params")
-		}
+		// if len(input.Filters) == 0 && input.Params == nil {
+		// 	return appErrs.NewValidationError("filters", "search queries require filters or params")
+		// }
 	}
 
 	return nil
 }
-
-// func (h *Handler) validateQueryTypeRequirements(input *Input) error {
-// 	switch input.QueryType {
-// 	case models.ESQueryTypeFranchiseBySlug:
-// 		// Check for slug in multiple locations
-// 		hasSlug := input.FranchiseID != "" ||
-// 			(input.Params != nil && input.Params["slug"] != nil) ||
-// 			(input.Filters != nil && input.Filters["slug"] != nil)
-
-// 		if !hasSlug {
-// 			h.logger.Warn("FRANCHISE_BY_SLUG query missing slug", map[string]interface{}{
-// 				"franchiseId": input.FranchiseID,
-// 				"params":      input.Params,
-// 				"filters":     input.Filters,
-// 			})
-// 			return appErrs.NewRequiredFieldError("slug (in franchiseId, params.slug, or filters.slug)")
-// 		}
-
-// 	case models.ESQueryTypeRecommendedByIndustry, models.ESQueryTypeMarketInsights:
-// 		// These queries can work with or without industrySlug
-// 		// No strict validation needed
-
-// 	case models.ESQueryTypeSearchWithFilters, models.ESQueryTypeSearchWithAggregations:
-// 		// These require filters
-// 		if len(input.Filters) == 0 && input.Params == nil {
-// 			return appErrs.NewValidationError("filters", "search queries require filters or params")
-// 		}
-// 	}
-
-// 	return nil
-// }
 
 func (h *Handler) validateQueryType(queryType models.QueryType) error {
 	// Get all valid query types from registry

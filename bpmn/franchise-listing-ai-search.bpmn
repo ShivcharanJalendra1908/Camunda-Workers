@@ -21,7 +21,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;SEARCH_WITH_FILTERS&#34;" target="queryType" />
-          <zeebe:input source="=extractedParams" target="filters" />
+          <zeebe:input source="=filters" target="filters" />
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
           <zeebe:output source="=data" target="franchises" />
