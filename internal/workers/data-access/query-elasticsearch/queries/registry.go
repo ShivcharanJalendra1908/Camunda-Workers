@@ -830,7 +830,25 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Category/Industry filter
-	if category, ok := filters["category"].(string); ok && category != "" {
+	// if category, ok := filters["category"].(string); ok && category != "" {
+	// 	filterClauses = append(filterClauses, map[string]interface{}{
+	// 		"bool": map[string]interface{}{
+	// 			"should": []map[string]interface{}{
+	// 				{"term": map[string]interface{}{"industry.slug": category}},
+	// 				{"match": map[string]interface{}{"industry.name": category}},
+	// 			},
+	// 			"minimum_should_match": 1,
+	// 		},
+	// 	})
+	// }
+	category := ""
+	if c, ok := filters["category"].(string); ok && c != "" {
+		category = c
+	} else if i, ok := filters["industry"].(string); ok && i != "" {
+		category = i
+	}
+
+	if category != "" {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
@@ -843,16 +861,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Location filter
-	// if location, ok := filters["location"].(string); ok && location != "" {
-	// 	filterClauses = append(filterClauses, map[string]interface{}{
-	// 		"wildcard": map[string]interface{}{
-	// 			"location": map[string]interface{}{
-	// 				"value":            "*" + location + "*",
-	// 				"case_insensitive": true,
-	// 			},
-	// 		},
-	// 	})
-	// }
 	if location, ok := filters["location"].(string); ok && location != "" {
 		city := strings.ToLower(location)
 		filterClauses = append(filterClauses, map[string]interface{}{
