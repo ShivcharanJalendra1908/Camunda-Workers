@@ -823,11 +823,35 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	filterClauses := []map[string]interface{}{}
 
 	// Text search
+	// if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
+	// 	mustClauses = append(mustClauses, map[string]interface{}{
+	// 		"multi_match": map[string]interface{}{
+	// 			"query":     searchQuery,
+	// 			"fields":    []string{"name^3", "description^2", "tags", "industry.name"}, //, "location"
+	// 			"type":      "best_fields",
+	// 			"fuzziness": "AUTO",
+	// 		},
+	// 	})
+	// }
+
+	// Text search
 	if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
+		// ADD THIS:
+		cleanQuery := searchQuery
+		for _, prep := range []string{" in ", " at ", " near ", " from ", " around "} {
+			if idx := strings.Index(strings.ToLower(cleanQuery), prep); idx != -1 {
+				cleanQuery = cleanQuery[:idx]
+			}
+		}
+		cleanQuery = strings.TrimSpace(cleanQuery)
+		if cleanQuery == "" {
+			cleanQuery = searchQuery
+		}
+		// USE cleanQuery instead of searchQuery:
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"multi_match": map[string]interface{}{
-				"query":     searchQuery,
-				"fields":    []string{"name^3", "description^2", "tags", "industry.name"}, //, "location"
+				"query":     cleanQuery, // "food franchise" not "food franchise in mumbai"
+				"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
 				"type":      "best_fields",
 				"fuzziness": "AUTO",
 			},
@@ -835,17 +859,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Category/Industry filter
-	// if category, ok := filters["category"].(string); ok && category != "" {
-	// 	filterClauses = append(filterClauses, map[string]interface{}{
-	// 		"bool": map[string]interface{}{
-	// 			"should": []map[string]interface{}{
-	// 				{"term": map[string]interface{}{"industry.slug": category}},
-	// 				{"match": map[string]interface{}{"industry.name": category}},
-	// 			},
-	// 			"minimum_should_match": 1,
-	// 		},
-	// 	})
-	// }
 	category := ""
 	if c, ok := filters["category"].(string); ok && c != "" {
 		category = c
