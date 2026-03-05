@@ -563,6 +563,11 @@ func getStringOrDefault(data map[string]interface{}, key string, defaultVal stri
 // SearchWithFilters - Advanced search with filters
 func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	filters, _ := params["filters"].(map[string]interface{})
+
+	// ADD THIS TEMPORARILY:
+	filtersJSON, _ := json.Marshal(filters)
+	fmt.Printf("DEBUG FILTERS: %s\n", string(filtersJSON))
+
 	page, _ := params["page"].(int)
 	limit, _ := params["limit"].(int)
 
