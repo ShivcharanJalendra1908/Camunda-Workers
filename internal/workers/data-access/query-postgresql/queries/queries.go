@@ -151,62 +151,6 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 }
 
 // CategoriesFeatured8 - Get 8 featured categories for listing page
-// func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
-// 	start := time.Now()
-
-// 	industryID, hasIndustry := params["industryId"].(string)
-
-// 	var rows *sql.Rows
-// 	var err error
-
-// 	if hasIndustry && industryID != "" {
-// 		rows, err = db.QueryContext(ctx, `
-// 			SELECT c.id, c.name, c.slug, c.icon_url
-// 			FROM categories c
-// 			WHERE c.industry_id = $1 AND c.is_active = true
-// 			ORDER BY c.display_order
-// 			LIMIT 8
-// 		`, industryID)
-// 	} else {
-// 		rows, err = db.QueryContext(ctx, `
-// 			SELECT c.id, c.name, c.slug, c.icon_url
-// 			FROM categories c
-// 			WHERE c.is_active = true
-// 			ORDER BY c.display_order
-// 			LIMIT 8
-// 		`)
-// 	}
-// 	if err != nil {
-// 		return nil, 0, 0, err
-// 	}
-// 	defer rows.Close()
-
-// 	var categories []map[string]interface{}
-// 	for rows.Next() {
-// 		var id, name, slug string
-// 		var iconURL sql.NullString
-
-// 		if err := rows.Scan(&id, &name, &slug, &iconURL); err != nil {
-// 			continue
-// 		}
-
-// 		category := map[string]interface{}{
-// 			"id":   id,
-// 			"name": name,
-// 			"slug": slug,
-// 		}
-
-// 		// ✅ CHANGED: Use icon_url instead of icon_name
-// 		if iconURL.Valid {
-// 			category["icon_url"] = iconURL.String
-// 		}
-
-// 		categories = append(categories, category)
-// 	}
-
-// 	return categories, len(categories), time.Since(start).Milliseconds(), nil
-// }
-
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 

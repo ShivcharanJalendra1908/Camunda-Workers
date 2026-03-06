@@ -225,13 +225,41 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 
 	if ok && industrySlug != "" {
 		// Filter by industry
+		// query = map[string]interface{}{
+		// 	"query": map[string]interface{}{
+		// 		"match": map[string]interface{}{
+		// 			"industry.slug": map[string]interface{}{
+		// 				"query":    industrySlug,
+		// 				"operator": "and",
+		// 			},
+		// 		},
+		// 	},
+		// ✅ NAYA — industry.name se match karo (text field hai, sahi rahega)
+		// industrySlug yahan actually "Food & Beverage" jaisa string aata hai BPMN se
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
-				"match": map[string]interface{}{
-					"industry.slug": map[string]interface{}{
-						"query":    industrySlug,
-						"operator": "and",
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						map[string]interface{}{
+							"term": map[string]interface{}{
+								"industry.name.keyword": industrySlug,
+							},
+						},
+						map[string]interface{}{
+							"match": map[string]interface{}{
+								"industry.name": industrySlug,
+							},
+						},
+						map[string]interface{}{
+							"term": map[string]interface{}{
+								"industry.slug": strings.ToLower(
+									strings.ReplaceAll(
+										strings.ReplaceAll(industrySlug, " & ", "-"),
+										" ", "-")),
+							},
+						},
 					},
+					"minimum_should_match": 1,
 				},
 			},
 			"size": 4,
@@ -542,11 +570,6 @@ func getStringOrDefault(data map[string]interface{}, key string, defaultVal stri
 // SearchWithFilters - Advanced search with filters
 func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	filters, _ := params["filters"].(map[string]interface{})
-
-	// ADD THIS TEMPORARILY:
-	filtersJSON, _ := json.Marshal(filters)
-	fmt.Printf("DEBUG FILTERS: %s\n", string(filtersJSON))
-
 	page, _ := params["page"].(int)
 	limit, _ := params["limit"].(int)
 
@@ -823,36 +846,66 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	} else if i, ok := filters["industry"].(string); ok && i != "" {
 		category = i
 	}
-
 	if category != "" {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"term": map[string]interface{}{"industry.slug": category}},
-					{"match": map[string]interface{}{"industry.name": category}},
+				"should": []interface{}{
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.name.keyword": category, // "Food & Beverage" exact match
+						},
+					},
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"industry.name": category, // fuzzy fallback
+						},
+					},
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.slug": strings.ToLower(
+								strings.ReplaceAll(
+									strings.ReplaceAll(category, " & ", "-"),
+									" ", "-")), // "food-beverage" slug fallback
+						},
+					},
 				},
 				"minimum_should_match": 1,
 			},
 		})
 	}
+	// if category != "" {
+	// 	filterClauses = append(filterClauses, map[string]interface{}{
+	// 		"bool": map[string]interface{}{
+	// 			"should": []map[string]interface{}{
+	// 				{"term": map[string]interface{}{"industry.slug": category}},
+	// 				{"match": map[string]interface{}{"industry.name": category}},
+	// 			},
+	// 			"minimum_should_match": 1,
+	// 		},
+	// 	})
+	// }
 
 	// Location filter
 	if location, ok := filters["location"].(string); ok && location != "" {
-		city := strings.ToLower(location)
+		city := strings.TrimSpace(location)
+		// Title case banao: "delhi" → "Delhi"
+		if len(city) > 0 {
+			city = strings.ToUpper(city[:1]) + strings.ToLower(city[1:])
+		}
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
-						"wildcard": map[string]interface{}{
-							"location": map[string]interface{}{
-								"value":            city,
-								"case_insensitive": true,
-							},
-						},
-					},
-					map[string]interface{}{
 						"terms": map[string]interface{}{
-							"location": []string{"Pan India", "Pan-India", "All major Indian cities", "North Indian Cities"},
+							"location": []string{
+								city,
+								strings.ToUpper(city),
+								strings.ToLower(city),
+								"Pan India", "Pan-India",
+								"All major Indian cities",
+								"North Indian Cities", "South Indian Cities",
+								"East Indian Cities", "West Indian Cities",
+							},
 						},
 					},
 				},
@@ -865,7 +918,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	if minInv, minOk := filters["minInvestment"].(float64); minOk && minInv > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
-				"investment.max_investment": map[string]interface{}{"gte": minInv * 100000},
+				"investment.max_investment": map[string]interface{}{"gte": minInv / 100000},
 			},
 		})
 	}
@@ -873,7 +926,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	if maxInv, maxOk := filters["maxInvestment"].(float64); maxOk && maxInv > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
-				"investment.min_investment": map[string]interface{}{"lte": maxInv * 100000},
+				"investment.min_investment": map[string]interface{}{"lte": maxInv / 100000},
 			},
 		})
 	}
@@ -909,33 +962,22 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			}
 		}
 		if len(tagShoulds) > 0 {
-			mustClauses = append(mustClauses, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should": tagShoulds,
-					// minimum_should_match NAHI — optional boost
+					"should":               tagShoulds,
+					"minimum_should_match": 1,
 				},
 			})
 		}
+		// if len(tagShoulds) > 0 {
+		// 	mustClauses = append(mustClauses, map[string]interface{}{
+		// 		"bool": map[string]interface{}{
+		// 			"should": tagShoulds,
+		// 			// minimum_should_match NAHI — optional boost
+		// 		},
+		// 	})
+		// }
 	}
-
-	// if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
-	// 	tagTerms := []map[string]interface{}{}
-	// 	for _, tag := range tags {
-	// 		if tagStr, ok := tag.(string); ok {
-	// 			tagTerms = append(tagTerms, map[string]interface{}{
-	// 				"term": map[string]interface{}{"tags.keyword": tagStr},
-	// 			})
-	// 		}
-	// 	}
-	// 	if len(tagTerms) > 0 {
-	// 		filterClauses = append(filterClauses, map[string]interface{}{
-	// 			"bool": map[string]interface{}{
-	// 				"should":               tagTerms,
-	// 				"minimum_should_match": 1,
-	// 			},
-	// 		})
-	// 	}
-	// }
 
 	// Min rating filter
 	if minRating, ok := filters["minRating"].(float64); ok && minRating > 0 {

@@ -358,37 +358,64 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Industry match
 	// if params.Industry != "" {
+	// 	industrySlug := strings.ToLower(params.Industry)
+	// 	industrySlug = strings.ReplaceAll(industrySlug, " & ", " ")
+	// 	industrySlug = strings.ReplaceAll(industrySlug, " / ", " ")
+	// 	industrySlug = strings.ReplaceAll(industrySlug, "&", "")
+	// 	industrySlug = strings.ReplaceAll(industrySlug, "/", "")
+	// 	industrySlug = strings.ReplaceAll(industrySlug, " ", "-")
+
 	// 	mustClauses = append(mustClauses, map[string]interface{}{
-	// 		"multi_match": map[string]interface{}{
-	// 			"query":  params.Industry,
-	// 			"fields": []string{"industry.name^3", "industry.slug^2"},
-	// 			"type":   "best_fields",
+	// 		"bool": map[string]interface{}{
+	// 			"should": []interface{}{
+	// 				map[string]interface{}{
+	// 					"match": map[string]interface{}{
+	// 						"industry.name": map[string]interface{}{
+	// 							"query": params.Industry,
+	// 							"boost": 3,
+	// 						},
+	// 					},
+	// 				},
+	// 				map[string]interface{}{
+	// 					"term": map[string]interface{}{
+	// 						"industry.slug": industrySlug,
+	// 					},
+	// 				},
+	// 			},
+	// 			"minimum_should_match": 1,
 	// 		},
 	// 	})
 	// }
 
+	// ✅ NAYA — " & " → "-" sahi hai, " / " aur space bhi "-" banana chahiye
 	if params.Industry != "" {
 		industrySlug := strings.ToLower(params.Industry)
-		industrySlug = strings.ReplaceAll(industrySlug, " & ", " ")
-		industrySlug = strings.ReplaceAll(industrySlug, " / ", " ")
+		industrySlug = strings.ReplaceAll(industrySlug, " & ", "-")
+		industrySlug = strings.ReplaceAll(industrySlug, " / ", "-")
 		industrySlug = strings.ReplaceAll(industrySlug, "&", "")
 		industrySlug = strings.ReplaceAll(industrySlug, "/", "")
+		industrySlug = strings.ReplaceAll(industrySlug, ",", "")
 		industrySlug = strings.ReplaceAll(industrySlug, " ", "-")
+		for strings.Contains(industrySlug, "--") {
+			industrySlug = strings.ReplaceAll(industrySlug, "--", "-")
+		}
 
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.name.keyword": params.Industry, // "Food & Beverage" exact
+						},
+					},
+					map[string]interface{}{
 						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query": params.Industry,
-								"boost": 3,
-							},
+							"industry.name": params.Industry, // fuzzy fallback
 						},
 					},
 					map[string]interface{}{
 						"term": map[string]interface{}{
-							"industry.slug": industrySlug,
+							"industry.slug": industrySlug, // "food-beverage" slug fallback
 						},
 					},
 				},
