@@ -949,15 +949,65 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Tags filter
+	// if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
+	// 	tagShoulds := []interface{}{}
+	// 	for _, tag := range tags {
+	// 		if tagStr, ok := tag.(string); ok {
+	// 			tagShoulds = append(tagShoulds, map[string]interface{}{
+	// 				"match": map[string]interface{}{"industry.name": tagStr},
+	// 			})
+	// 			tagShoulds = append(tagShoulds, map[string]interface{}{
+	// 				"term": map[string]interface{}{"tags": strings.ToLower(tagStr)},
+	// 			})
+	// 		}
+	// 	}
+	// 	if len(tagShoulds) > 0 {
+	// 		filterClauses = append(filterClauses, map[string]interface{}{
+	// 			"bool": map[string]interface{}{
+	// 				"should":               tagShoulds,
+	// 				"minimum_should_match": 1,
+	// 			},
+	// 		})
+	// 	}
+	// 	// if len(tagShoulds) > 0 {
+	// 	// 	mustClauses = append(mustClauses, map[string]interface{}{
+	// 	// 		"bool": map[string]interface{}{
+	// 	// 			"should": tagShoulds,
+	// 	// 			// minimum_should_match NAHI — optional boost
+	// 	// 		},
+	// 	// 	})
+	// 	// }
+	// }
+
+	// Tags filter
+	// ✅ NAYA — multi-word tags ko split karke match karo
 	if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
 		tagShoulds := []interface{}{}
 		for _, tag := range tags {
 			if tagStr, ok := tag.(string); ok {
+				// "ice cream" → ["ice", "cream"] — har word alag term query
+				words := strings.Fields(strings.ToLower(tagStr))
+				for _, word := range words {
+					if len(word) > 2 {
+						tagShoulds = append(tagShoulds, map[string]interface{}{
+							"term": map[string]interface{}{
+								"tags": strings.ToUpper(word[:1]) + word[1:], // "Ice"
+							},
+						})
+					}
+				}
+				// Industry name se bhi match karo
 				tagShoulds = append(tagShoulds, map[string]interface{}{
 					"match": map[string]interface{}{"industry.name": tagStr},
 				})
+				// Brand name mein bhi search karo
 				tagShoulds = append(tagShoulds, map[string]interface{}{
-					"term": map[string]interface{}{"tags": strings.ToLower(tagStr)},
+					"match": map[string]interface{}{
+						"name": map[string]interface{}{
+							"query":     tagStr,
+							"fuzziness": "AUTO",
+						},
+					},
 				})
 			}
 		}
@@ -969,14 +1019,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 				},
 			})
 		}
-		// if len(tagShoulds) > 0 {
-		// 	mustClauses = append(mustClauses, map[string]interface{}{
-		// 		"bool": map[string]interface{}{
-		// 			"should": tagShoulds,
-		// 			// minimum_should_match NAHI — optional boost
-		// 		},
-		// 	})
-		// }
 	}
 
 	// Min rating filter
