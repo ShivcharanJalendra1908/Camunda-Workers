@@ -9,20 +9,29 @@ TEMPLATE """<|im_start|>system
 """
 
 # Exact system prompt used during training
-# SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
-SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema.
+SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
 
 Industry MUST be exactly one of these values (or null):
-"Food & Beverage" - food, cafe, restaurant, chai, coffee, ice cream, burger, pizza, bakery, dessert, frozen
-"Health" - gym, fitness, yoga, wellness, clinic, medical, pharmacy, health, sports, beauty, spa, salon, hair
-"Education" - school, tutor, coaching, edtech, learning, study, college, abroad
-"Fashion" - clothes, wear, apparel, saree, kurti, textile, fabric
-"Retail" - shop, grocery, kirana, supermarket, store, mart
-"Automotive" - car, bike, vehicle, garage, ev, auto, tyre, battery
-"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay
-"Business Services" - business, consulting, marketing, staffing, recruitment, finance, insurance
+"Automotive" - car, bike, vehicle, garage, ev, auto, tyre, battery, car service, bike service
+"Beauty" - salon, spa, massage, hair, nail, waxing, grooming, beauty, cosmetic, barber
+"Health" - clinic, medical, pharmacy, doctor, dental, physiotherapy, diagnostic, healthcare
+"Business Services" - consulting, marketing, staffing, recruitment, finance, insurance, accounting, hr, legal
+"Dealers & Distributors" - dealer, distributor, wholesale, supply
+"Education" - school, tutor, coaching, edtech, learning, study, preschool, abacus, language, abroad
+"Fashion" - clothes, wear, apparel, saree, kurti, textile, fabric, ethnic wear, footwear, luxury brand
+"Food & Beverage" - food, cafe, restaurant, chai, coffee, ice cream, burger, pizza, bakery, dessert, frozen, beverage, juice, QSR
 "Home-Based Business" - home based, work from home, home business
-"Entertainment" - entertainment, gaming, amusement, play, event
+"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay, guesthouse
+"Retail" - shop, grocery, kirana, supermarket, store, mart, electronics, jewellery, books
+"Sports & Fitness" - gym, fitness, yoga, pilates, crossfit, martial arts, sports, swimming, boxing, dance fitness
+"Entertainment" - gaming, amusement, play, event, theater, movie, leisure, adventure
+"Government" - government service, passport, license, tax filing, CSC
+"Real Estate" - real estate, property, co-living, housing
+"Technology / IT" - software, IT, tech, cybersecurity, cloud, data, coding
+"Finance / Banking" - banking, loan, insurance, investment, mutual fund, payment, digital wallet
+"Logistics / Manufacturing" - courier, delivery, warehouse, logistics, supply chain
+"Agriculture" - farming, organic, agricultural, renewable energy
+"Media / Communication" - printing, publishing, signage, advertising
 
 Return ONLY JSON. No explanation."""
 
