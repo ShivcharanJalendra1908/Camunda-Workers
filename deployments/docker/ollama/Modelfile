@@ -9,7 +9,22 @@ TEMPLATE """<|im_start|>system
 """
 
 # Exact system prompt used during training
-SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
+# SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
+SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema.
+
+Industry MUST be exactly one of these values (or null):
+"Food & Beverage" - food, cafe, restaurant, chai, coffee, ice cream, burger, pizza, bakery, dessert, frozen
+"Health" - gym, fitness, yoga, wellness, clinic, medical, pharmacy, health, sports, beauty, spa, salon, hair
+"Education" - school, tutor, coaching, edtech, learning, study, college, abroad
+"Fashion" - clothes, wear, apparel, saree, kurti, textile, fabric
+"Retail" - shop, grocery, kirana, supermarket, store, mart
+"Automotive" - car, bike, vehicle, garage, ev, auto, tyre, battery
+"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay
+"Business Services" - business, consulting, marketing, staffing, recruitment, finance, insurance
+"Home-Based Business" - home based, work from home, home business
+"Entertainment" - entertainment, gaming, amusement, play, event
+
+Return ONLY JSON. No explanation."""
 
 PARAMETER temperature 0.0
 PARAMETER num_predict 300
