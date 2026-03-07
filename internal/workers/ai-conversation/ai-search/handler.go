@@ -359,11 +359,43 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 	return map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"query": map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":     cleanQuery,
-				"fields":    []string{"name^3", "industry.name^2", "tags^2", "description"},
-				"type":      "best_fields",
-				"fuzziness": "AUTO",
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					// ✅ Industry exact match — highest priority
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"industry.name": map[string]interface{}{
+								"query": cleanQuery,
+								"boost": 3,
+							},
+						},
+					},
+					// ✅ Tags match
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"tags": map[string]interface{}{
+								"query": cleanQuery,
+								"boost": 2,
+							},
+						},
+					},
+					// ✅ Name match
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"name": map[string]interface{}{
+								"query":     cleanQuery,
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+					// ✅ Description match — lowest priority
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"description": cleanQuery,
+						},
+					},
+				},
+				"minimum_should_match": 1,
 			},
 		},
 		"sort": []interface{}{
@@ -372,6 +404,42 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		},
 	}
 }
+
+// func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
+// 	if query == "*" || strings.TrimSpace(query) == "" {
+// 		return map[string]interface{}{
+// 			"size": h.config.DefaultPageSize,
+// 			"query": map[string]interface{}{
+// 				"match_all": map[string]interface{}{},
+// 			},
+// 			"sort": []interface{}{
+// 				map[string]interface{}{"rating": "desc"},
+// 				map[string]interface{}{"total_outlets": "desc"},
+// 			},
+// 		}
+// 	}
+
+// 	cleanQuery := stripLocationFromQuery(query)
+// 	if strings.TrimSpace(cleanQuery) == "" {
+// 		cleanQuery = query
+// 	}
+
+// 	return map[string]interface{}{
+// 		"size": h.config.DefaultPageSize,
+// 		"query": map[string]interface{}{
+// 			"multi_match": map[string]interface{}{
+// 				"query":     cleanQuery,
+// 				"fields":    []string{"name^3", "industry.name^2", "tags^2", "description"},
+// 				"type":      "best_fields",
+// 				"fuzziness": "AUTO",
+// 			},
+// 		},
+// 		"sort": []interface{}{
+// 			map[string]interface{}{"_score": "desc"},
+// 			map[string]interface{}{"rating": "desc"},
+// 		},
+// 	}
+// }
 
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
 	esQuery := map[string]interface{}{

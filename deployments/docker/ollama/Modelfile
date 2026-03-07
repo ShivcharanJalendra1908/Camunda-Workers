@@ -1,6 +1,5 @@
 FROM /models/qwen-extractor.gguf
 
-# ChatML template — exactly as fine-tuned model was trained on
 TEMPLATE """<|im_start|>system
 {{ .System }}<|im_end|>
 <|im_start|>user
@@ -8,23 +7,21 @@ TEMPLATE """<|im_start|>system
 <|im_start|>assistant
 """
 
-# Exact system prompt used during training
-SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema."""
+SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema.
 
 Industry MUST be exactly one of these values (or null):
 "Automotive" - car, bike, vehicle, garage, ev, auto, tyre, battery, car service, bike service
 "Beauty" - salon, spa, massage, hair, nail, waxing, grooming, beauty, cosmetic, barber
-"Health" - clinic, medical, pharmacy, doctor, dental, physiotherapy, diagnostic, healthcare
+"Health" - clinic, medical, pharmacy, doctor, dental, physiotherapy, diagnostic, healthcare, gym, fitness, yoga, sports, swimming, crossfit, pilates, martial arts, boxing, dance fitness
 "Business Services" - consulting, marketing, staffing, recruitment, finance, insurance, accounting, hr, legal
 "Dealers & Distributors" - dealer, distributor, wholesale, supply
 "Education" - school, tutor, coaching, edtech, learning, study, preschool, abacus, language, abroad
 "Fashion" - clothes, wear, apparel, saree, kurti, textile, fabric, ethnic wear, footwear, luxury brand
 "Food & Beverage" - food, cafe, restaurant, chai, coffee, ice cream, burger, pizza, bakery, dessert, frozen, beverage, juice, QSR
-"Home-Based Business" - home based, work from home, home business
-"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay, guesthouse
+"Home-Based Business" - home based, work from home, home business, wfh, ghar se kaam, home franchise
+"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay, guesthouse, hospitality, lodging
 "Retail" - shop, grocery, kirana, supermarket, store, mart, electronics, jewellery, books
-"Sports & Fitness" - gym, fitness, yoga, pilates, crossfit, martial arts, sports, swimming, boxing, dance fitness
-"Entertainment" - gaming, amusement, play, event, theater, movie, leisure, adventure
+"Entertainment" - gaming, amusement, play, event, theater, movie, leisure, adventure, pet, dogs, cats
 "Government" - government service, passport, license, tax filing, CSC
 "Real Estate" - real estate, property, co-living, housing
 "Technology / IT" - software, IT, tech, cybersecurity, cloud, data, coding
@@ -33,7 +30,23 @@ Industry MUST be exactly one of these values (or null):
 "Agriculture" - farming, organic, agricultural, renewable energy
 "Media / Communication" - printing, publishing, signage, advertising
 
-Return ONLY JSON. No explanation."""
+Return ONLY valid JSON. No explanation. No extra text.
+
+Output schema:
+{
+  "Industry": "<exact value from list above or null>",
+  "Category": "<subcategory or null>",
+  "Subcategory": "<specific type or null>",
+  "Location": "<city name or null>",
+  "Minimum_Investment": <number in rupees or null>,
+  "Maximum_Investment": <number in rupees or null>,
+  "Area_Requirement": <number in sq ft or null>,
+  "ROI": <percentage number or null>,
+  "error": null
+}
+
+If query is not related to franchise or business, return:
+{"error": "out of domain", "Industry": null, "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null}"""
 
 PARAMETER temperature 0.0
 PARAMETER num_predict 300

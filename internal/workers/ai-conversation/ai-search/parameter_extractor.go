@@ -37,6 +37,10 @@ type ftModelOutput struct {
 
 // Parse - Fine-tuned model ke flat schema ko Go ke ExtractedParameters mein convert karta hai
 func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, error) {
+
+	// ✅ ADD THIS — raw LLM response dekho
+	fmt.Printf("🔍 RAW LLM RESPONSE: %s\n", llmResponse)
+
 	// Step 1: Clean markdown artifacts
 	cleaned := strings.TrimSpace(llmResponse)
 	cleaned = strings.TrimPrefix(cleaned, "```json")
@@ -280,6 +284,10 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 
 // ParseWithFallback - parse karo, failure pe empty params return karo
 func (pe *ParameterExtractor) ParseWithFallback(llmResponse string) *ExtractedParameters {
+
+	// ✅ ADD THIS
+	fmt.Printf("🔍 RAW LLM: [%s]\n", llmResponse)
+
 	params, err := pe.Parse(llmResponse)
 	if err != nil {
 		return &ExtractedParameters{}
