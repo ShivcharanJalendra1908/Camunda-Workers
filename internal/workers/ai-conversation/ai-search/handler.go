@@ -22,16 +22,16 @@ import (
 // cityAliases — ek jagah define, sab jagah kaam aayega
 // LLM jo bhi city de, uske saare known alternate spellings add ho jaayenge automatically
 var cityAliases = map[string][]string{
-	"bangalore":  {"Bengaluru", "bengaluru", "Bangalore", "bangalore", "BANGALORE"},
-	"bengaluru":  {"Bangalore", "bangalore", "Bengaluru", "bengaluru", "BENGALURU"},
-	"mumbai":     {"Mumbai", "mumbai", "Bombay", "bombay", "MUMBAI"},
-	"delhi":      {"Delhi", "delhi", "New Delhi", "new delhi", "DELHI"},
-	"kolkata":    {"Kolkata", "kolkata", "Calcutta", "calcutta", "KOLKATA"},
-	"chennai":    {"Chennai", "chennai", "Madras", "madras", "CHENNAI"},
-	"hyderabad":  {"Hyderabad", "hyderabad", "HYDERABAD"},
-	"pune":       {"Pune", "pune", "PUNE"},
-	"ahmedabad":  {"Ahmedabad", "ahmedabad", "AHMEDABAD"},
-	"jaipur":     {"Jaipur", "jaipur", "JAIPUR"},
+	"bangalore": {"Bengaluru", "bengaluru", "Bangalore", "bangalore", "BANGALORE"},
+	"bengaluru": {"Bangalore", "bangalore", "Bengaluru", "bengaluru", "BENGALURU"},
+	"mumbai":    {"Mumbai", "mumbai", "Bombay", "bombay", "MUMBAI"},
+	"delhi":     {"Delhi", "delhi", "New Delhi", "new delhi", "DELHI"},
+	"kolkata":   {"Kolkata", "kolkata", "Calcutta", "calcutta", "KOLKATA"},
+	"chennai":   {"Chennai", "chennai", "Madras", "madras", "CHENNAI"},
+	"hyderabad": {"Hyderabad", "hyderabad", "HYDERABAD"},
+	"pune":      {"Pune", "pune", "PUNE"},
+	"ahmedabad": {"Ahmedabad", "ahmedabad", "AHMEDABAD"},
+	"jaipur":    {"Jaipur", "jaipur", "JAIPUR"},
 }
 
 // buildLocationTerms — city ke saare variants + Pan India terms
@@ -881,6 +881,7 @@ func stripLocationFromQuery(query string) string {
 	}
 	return strings.TrimSpace(result)
 }
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // package ai_search
