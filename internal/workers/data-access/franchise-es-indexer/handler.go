@@ -96,9 +96,33 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	})
 }
 
-func (h *Handler) parseInput(job entities.Job) (*Input, error) {
+// func (h *Handler) parseInput(job entities.Job) (*Input, error) {
+// 	var vars map[string]interface{}
+// 	if err := json.Unmarshal([]byte(job.Variables), &vars); err != nil {
+// 		return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
+// 	}
+
+// 	franchiseID, ok := vars["franchise_id"].(string)
+// 	if !ok || franchiseID == "" {
+// 		return nil, errors.NewValidationError("franchise_id", "required")
+// 	}
+
+// 	operation := "INDEX"
+// 	if op, ok := vars["operation"].(string); ok {
+// 		operation = op
+// 	}
+
+// 	return &Input{
+// 		FranchiseID: franchiseID,
+// 		Operation:   operation,
+// 	}, nil
+// }
+
+// ADD this new method to handler.go in franchise-es-indexer package
+
+func (h *Handler) parseInputFromVariables(variables string) (*Input, error) {
 	var vars map[string]interface{}
-	if err := json.Unmarshal([]byte(job.Variables), &vars); err != nil {
+	if err := json.Unmarshal([]byte(variables), &vars); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal variables: %w", err)
 	}
 
@@ -116,6 +140,11 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		FranchiseID: franchiseID,
 		Operation:   operation,
 	}, nil
+}
+
+// REPLACE existing parseInput to delegate to the new method:
+func (h *Handler) parseInput(job entities.Job) (*Input, error) {
+	return h.parseInputFromVariables(job.Variables)
 }
 
 func (h *Handler) buildESDocument(ctx context.Context, franchiseID string) (map[string]interface{}, error) {

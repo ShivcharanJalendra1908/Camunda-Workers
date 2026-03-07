@@ -161,18 +161,35 @@ func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[
 			"brandId": source["franchise_id"], // Use brandId NOT franchise_id
 			"name":    getStringField(source, "name", ""),
 			"slug":    getStringField(source, "slug", ""),
-			"logo": map[string]interface{}{ // Create logo object
-				//"url": getStringField(source, "logo_url", ""),
-				"url": func() string {
-					if logo, ok := source["logo"].(map[string]interface{}); ok {
-						if url, ok := logo["url"].(string); ok {
-							return url
-						}
+			// "logo": map[string]interface{}{ // Create logo object
+			// 	//"url": getStringField(source, "logo_url", ""),
+			// 	"url": func() string {
+			// 		if logo, ok := source["logo"].(map[string]interface{}); ok {
+			// 			if url, ok := logo["url"].(string); ok {
+			// 				return url
+			// 			}
+			// 		}
+			// 		return ""
+			// 	}(),
+			// 	"alt": getStringField(source, "name", ""),
+			// },
+			"logo": func() map[string]interface{} {
+				circle := ""
+				square := ""
+				if logo, ok := source["logo"].(map[string]interface{}); ok {
+					if c, ok := logo["circle"].(string); ok {
+						circle = c
 					}
-					return ""
-				}(),
-				"alt": getStringField(source, "name", ""),
-			},
+					if s, ok := logo["square"].(string); ok {
+						square = s
+					}
+				}
+				return map[string]interface{}{
+					"circle": circle,
+					"square": square,
+					"alt":    getStringField(source, "name", ""),
+				}
+			}(),
 		}
 
 		transformedData = append(transformedData, brand)
@@ -1236,10 +1253,16 @@ func transformFranchiseFields(source map[string]interface{}) map[string]interfac
 		}
 
 		source["logo"] = map[string]interface{}{
-			"url": logoURL,
-			"alt": brandName,
+			"circle": logoURL,
+			"square": logoURL,
+			"alt":    brandName,
 		}
 		delete(source, "logo_url")
+		// source["logo"] = map[string]interface{}{
+		// 	"url": logoURL,
+		// 	"alt": brandName,
+		// }
+		// delete(source, "logo_url")
 	}
 
 	// ✅ FIX 6: Ensure space has spaceUnit

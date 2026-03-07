@@ -23,8 +23,19 @@
       "description": {
         "type": "text"
       },
-      "logo_url": {
-        "type": "keyword"
+      "logo": {
+        "type": "object",
+        "properties": {
+          "circle": {
+            "type": "keyword"
+          },
+          "square": {
+            "type": "keyword"
+          },
+          "alt": {
+            "type": "keyword"
+          }
+        }
       },
       "year_of_establishment": {
         "type": "integer"

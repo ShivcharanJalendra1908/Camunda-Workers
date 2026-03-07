@@ -190,7 +190,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             f.founded_year,
             f.total_outlets,
             f.short_description,
-            f.logo_url,  -- ✅ Logo URL added here
+            f.logo_url_circle,
+            f.logo_url_square,
             COALESCE(fs.rating, 0) as rating,
             i.id as industry_id,
             i.name as industry_name,
@@ -215,7 +216,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 	for rows.Next() {
 		var (
 			id, name, slug                         string
-			shortDescription, logoURL              sql.NullString // ✅ Logo variable added
+			shortDescription                       sql.NullString
+			logoURLCircle, logoURLSquare           sql.NullString // ✅ Logo variable added
 			foundedYear                            sql.NullInt32
 			totalOutlets                           sql.NullInt32
 			rating                                 float64
@@ -226,7 +228,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		// ✅ Fixed Scan - added &logoURL
 		if err := rows.Scan(
 			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription,
-			&logoURL, // ✅ Added logoURL here
+			&logoURLCircle, &logoURLSquare, // ✅ Added logoURL here
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
 		); err != nil {
 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
@@ -278,10 +280,10 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			"name":         name,
 			"slug":         slug,
 			"description":  cleanDesc,
-			//"logo_url":      logoURL.String, // ✅ Logo URL added here
 			"logo": map[string]interface{}{
-				"url": logoURL.String,
-				"alt": name,
+				"circle": logoURLCircle.String,
+				"square": logoURLSquare.String,
+				"alt":    name,
 			},
 			"location":      location,
 			"tags":          tags,

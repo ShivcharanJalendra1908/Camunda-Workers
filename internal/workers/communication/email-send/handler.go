@@ -1,575 +1,1233 @@
-// internal/workers/communication/email-send/handler.go
 package emailsend
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"testing"
 	"time"
 
-	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
-	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
-
-	"camunda-workers/internal/common/camunda"
-	"camunda-workers/internal/common/circuitbreaker"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/errors"
-	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
-	"camunda-workers/internal/common/metrics"
-	"camunda-workers/internal/common/validation"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
-const TaskType = "email.send"
+// ==========================
+// Mock Service Implementation
+// ==========================
 
-type Handler struct {
-	config             *Config
-	logger             logger.Logger
-	camunda            *camunda.Client
-	service            *Service
-	jobWorker          worker.JobWorker
-	errorHandler       *errors.ErrorHandler
-	validator          *validation.Validator
-	sanitizer          *validation.Sanitizer
-	cbManager          *circuitbreaker.Manager
-	idempotencyChecker idempotency.Checker // ✅ Interface, not pointer
-	keyGenerator       *idempotency.KeyGenerator
+type MockService struct {
+	mock.Mock
 }
 
-type HandlerOptions struct {
-	AppConfig          *config.Config
-	Camunda            *camunda.Client
-	CustomConfig       *Config
-	Logger             logger.Logger
-	CBManager          *circuitbreaker.Manager
-	IdempotencyChecker idempotency.Checker // ✅ NEW
+func (m *MockService) Execute(ctx context.Context, input *Input) (*Output, error) {
+	args := m.Called(ctx, input)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*Output), args.Error(1)
 }
 
-func NewHandler(opts HandlerOptions) (*Handler, error) {
-	workerConfig := createConfigFromAppConfig(opts.AppConfig, opts.CustomConfig)
-
-	if err := workerConfig.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration for email-send: %w", err)
-	}
-
-	var loggerInstance logger.Logger
-	if opts.Logger != nil {
-		loggerInstance = opts.Logger
-	} else {
-		loggerInstance = logger.NewStructured("info", "json")
-	}
-
-	var cbManager *circuitbreaker.Manager
-	if opts.CBManager != nil {
-		cbManager = opts.CBManager
-	} else {
-		cbManager = circuitbreaker.NewManager()
-	}
-
-	handler := &Handler{
-		config:             workerConfig,
-		logger:             loggerInstance,
-		camunda:            opts.Camunda,
-		errorHandler:       errors.NewErrorHandler(loggerInstance),
-		validator:          validation.NewValidator(),
-		sanitizer:          validation.NewSanitizer(),
-		cbManager:          cbManager,
-		idempotencyChecker: opts.IdempotencyChecker, // ✅ NEW
-		keyGenerator:       idempotency.NewKeyGenerator(),
-	}
-
-	serviceDeps := ServiceDependencies{
-		Logger:    loggerInstance,
-		CBManager: cbManager,
-	}
-
-	handler.service = NewService(serviceDeps, handler.config)
-
-	return handler, nil
+func (m *MockService) TestConnection(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
 }
 
-func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
-	// ✅ EXTRACT TRACE CONTEXT
-	ctx := context.Background()
-	
-	var traceID, parentSpanID string
-	var jobVars map[string]interface{}
-	
-	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
-		if tid, ok := jobVars["traceId"].(string); ok {
-			traceID = tid
-		}
-		if psid, ok := jobVars["spanId"].(string); ok {
-			parentSpanID = psid
-		}
-	}
-	
-	// ✅ CREATE WORKER SPAN
-	tracer := otel.Tracer("worker-manager")
-	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
-		trace.WithAttributes(
-			attribute.String("worker.name", TaskType),
-			attribute.Int64("job.key", job.GetKey()),
-			attribute.Int64("workflow.instance_key", job.GetProcessInstanceKey()),
-			attribute.String("workflow.process_id", job.GetBpmnProcessId()),
-			attribute.String("workflow.element_id", job.GetElementId()),
-			attribute.String("trace.parent_id", parentSpanID),
-		),
-	)
-	defer span.End()
-	
-	startTime := time.Now()
-	metrics.WorkerJobsActive.WithLabelValues(TaskType).Inc()
-	defer metrics.WorkerJobsActive.WithLabelValues(TaskType).Dec()
-
-	ctx, cancel := context.WithTimeout(ctx, h.config.Timeout) // ✅ Use traced context
-	defer cancel()
-
-	h.logger.Info("Processing email send request", map[string]interface{}{
-		"jobKey":             job.GetKey(),
-		"processInstanceKey": job.GetProcessInstanceKey(),
-		"worker":             TaskType,
-		"traceId":            traceID,
-		"spanId":             span.SpanContext().SpanID().String(),
-	})
-
-	if !h.config.Enabled {
-		span.SetAttributes(attribute.Bool("worker.disabled", true))
-		h.logger.Info("Worker disabled by configuration", map[string]interface{}{
-			"worker":  TaskType,
-			"traceId": traceID,
-		})
-		h.completeJob(ctx, client, job, &Output{
-			Success: false,
-			Message: "Email sending disabled",
-		})
-		return
-	}
-
-	// ===== STEP 1: PARSE INPUT =====
-	_, spanParse := otel.Tracer("worker-manager").Start(ctx, "email-send.parseInput")
-	input, err := h.parseInput(job)
-	spanParse.End()
-	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("parse_error", true))
-		errorCode := extractErrorCode(err)
-		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
-		h.failJob(ctx, client, job, err)
-		return
-	}
-
-	// ===== STEP 2: SANITIZE INPUT =====
-	_, spanSanitize := otel.Tracer("worker-manager").Start(ctx, "email-send.sanitizeInput")
-	input.Sanitize()
-	spanSanitize.End()
-
-	// ===== STEP 3: VALIDATE INPUT =====
-	_, spanValidate := otel.Tracer("worker-manager").Start(ctx, "email-send.validateInput")
-	if err := ValidateInput(input); err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("validation_error", true))
-		h.logger.Warn("Input validation failed", map[string]interface{}{
-			"jobKey":     job.GetKey(),
-			"error":      err.Error(),
-			"validation": "failed",
-			"worker":     TaskType,
-			"traceId":    traceID,
-		})
-
-		metrics.WorkerJobsFailed.WithLabelValues(TaskType, "VALIDATION_FAILED").Inc()
-		h.failJob(ctx, client, job, err)
-		spanValidate.End()
-		return
-	}
-	spanValidate.End()
-
-	h.logger.Debug("Input validation passed", map[string]interface{}{
-		"jobKey":     job.GetKey(),
-		"validation": "passed",
-		"worker":     TaskType,
-		"traceId":    traceID,
-	})
-
-	// ===== ✅ STEP 4: IDEMPOTENCY CHECK =====
-	if h.idempotencyChecker != nil {
-		// Generate idempotency key: notification_type + recipient + date
-		_ = time.Now().Format("2006-01-02")
-		idempotencyKey := h.keyGenerator.GenerateNotificationKeySimple("email", input.To)
-
-		h.logger.Debug("Checking email idempotency", map[string]interface{}{
-			"idempotencyKey": idempotencyKey,
-			"to":             input.To,
-			"traceId":        traceID,
-		})
-
-		result, err := h.idempotencyChecker.Check(ctx, idempotencyKey)
-
-		if err == idempotency.ErrDuplicateRequest {
-			span.SetAttributes(attribute.Bool("idempotent_duplicate", true))
-			h.logger.Info("Duplicate email detected, returning cached result", map[string]interface{}{
-				"idempotencyKey": idempotencyKey,
-				"to":             input.To,
-				"traceId":        traceID,
-			})
-
-			output := &Output{
-				Success:   true,
-				Message:   "Email already sent (cached)",
-				MessageID: fmt.Sprintf("cached_%s", idempotencyKey),
-				Provider:  "cached",
-				SentAt:    result.CreatedAt,
-			}
-
-			h.completeJob(ctx, client, job, output)
-			metrics.WorkerJobsCompleted.WithLabelValues(TaskType).Inc()
-			return
-		}
-
-		if err == idempotency.ErrProcessing {
-			span.SetAttributes(attribute.Bool("idempotent_processing", true))
-			h.logger.Warn("Email already being processed", map[string]interface{}{
-				"idempotencyKey": idempotencyKey,
-				"traceId":        traceID,
-			})
-			// Let Camunda retry later
-			return
-		}
-
-		// Mark as processing
-		if err := h.idempotencyChecker.MarkProcessing(ctx, idempotencyKey, TaskType, 24*time.Hour); err != nil {
-			h.logger.Warn("Failed to mark processing, continuing", map[string]interface{}{
-				"error":   err.Error(),
-				"traceId": traceID,
-			})
-		}
-	}
-
-	// ===== STEP 5: EXECUTE BUSINESS LOGIC =====
-	ctxExec, spanExec := otel.Tracer("worker-manager").Start(ctx, "email-send.Execute")
-	output, err := h.service.Execute(ctxExec, input)
-	spanExec.End()
-	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("execution_error", true))
-		errorCode := extractErrorCode(err)
-		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
-		h.failJob(ctx, client, job, err)
-		return
-	}
-
-	// ===== ✅ STEP 6: STORE SUCCESS RESULT =====
-	if h.idempotencyChecker != nil && output.Success {
-		_ = time.Now().Format("2006-01-02")
-		idempotencyKey := h.keyGenerator.GenerateNotificationKeySimple("email", input.To)
-
-		response := map[string]interface{}{
-			"success":   output.Success,
-			"messageId": output.MessageID,
-			"provider":  output.Provider,
-			"sentAt":    output.SentAt,
-		}
-
-		if err := h.idempotencyChecker.MarkCompleted(ctx, idempotencyKey, response); err != nil {
-			h.logger.Warn("Failed to mark completed", map[string]interface{}{
-				"error":   err.Error(),
-				"traceId": traceID,
-			})
-		}
-	}
-
-	// ===== STEP 7: COMPLETE JOB =====
-	ctxComp, spanComp := otel.Tracer("worker-manager").Start(ctx, "email-send.completeJob")
-	h.completeJob(ctxComp, client, job, output)
-	spanComp.End()
-	metrics.WorkerJobsCompleted.WithLabelValues(TaskType).Inc()
-	metrics.WorkerJobDuration.WithLabelValues(TaskType).Observe(time.Since(startTime).Seconds())
-}
-
-func (h *Handler) parseInput(job entities.Job) (*Input, error) {
-	variables, err := job.GetVariablesAsMap()
-	if err != nil {
-		return nil, &errors.StandardError{
-			Code:      "INPUT_PARSING_FAILED",
-			Message:   "Failed to parse job variables",
-			Details:   err.Error(),
-			Retryable: false,
-			Timestamp: time.Now(),
-		}
-	}
-
-	schema := GetInputSchema()
-	validationResult := validation.ValidateInput(variables, schema)
-	if !validationResult.Valid {
-		return nil, &errors.StandardError{
-			Code:      "VALIDATION_FAILED",
-			Message:   "Input validation failed",
-			Details:   fmt.Sprintf("Validation errors: %v", validationResult.GetErrorMessages()),
-			Retryable: false,
-			Timestamp: time.Now(),
-		}
-	}
-
-	input := &Input{
-		To:      variables["to"].(string),
-		Subject: variables["subject"].(string),
-		Body:    variables["body"].(string),
-	}
-
-	if from, ok := variables["from"].(string); ok && from != "" {
-		input.From = from
-	} else {
-		input.From = h.config.DefaultFrom
-	}
-
-	if cc, ok := variables["cc"].(string); ok {
-		input.CC = cc
-	}
-
-	if bcc, ok := variables["bcc"].(string); ok {
-		input.BCC = bcc
-	}
-
-	if replyTo, ok := variables["replyTo"].(string); ok {
-		input.ReplyTo = replyTo
-	}
-
-	if isHTML, ok := variables["isHtml"].(bool); ok {
-		input.IsHTML = isHTML
-	}
-
-	if priority, ok := variables["priority"].(string); ok {
-		input.Priority = priority
-	}
-
-	if attachments, ok := variables["attachments"].([]interface{}); ok {
-		input.Attachments = make([]Attachment, 0, len(attachments))
-		for _, att := range attachments {
-			if attMap, ok := att.(map[string]interface{}); ok {
-				attachment := Attachment{}
-
-				if filename, ok := attMap["filename"].(string); ok {
-					attachment.Filename = filename
-				}
-				if contentType, ok := attMap["contentType"].(string); ok {
-					attachment.ContentType = contentType
-				}
-				if content, ok := attMap["content"].(string); ok {
-					attachment.Content = content
-				}
-
-				if attachment.Filename != "" && attachment.Content != "" {
-					input.Attachments = append(input.Attachments, attachment)
-				}
-			}
-		}
-	}
-
-	if metadata, ok := variables["metadata"].(map[string]interface{}); ok {
-		input.Metadata = metadata
-	}
-
-	return input, nil
-}
-
-func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
-	variables := map[string]interface{}{
-		"emailSent":    output.Success,
-		"emailMessage": output.Message,
-	}
-
-	if output.MessageID != "" {
-		variables["messageId"] = output.MessageID
-	}
-
-	if output.Provider != "" {
-		variables["emailProvider"] = output.Provider
-	}
-
-	if !output.SentAt.IsZero() {
-		variables["sentAt"] = output.SentAt.Format(time.RFC3339)
-	}
-
-	if h.service != nil {
-		metrics := h.service.GetCircuitBreakerMetrics()
-		if metrics != nil {
-			variables["circuitBreaker"] = map[string]interface{}{
-				"state":         metrics["state"],
-				"failureCount":  metrics["failureCount"],
-				"successCount":  metrics["successCount"],
-				"pendingEmails": metrics["pendingEmails"],
-			}
-		}
-	}
-
-	request, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromMap(variables)
-	if err != nil {
-		span := trace.SpanFromContext(ctx)
-		span.RecordError(err)
-		h.logger.Error("Failed to create complete job command", map[string]interface{}{
-			"jobKey":   job.GetKey(),
-			"error":    err.Error(),
-			"worker":   TaskType,
-			"traceId":  trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
-		})
-		return
-	}
-
-	_, err = request.Send(ctx)
-	if err != nil {
-		span := trace.SpanFromContext(ctx)
-		span.RecordError(err)
-		h.logger.Error("Failed to complete job", map[string]interface{}{
-			"jobKey":   job.GetKey(),
-			"error":    err.Error(),
-			"worker":   TaskType,
-			"traceId":  trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
-		})
-	} else {
-		h.logger.Info("Successfully completed email send", map[string]interface{}{
-			"jobKey":    job.GetKey(),
-			"emailSent": output.Success,
-			"messageId": output.MessageID,
-			"worker":    TaskType,
-			"traceId":   trace.SpanFromContext(ctx).SpanContext().TraceID().String(),
-		})
-	}
-}
-
-func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
-	return h.service.Execute(ctx, input)
-}
-
-func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
-	if err := ValidateInput(input); err != nil {
-		return nil, err
-	}
-	return h.service.Execute(ctx, input)
-}
-
-func (h *Handler) failJob(ctx context.Context, client worker.JobClient, job entities.Job, err error) {
-	span := trace.SpanFromContext(ctx)
-	span.RecordError(err)
-	h.errorHandler.HandleJobError(ctx, client, job, err)
-}
-
-func (h *Handler) Register() error {
-	if !h.config.Enabled {
-		h.logger.Info("Worker is disabled, skipping registration", map[string]interface{}{
-			"worker": TaskType,
-		})
+func (m *MockService) GetCircuitBreakerMetrics() map[string]interface{} {
+	args := m.Called()
+	if args.Get(0) == nil {
 		return nil
 	}
-
-	zeebeClient := h.camunda.GetClient()
-
-	jobWorker := zeebeClient.NewJobWorker().
-		JobType(TaskType).
-		Handler(h.Handle).
-		MaxJobsActive(h.config.MaxJobsActive).
-		Timeout(h.config.Timeout).
-		Name(fmt.Sprintf("%s-worker", TaskType)).
-		Open()
-
-	h.jobWorker = jobWorker
-
-	h.logger.Info("Email send worker registered with Camunda", map[string]interface{}{
-		"taskType":      TaskType,
-		"maxJobsActive": h.config.MaxJobsActive,
-		"timeout":       h.config.Timeout.String(),
-		"enabled":       h.config.Enabled,
-		"smtpHost":      h.config.SMTPHost,
-		"smtpPort":      h.config.SMTPPort,
-	})
-
-	return nil
+	return args.Get(0).(map[string]interface{})
 }
 
-func (h *Handler) Close() {
-	if h.jobWorker != nil {
-		h.logger.Info("Shutting down worker gracefully", map[string]interface{}{
-			"worker": TaskType,
+// ==========================
+// Mock Job Helper
+// ==========================
+
+func createMockJob(key int64, variables map[string]interface{}) entities.Job {
+	variablesJSON, _ := json.Marshal(variables)
+
+	activatedJob := &pb.ActivatedJob{
+		Key:                      key,
+		Type:                     "email.send",
+		ProcessInstanceKey:       key * 10,
+		BpmnProcessId:            "test-process",
+		ProcessDefinitionVersion: 1,
+		ProcessDefinitionKey:     1,
+		ElementId:                "Activity_EmailSend",
+		ElementInstanceKey:       1,
+		CustomHeaders:            "{}",
+		Worker:                   "test-worker",
+		Retries:                  3,
+		Deadline:                 0,
+		Variables:                string(variablesJSON),
+	}
+
+	return entities.Job{ActivatedJob: activatedJob}
+}
+
+// ==========================
+// Test Helpers
+// ==========================
+
+func createValidInput() *Input {
+	return &Input{
+		From:     "sender@example.com",
+		To:       "recipient@example.com",
+		Subject:  "Test Email",
+		Body:     "This is a test email body.",
+		IsHTML:   false,
+		Priority: "normal",
+	}
+}
+
+func createValidHTMLInput() *Input {
+	return &Input{
+		From:    "sender@example.com",
+		To:      "recipient@example.com",
+		Subject: "HTML Test Email",
+		Body:    "<html><body><h1>Test</h1></body></html>",
+		IsHTML:  true,
+		CC:      "cc@example.com",
+		BCC:     "bcc@example.com",
+		ReplyTo: "reply@example.com",
+	}
+}
+
+func createValidOutput() *Output {
+	return &Output{
+		Success:   true,
+		Message:   "Email sent successfully",
+		MessageID: "<123456@smtp.example.com>",
+		Provider:  "SMTP",
+		SentAt:    time.Now(),
+	}
+}
+
+func createValidConfig() *Config {
+	return &Config{
+		Enabled:       true,
+		MaxJobsActive: 5,
+		Timeout:       30 * time.Second,
+		SMTPHost:      "smtp.example.com",
+		SMTPPort:      587,
+		SMTPUsername:  "test-user",
+		SMTPPassword:  "test-password",
+		UseTLS:        true,
+		DefaultFrom:   "noreply@example.com",
+	}
+}
+
+// createHandlerWithMockService creates a Handler wired with a MockService via ServiceInterface.
+func createHandlerWithMockService(svc ServiceInterface) *Handler {
+	return &Handler{
+		config:  createValidConfig(),
+		logger:  logger.NewStructured("info", "json"),
+		service: svc,
+	}
+}
+
+// ==========================
+// Handler Creation Tests
+// ==========================
+
+func TestHandler_NewHandler(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    HandlerOptions
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid configuration",
+			opts: HandlerOptions{
+				CustomConfig: createValidConfig(),
+				Logger:       logger.NewStructured("info", "json"),
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing SMTP host",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 5,
+					Timeout:       30 * time.Second,
+					SMTPPort:      587,
+					DefaultFrom:   "noreply@example.com",
+				},
+			},
+			wantErr: true,
+			errMsg:  "smtp_host is required",
+		},
+		{
+			name: "invalid SMTP port (zero)",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 5,
+					Timeout:       30 * time.Second,
+					SMTPHost:      "smtp.example.com",
+					SMTPPort:      0,
+					DefaultFrom:   "noreply@example.com",
+				},
+			},
+			wantErr: true,
+			errMsg:  "smtp_port must be between 1 and 65535",
+		},
+		{
+			name: "invalid SMTP port (too high)",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 5,
+					Timeout:       30 * time.Second,
+					SMTPHost:      "smtp.example.com",
+					SMTPPort:      70000,
+					DefaultFrom:   "noreply@example.com",
+				},
+			},
+			wantErr: true,
+			errMsg:  "smtp_port must be between 1 and 65535",
+		},
+		{
+			name: "missing default from",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 5,
+					Timeout:       30 * time.Second,
+					SMTPHost:      "smtp.example.com",
+					SMTPPort:      587,
+				},
+			},
+			wantErr: true,
+			errMsg:  "default_from email is required",
+		},
+		{
+			name: "invalid timeout",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 5,
+					Timeout:       -1 * time.Second,
+					SMTPHost:      "smtp.example.com",
+					SMTPPort:      587,
+					DefaultFrom:   "noreply@example.com",
+				},
+			},
+			wantErr: true,
+			errMsg:  "timeout must be positive",
+		},
+		{
+			name: "invalid max jobs active",
+			opts: HandlerOptions{
+				CustomConfig: &Config{
+					Enabled:       true,
+					MaxJobsActive: 0,
+					Timeout:       30 * time.Second,
+					SMTPHost:      "smtp.example.com",
+					SMTPPort:      587,
+					DefaultFrom:   "noreply@example.com",
+				},
+			},
+			wantErr: true,
+			errMsg:  "max_jobs_active must be positive",
+		},
+		{
+			name: "default logger created when not provided",
+			opts: HandlerOptions{
+				CustomConfig: createValidConfig(),
+				Logger:       nil,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler, err := NewHandler(tt.opts)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.Nil(t, handler)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, handler)
+				assert.NotNil(t, handler.config)
+				assert.NotNil(t, handler.logger)
+				assert.NotNil(t, handler.service)
+			}
 		})
-		h.jobWorker.Close()
-		h.jobWorker = nil
 	}
 }
 
-func (h *Handler) HealthCheck(ctx context.Context) error {
-	if err := h.camunda.HealthCheck(ctx); err != nil {
-		return fmt.Errorf("camunda health check failed: %w", err)
+// ==========================
+// Input Parsing Tests
+// ==========================
+
+func TestHandler_ParseInput(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
 	}
 
-	if err := h.service.TestConnection(ctx); err != nil {
-		return fmt.Errorf("smtp health check failed: %w", err)
+	tests := []struct {
+		name      string
+		variables map[string]interface{}
+		wantErr   bool
+		errCode   string
+		validate  func(*testing.T, *Input)
+	}{
+		{
+			name: "valid input with all fields",
+			variables: map[string]interface{}{
+				"from":     "sender@example.com",
+				"to":       "recipient@example.com",
+				"cc":       "cc@example.com",
+				"bcc":      "bcc@example.com",
+				"replyTo":  "reply@example.com",
+				"subject":  "Test Subject",
+				"body":     "This is the email body",
+				"isHtml":   true,
+				"priority": "high",
+				"attachments": []interface{}{
+					map[string]interface{}{
+						"filename":    "document.pdf",
+						"contentType": "application/pdf",
+						"content":     "base64encodedcontent",
+					},
+				},
+				"metadata": map[string]interface{}{
+					"campaignId": "campaign-123",
+					"source":     "marketing",
+				},
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "sender@example.com", input.From)
+				assert.Equal(t, "recipient@example.com", input.To)
+				assert.Equal(t, "cc@example.com", input.CC)
+				assert.Equal(t, "bcc@example.com", input.BCC)
+				assert.Equal(t, "reply@example.com", input.ReplyTo)
+				assert.Equal(t, "Test Subject", input.Subject)
+				assert.Equal(t, "This is the email body", input.Body)
+				assert.True(t, input.IsHTML)
+				assert.Equal(t, "high", input.Priority)
+				assert.Len(t, input.Attachments, 1)
+				assert.Equal(t, "document.pdf", input.Attachments[0].Filename)
+				assert.NotNil(t, input.Metadata)
+				assert.Equal(t, "campaign-123", input.Metadata["campaignId"])
+			},
+		},
+		{
+			name: "valid input minimal fields",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": "Test Subject",
+				"body":    "Test body",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "default@example.com", input.From)
+				assert.Equal(t, "recipient@example.com", input.To)
+				assert.Equal(t, "Test Subject", input.Subject)
+				assert.Equal(t, "Test body", input.Body)
+				assert.False(t, input.IsHTML)
+				assert.Empty(t, input.CC)
+				assert.Empty(t, input.BCC)
+				assert.Empty(t, input.ReplyTo)
+				assert.Empty(t, input.Priority)
+				assert.Nil(t, input.Attachments)
+				assert.Nil(t, input.Metadata)
+			},
+		},
+		{
+			name: "custom from overrides default",
+			variables: map[string]interface{}{
+				"from":    "custom@example.com",
+				"to":      "recipient@example.com",
+				"subject": "Test",
+				"body":    "Body",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "custom@example.com", input.From)
+			},
+		},
+		{
+			name: "empty from uses default",
+			variables: map[string]interface{}{
+				"from":    "",
+				"to":      "recipient@example.com",
+				"subject": "Test",
+				"body":    "Body",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "default@example.com", input.From)
+			},
+		},
+		{
+			name: "missing to field",
+			variables: map[string]interface{}{
+				"subject": "Test Subject",
+				"body":    "Test body",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "missing subject field",
+			variables: map[string]interface{}{
+				"to":   "recipient@example.com",
+				"body": "Test body",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "missing body field",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": "Test Subject",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "to field too short",
+			variables: map[string]interface{}{
+				"to":      "a@b",
+				"subject": "Test",
+				"body":    "Body",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "subject empty string",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": "",
+				"body":    "Body",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "body empty string",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": "Subject",
+				"body":    "",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "subject too long",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": string(make([]byte, 501)),
+				"body":    "Body",
+			},
+			wantErr: true,
+			errCode: "VALIDATION_FAILED",
+		},
+		{
+			name: "multiple attachments",
+			variables: map[string]interface{}{
+				"to":      "recipient@example.com",
+				"subject": "Test",
+				"body":    "Body",
+				"attachments": []interface{}{
+					map[string]interface{}{
+						"filename":    "file1.pdf",
+						"contentType": "application/pdf",
+						"content":     "content1",
+					},
+					map[string]interface{}{
+						"filename":    "file2.jpg",
+						"contentType": "image/jpeg",
+						"content":     "content2",
+					},
+				},
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Len(t, input.Attachments, 2)
+				assert.Equal(t, "file1.pdf", input.Attachments[0].Filename)
+				assert.Equal(t, "file2.jpg", input.Attachments[1].Filename)
+			},
+		},
+		{
+			name: "valid minimum length fields",
+			variables: map[string]interface{}{
+				"to":      "a@b.c",
+				"subject": "S",
+				"body":    "B",
+			},
+			wantErr: false,
+			validate: func(t *testing.T, input *Input) {
+				assert.Equal(t, "a@b.c", input.To)
+				assert.Equal(t, "S", input.Subject)
+				assert.Equal(t, "B", input.Body)
+			},
+		},
 	}
 
-	h.logger.Info("Health check passed", map[string]interface{}{
-		"worker": TaskType,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := createMockJob(12345, tt.variables)
+
+			input, err := handler.parseInput(job)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				stdErr, ok := err.(*errors.StandardError)
+				require.True(t, ok, "error should be StandardError")
+				assert.Equal(t, errors.ErrorCode(tt.errCode), stdErr.Code)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, input)
+				if tt.validate != nil {
+					tt.validate(t, input)
+				}
+			}
+		})
+	}
+}
+
+func TestHandler_ParseHTMLInput(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	htmlInput := createValidHTMLInput()
+
+	variables := map[string]interface{}{
+		"from":    htmlInput.From,
+		"to":      htmlInput.To,
+		"cc":      htmlInput.CC,
+		"bcc":     htmlInput.BCC,
+		"replyTo": htmlInput.ReplyTo,
+		"subject": htmlInput.Subject,
+		"body":    htmlInput.Body,
+		"isHtml":  htmlInput.IsHTML,
+	}
+
+	job := createMockJob(12345, variables)
+	input, err := handler.parseInput(job)
+
+	require.NoError(t, err)
+	assert.True(t, input.IsHTML)
+	assert.Contains(t, input.Body, "<html>")
+	assert.Equal(t, htmlInput.CC, input.CC)
+	assert.Equal(t, htmlInput.BCC, input.BCC)
+	assert.Equal(t, htmlInput.ReplyTo, input.ReplyTo)
+}
+
+func TestHandler_ParseInputWithInvalidJSON(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	activatedJob := &pb.ActivatedJob{
+		Key:       12345,
+		Type:      "email.send",
+		Variables: "invalid json{",
+	}
+	job := entities.Job{ActivatedJob: activatedJob}
+
+	_, err := handler.parseInput(job)
+
+	require.Error(t, err)
+	stdErr, ok := err.(*errors.StandardError)
+	require.True(t, ok)
+	assert.Equal(t, errors.ErrorCode("INPUT_PARSING_FAILED"), stdErr.Code)
+}
+
+func TestHandler_ParseInputWithMultipleRecipients(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	variables := map[string]interface{}{
+		"to":      "recipient1@example.com",
+		"cc":      "cc1@example.com,cc2@example.com",
+		"bcc":     "bcc1@example.com,bcc2@example.com,bcc3@example.com",
+		"subject": "Test",
+		"body":    "Body",
+	}
+
+	job := createMockJob(12345, variables)
+	input, err := handler.parseInput(job)
+
+	require.NoError(t, err)
+	assert.Equal(t, "cc1@example.com,cc2@example.com", input.CC)
+	assert.Equal(t, "bcc1@example.com,bcc2@example.com,bcc3@example.com", input.BCC)
+}
+
+func TestHandler_ParseInputWithComplexMetadata(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	variables := map[string]interface{}{
+		"to":      "recipient@example.com",
+		"subject": "Test",
+		"body":    "Body",
+		"metadata": map[string]interface{}{
+			"campaignId":   "campaign-123",
+			"userId":       "user-456",
+			"templateId":   "template-789",
+			"tracking":     true,
+			"customField1": "value1",
+			"customField2": 12345,
+			"nested": map[string]interface{}{
+				"key": "value",
+			},
+		},
+	}
+
+	job := createMockJob(12345, variables)
+	input, err := handler.parseInput(job)
+
+	require.NoError(t, err)
+	require.NotNil(t, input.Metadata)
+	assert.Equal(t, "campaign-123", input.Metadata["campaignId"])
+	assert.Equal(t, "user-456", input.Metadata["userId"])
+	assert.Equal(t, true, input.Metadata["tracking"])
+	assert.Equal(t, float64(12345), input.Metadata["customField2"])
+
+	nested, ok := input.Metadata["nested"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "value", nested["key"])
+}
+
+func TestHandler_ParseInputWithPriorityVariations(t *testing.T) {
+	handler := &Handler{
+		config: &Config{
+			DefaultFrom: "default@example.com",
+		},
+		logger: logger.NewStructured("info", "json"),
+	}
+
+	priorities := []string{"high", "normal", "low", "urgent", ""}
+
+	for _, priority := range priorities {
+		t.Run(fmt.Sprintf("priority_%s", priority), func(t *testing.T) {
+			variables := map[string]interface{}{
+				"to":       "recipient@example.com",
+				"subject":  "Test",
+				"body":     "Body",
+				"priority": priority,
+			}
+
+			job := createMockJob(12345, variables)
+			input, err := handler.parseInput(job)
+
+			require.NoError(t, err)
+			assert.Equal(t, priority, input.Priority)
+		})
+	}
+}
+
+// ==========================
+// Execute Tests (via MockService through ServiceInterface)
+// ==========================
+
+func TestHandler_Execute(t *testing.T) {
+	t.Run("email sent successfully", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := createValidInput()
+		expected := createValidOutput()
+
+		mockSvc.On("Execute", mock.Anything, mock.MatchedBy(func(i *Input) bool {
+			return i.To == input.To
+		})).Return(expected, nil)
+
+		output, err := handler.Execute(context.Background(), input)
+
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		assert.True(t, output.Success)
+		assert.Equal(t, "<123456@smtp.example.com>", output.MessageID)
+		assert.Equal(t, "SMTP", output.Provider)
+		mockSvc.AssertExpectations(t)
 	})
 
-	return nil
-}
+	t.Run("service returns SMTP error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
 
-func (h *Handler) GetTaskType() string {
-	return TaskType
-}
+		input := createValidInput()
 
-func (h *Handler) IsEnabled() bool {
-	return h.config.Enabled
-}
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "SMTP_ERROR",
+			Message:   "Failed to connect to SMTP server",
+			Retryable: true,
+			Timestamp: time.Now(),
+		})
 
-func (h *Handler) GetConfig() *Config {
-	return h.config
-}
+		output, err := handler.Execute(context.Background(), input)
 
-func (h *Handler) GetMetrics() map[string]interface{} {
-	if h.service != nil {
-		return h.service.GetCircuitBreakerMetrics()
-	}
-	return map[string]interface{}{
-		"error": "Service not initialized",
-	}
-}
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.Equal(t, errors.ErrorCode("SMTP_ERROR"), stdErr.Code)
+		assert.True(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
 
-func extractErrorCode(err error) string {
-	if stdErr, ok := err.(*errors.StandardError); ok {
-		return string(stdErr.Code)
-	}
-	return "UNKNOWN_ERROR"
-}
+	t.Run("service returns non-retryable error", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
 
-func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
-	if customConfig != nil {
-		return customConfig
-	}
+		input := createValidInput()
 
-	cfg := DefaultConfig()
+		mockSvc.On("Execute", mock.Anything, mock.Anything).Return(nil, &errors.StandardError{
+			Code:      "SMTP_AUTH_FAILED",
+			Message:   "Authentication failed",
+			Retryable: false,
+			Timestamp: time.Now(),
+		})
 
-	if appConfig != nil {
-		if workerCfg, exists := appConfig.Workers["email-send"]; exists {
-			cfg.Enabled = workerCfg.Enabled
-			if workerCfg.MaxJobsActive > 0 {
-				cfg.MaxJobsActive = workerCfg.MaxJobsActive
-			}
-			if workerCfg.Timeout > 0 {
-				cfg.Timeout = time.Duration(workerCfg.Timeout) * time.Millisecond
-			}
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		stdErr, ok := err.(*errors.StandardError)
+		require.True(t, ok)
+		assert.False(t, stdErr.Retryable)
+		mockSvc.AssertExpectations(t)
+	})
+
+	t.Run("invalid input fails validation before service call", func(t *testing.T) {
+		mockSvc := new(MockService)
+		handler := createHandlerWithMockService(mockSvc)
+
+		input := &Input{
+			To:      "", // invalid
+			Subject: "Test",
+			Body:    "Body",
 		}
 
-		if appConfig.Integrations.SMTP.Host != "" {
-			cfg.SMTPHost = appConfig.Integrations.SMTP.Host
-			cfg.SMTPPort = appConfig.Integrations.SMTP.Port
-			cfg.SMTPUsername = appConfig.Integrations.SMTP.Username
-			cfg.SMTPPassword = appConfig.Integrations.SMTP.Password
-			cfg.UseTLS = appConfig.Integrations.SMTP.UseTLS
-			cfg.DefaultFrom = appConfig.Integrations.SMTP.DefaultFrom
-		}
+		output, err := handler.Execute(context.Background(), input)
+
+		require.Error(t, err)
+		assert.Nil(t, output)
+		// Service must NOT be called when input is invalid
+		mockSvc.AssertNotCalled(t, "Execute")
+	})
+}
+
+// ==========================
+// Error Handling Tests
+// ==========================
+
+func TestHandler_ExtractErrorCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{
+			name: "standard error - SMTP error",
+			err: &errors.StandardError{
+				Code:    "SMTP_ERROR",
+				Message: "SMTP connection failed",
+			},
+			expected: "SMTP_ERROR",
+		},
+		{
+			name: "standard error - validation failed",
+			err: &errors.StandardError{
+				Code:    "VALIDATION_FAILED",
+				Message: "Email validation failed",
+			},
+			expected: "VALIDATION_FAILED",
+		},
+		{
+			name: "standard error - input parsing",
+			err: &errors.StandardError{
+				Code:    "INPUT_PARSING_FAILED",
+				Message: "Failed to parse job variables",
+			},
+			expected: "INPUT_PARSING_FAILED",
+		},
+		{
+			name:     "generic error",
+			err:      fmt.Errorf("generic error"),
+			expected: "UNKNOWN_ERROR",
+		},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: "UNKNOWN_ERROR",
+		},
 	}
 
-	return cfg
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code := extractErrorCode(tt.err)
+			assert.Equal(t, tt.expected, code)
+		})
+	}
+}
+
+func TestHandler_ErrorCodeExtraction(t *testing.T) {
+	testCases := []struct {
+		name         string
+		error        error
+		expectedCode string
+	}{
+		{
+			name: "SMTP connection error",
+			error: &errors.StandardError{
+				Code:    "SMTP_CONNECTION_ERROR",
+				Message: "Cannot connect",
+			},
+			expectedCode: "SMTP_CONNECTION_ERROR",
+		},
+		{
+			name: "Authentication failed",
+			error: &errors.StandardError{
+				Code:    "SMTP_AUTH_FAILED",
+				Message: "Invalid credentials",
+			},
+			expectedCode: "SMTP_AUTH_FAILED",
+		},
+		{
+			name: "Rate limit exceeded",
+			error: &errors.StandardError{
+				Code:    "RATE_LIMIT_EXCEEDED",
+				Message: "Too many requests",
+			},
+			expectedCode: "RATE_LIMIT_EXCEEDED",
+		},
+		{
+			name:         "Unknown error",
+			error:        fmt.Errorf("something went wrong"),
+			expectedCode: "UNKNOWN_ERROR",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			code := extractErrorCode(tc.error)
+			assert.Equal(t, tc.expectedCode, code)
+		})
+	}
+}
+
+// ==========================
+// Config Tests
+// ==========================
+
+func TestConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid config",
+			config:  createValidConfig(),
+			wantErr: false,
+		},
+		{
+			name: "missing SMTP host",
+			config: &Config{
+				SMTPPort:      587,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "smtp_host is required",
+		},
+		{
+			name: "invalid SMTP port - zero",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      0,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "smtp_port must be between 1 and 65535",
+		},
+		{
+			name: "invalid SMTP port - negative",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      -1,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "smtp_port must be between 1 and 65535",
+		},
+		{
+			name: "invalid SMTP port - too high",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      65536,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "smtp_port must be between 1 and 65535",
+		},
+		{
+			name: "missing default from",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      587,
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "default_from email is required",
+		},
+		{
+			name: "zero timeout",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      587,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       0,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "timeout must be positive",
+		},
+		{
+			name: "negative timeout",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      587,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       -5 * time.Second,
+				MaxJobsActive: 5,
+			},
+			wantErr: true,
+			errMsg:  "timeout must be positive",
+		},
+		{
+			name: "zero max jobs active",
+			config: &Config{
+				SMTPHost:      "smtp.example.com",
+				SMTPPort:      587,
+				DefaultFrom:   "noreply@example.com",
+				Timeout:       30 * time.Second,
+				MaxJobsActive: 0,
+			},
+			wantErr: true,
+			errMsg:  "max_jobs_active must be positive",
+		},
+		{
+			name: "valid config with TLS",
+			config: &Config{
+				Enabled:       true,
+				MaxJobsActive: 10,
+				Timeout:       60 * time.Second,
+				SMTPHost:      "smtp.gmail.com",
+				SMTPPort:      587,
+				SMTPUsername:  "user@gmail.com",
+				SMTPPassword:  "password",
+				UseTLS:        true,
+				DefaultFrom:   "noreply@example.com",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid config without TLS",
+			config: &Config{
+				Enabled:       true,
+				MaxJobsActive: 5,
+				Timeout:       30 * time.Second,
+				SMTPHost:      "localhost",
+				SMTPPort:      25,
+				UseTLS:        false,
+				DefaultFrom:   "noreply@example.com",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConfig_DefaultConfig(t *testing.T) {
+	config := DefaultConfig()
+
+	assert.True(t, config.Enabled)
+	assert.Equal(t, 5, config.MaxJobsActive)
+	assert.Equal(t, 30*time.Second, config.Timeout)
+	assert.Equal(t, 587, config.SMTPPort)
+	assert.True(t, config.UseTLS)
+	assert.Equal(t, "noreply@example.com", config.DefaultFrom)
+}
+
+func TestCreateConfigFromAppConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		appConfig    *config.Config
+		customConfig *Config
+		validate     func(*testing.T, *Config)
+	}{
+		{
+			name:         "custom config takes precedence",
+			appConfig:    &config.Config{},
+			customConfig: createValidConfig(),
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "smtp.example.com", cfg.SMTPHost)
+				assert.Equal(t, 587, cfg.SMTPPort)
+				assert.Equal(t, "test-user", cfg.SMTPUsername)
+				assert.Equal(t, "test-password", cfg.SMTPPassword)
+				assert.True(t, cfg.UseTLS)
+			},
+		},
+		{
+			name: "loads from app config",
+			appConfig: &config.Config{
+				Workers: map[string]config.WorkerConfig{
+					"email-send": {
+						Enabled:       true,
+						MaxJobsActive: 10,
+						Timeout:       45000,
+					},
+				},
+				Integrations: func() config.IntegrationConfig {
+					ic := config.IntegrationConfig{}
+					ic.SMTP.Host = "smtp.mailgun.org"
+					ic.SMTP.Port = 465
+					ic.SMTP.Username = "mailgun-user"
+					ic.SMTP.Password = "mailgun-pass"
+					ic.SMTP.UseTLS = true
+					ic.SMTP.DefaultFrom = "system@example.com"
+					return ic
+				}(),
+			},
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "smtp.mailgun.org", cfg.SMTPHost)
+				assert.Equal(t, 465, cfg.SMTPPort)
+				assert.Equal(t, "mailgun-user", cfg.SMTPUsername)
+				assert.Equal(t, "mailgun-pass", cfg.SMTPPassword)
+				assert.True(t, cfg.UseTLS)
+				assert.Equal(t, "system@example.com", cfg.DefaultFrom)
+				assert.Equal(t, 10, cfg.MaxJobsActive)
+				assert.Equal(t, 45*time.Second, cfg.Timeout)
+				assert.True(t, cfg.Enabled)
+			},
+		},
+		{
+			name: "defaults when SMTP not configured",
+			appConfig: &config.Config{
+				Workers: map[string]config.WorkerConfig{
+					"email-send": {
+						Enabled:       false,
+						MaxJobsActive: 3,
+						Timeout:       20000,
+					},
+				},
+			},
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.False(t, cfg.Enabled)
+				assert.Equal(t, 3, cfg.MaxJobsActive)
+				assert.Equal(t, 20*time.Second, cfg.Timeout)
+				assert.Equal(t, "", cfg.SMTPHost)
+				assert.Equal(t, 587, cfg.SMTPPort)
+				assert.Equal(t, "noreply@example.com", cfg.DefaultFrom)
+			},
+		},
+		{
+			name:         "uses defaults when no configs provided",
+			appConfig:    nil,
+			customConfig: nil,
+			validate: func(t *testing.T, cfg *Config) {
+				assert.True(t, cfg.Enabled)
+				assert.Equal(t, 5, cfg.MaxJobsActive)
+				assert.Equal(t, 30*time.Second, cfg.Timeout)
+				assert.Equal(t, 587, cfg.SMTPPort)
+				assert.True(t, cfg.UseTLS)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := createConfigFromAppConfig(tt.appConfig, tt.customConfig)
+			require.NotNil(t, cfg)
+			tt.validate(t, cfg)
+		})
+	}
+}
+
+// ==========================
+// Handler Methods Tests
+// ==========================
+
+func TestHandler_GetTaskType(t *testing.T) {
+	handler := &Handler{}
+	assert.Equal(t, "email.send", handler.GetTaskType())
+	assert.Equal(t, TaskType, handler.GetTaskType())
+}
+
+func TestHandler_IsEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Config
+		enabled bool
+	}{
+		{
+			name:    "enabled",
+			config:  &Config{Enabled: true},
+			enabled: true,
+		},
+		{
+			name:    "disabled",
+			config:  &Config{Enabled: false},
+			enabled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &Handler{config: tt.config}
+			assert.Equal(t, tt.enabled, handler.IsEnabled())
+		})
+	}
+}
+
+func TestHandler_GetConfig(t *testing.T) {
+	cfg := createValidConfig()
+	handler := &Handler{config: cfg}
+
+	assert.Equal(t, cfg, handler.GetConfig())
+	assert.Equal(t, "smtp.example.com", handler.GetConfig().SMTPHost)
+	assert.Equal(t, 587, handler.GetConfig().SMTPPort)
+	assert.Equal(t, "test-user", handler.GetConfig().SMTPUsername)
+	assert.Equal(t, "noreply@example.com", handler.GetConfig().DefaultFrom)
+}
+
+// ==========================
+// Schema Tests
+// ==========================
+
+func TestGetInputSchema(t *testing.T) {
+	schema := GetInputSchema()
+
+	assert.Equal(t, "object", schema.Type)
+	assert.Contains(t, schema.Required, "to")
+	assert.Contains(t, schema.Required, "subject")
+	assert.Contains(t, schema.Required, "body")
+	assert.Len(t, schema.Required, 3)
+
+	assert.Contains(t, schema.Properties, "from")
+	assert.Contains(t, schema.Properties, "to")
+	assert.Contains(t, schema.Properties, "cc")
+	assert.Contains(t, schema.Properties, "bcc")
+	assert.Contains(t, schema.Properties, "replyTo")
+	assert.Contains(t, schema.Properties, "subject")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "isHtml")
+	assert.Contains(t, schema.Properties, "priority")
+	assert.Contains(t, schema.Properties, "attachments")
+	assert.Contains(t, schema.Properties, "metadata")
+
+	assert.Equal(t, "string", schema.Properties["to"].Type)
+	assert.Equal(t, "string", schema.Properties["subject"].Type)
+	assert.Equal(t, "string", schema.Properties["body"].Type)
+	assert.Equal(t, "boolean", schema.Properties["isHtml"].Type)
+	assert.Equal(t, "array", schema.Properties["attachments"].Type)
+	assert.Equal(t, "object", schema.Properties["metadata"].Type)
+
+	assert.NotNil(t, schema.Properties["to"].MinLength)
+	assert.Equal(t, 5, *schema.Properties["to"].MinLength)
+	assert.NotNil(t, schema.Properties["subject"].MinLength)
+	assert.Equal(t, 1, *schema.Properties["subject"].MinLength)
+	assert.NotNil(t, schema.Properties["subject"].MaxLength)
+	assert.Equal(t, 500, *schema.Properties["subject"].MaxLength)
+
+	assert.False(t, schema.AdditionalProperties)
+}
+
+func TestGetOutputSchema(t *testing.T) {
+	schema := GetOutputSchema()
+
+	assert.Equal(t, "object", schema.Type)
+
+	assert.Contains(t, schema.Properties, "success")
+	assert.Contains(t, schema.Properties, "message")
+	assert.Contains(t, schema.Properties, "messageId")
+	assert.Contains(t, schema.Properties, "provider")
+	assert.Contains(t, schema.Properties, "sentAt")
+
+	assert.Equal(t, "boolean", schema.Properties["success"].Type)
+	assert.Equal(t, "string", schema.Properties["message"].Type)
+	assert.Equal(t, "string", schema.Properties["messageId"].Type)
+	assert.Equal(t, "string", schema.Properties["provider"].Type)
+	assert.Equal(t, "string", schema.Properties["sentAt"].Type)
+
+	assert.False(t, schema.AdditionalProperties)
+}
+
+// ==========================
+// Output Structure Tests
+// ==========================
+
+func TestService_OutputStructure(t *testing.T) {
+	output := createValidOutput()
+
+	assert.True(t, output.Success)
+	assert.Equal(t, "Email sent successfully", output.Message)
+	assert.NotEmpty(t, output.MessageID)
+	assert.Equal(t, "SMTP", output.Provider)
+	assert.False(t, output.SentAt.IsZero())
 }

@@ -29,11 +29,16 @@ import (
 
 const TaskType = "crm.user.create"
 
+type ServiceInterface interface {
+	Execute(ctx context.Context, input *Input) (*Output, error)
+	TestConnection(ctx context.Context) error
+}
+
 type Handler struct {
 	config             *Config
 	logger             logger.Logger
 	camunda            *camunda.Client
-	service            *Service
+	service            ServiceInterface // *Service
 	jobWorker          worker.JobWorker
 	rateLimiter        *ratelimit.Limiter
 	errorHandler       *errors.ErrorHandler

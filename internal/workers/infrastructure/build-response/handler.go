@@ -522,26 +522,37 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 			// ✅ Handle logo_url OR logo object (defensive)
 			if logo, ok := listing["logo"].(map[string]interface{}); ok {
 				transformed["logo"] = logo
-			} else if logoURL, ok := listing["logo_url"].(string); ok {
-				brandName := ""
-				if b, ok := transformed["brand"].(string); ok {
-					brandName = b
-				}
-				transformed["logo"] = map[string]interface{}{
-					"url": logoURL,
-					"alt": brandName,
-				}
 			} else {
-				// Fallback empty logo
 				brandName := ""
 				if b, ok := transformed["brand"].(string); ok {
 					brandName = b
 				}
 				transformed["logo"] = map[string]interface{}{
-					"url": "",
-					"alt": brandName,
+					"circle": "",
+					"square": "",
+					"alt":    brandName,
 				}
 			}
+			// } else if logoURL, ok := listing["logo_url"].(string); ok {
+			// 	brandName := ""
+			// 	if b, ok := transformed["brand"].(string); ok {
+			// 		brandName = b
+			// 	}
+			// 	transformed["logo"] = map[string]interface{}{
+			// 		"url": logoURL,
+			// 		"alt": brandName,
+			// 	}
+			// } else {
+			// 	// Fallback empty logo
+			// 	brandName := ""
+			// 	if b, ok := transformed["brand"].(string); ok {
+			// 		brandName = b
+			// 	}
+			// 	transformed["logo"] = map[string]interface{}{
+			// 		"url": "",
+			// 		"alt": brandName,
+			// 	}
+			// }
 
 			transformedListings = append(transformedListings, transformed)
 		}
@@ -698,14 +709,37 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				industryName = industry
 			}
 
-			// NAYA - logo object se URL nikalo
-			logoURL := ""
+			// // NAYA - logo object se URL nikalo
+			// logoURL := ""
+			// if logo, ok := rec["logo"].(map[string]interface{}); ok {
+			// 	if url, ok := logo["url"].(string); ok {
+			// 		logoURL = url
+			// 	}
+			// } else if url, ok := rec["logo_url"].(string); ok {
+			// 	logoURL = url
+			// }
+
+			// transformed := map[string]interface{}{
+			// 	"id":       rec["id"],
+			// 	"brand":    rec["brand"],
+			// 	"industry": industryName, // ✅ String, not object
+			// 	"slug":     rec["slug"],
+			// 	"image": map[string]interface{}{ // ✅ ADD THIS
+			// 		//"url": rec["logo_url"],
+			// 		"url": logoURL,
+			// 		"alt": rec["brand"],
+			// 	},
+			// }
+
+			circle := ""
+			square := ""
 			if logo, ok := rec["logo"].(map[string]interface{}); ok {
-				if url, ok := logo["url"].(string); ok {
-					logoURL = url
+				if c, ok := logo["circle"].(string); ok {
+					circle = c
 				}
-			} else if url, ok := rec["logo_url"].(string); ok {
-				logoURL = url
+				if s, ok := logo["square"].(string); ok {
+					square = s
+				}
 			}
 
 			transformed := map[string]interface{}{
@@ -713,10 +747,10 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				"brand":    rec["brand"],
 				"industry": industryName, // ✅ String, not object
 				"slug":     rec["slug"],
-				"image": map[string]interface{}{ // ✅ ADD THIS
-					//"url": rec["logo_url"],
-					"url": logoURL,
-					"alt": rec["brand"],
+				"image": map[string]interface{}{
+					"circle": circle,
+					"square": square,
+					"alt":    rec["brand"],
 				},
 			}
 
@@ -843,13 +877,36 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 				industryName = industry
 			}
 
-			logoURL := ""
+			// logoURL := ""
+			// if logo, ok := rec["logo"].(map[string]interface{}); ok {
+			// 	if url, ok := logo["url"].(string); ok {
+			// 		logoURL = url
+			// 	}
+			// } else if url, ok := rec["logo_url"].(string); ok {
+			// 	logoURL = url
+			// }
+
+			// transformed := map[string]interface{}{
+			// 	"id":       rec["id"],
+			// 	"brand":    rec["brand"],
+			// 	"industry": industryName, // ✅ String, not object
+			// 	"slug":     rec["slug"],
+			// 	"image": map[string]interface{}{ // ✅ ADD THIS
+			// 		//"url": rec["logo_url"],
+			// 		"url": logoURL,
+			// 		"alt": rec["brand"],
+			// 	},
+			// }
+
+			circle := ""
+			square := ""
 			if logo, ok := rec["logo"].(map[string]interface{}); ok {
-				if url, ok := logo["url"].(string); ok {
-					logoURL = url
+				if c, ok := logo["circle"].(string); ok {
+					circle = c
 				}
-			} else if url, ok := rec["logo_url"].(string); ok {
-				logoURL = url
+				if s, ok := logo["square"].(string); ok {
+					square = s
+				}
 			}
 
 			transformed := map[string]interface{}{
@@ -857,10 +914,10 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 				"brand":    rec["brand"],
 				"industry": industryName, // ✅ String, not object
 				"slug":     rec["slug"],
-				"image": map[string]interface{}{ // ✅ ADD THIS
-					//"url": rec["logo_url"],
-					"url": logoURL,
-					"alt": rec["brand"],
+				"image": map[string]interface{}{
+					"circle": circle,
+					"square": square,
+					"alt":    rec["brand"],
 				},
 			}
 
@@ -920,33 +977,60 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[
 	}
 
 	// ✅ DEFENSIVE: Handle logo structure (logo object OR logo_url)
-	if _, exists := result["logo"]; !exists {
-		logoURL := ""
+	// if _, exists := result["logo"]; !exists {
+	// 	logoURL := ""
 
-		// Try to get logo URL from various sources
-		if url, ok := basicInfo["logo_url"].(string); ok {
-			logoURL = url
-		} else if logo, ok := basicInfo["logo"].(map[string]interface{}); ok {
-			if url, ok := logo["url"].(string); ok {
-				logoURL = url
-			}
-		}
+	// 	// Try to get logo URL from various sources
+	// 	if url, ok := basicInfo["logo_url"].(string); ok {
+	// 		logoURL = url
+	// 	} else if logo, ok := basicInfo["logo"].(map[string]interface{}); ok {
+	// 		if url, ok := logo["url"].(string); ok {
+	// 			logoURL = url
+	// 		}
+	// 	}
 
-		// Get name for alt text
+	// 	// Get name for alt text
+	// 	name := ""
+	// 	if n, ok := basicInfo["name"].(string); ok {
+	// 		name = n
+	// 	} else if b, ok := basicInfo["brand"].(string); ok {
+	// 		name = b
+	// 	}
+
+	// 	result["logo"] = map[string]interface{}{
+	// 		"url": logoURL,
+	// 		"alt": name,
+	// 	}
+	// }
+
+	// // Remove logo_url (use logo object instead)
+	// delete(result, "logo_url")
+
+	if logo, ok := result["logo"].(map[string]interface{}); ok {
+		// Already circle/square format — bas alt ensure karo
 		name := ""
 		if n, ok := basicInfo["name"].(string); ok {
 			name = n
 		} else if b, ok := basicInfo["brand"].(string); ok {
 			name = b
 		}
-
+		if _, hasAlt := logo["alt"]; !hasAlt {
+			logo["alt"] = name
+		}
+	} else {
+		// Logo object nahi hai — empty banao
+		name := ""
+		if n, ok := basicInfo["name"].(string); ok {
+			name = n
+		} else if b, ok := basicInfo["brand"].(string); ok {
+			name = b
+		}
 		result["logo"] = map[string]interface{}{
-			"url": logoURL,
-			"alt": name,
+			"circle": "",
+			"square": "",
+			"alt":    name,
 		}
 	}
-
-	// Remove logo_url (use logo object instead)
 	delete(result, "logo_url")
 
 	return result

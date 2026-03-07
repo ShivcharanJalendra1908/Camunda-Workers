@@ -259,24 +259,27 @@ CREATE TABLE franchises (
     leader_name VARCHAR(150),
     leader_role VARCHAR(100),
     contact_email VARCHAR(150),
-    logo_url VARCHAR(255),
+    logo_url_circle VARCHAR(255),
+    logo_url_square VARCHAR(255),
     created_by UUID NOT NULL REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Constraints
-    CONSTRAINT chk_email_format 
+    CONSTRAINT chk_email_format
         CHECK (contact_email IS NULL OR contact_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
-    CONSTRAINT chk_logo_url 
-        CHECK (logo_url IS NULL OR logo_url ~* '^https?://' OR logo_url ~* '^/'),
-    CONSTRAINT chk_total_outlets_positive 
+    CONSTRAINT chk_logo_url_circle
+        CHECK (logo_url_circle IS NULL OR logo_url_circle ~* '^https?://' OR logo_url_circle ~* '^/'),
+    CONSTRAINT chk_logo_url_square
+        CHECK (logo_url_square IS NULL OR logo_url_square ~* '^https?://' OR logo_url_square ~* '^/'),
+    CONSTRAINT chk_total_outlets_positive
         CHECK (total_outlets >= 0),
-    CONSTRAINT chk_units_count_positive 
+    CONSTRAINT chk_units_count_positive
         CHECK (units_count >= 0),
-    CONSTRAINT chk_founded_year_valid 
+    CONSTRAINT chk_founded_year_valid
         CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
-    CONSTRAINT chk_established_year_valid 
+    CONSTRAINT chk_established_year_valid
         CHECK (established_year IS NULL OR (established_year >= 1800 AND established_year <= EXTRACT(YEAR FROM CURRENT_DATE)))
 );
 
@@ -287,8 +290,56 @@ CREATE TRIGGER update_franchises_updated_at
 CREATE INDEX idx_franchises_slug ON franchises(slug);
 CREATE INDEX idx_franchises_created_by ON franchises(created_by);
 
-COMMENT ON TABLE franchises IS 
+COMMENT ON TABLE franchises IS
     'Core franchise master data. Single source of truth for franchise information. Synced to Elasticsearch for search.';
+-- CREATE TABLE franchises (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     name VARCHAR(150) NOT NULL,
+--     slug VARCHAR(150) UNIQUE NOT NULL,
+--     short_description TEXT,
+--     description TEXT,
+--     founded_year SMALLINT,
+--     trusted_seller BOOLEAN DEFAULT FALSE,
+--     verified BOOLEAN DEFAULT FALSE,
+--     total_outlets INT DEFAULT 0,
+--     outlet_range VARCHAR(50),
+--     parent_company VARCHAR(200),
+--     business_type VARCHAR(100),
+--     established_year SMALLINT,
+--     units_count INT DEFAULT 0,
+--     leader_name VARCHAR(150),
+--     leader_role VARCHAR(100),
+--     contact_email VARCHAR(150),
+--     logo_url VARCHAR(255),
+--     created_by UUID NOT NULL REFERENCES users(id),
+--     updated_by UUID REFERENCES users(id),
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+--     -- Constraints
+--     CONSTRAINT chk_email_format 
+--         CHECK (contact_email IS NULL OR contact_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+--     CONSTRAINT chk_logo_url 
+--         CHECK (logo_url IS NULL OR logo_url ~* '^https?://' OR logo_url ~* '^/'),
+--     CONSTRAINT chk_total_outlets_positive 
+--         CHECK (total_outlets >= 0),
+--     CONSTRAINT chk_units_count_positive 
+--         CHECK (units_count >= 0),
+--     CONSTRAINT chk_founded_year_valid 
+--         CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
+--     CONSTRAINT chk_established_year_valid 
+--         CHECK (established_year IS NULL OR (established_year >= 1800 AND established_year <= EXTRACT(YEAR FROM CURRENT_DATE)))
+-- );
+
+-- CREATE TRIGGER update_franchises_updated_at
+--     BEFORE UPDATE ON franchises
+--     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- CREATE INDEX idx_franchises_slug ON franchises(slug);
+-- CREATE INDEX idx_franchises_created_by ON franchises(created_by);
+
+-- COMMENT ON TABLE franchises IS 
+--     'Core franchise master data. Single source of truth for franchise information. Synced to Elasticsearch for search.';
 
 -- ========================================
 -- FRANCHISE CATEGORIES (Many-to-Many Junction)
