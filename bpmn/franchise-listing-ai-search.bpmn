@@ -11,6 +11,7 @@
           <zeebe:input source="=searchQuery" target="query" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:output source="=extractedParams" target="filters" />
+          <zeebe:output source="=extractedParams" target="extractedParams" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Start_To_AI</bpmn:incoming>
@@ -52,8 +53,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;RECOMMENDED_BY_INDUSTRY&#34;" target="queryType" />
-          <zeebe:input source="=if filters != null and filters.category != null then filters.category else &#34;&#34;" target="industrySlug" />
-          <zeebe:output source="=data" target="recommended" />
+          <zeebe:input source="=if extractedParams != null and extractedParams.industry != null and extractedParams.industry != &#34;&#34; then extractedParams.industry else if filters != null and filters.category != null then filters.category else &#34;&#34;" target="industrySlug" />          <zeebe:output source="=data" target="recommended" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Recommended</bpmn:incoming>

@@ -162,14 +162,14 @@ var industryNormalizationMap = map[string]string{
 	"food & beverage":     "Food & Beverage",
 	"home-based business": "Home-Based Business",
 	"retail":              "Retail",
-	"government":          "Government",
-	"education":           "Education",
-	"fashion":             "Fashion",
-	"entertainment":       "Entertainment",
+	// "government":          "Government",
+	"education":     "Education",
+	"fashion":       "Fashion",
+	"entertainment": "Entertainment",
 	// Wrong → Correct
 	"business & professional services": "Business Services",
 	"education & edtech":               "Education",
-	"health & fitness":                 "Sports & Fitness",
+	"health & fitness":                 "Health",
 	"entertainment & leisure":          "Entertainment",
 	"real estate & property services":  "Real Estate",
 	"financial services":               "Finance / Banking",
@@ -179,22 +179,69 @@ var industryNormalizationMap = map[string]string{
 	"hospitality":                      "Hotel, Travel & Tourism",
 }
 
+// func normalizeIndustry(industry string, category string) string {
+// 	lower := strings.ToLower(strings.TrimSpace(industry))
+// 	catLower := strings.ToLower(strings.TrimSpace(category))
+
+// 	// "Government" ya "Business Services" jab travel category ho
+// 	travelKeywords := []string{"resort", "holiday", "tourism", "travel", "hotel", "lodge", "guesthouse", "destination"}
+// 	if lower == "government" || lower == "business services" {
+// 		for _, kw := range travelKeywords {
+// 			if strings.Contains(catLower, kw) {
+// 				return "Hotel, Travel & Tourism"
+// 			}
+// 		}
+// 	}
+
+// 	// "Business Services" jab dealer/tech/media category ho
+// 	if lower == "business services" {
+// 		if strings.Contains(catLower, "dealer") || strings.Contains(catLower, "distributor") {
+// 			return "Dealers & Distributors"
+// 		}
+// 		if strings.Contains(catLower, "software") || strings.Contains(catLower, "it service") || strings.Contains(catLower, "tech") {
+// 			return "Technology / IT"
+// 		}
+// 		if strings.Contains(catLower, "advertis") || strings.Contains(catLower, "media") {
+// 			return "Media / Communication"
+// 		}
+// 		return "Business Services"
+// 	}
+
+// 	// "Retail" jab fashion/apparel category ho
+// 	if lower == "retail" {
+// 		if strings.Contains(catLower, "fashion") || strings.Contains(catLower, "apparel") || strings.Contains(catLower, "clothing") {
+// 			return "Fashion"
+// 		}
+// 		return "Retail"
+// 	}
+
+//		if normalized, ok := industryNormalizationMap[lower]; ok {
+//			return normalized
+//		}
+//		return industry
+//	}
 func normalizeIndustry(industry string, category string) string {
 	lower := strings.ToLower(strings.TrimSpace(industry))
 	catLower := strings.ToLower(strings.TrimSpace(category))
 
-	// "Government" ya "Business Services" jab travel category ho
+	// ✅ Travel check PEHLE — map se pehle (government + travel category)
 	travelKeywords := []string{"resort", "holiday", "tourism", "travel", "hotel", "lodge", "guesthouse", "destination"}
-	if lower == "government" || lower == "business services" {
+
+	if lower == "government" {
 		for _, kw := range travelKeywords {
 			if strings.Contains(catLower, kw) {
 				return "Hotel, Travel & Tourism"
 			}
 		}
+		return "Government"
 	}
 
-	// "Business Services" jab dealer/tech/media category ho
-	if lower == "business services" {
+	if lower == "business services" || lower == "business & professional services" {
+		for _, kw := range travelKeywords {
+			if strings.Contains(catLower, kw) {
+				return "Hotel, Travel & Tourism"
+			}
+		}
 		if strings.Contains(catLower, "dealer") || strings.Contains(catLower, "distributor") {
 			return "Dealers & Distributors"
 		}
@@ -207,7 +254,6 @@ func normalizeIndustry(industry string, category string) string {
 		return "Business Services"
 	}
 
-	// "Retail" jab fashion/apparel category ho
 	if lower == "retail" {
 		if strings.Contains(catLower, "fashion") || strings.Contains(catLower, "apparel") || strings.Contains(catLower, "clothing") {
 			return "Fashion"
