@@ -71,8 +71,15 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 	params := &ExtractedParameters{}
 
 	// Industry
+	// if v, ok := ftOut.Industry.(string); ok && strings.TrimSpace(v) != "" {
+	// 	params.Industry = strings.TrimSpace(v)
+	// }
 	if v, ok := ftOut.Industry.(string); ok && strings.TrimSpace(v) != "" {
-		params.Industry = strings.TrimSpace(v)
+		category := ""
+		if c, ok := ftOut.Category.(string); ok {
+			category = c
+		}
+		params.Industry = normalizeIndustry(strings.TrimSpace(v), category)
 	}
 
 	// Category
@@ -147,25 +154,73 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 	return params, nil
 }
 
-// toFloat64 - interface{} ko safely float64 mein convert karta hai
-//
-//	func toFloat64(v interface{}) float64 {
-//		if v == nil {
-//			return 0
-//		}
-//		switch val := v.(type) {
-//		case float64:
-//			return val
-//		case int:
-//			return float64(val)
-//		case int64:
-//			return float64(val)
-//		case string:
-//			// "null" ya empty string handle
-//			return 0
-//		}
-//		return 0
-//	}
+var industryNormalizationMap = map[string]string{
+	// Already correct
+	"automotive":          "Automotive",
+	"beauty":              "Beauty",
+	"health":              "Health",
+	"food & beverage":     "Food & Beverage",
+	"home-based business": "Home-Based Business",
+	"retail":              "Retail",
+	"government":          "Government",
+	"education":           "Education",
+	"fashion":             "Fashion",
+	"entertainment":       "Entertainment",
+	// Wrong → Correct
+	"business & professional services": "Business Services",
+	"education & edtech":               "Education",
+	"health & fitness":                 "Sports & Fitness",
+	"entertainment & leisure":          "Entertainment",
+	"real estate & property services":  "Real Estate",
+	"financial services":               "Finance / Banking",
+	"logistics & delivery services":    "Logistics / Manufacturing",
+	"agriculture & sustainability":     "Agriculture",
+	"hospitality & lodging":            "Hotel, Travel & Tourism",
+	"hospitality":                      "Hotel, Travel & Tourism",
+}
+
+func normalizeIndustry(industry string, category string) string {
+	lower := strings.ToLower(strings.TrimSpace(industry))
+	catLower := strings.ToLower(strings.TrimSpace(category))
+
+	// "Government" ya "Business Services" jab travel category ho
+	travelKeywords := []string{"resort", "holiday", "tourism", "travel", "hotel", "lodge", "guesthouse", "destination"}
+	if lower == "government" || lower == "business services" {
+		for _, kw := range travelKeywords {
+			if strings.Contains(catLower, kw) {
+				return "Hotel, Travel & Tourism"
+			}
+		}
+	}
+
+	// "Business Services" jab dealer/tech/media category ho
+	if lower == "business services" {
+		if strings.Contains(catLower, "dealer") || strings.Contains(catLower, "distributor") {
+			return "Dealers & Distributors"
+		}
+		if strings.Contains(catLower, "software") || strings.Contains(catLower, "it service") || strings.Contains(catLower, "tech") {
+			return "Technology / IT"
+		}
+		if strings.Contains(catLower, "advertis") || strings.Contains(catLower, "media") {
+			return "Media / Communication"
+		}
+		return "Business Services"
+	}
+
+	// "Retail" jab fashion/apparel category ho
+	if lower == "retail" {
+		if strings.Contains(catLower, "fashion") || strings.Contains(catLower, "apparel") || strings.Contains(catLower, "clothing") {
+			return "Fashion"
+		}
+		return "Retail"
+	}
+
+	if normalized, ok := industryNormalizationMap[lower]; ok {
+		return normalized
+	}
+	return industry
+}
+
 func toFloat64(v interface{}) float64 {
 	if v == nil {
 		return 0
