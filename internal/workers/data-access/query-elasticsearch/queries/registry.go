@@ -834,7 +834,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 
 	// Text search
 	if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
-		// ADD THIS:
 		cleanQuery := searchQuery
 		for _, prep := range []string{" in ", " at ", " near ", " from ", " around "} {
 			if idx := strings.Index(strings.ToLower(cleanQuery), prep); idx != -1 {
@@ -845,16 +844,45 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		if cleanQuery == "" {
 			cleanQuery = searchQuery
 		}
-		// USE cleanQuery instead of searchQuery:
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":     cleanQuery, // "food franchise" not "food franchise in mumbai"
-				"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
-				"type":      "best_fields",
-				"fuzziness": "AUTO",
-			},
-		})
+
+		locationVal, hasLocation := filters["location"].(string)
+		isQueryJustLocation := hasLocation &&
+			strings.EqualFold(strings.TrimSpace(cleanQuery), strings.TrimSpace(locationVal))
+
+		if !isQueryJustLocation && cleanQuery != "" {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query":     cleanQuery,
+					"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
+					"type":      "best_fields",
+					"fuzziness": "AUTO",
+				},
+			})
+		}
 	}
+	// // Text search
+	// if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
+	// 	// ADD THIS:
+	// 	cleanQuery := searchQuery
+	// 	for _, prep := range []string{" in ", " at ", " near ", " from ", " around "} {
+	// 		if idx := strings.Index(strings.ToLower(cleanQuery), prep); idx != -1 {
+	// 			cleanQuery = cleanQuery[:idx]
+	// 		}
+	// 	}
+	// 	cleanQuery = strings.TrimSpace(cleanQuery)
+	// 	if cleanQuery == "" {
+	// 		cleanQuery = searchQuery
+	// 	}
+	// 	// USE cleanQuery instead of searchQuery:
+	// 	mustClauses = append(mustClauses, map[string]interface{}{
+	// 		"multi_match": map[string]interface{}{
+	// 			"query":     cleanQuery, // "food franchise" not "food franchise in mumbai"
+	// 			"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
+	// 			"type":      "best_fields",
+	// 			"fuzziness": "AUTO",
+	// 		},
+	// 	})
+	// }
 
 	// Category/Industry filter
 	category := ""
