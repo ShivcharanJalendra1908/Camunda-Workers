@@ -600,7 +600,7 @@ func TestHandler_CompleteJob_VariableMapping(t *testing.T) {
 			Email:           "user@example.com",
 			EmailVerified:   true,
 			IsNewUser:       false,
-			KeucloakUserID:  "kc-user-id-123",
+			KeycloakUserID:  "kc-user-id-123",
 			AuthenticatedAt: now,
 		}
 
@@ -641,7 +641,7 @@ func buildCompleteJobVariables(output *Output) map[string]interface{} {
 		variables["email"] = output.Email
 		variables["emailVerified"] = output.EmailVerified
 		variables["isNewUser"] = output.IsNewUser
-		variables["keycloakUserId"] = output.KeucloakUserID
+		variables["keycloakUserId"] = output.KeycloakUserID
 		variables["authenticatedAt"] = output.AuthenticatedAt.Format(time.RFC3339)
 	}
 	return variables
@@ -683,7 +683,7 @@ func TestOutput_JSONSerialization(t *testing.T) {
 		Email:            "user@example.com",
 		EmailVerified:    true,
 		IsNewUser:        true,
-		KeucloakUserID:   "kc-123",
+		KeycloakUserID:   "kc-123",
 		AuthenticatedAt:  now,
 	}
 
@@ -700,7 +700,7 @@ func TestOutput_JSONSerialization(t *testing.T) {
 	assert.Equal(t, output.Email, decoded.Email)
 	assert.Equal(t, output.EmailVerified, decoded.EmailVerified)
 	assert.Equal(t, output.IsNewUser, decoded.IsNewUser)
-	assert.Equal(t, output.KeucloakUserID, decoded.KeucloakUserID)
+	assert.Equal(t, output.KeycloakUserID, decoded.KeycloakUserID)
 }
 
 // ==========================
@@ -816,7 +816,7 @@ func TestGetOutputSchema(t *testing.T) {
 		Email:            "user@example.com",
 		EmailVerified:    true,
 		IsNewUser:        false,
-		KeucloakUserID:   "kc-123",
+		KeycloakUserID:   "kc-123",
 		AuthenticatedAt:  now,
 	}
 	data, err := json.Marshal(out)

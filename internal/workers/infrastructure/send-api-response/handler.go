@@ -213,15 +213,22 @@ func (h *Handler) ExecuteWorker(ctx context.Context, input *Input) (*Output, err
 	redisClient := h.deps.RedisClient.GetClient()
 
 	// Publish to channel
+	// if err := redisClient.Publish(ctx, channel, payload).Err(); err != nil {
+	// 	h.logger.Error("Failed to publish to Redis", map[string]interface{}{
+	// 		"error":          err.Error(),
+	// 		"correlationKey": input.CorrelationKey,
+	// 		"channel":        channel,
+	// 	})
+	// 	output.Success = false
+	// 	output.ApiError = err.Error()
+	// 	return output, nil
+	// }
 	if err := redisClient.Publish(ctx, channel, payload).Err(); err != nil {
-		h.logger.Error("Failed to publish to Redis", map[string]interface{}{
+		h.logger.Error("Redis publish failed", map[string]interface{}{
 			"error":          err.Error(),
 			"correlationKey": input.CorrelationKey,
-			"channel":        channel,
 		})
-		output.Success = false
-		output.ApiError = err.Error()
-		return output, nil
+		return output, fmt.Errorf("redis publish failed: %w", err)
 	}
 
 	h.logger.Info("Response published to Redis successfully", map[string]interface{}{

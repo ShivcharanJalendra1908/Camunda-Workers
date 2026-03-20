@@ -110,12 +110,31 @@ func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, erro
 
 func (s *Service) handleGet(ctx context.Context, input *Input) (*Output, error) {
 	// Retrieve session from Redis
+	// sess, err := s.sessionStore.Get(ctx, input.SessionID)
+	// if err != nil {
+	// 	return nil, &cerrors.StandardError{
+	// 		Code:      "SESSION_NOT_FOUND",
+	// 		Message:   "Session not found or expired",
+	// 		Details:   err.Error(),
+	// 		Retryable: false,
+	// 		Timestamp: time.Now(),
+	// 	}
+	// }
+
 	sess, err := s.sessionStore.Get(ctx, input.SessionID)
 	if err != nil {
 		return nil, &cerrors.StandardError{
+			Code:      "REDIS_READ_FAILED",
+			Message:   "Redis error while fetching session",
+			Details:   err.Error(),
+			Retryable: true,
+			Timestamp: time.Now(),
+		}
+	}
+	if sess == nil {
+		return nil, &cerrors.StandardError{
 			Code:      "SESSION_NOT_FOUND",
 			Message:   "Session not found or expired",
-			Details:   err.Error(),
 			Retryable: false,
 			Timestamp: time.Now(),
 		}

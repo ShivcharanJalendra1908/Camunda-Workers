@@ -130,9 +130,11 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 	identity, err := s.keycloak.ExchangeCode(ctx, input.Code, verifier)
 	if err != nil {
 		s.logger.Error("Token exchange error details", map[string]interface{}{
-			"error":    err.Error(),
-			"code":     input.Code[:20],
-			"verifier": verifier[:10],
+			"error": err.Error(),
+			// "code":     input.Code[:20],
+			// "verifier": verifier[:10],
+			"codePresent": input.Code != "",
+			"verifierLen": len(verifier),
 		})
 		return nil, &cerrors.StandardError{
 			Code:      "TOKEN_EXCHANGE_FAILED",
@@ -171,7 +173,7 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 		Email:           identity.Email,
 		EmailVerified:   identity.EmailVerified,
 		IsNewUser:       isNewUser,
-		KeucloakUserID:  identity.ProviderUserID,
+		KeycloakUserID:  identity.ProviderUserID,
 		AuthenticatedAt: time.Now(),
 	}, nil
 }

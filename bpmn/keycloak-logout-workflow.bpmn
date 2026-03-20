@@ -32,8 +32,13 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SessionValid</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToDeleteSession</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Revoke_To_Check</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_RevocationCheck" name="Revocation OK?" default="Flow_RevocationFailed">
+      <bpmn:incoming>Flow_Revoke_To_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_RevocationOK</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RevocationFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="Task_DeleteSession" name="Delete Session">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="session-manager" />
@@ -43,8 +48,19 @@
           <zeebe:input source="=userId" target="userId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_ToDeleteSession</bpmn:incoming>
+      <bpmn:incoming>Flow_RevocationOK</bpmn:incoming>
       <bpmn:outgoing>Flow_ToMerge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendErrorResponse" name="Send Error Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=requestId" target="correlationKey" />
+          <zeebe:input source="={&#34;success&#34;: false, &#34;error&#34;: &#34;Keycloak revocation failed. Please try again.&#34;, &#34;code&#34;: &#34;LOGOUT_REVOCATION_FAILED&#34;}" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_RevocationFailed</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToErrorEnd</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:exclusiveGateway id="Gateway_MergeLogout" name="Merge Flows">
       <bpmn:incoming>Flow_ToMerge</bpmn:incoming>
@@ -62,8 +78,11 @@
       <bpmn:incoming>Flow_ToSendResponse</bpmn:incoming>
       <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:endEvent id="EndEvent_LogoutSuccess" name="Logout Success (302 /login)">
+    <bpmn:endEvent id="EndEvent_LogoutSuccess" name="Logout Success">
       <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_LogoutError" name="Logout Error (Keycloak Failed)">
+      <bpmn:incoming>Flow_ToErrorEnd</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_ToGetSession" sourceRef="StartEvent_LogoutInitiated" targetRef="Task_GetSession" />
     <bpmn:sequenceFlow id="Flow_ToCheckSession" sourceRef="Task_GetSession" targetRef="Gateway_SessionValid" />
@@ -71,10 +90,15 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=sessionSuccess = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_SessionInvalid" name="No / Skip" sourceRef="Gateway_SessionValid" targetRef="Gateway_MergeLogout" />
-    <bpmn:sequenceFlow id="Flow_ToDeleteSession" sourceRef="Task_RevokeKeycloakSession" targetRef="Task_DeleteSession" />
+    <bpmn:sequenceFlow id="Flow_Revoke_To_Check" sourceRef="Task_RevokeKeycloakSession" targetRef="Gateway_RevocationCheck" />
+    <bpmn:sequenceFlow id="Flow_RevocationOK" name="Yes" sourceRef="Gateway_RevocationCheck" targetRef="Task_DeleteSession">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=logoutSuccess = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_RevocationFailed" name="No" sourceRef="Gateway_RevocationCheck" targetRef="Task_SendErrorResponse" />
     <bpmn:sequenceFlow id="Flow_ToMerge" sourceRef="Task_DeleteSession" targetRef="Gateway_MergeLogout" />
     <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_MergeLogout" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_LogoutSuccess" />
+    <bpmn:sequenceFlow id="Flow_ToErrorEnd" sourceRef="Task_SendErrorResponse" targetRef="EndEvent_LogoutError" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_Logout">
     <bpmndi:BPMNPlane id="BPMNPlane_Logout" bpmnElement="keycloak-logout-workflow">
@@ -90,28 +114,43 @@
       <bpmndi:BPMNShape id="Gateway_SessionValid_di" bpmnElement="Gateway_SessionValid" isMarkerVisible="true">
         <dc:Bounds x="395" y="95" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="380" y="65" width="80" height="14" />
+          <dc:Bounds x="375" y="65" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_RevokeKeycloakSession_di" bpmnElement="Task_RevokeKeycloakSession">
         <dc:Bounds x="500" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RevocationCheck_di" bpmnElement="Gateway_RevocationCheck" isMarkerVisible="true">
+        <dc:Bounds x="655" y="95" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="635" y="65" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_DeleteSession_di" bpmnElement="Task_DeleteSession">
-        <dc:Bounds x="660" y="80" width="100" height="80" />
+        <dc:Bounds x="760" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_MergeLogout_di" bpmnElement="Gateway_MergeLogout" isMarkerVisible="true">
-        <dc:Bounds x="815" y="95" width="50" height="50" />
+        <dc:Bounds x="915" y="95" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="808" y="71" width="63" height="14" />
+          <dc:Bounds x="905" y="71" width="70" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="920" y="80" width="100" height="80" />
+        <dc:Bounds x="1020" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_LogoutSuccess_di" bpmnElement="EndEvent_LogoutSuccess">
-        <dc:Bounds x="1070" y="102" width="36" height="36" />
+        <dc:Bounds x="1172" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1046" y="145" width="85" height="27" />
+          <dc:Bounds x="1152" y="145" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendErrorResponse_di" bpmnElement="Task_SendErrorResponse">
+        <dc:Bounds x="630" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_LogoutError_di" bpmnElement="EndEvent_LogoutError">
+        <dc:Bounds x="762" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="739" y="265" width="83" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_ToGetSession_di" bpmnElement="Flow_ToGetSession">
@@ -131,28 +170,46 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SessionInvalid_di" bpmnElement="Flow_SessionInvalid">
         <di:waypoint x="420" y="145" />
-        <di:waypoint x="420" y="230" />
-        <di:waypoint x="840" y="230" />
-        <di:waypoint x="840" y="145" />
+        <di:waypoint x="420" y="310" />
+        <di:waypoint x="940" y="310" />
+        <di:waypoint x="940" y="145" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="432" y="163" width="42" height="14" />
+          <dc:Bounds x="432" y="216" width="42" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToDeleteSession_di" bpmnElement="Flow_ToDeleteSession">
+      <bpmndi:BPMNEdge id="Flow_Revoke_To_Check_di" bpmnElement="Flow_Revoke_To_Check">
         <di:waypoint x="600" y="120" />
-        <di:waypoint x="660" y="120" />
+        <di:waypoint x="655" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RevocationOK_di" bpmnElement="Flow_RevocationOK">
+        <di:waypoint x="705" y="120" />
+        <di:waypoint x="760" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="722" y="102" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RevocationFailed_di" bpmnElement="Flow_RevocationFailed">
+        <di:waypoint x="680" y="145" />
+        <di:waypoint x="680" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="687" y="165" width="13" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToMerge_di" bpmnElement="Flow_ToMerge">
-        <di:waypoint x="760" y="120" />
-        <di:waypoint x="815" y="120" />
+        <di:waypoint x="860" y="120" />
+        <di:waypoint x="915" y="120" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToSendResponse_di" bpmnElement="Flow_ToSendResponse">
-        <di:waypoint x="865" y="120" />
-        <di:waypoint x="920" y="120" />
+        <di:waypoint x="965" y="120" />
+        <di:waypoint x="1020" y="120" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="1020" y="120" />
-        <di:waypoint x="1070" y="120" />
+        <di:waypoint x="1120" y="120" />
+        <di:waypoint x="1172" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToErrorEnd_di" bpmnElement="Flow_ToErrorEnd">
+        <di:waypoint x="730" y="240" />
+        <di:waypoint x="762" y="240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

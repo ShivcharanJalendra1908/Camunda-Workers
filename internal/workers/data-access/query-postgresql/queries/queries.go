@@ -665,13 +665,27 @@ func IndustryBySlugWithQuestions(
 		return nil, 0, 0, err
 	}
 
-	rows, _ := db.QueryContext(ctx, `
+	industry := map[string]interface{}{
+		"id":          industryID,
+		"name":        name,
+		"slug":        slug,
+		"description": description.String,
+	}
+
+	rows, err := db.QueryContext(ctx, `
 		SELECT question
 		FROM category_questions
 		WHERE reference_id = $1
 		ORDER BY created_at
 		LIMIT 8
 	`, industryID)
+
+	if err != nil {
+		return map[string]interface{}{
+			"industry":  industry,
+			"questions": []string{},
+		}, 1, time.Since(start).Milliseconds(), nil
+	}
 	defer rows.Close()
 
 	var questions []string
@@ -683,15 +697,21 @@ func IndustryBySlugWithQuestions(
 	}
 
 	return map[string]interface{}{
-		"industry": map[string]interface{}{
-			"id":          industryID,
-			"name":        name,
-			"slug":        slug,
-			"description": description.String,
-		},
+		"industry":  industry,
 		"questions": questions,
 	}, 1, time.Since(start).Milliseconds(), nil
 }
+
+// 	return map[string]interface{}{
+// 		"industry": map[string]interface{}{
+// 			"id":          industryID,
+// 			"name":        name,
+// 			"slug":        slug,
+// 			"description": description.String,
+// 		},
+// 		"questions": questions,
+// 	}, 1, time.Since(start).Milliseconds(), nil
+// }
 
 // CategoryQuestionsByIndustry - Get 8 questions for an industry
 func CategoryQuestionsByIndustry(

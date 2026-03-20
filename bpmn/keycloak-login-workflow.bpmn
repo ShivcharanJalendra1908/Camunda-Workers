@@ -62,8 +62,16 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToSession</bpmn:incoming>
-      <bpmn:outgoing>Flow_SessionToSendResponse</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Session_To_Check</bpmn:outgoing>
     </bpmn:serviceTask>
+    
+    <!-- Session Check Gateway and Error Handling -->
+    <bpmn:exclusiveGateway id="Gateway_SessionCheck" name="Session Created?">
+      <bpmn:incoming>Flow_Session_To_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_SessionOK</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SessionFailed</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
     <bpmn:serviceTask id="Task_SendCallbackResponse" name="Send Login Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
@@ -72,12 +80,31 @@
           <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_SessionToSendResponse</bpmn:incoming>
+      <bpmn:incoming>Flow_SessionOK</bpmn:incoming>
       <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
     </bpmn:serviceTask>
+    
+    <bpmn:serviceTask id="Task_SendLoginError" name="Send Login Error Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&quot;success&quot;: false, &quot;error&quot;: &quot;Session creation failed. Please try again.&quot;, &quot;status&quot;: 500}" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SessionFailed</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoginError_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:endEvent id="End_LoginError" name="Login Failed">
+      <bpmn:incoming>Flow_LoginError_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    
     <bpmn:endEvent id="EndEvent_LoginSuccess" name="Login Complete">
       <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
     </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
     <bpmn:sequenceFlow id="Flow_ToRouteAction" sourceRef="StartEvent_Login" targetRef="Gateway_RouteAction" />
     <bpmn:sequenceFlow id="Flow_ToInitiate" name="initiate" sourceRef="Gateway_RouteAction" targetRef="Task_InitiateOAuth" />
     <bpmn:sequenceFlow id="Flow_InitiateToSendResponse" sourceRef="Task_InitiateOAuth" targetRef="Task_SendInitiateResponse" />
@@ -86,7 +113,12 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=action = "callback"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_ToSession" sourceRef="Task_HandleCallback" targetRef="Task_CreateSession" />
-    <bpmn:sequenceFlow id="Flow_SessionToSendResponse" sourceRef="Task_CreateSession" targetRef="Task_SendCallbackResponse" />
+    <bpmn:sequenceFlow id="Flow_Session_To_Check" sourceRef="Task_CreateSession" targetRef="Gateway_SessionCheck" />
+    <bpmn:sequenceFlow id="Flow_SessionOK" name="Yes" sourceRef="Gateway_SessionCheck" targetRef="Task_SendCallbackResponse">
+      <bpmn:conditionExpression>=sessionSuccess = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_SessionFailed" name="No" sourceRef="Gateway_SessionCheck" targetRef="Task_SendLoginError" />
+    <bpmn:sequenceFlow id="Flow_LoginError_To_End" sourceRef="Task_SendLoginError" targetRef="End_LoginError" />
     <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendCallbackResponse" targetRef="EndEvent_LoginSuccess" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -103,8 +135,17 @@
       <bpmndi:BPMNShape id="Task_CreateSession_di" bpmnElement="Task_CreateSession">
         <dc:Bounds x="508" y="210" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SessionCheck_di" bpmnElement="Gateway_SessionCheck" isMarkerVisible="true">
+        <dc:Bounds x="655" y="215" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="642" y="186" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendCallbackResponse_di" bpmnElement="Task_SendCallbackResponse">
-        <dc:Bounds x="660" y="210" width="100" height="80" />
+        <dc:Bounds x="760" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendLoginError_di" bpmnElement="Task_SendLoginError">
+        <dc:Bounds x="760" y="290" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_Login_di" bpmnElement="StartEvent_Login">
         <dc:Bounds x="182" y="162" width="36" height="36" />
@@ -125,11 +166,19 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
-        <dc:Bounds x="802" y="232" width="36" height="36" />
+        <dc:Bounds x="902" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="784" y="275" width="73" height="14" />
+          <dc:Bounds x="884" y="225" width="73" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_LoginError_di" bpmnElement="End_LoginError">
+        <dc:Bounds x="902" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="884" y="355" width="58" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      
+      <!-- Edges -->
       <bpmndi:BPMNEdge id="Flow_ToRouteAction_di" bpmnElement="Flow_ToRouteAction">
         <di:waypoint x="218" y="180" />
         <di:waypoint x="255" y="180" />
@@ -165,16 +214,31 @@
         <di:waypoint x="460" y="250" />
         <di:waypoint x="508" y="250" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SessionToSendResponse_di" bpmnElement="Flow_SessionToSendResponse">
+      <bpmndi:BPMNEdge id="Flow_Session_To_Check_di" bpmnElement="Flow_Session_To_Check">
         <di:waypoint x="608" y="250" />
-        <di:waypoint x="660" y="250" />
+        <di:waypoint x="655" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SessionOK_di" bpmnElement="Flow_SessionOK">
+        <di:waypoint x="680" y="215" />
+        <di:waypoint x="760" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="632" y="322" width="90" height="14" />
+          <dc:Bounds x="715" y="186" width="18" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SessionFailed_di" bpmnElement="Flow_SessionFailed">
+        <di:waypoint x="680" y="265" />
+        <di:waypoint x="760" y="330" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="706" y="303" width="14" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LoginError_To_End_di" bpmnElement="Flow_LoginError_To_End">
+        <di:waypoint x="860" y="330" />
+        <di:waypoint x="902" y="330" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="760" y="250" />
-        <di:waypoint x="802" y="250" />
+        <di:waypoint x="860" y="200" />
+        <di:waypoint x="902" y="200" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

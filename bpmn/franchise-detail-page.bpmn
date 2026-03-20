@@ -194,6 +194,64 @@
       <bpmn:incoming>Flow_To_Questions</bpmn:incoming>
       <bpmn:outgoing>Flow_Questions_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
+    
+    <!-- ===== TIMER BOUNDARY EVENTS — PARALLEL TASKS ===== -->
+    <bpmn:boundaryEvent id="Timer_Overview" attachedToRef="Task_GetOverview" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Overview_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT30S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Business" attachedToRef="Task_GetBusiness" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Business_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT30S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Investment" attachedToRef="Task_GetInvestment" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Investment_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT30S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Operations" attachedToRef="Task_GetOperations" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Operations_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT30S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Social" attachedToRef="Task_GetSocial" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Social_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT20S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Categories" attachedToRef="Task_GetCategories" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Categories_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT20S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Recommended" attachedToRef="Task_GetRecommended" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Recommended_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT25S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Insights" attachedToRef="Task_GetInsights" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Insights_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT25S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Questions" attachedToRef="Task_GetQuestions" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Questions_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition><bpmn:timeDuration>PT20S</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Timer flows → Gateway_Join -->
+    <bpmn:sequenceFlow id="Flow_Timer_Overview_Join"    sourceRef="Timer_Overview"    targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Business_Join"    sourceRef="Timer_Business"    targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Investment_Join"  sourceRef="Timer_Investment"  targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Operations_Join"  sourceRef="Timer_Operations"  targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Social_Join"      sourceRef="Timer_Social"      targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Categories_Join"  sourceRef="Timer_Categories"  targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Recommended_Join" sourceRef="Timer_Recommended" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Insights_Join"    sourceRef="Timer_Insights"    targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Questions_Join"   sourceRef="Timer_Questions"   targetRef="Gateway_Join" />
+
     <bpmn:parallelGateway id="Gateway_Join" name="Join All">
       <bpmn:incoming>Flow_Overview_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Business_To_Join</bpmn:incoming>
@@ -204,8 +262,18 @@
       <bpmn:incoming>Flow_Recommended_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Insights_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Questions_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Overview_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Business_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Investment_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Operations_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Social_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Categories_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Recommended_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Insights_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Questions_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Build</bpmn:outgoing>
     </bpmn:parallelGateway>
+    
     <bpmn:serviceTask id="Task_BuildResponse" name="Build Detail Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="build-response" />
@@ -248,6 +316,8 @@
     <bpmn:endEvent id="End_Detail" name="Response Sent">
       <bpmn:incoming>Flow_To_End</bpmn:incoming>
     </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
     <bpmn:sequenceFlow id="Flow_Start_To_Basic" sourceRef="Start_Detail" targetRef="Task_GetBasic" />
     <bpmn:sequenceFlow id="Flow_BasicError_To_ErrorHandler" sourceRef="BoundaryEvent_BasicError" targetRef="Task_ErrorHandler" />
     <bpmn:sequenceFlow id="Flow_To_ErrorEnd" sourceRef="Task_ErrorHandler" targetRef="End_Error" />
@@ -345,6 +415,8 @@
       <bpmndi:BPMNShape id="Shape_BoundaryEvent_BasicError" bpmnElement="BoundaryEvent_BasicError">
         <dc:Bounds x="282" y="402" width="36" height="36" />
       </bpmndi:BPMNShape>
+      <!-- Note: You may want to add DI elements for the new timer boundary events -->
+      <!-- The boundary events will appear automatically in the modeler -->
       <bpmndi:BPMNEdge id="Edge_Flow_Start_To_Basic" bpmnElement="Flow_Start_To_Basic">
         <di:waypoint x="188" y="380" />
         <di:waypoint x="240" y="380" />

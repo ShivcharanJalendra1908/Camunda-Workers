@@ -109,7 +109,6 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		}
 	}
 
-
 	dbResolver := resolver.NewDBResolver(postgresClient)
 
 	handler := &Handler{
@@ -239,6 +238,20 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
+	if output.Success && input.Action == "callback" && output.UserID == "" {
+		identityErr := &cerrors.StandardError{
+			Code:      "IDENTITY_EXTRACTION_FAILED",
+			Message:   "Token exchange succeeded but user identity could not be extracted",
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+		span.RecordError(identityErr)
+		span.SetAttributes(attribute.Bool("error", true))
+		metrics.WorkerJobsFailed.WithLabelValues(TaskType, "IDENTITY_EXTRACTION_FAILED").Inc()
+		h.errorHandler.HandleJobError(ctx, client, job, identityErr)
+		return
+	}
+
 	// Complete job
 	ctxComp, spanComp := otel.Tracer("worker-manager").Start(ctx, "keycloak-signin.completeJob")
 	h.completeJob(ctxComp, client, job, output)
@@ -336,7 +349,7 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		variables["email"] = output.Email
 		variables["emailVerified"] = output.EmailVerified
 		variables["isNewUser"] = output.IsNewUser
-		variables["keycloakUserId"] = output.KeucloakUserID
+		variables["keycloakUserId"] = output.KeycloakUserID
 		variables["authenticatedAt"] = output.AuthenticatedAt.Format(time.RFC3339)
 	}
 

@@ -466,8 +466,8 @@ func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
 	}
 
 	variables := map[string]interface{}{
-		"email":        input.Email,
-		"password":     input.Password,
+		"email": input.Email,
+		// "password":     input.Password,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
 		"requestId":    uuid.New().String(),
@@ -1515,10 +1515,10 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	pubsub := h.redisClient.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	if _, err := pubsub.Receive(ctx); err != nil {
-		h.redirectToLogin(c)
-		return
-	}
+	// if _, err := pubsub.Receive(ctx); err != nil {
+	// 	h.redirectToLogin(c)
+	// 	return
+	// }
 
 	variables := map[string]interface{}{
 		"sessionId":      claims.SessionID,
@@ -1597,181 +1597,6 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	}
 }
 
-func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
-	var input struct {
-		UserID      string                 `json:"userId"`
-		SessionID   string                 `json:"sessionId"`
-		LogoutAll   bool                   `json:"logoutAll"`
-		RedirectURL string                 `json:"redirectUrl"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	sessionID := input.SessionID
-	if sessionID == "" {
-		sessionID = claims.SessionID
-	}
-
-	variables := map[string]interface{}{
-		"sessionId":    sessionID,
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"logoutAll":    input.LogoutAll,
-		"redirectUrl":  input.RedirectURL,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
-
-	c.SetCookie("session_id", "", -1, "/", "", true, true)
-	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
-	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
-	c.Status(http.StatusNoContent)
-}
-
-// func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
-// 	var input struct {
-// 		Code        string                 `json:"code"`
-// 		State       string                 `json:"state"`
-// 		Provider    string                 `json:"provider"`
-// 		RedirectURL string                 `json:"redirectUrl"`
-// 		Metadata    map[string]interface{} `json:"metadata"`
-// 	}
-
-// 	if err := c.ShouldBindJSON(&input); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	claims := middleware.ExtractClaims(c)
-// 	if claims == nil {
-// 		claims = &middleware.Claims{}
-// 	}
-
-// 	correlationKey := uuid.New().String()
-// 	ctx := c.Request.Context()
-
-// 	// ✅ STEP 1: PEHLE subscribe karo
-// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-// 	pubsub := h.redisClient.Subscribe(ctx, channel)
-// 	defer pubsub.Close()
-
-// 	// ✅ STEP 2: Subscription confirm hone ka wait karo
-// 	if _, err := pubsub.Receive(ctx); err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "subscription failed"})
-// 		return
-// 	}
-
-// 	variables := map[string]interface{}{
-// 		"sessionId":      claims.SessionID,
-// 		"sourceSystem":   claims.SourceSystem,
-// 		"requestId":      uuid.New().String(),
-// 		"correlationKey": correlationKey,
-// 	}
-
-// 	if input.Code != "" && input.State != "" {
-// 		if err := h.validateString(input.Code, 1, 500); err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
-// 			return
-// 		}
-// 		if err := h.validateString(input.State, 1, 500); err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
-// 			return
-// 		}
-// 		variables["action"] = "callback"
-// 		variables["code"] = input.Code
-// 		variables["state"] = input.State
-// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
-// 	} else {
-// 		variables["action"] = "initiate"
-// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
-// 		variables["redirectUrl"] = input.RedirectURL
-// 	}
-
-// 	if input.Metadata != nil {
-// 		variables["metadata"] = input.Metadata
-// 	}
-
-// 	// ✅ STEP 3: AB workflow start karo
-// 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
-
-// 	// ✅ STEP 4: Response wait karos
-// 	select {
-// 	case msg := <-pubsub.Channel():
-// 		var response map[string]interface{}
-// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-// 			h.redirectToLogin(c)
-// 			return
-// 		}
-
-// 		// ✅ Cookie set karo agar callback flow hai
-// 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-// 			c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-// 		}
-
-// 		c.JSON(http.StatusOK, response)
-
-// 	case <-time.After(30 * time.Second):
-// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-// 		if err == nil {
-// 			var response map[string]interface{}
-// 			if json.Unmarshal([]byte(cached), &response) == nil {
-// 				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-// 					c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-// 				}
-// 				c.JSON(http.StatusOK, response)
-// 				return
-// 			}
-// 		}
-// 		h.redirectToLogin(c)
-
-// 	case <-ctx.Done():
-// 		h.redirectToLogin(c)
-// 	}
-// }
-
-// // 	select {
-// // 	case msg := <-pubsub.Channel():
-// // 		var response map[string]interface{}
-// // 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-// // 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse response"})
-// // 			return
-// // 		}
-// // 		c.JSON(http.StatusOK, response)
-
-// // 	case <-time.After(30 * time.Second):
-// // 		// Fallback: cache check
-// // 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-// // 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-// // 		if err == nil {
-// // 			var response map[string]interface{}
-// // 			if json.Unmarshal([]byte(cached), &response) == nil {
-// // 				c.JSON(http.StatusOK, response)
-// // 				return
-// // 			}
-// // 		}
-// // 		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "timeout waiting for response"})
-
-// // 	case <-ctx.Done():
-// // 		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
-// // 	}
-// // }
-
-// // StartKeycloakLogout - Logout endpoint
 // func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 // 	var input struct {
 // 		UserID      string                 `json:"userId"`
@@ -1797,8 +1622,7 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 // 	}
 
 // 	variables := map[string]interface{}{
-// 		"sessionId": sessionID,
-// 		//	"userId":       claims.UserID,
+// 		"sessionId":    sessionID,
 // 		"userId":       getOrDefault(input.UserID, claims.UserID),
 // 		"logoutAll":    input.LogoutAll,
 // 		"redirectUrl":  input.RedirectURL,
@@ -1810,9 +1634,88 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 // 		variables["metadata"] = input.Metadata
 // 	}
 
-// 	response := h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
-// 	c.JSON(http.StatusOK, response)
-// }
+// 	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
+
+//		c.SetCookie("session_id", "", -1, "/", "", true, true)
+//		c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
+//		c.SetCookie("oauth_state", "", -1, "/", "", true, true)
+//		c.Status(http.StatusNoContent)
+//	}
+func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
+	var input struct {
+		UserID      string                 `json:"userId"`
+		SessionID   string                 `json:"sessionId"`
+		LogoutAll   bool                   `json:"logoutAll"`
+		RedirectURL string                 `json:"redirectUrl"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	sessionID := input.SessionID
+	if sessionID == "" {
+		sessionID = claims.SessionID
+	}
+
+	correlationKey := uuid.New().String()
+
+	// ✅ variables pehle banao, PHIR correlationKey add karo
+	variables := map[string]interface{}{
+		"sessionId":      sessionID,
+		"userId":         getOrDefault(input.UserID, claims.UserID),
+		"logoutAll":      input.LogoutAll,
+		"redirectUrl":    input.RedirectURL,
+		"sourceSystem":   claims.SourceSystem,
+		"requestId":      uuid.New().String(),
+		"correlationKey": correlationKey, // ✅ yahan add karo
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	ctx := c.Request.Context()
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	// ✅ Login ki tarah Receive() NAHI karna — directly workflow start karo
+	h.startWorkflow(ctx, "keycloak-logout-workflow", variables)
+
+	select {
+	case <-pubsub.Channel():
+		c.SetCookie("session_id", "", -1, "/", "", true, true)
+		c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
+		c.SetCookie("oauth_state", "", -1, "/", "", true, true)
+		c.Status(http.StatusNoContent)
+
+	case <-time.After(30 * time.Second):
+		// Cache fallback check
+		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+		if cached, err := h.redisClient.Get(ctx, cacheKey).Result(); err == nil {
+			var resp map[string]interface{}
+			if json.Unmarshal([]byte(cached), &resp) == nil {
+				c.SetCookie("session_id", "", -1, "/", "", true, true)
+				c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
+				c.SetCookie("oauth_state", "", -1, "/", "", true, true)
+				c.Status(http.StatusNoContent)
+				return
+			}
+		}
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "logout timeout"})
+
+	case <-ctx.Done():
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
+	}
+}
 
 // ============================================================================
 // ADMIN ENDPOINTS

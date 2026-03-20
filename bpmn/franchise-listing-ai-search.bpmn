@@ -53,17 +53,37 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;RECOMMENDED_BY_INDUSTRY&#34;" target="queryType" />
-          <zeebe:input source="=if extractedParams != null and extractedParams.industry != null and extractedParams.industry != &#34;&#34; then extractedParams.industry else if filters != null and filters.category != null then filters.category else &#34;&#34;" target="industrySlug" />          <zeebe:output source="=data" target="recommended" />
+          <zeebe:input source="=if extractedParams != null and extractedParams.industry != null and extractedParams.industry != &#34;&#34; then extractedParams.industry else if filters != null and filters.category != null then filters.category else &#34;&#34;" target="industrySlug" />
+          <zeebe:output source="=data" target="recommended" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Recommended</bpmn:incoming>
       <bpmn:outgoing>Flow_Recommended_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
+    
+    <!-- ===== TIMER BOUNDARY EVENTS ===== -->
+    <bpmn:boundaryEvent id="Timer_AI_Categories" attachedToRef="Task_GetCategories" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_AICat_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT20S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_AI_Recommended" attachedToRef="Task_GetRecommended" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_AIRec_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT25S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
     <bpmn:parallelGateway id="Gateway_Join">
       <bpmn:incoming>Flow_Categories_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Recommended_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_AICat_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_AIRec_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Build</bpmn:outgoing>
     </bpmn:parallelGateway>
+    
     <bpmn:serviceTask id="Task_BuildResponse" name="Build AI Listing Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="build-response" />
@@ -97,6 +117,8 @@
     <bpmn:endEvent id="End_AI" name="Response Sent">
       <bpmn:incoming>Flow_To_End</bpmn:incoming>
     </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
     <bpmn:sequenceFlow id="Flow_Start_To_AI" sourceRef="Start_AI" targetRef="Task_AISearch" />
     <bpmn:sequenceFlow id="Flow_AI_To_Search" sourceRef="Task_AISearch" targetRef="Task_SearchListings" />
     <bpmn:sequenceFlow id="Flow_To_Fork" sourceRef="Task_SearchListings" targetRef="Gateway_Fork" />
@@ -104,6 +126,8 @@
     <bpmn:sequenceFlow id="Flow_To_Recommended" sourceRef="Gateway_Fork" targetRef="Task_GetRecommended" />
     <bpmn:sequenceFlow id="Flow_Categories_To_Join" sourceRef="Task_GetCategories" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Recommended_To_Join" sourceRef="Task_GetRecommended" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_AICat_Join" sourceRef="Timer_AI_Categories" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_AIRec_Join" sourceRef="Timer_AI_Recommended" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
     <bpmn:sequenceFlow id="Flow_To_Send" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_To_End" sourceRef="Task_SendResponse" targetRef="End_AI" />
@@ -146,6 +170,10 @@
           <dc:Bounds x="250" y="100" width="48" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      
+      <!-- Note: Boundary events will appear automatically in the modeler -->
+      <!-- You may want to add DI elements for better positioning -->
+      
       <bpmndi:BPMNEdge bpmnElement="Flow_Start_To_AI">
         <di:waypoint x="274" y="162" />
         <di:waypoint x="274" y="200" />

@@ -55,13 +55,48 @@
       <bpmn:incoming>Flow_To_Categories</bpmn:incoming>
       <bpmn:outgoing>Flow_Categories_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
+    
+    <!-- ===== TIMER BOUNDARY EVENTS ===== -->
+    <bpmn:boundaryEvent id="Timer_HeroBrands" attachedToRef="Task_GetHeroBrands" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Hero_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT25S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_Industries" attachedToRef="Task_GetIndustries" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Industries_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT20S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_PopularListings" attachedToRef="Task_GetPopularListings" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_Popular_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT25S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:boundaryEvent id="Timer_HomeCategories" attachedToRef="Task_GetCategories" cancelActivity="false">
+      <bpmn:outgoing>Flow_Timer_HomeCategories_Join</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT20S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
     <bpmn:parallelGateway id="Gateway_Join" name="Combine Results">
       <bpmn:incoming>Flow_Hero_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Industries_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Listings_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Categories_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Hero_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Industries_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_Popular_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Timer_HomeCategories_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Build</bpmn:outgoing>
     </bpmn:parallelGateway>
+    
     <bpmn:serviceTask id="Task_BuildResponse" name="Build Home Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="build-response" />
@@ -92,6 +127,8 @@
     <bpmn:endEvent id="EndEvent_Home" name="Response Sent">
       <bpmn:incoming>Flow_Send_To_End</bpmn:incoming>
     </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
     <bpmn:sequenceFlow id="Flow_Start_To_Fork" sourceRef="StartEvent_Home" targetRef="Gateway_Fork" />
     <bpmn:sequenceFlow id="Flow_To_Hero" sourceRef="Gateway_Fork" targetRef="Task_GetHeroBrands" />
     <bpmn:sequenceFlow id="Flow_To_Industries" sourceRef="Gateway_Fork" targetRef="Task_GetIndustries" />
@@ -101,10 +138,16 @@
     <bpmn:sequenceFlow id="Flow_Industries_To_Join" sourceRef="Task_GetIndustries" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Listings_To_Join" sourceRef="Task_GetPopularListings" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Categories_To_Join" sourceRef="Task_GetCategories" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Hero_Join" sourceRef="Timer_HeroBrands" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Industries_Join" sourceRef="Timer_Industries" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_Popular_Join" sourceRef="Timer_PopularListings" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Timer_HomeCategories_Join" sourceRef="Timer_HomeCategories" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
     <bpmn:sequenceFlow id="Flow_Build_To_Send" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_Send_To_End" sourceRef="Task_SendResponse" targetRef="EndEvent_Home" />
   </bpmn:process>
+  
+  <!-- Diagram information remains the same -->
   <bpmndi:BPMNDiagram id="Diagram_franchise_home">
     <bpmndi:BPMNPlane bpmnElement="franchise-home-page">
       <bpmndi:BPMNShape bpmnElement="Gateway_Fork">
@@ -149,6 +192,10 @@
           <dc:Bounds x="1121" y="298" width="74" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      
+      <!-- Note: You may want to add DI elements for the new boundary events -->
+      <!-- The boundary events will appear automatically in the modeler -->
+      
       <bpmndi:BPMNEdge id="Flow_Start_To_Fork_di" bpmnElement="Flow_Start_To_Fork">
         <di:waypoint x="196" y="280" />
         <di:waypoint x="240" y="280" />

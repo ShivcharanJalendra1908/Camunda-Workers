@@ -145,44 +145,6 @@ func (h *ErrorHandler) throwBPMNError(ctx context.Context, client worker.JobClie
 	_, _ = cmd.Send(ctx)
 }
 
-// func (h *ErrorHandler) logError(job entities.Job, stdErr *StandardError, bpmnErr *BPMNError) {
-// 	// Structure log as per requirements
-// 	errorContext := map[string]interface{}{
-// 		"workflowInstanceKey":  job.ProcessInstanceKey,
-// 		"jobKey":               job.Key,
-// 		"jobType":              job.Type,
-// 		"processDefinitionKey": job.ProcessDefinitionKey,
-// 		"bpmnProcessId":        job.BpmnProcessId,
-// 		"elementId":            job.ElementId,
-// 		"retries":              job.Retries,
-// 	}
-
-// 	resolution := map[string]interface{}{
-// 		"retryable":  stdErr.Retryable,
-// 		"retryCount": GetRetryCount(stdErr.Code),
-// 		"bpmnError":  bpmnErr.Code,
-// 		"action":     "throw_error", // Default
-// 	}
-
-// 	if stdErr.Retryable && job.Retries > 0 {
-// 		resolution["action"] = "retry"
-// 	}
-
-// 	h.logger.Error("Job failed", map[string]interface{}{
-// 		"errorId":       stdErr.ID,
-// 		"errorCode":     string(stdErr.Code),
-// 		"errorCategory": GetErrorCategory(stdErr.Code),
-// 		"severity":      getSeverity(stdErr.Code),
-// 		"message":       stdErr.Message,
-// 		"userMessage":   GetUserFriendlyMessage(stdErr.Code),
-// 		"details":       stdErr.Details,
-// 		"stackTrace":    stdErr.StackTrace,
-// 		"timestamp":     stdErr.Timestamp.Format(time.RFC3339),
-// 		"context":       errorContext,
-// 		"resolution":    resolution,
-// 	})
-// }
-
 func (h *ErrorHandler) logError(job entities.Job, stdErr *StandardError, bpmnErr *BPMNError) {
 	h.logErrorWithContext(job, stdErr, bpmnErr)
 }
