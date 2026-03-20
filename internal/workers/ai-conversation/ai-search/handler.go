@@ -39,12 +39,8 @@ func buildLocationTerms(city string) []string {
 	cityLower := strings.ToLower(strings.TrimSpace(city))
 	cityTitle := strings.ToUpper(cityLower[:1]) + cityLower[1:]
 
-	// Base terms
 	terms := []string{
 		cityTitle,
-		city,
-		strings.ToUpper(city),
-		cityLower,
 		"Pan India",
 		"Pan-India",
 		"All major Indian cities",
@@ -54,13 +50,45 @@ func buildLocationTerms(city string) []string {
 		"West Indian Cities",
 	}
 
-	// Alias map se known variants add karo
 	if aliases, ok := cityAliases[cityLower]; ok {
-		terms = append(terms, aliases...)
+		for _, alias := range aliases {
+			// Sirf Title Case aliases add karo
+			a := strings.TrimSpace(alias)
+			if len(a) > 0 && a[0] >= 'A' && a[0] <= 'Z' {
+				terms = append(terms, a)
+			}
+		}
 	}
 
 	return terms
 }
+
+// func buildLocationTerms(city string) []string {
+// 	cityLower := strings.ToLower(strings.TrimSpace(city))
+// 	cityTitle := strings.ToUpper(cityLower[:1]) + cityLower[1:]
+
+// 	// Base terms
+// 	terms := []string{
+// 		cityTitle,
+// 		city,
+// 		strings.ToUpper(city),
+// 		cityLower,
+// 		"Pan India",
+// 		"Pan-India",
+// 		"All major Indian cities",
+// 		"North Indian Cities",
+// 		"South Indian Cities",
+// 		"East Indian Cities",
+// 		"West Indian Cities",
+// 	}
+
+// 	// Alias map se known variants add karo
+// 	if aliases, ok := cityAliases[cityLower]; ok {
+// 		terms = append(terms, aliases...)
+// 	}
+
+// 	return terms
+// }
 
 // ============================================================
 // HANDLER STRUCT
