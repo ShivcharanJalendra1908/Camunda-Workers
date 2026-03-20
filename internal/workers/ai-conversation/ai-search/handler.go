@@ -340,9 +340,41 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 	if query == "*" || strings.TrimSpace(query) == "" {
 		return map[string]interface{}{
+			"size":  h.config.DefaultPageSize,
+			"query": map[string]interface{}{"match_all": map[string]interface{}{}},
+			"sort": []interface{}{
+				map[string]interface{}{"rating": "desc"},
+				map[string]interface{}{"total_outlets": "desc"},
+			},
+		}
+	}
+
+	detectedCity := detectCityFromQuery(query)
+
+	cleanQuery := stripLocationFromQuery(query)
+	if strings.TrimSpace(cleanQuery) == "" {
+		cleanQuery = query
+	}
+
+	isPureLocation := strings.TrimSpace(cleanQuery) == "" ||
+		strings.EqualFold(strings.TrimSpace(cleanQuery), strings.TrimSpace(detectedCity))
+
+	if isPureLocation && detectedCity != "" {
+		return map[string]interface{}{
 			"size": h.config.DefaultPageSize,
 			"query": map[string]interface{}{
-				"match_all": map[string]interface{}{},
+				"bool": map[string]interface{}{
+					"must": []interface{}{
+						map[string]interface{}{"match_all": map[string]interface{}{}},
+					},
+					"filter": []interface{}{
+						map[string]interface{}{
+							"terms": map[string]interface{}{
+								"location": buildLocationTerms(detectedCity),
+							},
+						},
+					},
+				},
 			},
 			"sort": []interface{}{
 				map[string]interface{}{"rating": "desc"},
@@ -351,53 +383,27 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		}
 	}
 
-	cleanQuery := stripLocationFromQuery(query)
-	if strings.TrimSpace(cleanQuery) == "" {
-		cleanQuery = query
+	boolQuery := map[string]interface{}{
+		"should": []interface{}{
+			map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": cleanQuery, "boost": 3}}},
+			map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": cleanQuery, "boost": 2}}},
+			map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": cleanQuery, "fuzziness": "AUTO"}}},
+			map[string]interface{}{"match": map[string]interface{}{"description": cleanQuery}},
+		},
+		"minimum_should_match": 1,
+	}
+
+	if detectedCity != "" {
+		boolQuery["filter"] = []interface{}{
+			map[string]interface{}{
+				"terms": map[string]interface{}{"location": buildLocationTerms(detectedCity)},
+			},
+		}
 	}
 
 	return map[string]interface{}{
-		"size": h.config.DefaultPageSize,
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					// ✅ Industry exact match — highest priority
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query": cleanQuery,
-								"boost": 3,
-							},
-						},
-					},
-					// ✅ Tags match
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"tags": map[string]interface{}{
-								"query": cleanQuery,
-								"boost": 2,
-							},
-						},
-					},
-					// ✅ Name match
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query":     cleanQuery,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					// ✅ Description match — lowest priority
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"description": cleanQuery,
-						},
-					},
-				},
-				"minimum_should_match": 1,
-			},
-		},
+		"size":  h.config.DefaultPageSize,
+		"query": map[string]interface{}{"bool": boolQuery},
 		"sort": []interface{}{
 			map[string]interface{}{"_score": "desc"},
 			map[string]interface{}{"rating": "desc"},
@@ -427,11 +433,43 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 // 	return map[string]interface{}{
 // 		"size": h.config.DefaultPageSize,
 // 		"query": map[string]interface{}{
-// 			"multi_match": map[string]interface{}{
-// 				"query":     cleanQuery,
-// 				"fields":    []string{"name^3", "industry.name^2", "tags^2", "description"},
-// 				"type":      "best_fields",
-// 				"fuzziness": "AUTO",
+// 			"bool": map[string]interface{}{
+// 				"should": []interface{}{
+// 					// ✅ Industry exact match — highest priority
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"industry.name": map[string]interface{}{
+// 								"query": cleanQuery,
+// 								"boost": 3,
+// 							},
+// 						},
+// 					},
+// 					// ✅ Tags match
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"tags": map[string]interface{}{
+// 								"query": cleanQuery,
+// 								"boost": 2,
+// 							},
+// 						},
+// 					},
+// 					// ✅ Name match
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"name": map[string]interface{}{
+// 								"query":     cleanQuery,
+// 								"fuzziness": "AUTO",
+// 							},
+// 						},
+// 					},
+// 					// ✅ Description match — lowest priority
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"description": cleanQuery,
+// 						},
+// 					},
+// 				},
+// 				"minimum_should_match": 1,
 // 			},
 // 		},
 // 		"sort": []interface{}{
@@ -948,6 +986,56 @@ func stripLocationFromQuery(query string) string {
 		}
 	}
 	return strings.TrimSpace(result)
+}
+
+func detectCityFromQuery(query string) string {
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	prepositions := []string{" in ", " at ", " near ", " from ", " around "}
+
+	titleCase := func(s string) string {
+		if s == "" {
+			return ""
+		}
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	for cityKey := range cityAliases {
+		if queryLower == cityKey {
+			return titleCase(cityKey)
+		}
+		for _, prep := range prepositions {
+			if strings.Contains(queryLower, prep+cityKey) {
+				return titleCase(cityKey)
+			}
+		}
+		if strings.HasPrefix(queryLower, cityKey+" ") {
+			return titleCase(cityKey)
+		}
+		if strings.HasSuffix(queryLower, " "+cityKey) {
+			return titleCase(cityKey)
+		}
+	}
+
+	for cityKey, aliases := range cityAliases {
+		for _, alias := range aliases {
+			aliasLower := strings.ToLower(alias)
+			if queryLower == aliasLower {
+				return titleCase(cityKey)
+			}
+			for _, prep := range prepositions {
+				if strings.Contains(queryLower, prep+aliasLower) {
+					return titleCase(cityKey)
+				}
+			}
+			if strings.HasPrefix(queryLower, aliasLower+" ") {
+				return titleCase(cityKey)
+			}
+			if strings.HasSuffix(queryLower, " "+aliasLower) {
+				return titleCase(cityKey)
+			}
+		}
+	}
+	return ""
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
