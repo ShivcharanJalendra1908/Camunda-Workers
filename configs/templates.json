@@ -103,6 +103,71 @@
         "subject": "Sign-In Confirmation",
         "body": "<p>Hello {{.FirstName}},</p><p>You signed in to FranchiseHub at {{.SignInTime}}.</p>"
       }
+    }, 
+    {
+  "id": "enquiry-confirmation-applicant",
+  "type": "email",
+  "version": "1.0.0",
+  "schema": {
+    "type": "object",
+    "required": ["fullName", "email", "franchiseName", "applicationId"],
+    "properties": {
+      "fullName": { "type": "string" },
+      "email": { "type": "string" },
+      "franchiseName": { "type": "string" },
+      "applicationId": { "type": "string" }
     }
+  },
+  "template": {
+    "subject": "Your enquiry for {{franchiseName}} received — Ref #{{applicationId}}",
+    "body": "<html><body><h2>Hello {{fullName}},</h2><p>Thank you for your interest in <strong>{{franchiseName}}</strong>. We have received your enquiry (Ref: {{applicationId}}) and will connect you with the franchise team shortly.</p><p>Best regards,<br/>Team Lemici</p></body></html>"
+  }
+},
+{
+  "id": "new-enquiry-franchisee",
+  "type": "email",
+  "version": "1.0.0",
+  "schema": {
+    "type": "object",
+    "required": ["fullName", "email", "phone", "franchiseName", "applicationId"],
+    "properties": {
+      "fullName": { "type": "string" },
+      "email": { "type": "string" },
+      "phone": { "type": "string" },
+      "city": { "type": "string" },
+      "state": { "type": "string" },
+      "approximateInvestmentBudget": { "type": "string" },
+      "involvementLevel": { "type": "string" },
+      "applicantType": { "type": "string" },
+      "background": { "type": "string" },
+      "franchiseName": { "type": "string" },
+      "applicationId": { "type": "string" }
+    }
+  },
+  "template": {
+    "subject": "New Enquiry — {{fullName}} from {{city}}, {{state}} | Budget: {{approximateInvestmentBudget}}",
+    "body": "<html><body><h2>New Lead for {{franchiseName}}</h2><table border='1' cellpadding='8' style='border-collapse:collapse'><tr><td><b>Name</b></td><td>{{fullName}}</td></tr><tr><td><b>Email</b></td><td>{{email}}</td></tr><tr><td><b>Phone</b></td><td>{{phone}}</td></tr><tr><td><b>Location</b></td><td>{{city}}, {{state}}</td></tr><tr><td><b>Type</b></td><td>{{applicantType}}</td></tr><tr><td><b>Budget</b></td><td>{{approximateInvestmentBudget}}</td></tr><tr><td><b>Involvement</b></td><td>{{involvementLevel}}</td></tr><tr><td><b>Background</b></td><td>{{background}}</td></tr><tr><td><b>Application ID</b></td><td>{{applicationId}}</td></tr></table><p>Respond within 48 hours via your Lemici dashboard.</p></body></html>"
+  }
+},
+{
+  "id": "internal-new-enquiry-alert",
+  "type": "email",
+  "version": "1.0.0",
+  "schema": {
+    "type": "object",
+    "required": ["applicationId", "franchiseName", "fullName"],
+    "properties": {
+      "applicationId": { "type": "string" },
+      "franchiseName": { "type": "string" },
+      "fullName": { "type": "string" },
+      "approximateInvestmentBudget": { "type": "string" },
+      "priority": { "type": "string" }
+    }
+  },
+  "template": {
+    "subject": "[New Enquiry] #{{applicationId}} | {{franchiseName}} | Priority: {{priority}}",
+    "body": "<html><body><h2>New Enquiry Alert</h2><p><b>Application ID:</b> {{applicationId}}</p><p><b>Franchise:</b> {{franchiseName}}</p><p><b>Applicant:</b> {{fullName}}</p><p><b>Budget:</b> {{approximateInvestmentBudget}}</p><p><b>Priority:</b> {{priority}}</p></body></html>"
+  }
+}
   ]
 }

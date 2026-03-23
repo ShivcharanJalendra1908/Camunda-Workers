@@ -1,0 +1,87 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "analysis": {
+      "analyzer": {
+        "search_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "industry_id": {
+        "type": "keyword"
+      },
+      "industry_name": {
+        "type": "text",
+        "analyzer": "search_analyzer",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }
+      },
+      "industry_slug": {
+        "type": "keyword"
+      },
+      "display_order": {
+        "type": "integer"
+      },
+      "color_hex": {
+        "type": "keyword"
+      },
+      "icon_url": {
+        "type": "keyword",
+        "index": false
+      },
+      "categories": {
+        "type": "nested",
+        "properties": {
+          "category_id": {
+            "type": "keyword"
+          },
+          "category_name": {
+            "type": "text",
+            "analyzer": "search_analyzer",
+            "fields": {
+              "keyword": { "type": "keyword" }
+            }
+          },
+          "category_slug": {
+            "type": "keyword"
+          },
+          "display_order": {
+            "type": "integer"
+          },
+          "sub_categories": {
+            "type": "nested",
+            "properties": {
+              "sub_category_id": {
+                "type": "keyword"
+              },
+              "sub_category_name": {
+                "type": "text",
+                "analyzer": "search_analyzer",
+                "fields": {
+                  "keyword": { "type": "keyword" }
+                }
+              },
+              "sub_category_slug": {
+                "type": "keyword"
+              },
+              "display_order": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "updated_at": {
+        "type": "date"
+      }
+    }
+  }
+}

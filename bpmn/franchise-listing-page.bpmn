@@ -33,8 +33,10 @@
           <zeebe:input source="=&#34;FRANCHISE_LISTING&#34;" target="queryType" />
           <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=limit" target="limit" />
+          <zeebe:input source="=pageSize" target="pageSize" />
+          <zeebe:input source="=offset" target="offset" />
           <zeebe:output source="=data" target="franchises" />
+          <zeebe:output source="=total" target="totalCount" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Listings</bpmn:incoming>
@@ -109,6 +111,9 @@
           <zeebe:input source="=categoryQuestions" target="understandingCategory" />
           <zeebe:input source="=recommended" target="recommendedFranchises" />
           <zeebe:input source="=if marketInsights != null then [marketInsights] else []" target="keyMarketInsights" />
+          <zeebe:input source="=page" target="page" />
+          <zeebe:input source="=pageSize" target="pageSize" />
+          <zeebe:input source="=totalCount" target="totalCount" />
           <zeebe:output source="=response" target="finalResponse" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

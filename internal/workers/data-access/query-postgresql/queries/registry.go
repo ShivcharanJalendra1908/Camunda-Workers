@@ -39,9 +39,24 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeFranchiseOperations: FranchiseOperations,
 	models.QueryTypeFranchiseSocial:     FranchiseSocial,
 
-	models.QueryTypeIndustryBySlugWithQuestions: IndustryBySlugWithQuestions,
-    models.QueryTypeCategoryQuestionsByIndustry: CategoryQuestionsByIndustry,
-    models.QueryTypeFeaturedCategoriesByIndustry: FeaturedCategoriesByIndustry,
+	models.QueryTypeIndustryBySlugWithQuestions:  IndustryBySlugWithQuestions,
+	models.QueryTypeCategoryQuestionsByIndustry:  CategoryQuestionsByIndustry,
+	models.QueryTypeFeaturedCategoriesByIndustry: FeaturedCategoriesByIndustry,
+
+	// // ===== ALL INDUSTRIES =====
+	// models.QueryTypeAllIndustries:           AllIndustries,
+	// models.QueryTypeCategoriesByIndustry:    CategoriesByIndustry,
+	// models.QueryTypeSubCategoriesByCategory: SubCategoriesByCategory,
+
+	// ===== ENQUERY =====
+	models.QueryTypeFranchiseContactInfo: FranchiseContactInfo,
+
+	// =====USER ACTIONS =====
+	models.QueryTypeGetUserBookmarks:    UserBookmarks,
+	models.QueryTypeCheckBookmark:       UserBookmarkCheck,
+	models.QueryTypeGetUserRating:       UserRatingForFranchise,
+	models.QueryTypeGetFranchiseRatings: FranchiseRatings,
+	models.QueryTypeGetUserShares:       UserShareHistory,
 }
 
 func Execute(ctx context.Context, db *sql.DB, queryType models.QueryType, params map[string]interface{}) (interface{}, int, int64, error) {

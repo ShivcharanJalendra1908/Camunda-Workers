@@ -1,0 +1,608 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <process id="franchise-user-actions" name="Franchise User Actions" isExecutable="true">
+    <startEvent id="StartEvent_UserAction" name="User Action Request">
+      <outgoing>Flow_ToValidateUser</outgoing>
+    </startEvent>
+    <serviceTask id="Task_ValidateSubscription" name="Validate User&#10;Subscription">
+      <extensionElements>
+        <zeebe:taskDefinition type="validate-subscription" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=&#34;free&#34;" target="subscriptionTier" />
+          <zeebe:output source="=isValid" target="subscriptionValid" />
+          <zeebe:output source="=tierLevel" target="tierLevel" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToValidateUser</incoming>
+      <outgoing>Flow_ToActionGateway</outgoing>
+    </serviceTask>
+    <boundaryEvent id="BoundaryError_ValidateSubscription" name="Subscription&#10;Error" attachedToRef="Task_ValidateSubscription">
+      <outgoing>Flow_SubscriptionError_To_HandleError</outgoing>
+      <errorEventDefinition id="ErrorDef_Subscription" errorRef="Error_SubscriptionFailed" />
+    </boundaryEvent>
+    <exclusiveGateway id="Gateway_ActionRouter" name="Which Action?">
+      <incoming>Flow_ToActionGateway</incoming>
+      <outgoing>Flow_ToBookmarkGateway</outgoing>
+      <outgoing>Flow_ToRatingGateway</outgoing>
+      <outgoing>Flow_ToShare</outgoing>
+    </exclusiveGateway>
+    <exclusiveGateway id="Gateway_BookmarkType" name="Bookmark Op?">
+      <incoming>Flow_ToBookmarkGateway</incoming>
+      <outgoing>Flow_ToAddBookmark</outgoing>
+      <outgoing>Flow_ToRemoveBookmark</outgoing>
+      <outgoing>Flow_ToGetBookmarks</outgoing>
+      <outgoing>Flow_ToCheckBookmark</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="Task_AddBookmark" name="Add Bookmark">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;ADD_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=id" target="bookmarkId" />
+          <zeebe:output source="=isBookmarked" target="isBookmarked" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToAddBookmark</incoming>
+      <outgoing>Flow_AddBookmark_ToResponse</outgoing>
+    </serviceTask>
+    <boundaryEvent id="BoundaryError_AddBookmark" name="Bookmark&#10;Error" attachedToRef="Task_AddBookmark">
+      <outgoing>Flow_BookmarkError_To_HandleError</outgoing>
+      <errorEventDefinition id="ErrorDef_AddBookmark" errorRef="Error_DatabaseError" />
+    </boundaryEvent>
+    <serviceTask id="Task_RemoveBookmark" name="Remove Bookmark">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;REMOVE_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToRemoveBookmark</incoming>
+      <outgoing>Flow_RemoveBookmark_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_GetBookmarks" name="Get User Bookmarks">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;GET_USER_BOOKMARKS&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=page" target="page" />
+          <zeebe:input source="=limit" target="limit" />
+          <zeebe:output source="=bookmarks" target="bookmarks" />
+          <zeebe:output source="=totalCount" target="totalCount" />
+          <zeebe:output source="=success" target="success" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToGetBookmarks</incoming>
+      <outgoing>Flow_GetBookmarks_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_CheckBookmark" name="Check Bookmark Status">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;CHECK_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=isBookmarked" target="isBookmarked" />
+          <zeebe:output source="=bookmarkId" target="bookmarkId" />
+          <zeebe:output source="=success" target="success" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToCheckBookmark</incoming>
+      <outgoing>Flow_CheckBookmark_ToResponse</outgoing>
+    </serviceTask>
+    <exclusiveGateway id="Gateway_RatingType" name="Rating Op?">
+      <incoming>Flow_ToRatingGateway</incoming>
+      <outgoing>Flow_ToSubmitRating</outgoing>
+      <outgoing>Flow_ToUpdateRating</outgoing>
+      <outgoing>Flow_ToGetUserRating</outgoing>
+      <outgoing>Flow_ToGetFranchiseRatings</outgoing>
+      <outgoing>Flow_ToDeleteRating</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="Task_SubmitRating" name="Submit User Rating">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;SUBMIT_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=rating" target="rating" />
+          <zeebe:input source="=review" target="review" />
+          <zeebe:output source="=id" target="ratingId" />
+          <zeebe:output source="=rating" target="submittedRating" />
+          <zeebe:output source="=isNew" target="isNew" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToSubmitRating</incoming>
+      <outgoing>Flow_SubmitRating_ToResponse</outgoing>
+    </serviceTask>
+    <boundaryEvent id="BoundaryError_SubmitRating" name="Rating&#10;Error" attachedToRef="Task_SubmitRating">
+      <outgoing>Flow_RatingError_To_HandleError</outgoing>
+      <errorEventDefinition id="ErrorDef_SubmitRating" errorRef="Error_ValidationError" />
+    </boundaryEvent>
+    <serviceTask id="Task_UpdateRating" name="Update User Rating">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=rating" target="rating" />
+          <zeebe:input source="=review" target="review" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToUpdateRating</incoming>
+      <outgoing>Flow_UpdateRating_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_GetUserRating" name="Get User&#39;s Rating">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;GET_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=hasRated" target="hasRated" />
+          <zeebe:output source="=rating" target="userRating" />
+          <zeebe:output source="=review" target="userReview" />
+          <zeebe:output source="=success" target="success" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToGetUserRating</incoming>
+      <outgoing>Flow_GetUserRating_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_GetFranchiseRatings" name="Get All Franchise Ratings">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;GET_FRANCHISE_RATINGS&#34;" target="operationType" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=page" target="page" />
+          <zeebe:input source="=limit" target="limit" />
+          <zeebe:output source="=ratings" target="ratings" />
+          <zeebe:output source="=totalCount" target="totalCount" />
+          <zeebe:output source="=avgRating" target="avgRating" />
+          <zeebe:output source="=success" target="success" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToGetFranchiseRatings</incoming>
+      <outgoing>Flow_GetFranchiseRatings_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_DeleteRating" name="Delete User Rating">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;DELETE_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToDeleteRating</incoming>
+      <outgoing>Flow_DeleteRating_ToResponse</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_ShareFranchise" name="Record Share Event">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;SHARE_FRANCHISE&#34;" target="operationType" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=sharePlatform" target="sharePlatform" />
+          <zeebe:input source="=ipAddress" target="ipAddress" />
+          <zeebe:output source="=shareId" target="shareId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToShare</incoming>
+      <outgoing>Flow_Share_ToResponse</outgoing>
+    </serviceTask>
+    <boundaryEvent id="BoundaryError_Share" name="Share&#10;Error" attachedToRef="Task_ShareFranchise">
+      <outgoing>Flow_ShareError_To_HandleError</outgoing>
+      <errorEventDefinition id="ErrorDef_Share" errorRef="Error_DatabaseError" />
+    </boundaryEvent>
+    <exclusiveGateway id="Gateway_MergeBeforeResponse" name="Merge">
+      <incoming>Flow_AddBookmark_ToResponse</incoming>
+      <incoming>Flow_RemoveBookmark_ToResponse</incoming>
+      <incoming>Flow_GetBookmarks_ToResponse</incoming>
+      <incoming>Flow_CheckBookmark_ToResponse</incoming>
+      <incoming>Flow_SubmitRating_ToResponse</incoming>
+      <incoming>Flow_UpdateRating_ToResponse</incoming>
+      <incoming>Flow_GetUserRating_ToResponse</incoming>
+      <incoming>Flow_GetFranchiseRatings_ToResponse</incoming>
+      <incoming>Flow_DeleteRating_ToResponse</incoming>
+      <incoming>Flow_Share_ToResponse</incoming>
+      <outgoing>Flow_ToSendResponse</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="Task_SendResponse" name="Send API Response">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" retries="0" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={success: success, message: message, data: {bookmarkId: bookmarkId, isBookmarked: isBookmarked, bookmarks: bookmarks, ratingId: ratingId, rating: submittedRating, hasRated: hasRated, ratings: ratings, avgRating: avgRating, shareId: shareId, totalCount: totalCount}}" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToSendResponse</incoming>
+      <outgoing>Flow_ToEnd</outgoing>
+    </serviceTask>
+    <exclusiveGateway id="Gateway_ErrorMerge" name="Error&#10;Merge">
+      <incoming>Flow_SubscriptionError_To_HandleError</incoming>
+      <incoming>Flow_RatingError_To_HandleError</incoming>
+      <incoming>Flow_ShareError_To_HandleError</incoming>
+      <incoming>Flow_ValidationError_To_HandleError</incoming>
+      <incoming>Flow_BookmarkError_To_HandleError</incoming>
+      <outgoing>Flow_ToHandleError</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="Task_HandleError" name="Send Error Response">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" retries="0" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={success: false, error: errorCode, message: errorMessage}" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToHandleError</incoming>
+      <outgoing>Flow_Error_ToEnd</outgoing>
+    </serviceTask>
+    <endEvent id="EndEvent_Success" name="Action&#10;Completed">
+      <incoming>Flow_ToEnd</incoming>
+    </endEvent>
+    <endEvent id="EndEvent_Error" name="Action&#10;Failed">
+      <incoming>Flow_Error_ToEnd</incoming>
+      <errorEventDefinition id="ErrorDef_End" errorRef="Error_ActionFailed" />
+    </endEvent>
+    <sequenceFlow id="Flow_ToValidateUser" sourceRef="StartEvent_UserAction" targetRef="Task_ValidateSubscription" />
+    <sequenceFlow id="Flow_ToActionGateway" sourceRef="Task_ValidateSubscription" targetRef="Gateway_ActionRouter" />
+    <sequenceFlow id="Flow_ToBookmarkGateway" sourceRef="Gateway_ActionRouter" targetRef="Gateway_BookmarkType">
+      <conditionExpression xsi:type="tFormalExpression">
+        =action = "add_bookmark" or action = "remove_bookmark" or action = "get_bookmarks" or action = "check_bookmark"
+      </conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToRatingGateway" sourceRef="Gateway_ActionRouter" targetRef="Gateway_RatingType">
+      <conditionExpression xsi:type="tFormalExpression">
+        =action = "submit_rating" or action = "update_rating" or action = "get_user_rating" or action = "get_franchise_ratings" or action = "delete_rating"
+      </conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToShare" sourceRef="Gateway_ActionRouter" targetRef="Task_ShareFranchise">
+      <conditionExpression xsi:type="tFormalExpression">
+        =action = "share_franchise"
+      </conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToAddBookmark" sourceRef="Gateway_BookmarkType" targetRef="Task_AddBookmark">
+      <conditionExpression xsi:type="tFormalExpression">=action = "add_bookmark"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToRemoveBookmark" sourceRef="Gateway_BookmarkType" targetRef="Task_RemoveBookmark">
+      <conditionExpression xsi:type="tFormalExpression">=action = "remove_bookmark"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToGetBookmarks" sourceRef="Gateway_BookmarkType" targetRef="Task_GetBookmarks">
+      <conditionExpression xsi:type="tFormalExpression">=action = "get_bookmarks"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToCheckBookmark" sourceRef="Gateway_BookmarkType" targetRef="Task_CheckBookmark">
+      <conditionExpression xsi:type="tFormalExpression">=action = "check_bookmark"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToSubmitRating" sourceRef="Gateway_RatingType" targetRef="Task_SubmitRating">
+      <conditionExpression xsi:type="tFormalExpression">=action = "submit_rating"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToUpdateRating" sourceRef="Gateway_RatingType" targetRef="Task_UpdateRating">
+      <conditionExpression xsi:type="tFormalExpression">=action = "update_rating"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToGetUserRating" sourceRef="Gateway_RatingType" targetRef="Task_GetUserRating">
+      <conditionExpression xsi:type="tFormalExpression">=action = "get_user_rating"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToGetFranchiseRatings" sourceRef="Gateway_RatingType" targetRef="Task_GetFranchiseRatings">
+      <conditionExpression xsi:type="tFormalExpression">=action = "get_franchise_ratings"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToDeleteRating" sourceRef="Gateway_RatingType" targetRef="Task_DeleteRating">
+      <conditionExpression xsi:type="tFormalExpression">=action = "delete_rating"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_AddBookmark_ToResponse" sourceRef="Task_AddBookmark" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_RemoveBookmark_ToResponse" sourceRef="Task_RemoveBookmark" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_GetBookmarks_ToResponse" sourceRef="Task_GetBookmarks" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_CheckBookmark_ToResponse" sourceRef="Task_CheckBookmark" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_SubmitRating_ToResponse" sourceRef="Task_SubmitRating" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_UpdateRating_ToResponse" sourceRef="Task_UpdateRating" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_GetUserRating_ToResponse" sourceRef="Task_GetUserRating" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_GetFranchiseRatings_ToResponse" sourceRef="Task_GetFranchiseRatings" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_DeleteRating_ToResponse" sourceRef="Task_DeleteRating" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_Share_ToResponse" sourceRef="Task_ShareFranchise" targetRef="Gateway_MergeBeforeResponse" />
+    <sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_MergeBeforeResponse" targetRef="Task_SendResponse" />
+    <sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_Success" />
+    <sequenceFlow id="Flow_SubscriptionError_To_HandleError" sourceRef="BoundaryError_ValidateSubscription" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_BookmarkError_To_HandleError" sourceRef="BoundaryError_AddBookmark" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_RatingError_To_HandleError" sourceRef="BoundaryError_SubmitRating" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_ShareError_To_HandleError" sourceRef="BoundaryError_Share" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_ValidationError_To_HandleError" sourceRef="Gateway_ErrorMerge" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_ToHandleError" sourceRef="Gateway_ErrorMerge" targetRef="Task_HandleError" />
+    <sequenceFlow id="Flow_Error_ToEnd" sourceRef="Task_HandleError" targetRef="EndEvent_Error" />
+  </process>
+  <error id="Error_SubscriptionFailed" name="Subscription Failed" errorCode="SUBSCRIPTION_INVALID" />
+  <error id="Error_DatabaseError" name="Database Error" errorCode="DATABASE_ERROR" />
+  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_ERROR" />
+  <error id="Error_ActionFailed" name="Action Failed" errorCode="ACTION_FAILED" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-user-actions">
+      <bpmndi:BPMNShape id="Shape_Gateway_ActionRouter" bpmnElement="Gateway_ActionRouter" isMarkerVisible="true">
+        <dc:Bounds x="415" y="395" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="475" y="413" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_BookmarkType" bpmnElement="Gateway_BookmarkType" isMarkerVisible="true">
+        <dc:Bounds x="545" y="235" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="585" y="233" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_RatingType" bpmnElement="Gateway_RatingType" isMarkerVisible="true">
+        <dc:Bounds x="545" y="595" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="543" y="571" width="53" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_RemoveBookmark" bpmnElement="Task_RemoveBookmark">
+        <dc:Bounds x="660" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_GetBookmarks" bpmnElement="Task_GetBookmarks">
+        <dc:Bounds x="660" y="330" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_CheckBookmark" bpmnElement="Task_CheckBookmark">
+        <dc:Bounds x="660" y="420" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_AddBookmark" bpmnElement="Task_AddBookmark">
+        <dc:Bounds x="660" y="150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_GetFranchiseRatings" bpmnElement="Task_GetFranchiseRatings">
+        <dc:Bounds x="660" y="840" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_GetUserRating" bpmnElement="Task_GetUserRating">
+        <dc:Bounds x="660" y="750" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_UpdateRating" bpmnElement="Task_UpdateRating">
+        <dc:Bounds x="660" y="660" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_SubmitRating" bpmnElement="Task_SubmitRating">
+        <dc:Bounds x="660" y="570" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_DeleteRating" bpmnElement="Task_DeleteRating">
+        <dc:Bounds x="660" y="932" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ShareFranchise" bpmnElement="Task_ShareFranchise">
+        <dc:Bounds x="660" y="1040" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_MergeBeforeResponse" bpmnElement="Gateway_MergeBeforeResponse" isMarkerVisible="true">
+        <dc:Bounds x="855" y="585" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="815" y="593" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_SendResponse" bpmnElement="Task_SendResponse">
+        <dc:Bounds x="990" y="570" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_EndEvent_Success" bpmnElement="EndEvent_Success">
+        <dc:Bounds x="1152" y="592" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1145" y="635" width="50" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ErrorMerge" bpmnElement="Gateway_ErrorMerge" isMarkerVisible="true">
+        <dc:Bounds x="915" y="1165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="925" y="1225" width="30" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_HandleError" bpmnElement="Task_HandleError">
+        <dc:Bounds x="1020" y="1150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_EndEvent_Error" bpmnElement="EndEvent_Error">
+        <dc:Bounds x="1202" y="1172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1204" y="1134.5" width="31" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="Task_ValidateSubscription">
+        <dc:Bounds x="260" y="380" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_StartEvent" bpmnElement="StartEvent_UserAction">
+        <dc:Bounds x="182" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="173" y="445" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_AddBookmark" bpmnElement="BoundaryError_AddBookmark">
+        <dc:Bounds x="702" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="696" y="77.5" width="47" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_SubmitRating" bpmnElement="BoundaryError_SubmitRating">
+        <dc:Bounds x="702" y="552" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="685" y="526.5" width="30" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_Share" bpmnElement="BoundaryError_Share">
+        <dc:Bounds x="702" y="1102" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="725" y="1138" width="29" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_ValidateSubscription" bpmnElement="BoundaryError_ValidateSubscription">
+        <dc:Bounds x="302" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="330" y="485" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToValidateUser" bpmnElement="Flow_ToValidateUser">
+        <di:waypoint x="218" y="420" />
+        <di:waypoint x="260" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToActionGateway" bpmnElement="Flow_ToActionGateway">
+        <di:waypoint x="380" y="420" />
+        <di:waypoint x="415" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToBookmarkGateway" bpmnElement="Flow_ToBookmarkGateway">
+        <di:waypoint x="440" y="395" />
+        <di:waypoint x="440" y="260" />
+        <di:waypoint x="545" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToRatingGateway" bpmnElement="Flow_ToRatingGateway">
+        <di:waypoint x="440" y="445" />
+        <di:waypoint x="440" y="620" />
+        <di:waypoint x="545" y="620" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToShare" bpmnElement="Flow_ToShare">
+        <di:waypoint x="440" y="445" />
+        <di:waypoint x="440" y="1080" />
+        <di:waypoint x="660" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToAddBookmark" bpmnElement="Flow_ToAddBookmark">
+        <di:waypoint x="570" y="235" />
+        <di:waypoint x="570" y="190" />
+        <di:waypoint x="660" y="190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToRemoveBookmark" bpmnElement="Flow_ToRemoveBookmark">
+        <di:waypoint x="595" y="260" />
+        <di:waypoint x="628" y="260" />
+        <di:waypoint x="628" y="313" />
+        <di:waypoint x="661" y="313" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToGetBookmarks" bpmnElement="Flow_ToGetBookmarks">
+        <di:waypoint x="570" y="285" />
+        <di:waypoint x="570" y="370" />
+        <di:waypoint x="660" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToCheckBookmark" bpmnElement="Flow_ToCheckBookmark">
+        <di:waypoint x="570" y="285" />
+        <di:waypoint x="570" y="460" />
+        <di:waypoint x="660" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToSubmitRating" bpmnElement="Flow_ToSubmitRating">
+        <di:waypoint x="595" y="620" />
+        <di:waypoint x="628" y="620" />
+        <di:waypoint x="628" y="610" />
+        <di:waypoint x="660" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToUpdateRating" bpmnElement="Flow_ToUpdateRating">
+        <di:waypoint x="570" y="645" />
+        <di:waypoint x="570" y="700" />
+        <di:waypoint x="660" y="700" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToGetUserRating" bpmnElement="Flow_ToGetUserRating">
+        <di:waypoint x="570" y="645" />
+        <di:waypoint x="570" y="790" />
+        <di:waypoint x="660" y="790" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToGetFranchiseRatings" bpmnElement="Flow_ToGetFranchiseRatings">
+        <di:waypoint x="570" y="645" />
+        <di:waypoint x="570" y="880" />
+        <di:waypoint x="660" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToDeleteRating" bpmnElement="Flow_ToDeleteRating">
+        <di:waypoint x="570" y="645" />
+        <di:waypoint x="570" y="972" />
+        <di:waypoint x="660" y="972" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_AddBookmark_ToResponse" bpmnElement="Flow_AddBookmark_ToResponse">
+        <di:waypoint x="780" y="190" />
+        <di:waypoint x="880" y="190" />
+        <di:waypoint x="880" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_RemoveBookmark_ToResponse" bpmnElement="Flow_RemoveBookmark_ToResponse">
+        <di:waypoint x="780" y="280" />
+        <di:waypoint x="880" y="280" />
+        <di:waypoint x="880" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_GetBookmarks_ToResponse" bpmnElement="Flow_GetBookmarks_ToResponse">
+        <di:waypoint x="780" y="370" />
+        <di:waypoint x="880" y="370" />
+        <di:waypoint x="880" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_CheckBookmark_ToResponse" bpmnElement="Flow_CheckBookmark_ToResponse">
+        <di:waypoint x="780" y="460" />
+        <di:waypoint x="880" y="460" />
+        <di:waypoint x="880" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_SubmitRating_ToResponse" bpmnElement="Flow_SubmitRating_ToResponse">
+        <di:waypoint x="780" y="610" />
+        <di:waypoint x="855" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_UpdateRating_ToResponse" bpmnElement="Flow_UpdateRating_ToResponse">
+        <di:waypoint x="780" y="700" />
+        <di:waypoint x="880" y="700" />
+        <di:waypoint x="880" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_GetUserRating_ToResponse" bpmnElement="Flow_GetUserRating_ToResponse">
+        <di:waypoint x="780" y="790" />
+        <di:waypoint x="880" y="790" />
+        <di:waypoint x="880" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_GetFranchiseRatings_ToResponse" bpmnElement="Flow_GetFranchiseRatings_ToResponse">
+        <di:waypoint x="780" y="880" />
+        <di:waypoint x="880" y="880" />
+        <di:waypoint x="880" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_DeleteRating_ToResponse" bpmnElement="Flow_DeleteRating_ToResponse">
+        <di:waypoint x="780" y="972" />
+        <di:waypoint x="880" y="972" />
+        <di:waypoint x="880" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Share_ToResponse" bpmnElement="Flow_Share_ToResponse">
+        <di:waypoint x="780" y="1080" />
+        <di:waypoint x="880" y="1080" />
+        <di:waypoint x="880" y="635" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToSendResponse" bpmnElement="Flow_ToSendResponse">
+        <di:waypoint x="905" y="610" />
+        <di:waypoint x="990" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToEnd" bpmnElement="Flow_ToEnd">
+        <di:waypoint x="1110" y="610" />
+        <di:waypoint x="1152" y="610" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_SubscriptionError" bpmnElement="Flow_SubscriptionError_To_HandleError">
+        <di:waypoint x="320" y="478" />
+        <di:waypoint x="320" y="1190" />
+        <di:waypoint x="915" y="1190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_BookmarkError" bpmnElement="Flow_BookmarkError_To_HandleError">
+        <di:waypoint x="720" y="130" />
+        <di:waypoint x="720" y="110" />
+        <di:waypoint x="940" y="110" />
+        <di:waypoint x="940" y="1165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_RatingError" bpmnElement="Flow_RatingError_To_HandleError">
+        <di:waypoint x="720" y="552" />
+        <di:waypoint x="720" y="532" />
+        <di:waypoint x="940" y="532" />
+        <di:waypoint x="940" y="1165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ShareError" bpmnElement="Flow_ShareError_To_HandleError">
+        <di:waypoint x="720" y="1138" />
+        <di:waypoint x="720" y="1190" />
+        <di:waypoint x="915" y="1190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToHandleError" bpmnElement="Flow_ToHandleError">
+        <di:waypoint x="965" y="1190" />
+        <di:waypoint x="1020" y="1190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Error_ToEnd" bpmnElement="Flow_Error_ToEnd">
+        <di:waypoint x="1140" y="1190" />
+        <di:waypoint x="1202" y="1190" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

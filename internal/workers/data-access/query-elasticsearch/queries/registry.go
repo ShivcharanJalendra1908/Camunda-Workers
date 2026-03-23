@@ -61,6 +61,10 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.ESQueryTypeGetSuggestions:         GetSuggestions,
 	models.ESQueryTypeGetByID:                GetByID,
 	models.ESQueryTypeCountByFilter:          CountByFilter,
+
+	// ===== ALL INDUSTRIES =====
+	models.ESQueryTypeGetAllIndustries: GetAllIndustries,
+	models.ESQueryTypeSearchIndustries: SearchIndustries,
 }
 
 // Execute executes an Elasticsearch query by type
@@ -615,52 +619,94 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 }
 
 // FranchiseListing - Paginated franchise listing (Listing Page MAIN query)
-func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+// func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+
+// 	industrySlug, _ := params["industrySlug"].(string)
+// 	page, _ := params["page"].(int)
+// 	limit, _ := params["limit"].(int)
+
+// 	if page <= 0 {
+// 		page = 1
+// 	}
+// 	if limit <= 0 {
+// 		limit = 12
+// 	}
+// 	if limit > 50 {
+// 		limit = 50
+// 	}
+
+// 	// ✅ ADD THIS: Round to nearest multiple of 3
+// 	if limit != 9 && limit != 12 && limit != 15 && limit != 18 && limit != 21 {
+// 		// Round to nearest multiple of 3
+// 		limit = ((limit + 2) / 3) * 3
+// 		if limit > 12 {
+// 			limit = 12 // Cap at 12 for listing page
+// 		}
+// 		if limit < 9 {
+// 			limit = 9 // Minimum 9
+// 		}
+// 	}
+
+// 	from := (page - 1) * limit
+
+// 	query := map[string]interface{}{
+// 		"from": from,
+// 		"size": limit,
+// 		"sort": []map[string]interface{}{
+// 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+// 			{"_score": map[string]interface{}{"order": "desc"}},
+// 		},
+// 	}
+
+// 	if industrySlug != "" {
+// 		query["query"] = map[string]interface{}{
+// 			"match": map[string]interface{}{
+// 				"industry.slug": map[string]interface{}{
+// 					"query":    industrySlug,
+// 					"operator": "and",
+// 				},
+// 			},
+// 		}
+// 	} else {
+// 		query["query"] = map[string]interface{}{
+// 			"match_all": map[string]interface{}{},
+// 		}
+// 	}
+
+//		return executeQuery(ctx, esClient, "franchise_listings", query)
+//	}
+func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client,
+	params map[string]interface{}) (*QueryResult, error) {
 
 	industrySlug, _ := params["industrySlug"].(string)
 	page, _ := params["page"].(int)
-	limit, _ := params["limit"].(int)
+	pageSize, _ := params["pageSize"].(int) // ← "limit" → "pageSize"
 
+	// safety net only — actual value config se handler → BPMN → yahan aati hai
 	if page <= 0 {
 		page = 1
 	}
-	if limit <= 0 {
-		limit = 12
+	if pageSize <= 0 {
+		pageSize = 10
 	}
-	if limit > 50 {
-		limit = 50
-	}
-
-	// ✅ ADD THIS: Round to nearest multiple of 3
-	if limit != 9 && limit != 12 && limit != 15 && limit != 18 && limit != 21 {
-		// Round to nearest multiple of 3
-		limit = ((limit + 2) / 3) * 3
-		if limit > 12 {
-			limit = 12 // Cap at 12 for listing page
-		}
-		if limit < 9 {
-			limit = 9 // Minimum 9
-		}
+	if pageSize > 50 {
+		pageSize = 50
 	}
 
-	from := (page - 1) * limit
+	// ← REMOVE: round-to-3 logic poora hata do
+
+	from := (page - 1) * pageSize
 
 	query := map[string]interface{}{
-		"from": from,
-		"size": limit,
+		"from":             from,
+		"size":             pageSize,
+		"track_total_hits": true, // ← ADD — yeh nahi tha, totalCount ke liye must hai
 		"sort": []map[string]interface{}{
 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			{"_score": map[string]interface{}{"order": "desc"}},
 		},
 	}
 
-	// if industrySlug != "" {
-	// 	query["query"] = map[string]interface{}{
-	// 		"term": map[string]interface{}{
-	// 			"industry.slug": industrySlug,
-	// 		},
-	// 	}
-	// }
 	if industrySlug != "" {
 		query["query"] = map[string]interface{}{
 			"match": map[string]interface{}{
@@ -821,6 +867,85 @@ func CountByFilter(ctx context.Context, esClient *elasticsearch.Client, params m
 	query["size"] = 0
 
 	return executeQuery(ctx, esClient, "franchise_listings", query)
+}
+
+// ============================================================
+// GET ALL INDUSTRIES (with search also)
+// ============================================================
+
+func GetAllIndustries(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		},
+		"size": 50,
+		"sort": []map[string]interface{}{
+			{"display_order": map[string]interface{}{"order": "asc"}},
+		},
+	}
+	return executeQuery(ctx, esClient, "franchise_browse", query)
+}
+
+func SearchIndustries(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+	searchTerm, _ := params["search"].(string)
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					// Industry name search
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"industry_name": map[string]interface{}{
+								"query":     searchTerm,
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+					// Category name search (nested)
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"categories.category_name": map[string]interface{}{
+										"query":     searchTerm,
+										"fuzziness": "AUTO",
+									},
+								},
+							},
+						},
+					},
+					// Sub-category name search (nested inside nested)
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"nested": map[string]interface{}{
+									"path": "categories.sub_categories",
+									"query": map[string]interface{}{
+										"match": map[string]interface{}{
+											"categories.sub_categories.sub_category_name": map[string]interface{}{
+												"query":     searchTerm,
+												"fuzziness": "AUTO",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		},
+		"size": 50,
+		"sort": []map[string]interface{}{
+			{"_score": map[string]interface{}{"order": "desc"}},
+			{"display_order": map[string]interface{}{"order": "asc"}},
+		},
+	}
+	return executeQuery(ctx, esClient, "franchise_browse", query)
 }
 
 // ============================================================

@@ -28,6 +28,15 @@ type Config struct {
 	Workflows       WorkflowConfig          `mapstructure:"workflows"`
 	FranchiseSearch FranchiseSearchConfig   `yaml:"franchise_search"`
 	Idempotency     IdempotencyConfig       `yaml:"idempotency"`
+	Pagination      PaginationConfig        `mapstructure:"pagination"`
+}
+
+// ============================================================================
+// PAGINATION CONFIG
+// ============================================================================
+type PaginationConfig struct {
+	DefaultPageSize int `mapstructure:"default_page_size"`
+	MaxPageSize     int `mapstructure:"max_page_size"`
 }
 
 // ============================================================================
@@ -419,6 +428,11 @@ type IntegrationConfig struct {
 		FromNumber   string `mapstructure:"fromNumber"`
 		MessagingSID string `mapstructure:"messagingSid"`
 	} `mapstructure:"twilio"`
+
+	Internal struct {
+		EnquiryAlertEmail string `yaml:"enquiry_alert_email"`
+		EnquiryAlertName  string `yaml:"enquiry_alert_name"`
+	} `yaml:"internal"`
 }
 
 // ============================================================================

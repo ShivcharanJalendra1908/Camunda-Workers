@@ -55,4 +55,33 @@ const (
 	ESQueryTypeGetSuggestions         QueryType = "ES_GET_SUGGESTIONS"
 	ESQueryTypeGetByID                QueryType = "ES_GET_BY_ID"
 	ESQueryTypeCountByFilter          QueryType = "ES_COUNT_BY_FILTER"
+
+	// Get All Industries
+	ESQueryTypeGetAllIndustries QueryType = "get_all_industries"
+	ESQueryTypeSearchIndustries QueryType = "search_industries"
+	// QueryTypeAllIndustries           QueryType = "all_industries"
+	// QueryTypeCategoriesByIndustry    QueryType = "categories_by_industry"
+	// QueryTypeSubCategoriesByCategory QueryType = "sub_categories_by_category"
+
+	// Enquiry
+	QueryTypeFranchiseContactInfo QueryType = "franchise_contact_info"
+
+	// ===== USER ACTION QUERY TYPES =====
+
+	// Bookmark / Favorites
+	QueryTypeAddBookmark      QueryType = "ADD_BOOKMARK"
+	QueryTypeRemoveBookmark   QueryType = "REMOVE_BOOKMARK"
+	QueryTypeGetUserBookmarks QueryType = "GET_USER_BOOKMARKS"
+	QueryTypeCheckBookmark    QueryType = "CHECK_BOOKMARK"
+
+	// User Ratings
+	QueryTypeSubmitRating        QueryType = "SUBMIT_USER_RATING"
+	QueryTypeUpdateRating        QueryType = "UPDATE_USER_RATING"
+	QueryTypeGetUserRating       QueryType = "GET_USER_RATING"
+	QueryTypeGetFranchiseRatings QueryType = "GET_FRANCHISE_RATINGS"
+	QueryTypeDeleteRating        QueryType = "DELETE_USER_RATING"
+
+	// Shares
+	QueryTypeShareFranchise QueryType = "SHARE_FRANCHISE"
+	QueryTypeGetUserShares  QueryType = "GET_USER_SHARES"
 )

@@ -179,6 +179,12 @@ integrations:
     use_tls: false
     default_from: "noreply@franchisehub.dev"
 
+  # Email id for Enquiry 
+  internal: 
+    # enquiry_alert_email: "enquiries@lemici.com"   # hardcode 
+    enquiry_alert_email: "shivcharan.jalendra@lemici.com"
+    enquiry_alert_name: "Lemici Enquiry Team"
+
 # ============================================================================
 # EXTERNAL APIs
 # ============================================================================
@@ -359,12 +365,12 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
-  # ✅ NEW: Franchise ES Indexer
-  franchise-es-indexer:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 30000  # 30 seconds
-    concurrency: 3
+  # # ✅ NEW: Franchise ES Indexer
+  # franchise-es-indexer:
+  #   enabled: true
+  #   max_jobs_active: 5
+  #   timeout: 30000  # 30 seconds
+  #   concurrency: 3
   
   # ✅ UPDATED: Search Franchises (with single index)
   search-franchises:
@@ -454,7 +460,7 @@ workers:
     max_jobs_active: 5
     timeout: 20000
 
-  email-send:
+  email.send:
     enabled: true
     max_jobs_active: 5
     timeout: 15000
@@ -493,6 +499,14 @@ workers:
     httpOnly: true
     sameSite: "Lax"
     
+  validate-enquiry-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 10000
+
+  franchise-industry-browse:
+    enabled: false  
+
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
@@ -626,3 +640,10 @@ error_handling:
   documentation:
     base_url: "https://docs.lemici.com/errors"
     enabled: true
+
+# ============================================================================
+# PAGINATION CONFIGURATION  
+# ============================================================================
+pagination:
+  default_page_size: 12    # ← yahan 6 likho → poora system 6 cards dikhayega
+  max_page_size: 50

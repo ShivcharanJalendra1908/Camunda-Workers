@@ -940,7 +940,7 @@
       "tags": ["integration", "crm", "zoho"]
     },
     {
-      "id": "email-send",
+      "id": "email.send",
       "displayName": "Email Send",
       "description": "Sends emails using AWS SES",
       "category": "integration",
@@ -1026,7 +1026,18 @@
         "UPDATE_INVESTMENT",
         "CREATE_OPERATIONS",
         "UPDATE_OPERATIONS",
-        "GET_FULL_FRANCHISE"
+        "GET_FULL_FRANCHISE",
+        "ADD_BOOKMARK",
+        "REMOVE_BOOKMARK",
+        "GET_USER_BOOKMARKS",
+        "CHECK_BOOKMARK",
+        "SUBMIT_USER_RATING",
+        "UPDATE_USER_RATING",
+        "GET_USER_RATING",
+        "GET_FRANCHISE_RATINGS",
+        "DELETE_USER_RATING",
+        "SHARE_FRANCHISE",
+        "GET_USER_SHARES"
       ],
       "status": "active",
       "version": "1.0.0"
@@ -1157,6 +1168,125 @@
     "franchise-listing-ai"
   ],
   "tags": ["api", "response", "callback"]
+}, {
+  "id": "franchise-industry-browse",
+  "displayName": "Browse Franchise Industries",
+  "description": "Hierarchical query for industries, categories, sub-categories",
+  "category": "franchise",
+  "version": "1.0.0",
+  "taskType": "franchise-industry-browse",
+  "implementationStatus": "completed",
+  "workflows": ["franchise-industry-browse"],
+  "tags": ["franchise", "taxonomy", "browse"]
+},
+{
+  "id": "validate-enquiry-data",
+  "displayName": "Validate Enquiry Data",
+  "description": "Merges user profile with enquiry form data and validates",
+  "category": "business-logic",
+  "version": "1.0.0",
+  "taskType": "validate-enquiry-data",
+  "implementationStatus": "completed",
+  "inputSchema": {
+    "type": "object",
+    "required": ["franchiseId", "userId", "enquiryFormData"],
+    "properties": {
+      "franchiseId": { "type": "string" },
+      "userId": { "type": "string" },
+      "userProfile": { "type": "object", "description": "From DB - name, email, phone" },
+      "enquiryFormData": { "type": "object", "description": "From frontend form" }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "isValid": { "type": "boolean" },
+      "mergedData": { "type": "object" },
+      "validationErrors": { "type": "array", "items": { "type": "string" } }
+    }
+  },
+  "workflows": ["franchise-enquiry-submission"],
+  "tags": ["validation", "enquiry", "merge"]
+},
+{
+  "id": "franchise-enquiry-submission",
+  "displayName": "Franchise Enquiry Submission",
+  "description": "Complete enquiry flow: validate, save, email franchisee + applicant + internal",
+  "category": "franchise",
+  "version": "1.0.0",
+  "bpmnProcessId": "franchise-enquiry-submission",
+  "implementationStatus": "completed",
+  "workflows": ["franchise-enquiry-submission"],
+  "tags": ["enquiry", "email", "franchise"]
+},
+{
+  "id": "franchise-user-actions",
+  "displayName": "Franchise User Actions",
+  "description": "Handles bookmark, rating, and share actions for franchises",
+  "category": "franchise",
+  "version": "1.0.0",
+  "bpmnProcessId": "franchise-user-actions",
+  "implementationStatus": "completed",
+  "inputSchema": {
+    "type": "object",
+    "required": ["correlationKey", "action", "franchiseId"],
+    "properties": {
+      "correlationKey": { "type": "string", "description": "Unique key for Redis pub/sub response" },
+      "action": {
+        "type": "string",
+        "enum": [
+          "add_bookmark", "remove_bookmark", "get_bookmarks", "check_bookmark",
+          "submit_rating", "update_rating", "get_user_rating", "get_franchise_ratings", "delete_rating",
+          "share_franchise", "get_user_shares"
+        ],
+        "description": "Action to perform"
+      },
+      "userId": { "type": "string", "description": "User ID (optional for share)" },
+      "franchiseId": { "type": "string", "description": "Franchise ID" },
+      "rating": { "type": "number", "minimum": 1, "maximum": 5, "description": "Rating value (for rating actions)" },
+      "review": { "type": "string", "maxLength": 2000, "description": "Optional review text" },
+      "sharePlatform": {
+        "type": "string",
+        "enum": ["whatsapp", "twitter", "linkedin", "email", "copy_link", "facebook", "other"],
+        "description": "Platform where franchise is shared"
+      },
+      "page": { "type": "integer", "default": 1 },
+      "limit": { "type": "integer", "default": 20 }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "success": { "type": "boolean" },
+      "message": { "type": "string" },
+      "data": {
+        "type": "object",
+        "properties": {
+          "bookmarkId": { "type": "string" },
+          "isBookmarked": { "type": "boolean" },
+          "bookmarks": { "type": "array" },
+          "ratingId": { "type": "string" },
+          "rating": { "type": "number" },
+          "hasRated": { "type": "boolean" },
+          "ratings": { "type": "array" },
+          "avgRating": { "type": "number" },
+          "shareId": { "type": "string" },
+          "totalCount": { "type": "integer" }
+        }
+      }
+    }
+  },
+  "errorCodes": [
+    "VALIDATION_ERROR",
+    "DATABASE_ERROR",
+    "SUBSCRIPTION_INVALID",
+    "NOT_FOUND",
+    "ACTION_FAILED"
+  ],
+  "timeout": "15s",
+  "retries": 0,
+  "workflows": ["franchise-user-actions"],
+  "tags": ["franchise", "bookmark", "rating", "share", "user-actions"]
 }
 
   ]

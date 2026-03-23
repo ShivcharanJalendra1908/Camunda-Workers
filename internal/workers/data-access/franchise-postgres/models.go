@@ -4,9 +4,9 @@ package franchisepostgres
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"time"
-	"fmt"
 )
 
 // ============================================================================
@@ -68,7 +68,7 @@ type CreateFranchiseInput struct {
 	Description      string `json:"description,omitempty"`
 	FoundedYear      *int16 `json:"founded_year,omitempty"`
 	TrustedSeller    bool   `json:"trusted_seller"`
-	Verified         bool   `json:"verified"`           // NEW
+	Verified         bool   `json:"verified"` // NEW
 	TotalOutlets     int    `json:"total_outlets"`
 	OutletRange      string `json:"outlet_range,omitempty"`
 	Industry         string `json:"industry,omitempty"`
@@ -201,12 +201,12 @@ type CreateFranchiseStatsInput struct {
 type UpdateFranchiseStatsInput struct {
 	OperationType string `json:"operation_type"` // UPDATE_FRANCHISE_STATS
 	FranchiseID   string `json:"franchise_id"`
-	ViewCount     *int   `json:"view_count,omitempty"`     // Increment by this value
-	LikesCount    *int   `json:"likes_count,omitempty"`    // Increment by this value
-	SaveCount     *int   `json:"save_count,omitempty"`     // Increment by this value
-	ShareCount    *int   `json:"share_count,omitempty"`    // Increment by this value
-	FollowCount   *int   `json:"follow_count,omitempty"`   // Increment by this value
-	EnquiryCount  *int   `json:"enquiry_count,omitempty"`  // Increment by this value
+	ViewCount     *int   `json:"view_count,omitempty"`    // Increment by this value
+	LikesCount    *int   `json:"likes_count,omitempty"`   // Increment by this value
+	SaveCount     *int   `json:"save_count,omitempty"`    // Increment by this value
+	ShareCount    *int   `json:"share_count,omitempty"`   // Increment by this value
+	FollowCount   *int   `json:"follow_count,omitempty"`  // Increment by this value
+	EnquiryCount  *int   `json:"enquiry_count,omitempty"` // Increment by this value
 }
 
 // ============================================================================
@@ -291,13 +291,13 @@ type Investment struct {
 	MarketingFeePercentage *float64 `json:"marketing_fee_percentage,omitempty"`
 	PaybackMinMonths       *int     `json:"payback_min_months,omitempty"`
 	PaybackMaxMonths       *int     `json:"payback_max_months,omitempty"`
-	ROIMinPercentage       *float64 `json:"roi_min_percentage,omitempty"`       // NEW
-	ROIMaxPercentage       *float64 `json:"roi_max_percentage,omitempty"`       // NEW
+	ROIMinPercentage       *float64 `json:"roi_min_percentage,omitempty"` // NEW
+	ROIMaxPercentage       *float64 `json:"roi_max_percentage,omitempty"` // NEW
 	MonthlyTurnoverMin     *float64 `json:"monthly_turnover_min,omitempty"`
 	MonthlyTurnoverMax     *float64 `json:"monthly_turnover_max,omitempty"`
-	SingleUnitCostMin      *float64 `json:"single_unit_cost_min,omitempty"`     // NEW
-	SingleUnitCostMax      *float64 `json:"single_unit_cost_max,omitempty"`     // NEW
-	InvestmentIncludes     *string  `json:"investment_includes,omitempty"`      // NEW
+	SingleUnitCostMin      *float64 `json:"single_unit_cost_min,omitempty"` // NEW
+	SingleUnitCostMax      *float64 `json:"single_unit_cost_max,omitempty"` // NEW
+	InvestmentIncludes     *string  `json:"investment_includes,omitempty"`  // NEW
 }
 
 type CreateInvestmentInput struct {
@@ -311,8 +311,8 @@ type CreateInvestmentInput struct {
 	MarketingFeePercentage *float64 `json:"marketing_fee_percentage,omitempty"`
 	PaybackMinMonths       *int     `json:"payback_min_months,omitempty"`
 	PaybackMaxMonths       *int     `json:"payback_max_months,omitempty"`
-	ROIMinPercentage       *float64 `json:"roi_min_percentage,omitempty"`   // NEW
-	ROIMaxPercentage       *float64 `json:"roi_max_percentage,omitempty"`   // NEW
+	ROIMinPercentage       *float64 `json:"roi_min_percentage,omitempty"` // NEW
+	ROIMaxPercentage       *float64 `json:"roi_max_percentage,omitempty"` // NEW
 	MonthlyTurnoverMin     *float64 `json:"monthly_turnover_min,omitempty"`
 	MonthlyTurnoverMax     *float64 `json:"monthly_turnover_max,omitempty"`
 	SingleUnitCostMin      *float64 `json:"single_unit_cost_min,omitempty"` // NEW
@@ -329,15 +329,15 @@ type UpdateInvestmentInput struct {
 	FranchiseFee           *float64 `json:"franchise_fee,omitempty"`
 	RoyaltyPercentage      *float64 `json:"royalty_percentage,omitempty"`
 	MarketingFeePercentage *float64 `json:"marketing_fee_percentage,omitempty"`
-	PaybackMinMonths       *int     `json:"payback_min_months,omitempty"`       // ✅ ADD
-	PaybackMaxMonths       *int     `json:"payback_max_months,omitempty"`       // ✅ ADD
+	PaybackMinMonths       *int     `json:"payback_min_months,omitempty"` // ✅ ADD
+	PaybackMaxMonths       *int     `json:"payback_max_months,omitempty"` // ✅ ADD
 	ROIMinPercentage       *float64 `json:"roi_min_percentage,omitempty"`
 	ROIMaxPercentage       *float64 `json:"roi_max_percentage,omitempty"`
-	MonthlyTurnoverMin     *float64 `json:"monthly_turnover_min,omitempty"`     // ✅ ADD
-	MonthlyTurnoverMax     *float64 `json:"monthly_turnover_max,omitempty"`     // ✅ ADD
+	MonthlyTurnoverMin     *float64 `json:"monthly_turnover_min,omitempty"` // ✅ ADD
+	MonthlyTurnoverMax     *float64 `json:"monthly_turnover_max,omitempty"` // ✅ ADD
 	SingleUnitCostMin      *float64 `json:"single_unit_cost_min,omitempty"`
 	SingleUnitCostMax      *float64 `json:"single_unit_cost_max,omitempty"`
-	InvestmentIncludes     *string  `json:"investment_includes,omitempty"`      // ✅ ADD
+	InvestmentIncludes     *string  `json:"investment_includes,omitempty"` // ✅ ADD
 }
 
 // ============================================================================
@@ -345,22 +345,22 @@ type UpdateInvestmentInput struct {
 // ============================================================================
 
 type Operations struct {
-	ID                   string          `json:"id"`
-	SpaceMinSqft         *int            `json:"space_min_sqft,omitempty"`
-	SpaceMaxSqft         *int            `json:"space_max_sqft,omitempty"`
-	RequiredPropertyType *string         `json:"required_property_type,omitempty"` // NEW
-	StaffRequiredMin     *int            `json:"staff_required_min,omitempty"`
-	StaffRequiredMax     *int            `json:"staff_required_max,omitempty"`
-	StaffBreakdown       json.RawMessage `json:"staff_breakdown,omitempty"`        // NEW
-	OperatingHours       *string         `json:"operating_hours,omitempty"`
-	TrainingProvided     bool            `json:"training_provided"`
-	TrainingDetails      *string         `json:"training_details,omitempty"`
-	ComputerRequirements *string         `json:"computer_requirements,omitempty"` // NEW
-	MarketingSupport     *string         `json:"marketing_support,omitempty"`     // NEW
-	PreferredLocations   *string         `json:"preferred_locations,omitempty"`   // NEW
-	QualificationRequired *string        `json:"qualification_required,omitempty"` // NEW
-	SupplyChainSupport   bool            `json:"supply_chain_support"`
-	QualityControl       bool            `json:"quality_control"`
+	ID                    string          `json:"id"`
+	SpaceMinSqft          *int            `json:"space_min_sqft,omitempty"`
+	SpaceMaxSqft          *int            `json:"space_max_sqft,omitempty"`
+	RequiredPropertyType  *string         `json:"required_property_type,omitempty"` // NEW
+	StaffRequiredMin      *int            `json:"staff_required_min,omitempty"`
+	StaffRequiredMax      *int            `json:"staff_required_max,omitempty"`
+	StaffBreakdown        json.RawMessage `json:"staff_breakdown,omitempty"` // NEW
+	OperatingHours        *string         `json:"operating_hours,omitempty"`
+	TrainingProvided      bool            `json:"training_provided"`
+	TrainingDetails       *string         `json:"training_details,omitempty"`
+	ComputerRequirements  *string         `json:"computer_requirements,omitempty"`  // NEW
+	MarketingSupport      *string         `json:"marketing_support,omitempty"`      // NEW
+	PreferredLocations    *string         `json:"preferred_locations,omitempty"`    // NEW
+	QualificationRequired *string         `json:"qualification_required,omitempty"` // NEW
+	SupplyChainSupport    bool            `json:"supply_chain_support"`
+	QualityControl        bool            `json:"quality_control"`
 }
 
 type StaffBreakdownItem struct {
@@ -377,13 +377,13 @@ type CreateOperationsInput struct {
 	RequiredPropertyType  *string              `json:"required_property_type,omitempty"` // NEW
 	StaffRequiredMin      *int                 `json:"staff_required_min,omitempty"`
 	StaffRequiredMax      *int                 `json:"staff_required_max,omitempty"`
-	StaffBreakdown        []StaffBreakdownItem `json:"staff_breakdown,omitempty"`        // NEW
+	StaffBreakdown        []StaffBreakdownItem `json:"staff_breakdown,omitempty"` // NEW
 	OperatingHours        *string              `json:"operating_hours,omitempty"`
 	TrainingProvided      bool                 `json:"training_provided"`
 	TrainingDetails       *string              `json:"training_details,omitempty"`
-	ComputerRequirements  *string              `json:"computer_requirements,omitempty"` // NEW
-	MarketingSupport      *string              `json:"marketing_support,omitempty"`     // NEW
-	PreferredLocations    *string              `json:"preferred_locations,omitempty"`   // NEW
+	ComputerRequirements  *string              `json:"computer_requirements,omitempty"`  // NEW
+	MarketingSupport      *string              `json:"marketing_support,omitempty"`      // NEW
+	PreferredLocations    *string              `json:"preferred_locations,omitempty"`    // NEW
 	QualificationRequired *string              `json:"qualification_required,omitempty"` // NEW
 	SupplyChainSupport    bool                 `json:"supply_chain_support"`
 	QualityControl        bool                 `json:"quality_control"`
@@ -396,15 +396,15 @@ type UpdateOperationsInput struct {
 	SpaceMinSqft          *int                  `json:"space_min_sqft,omitempty"`
 	SpaceMaxSqft          *int                  `json:"space_max_sqft,omitempty"`
 	RequiredPropertyType  *string               `json:"required_property_type,omitempty"` // NEW
-	StaffRequiredMin      *int                  `json:"staff_required_min,omitempty"` // ✅ ADD
-	StaffRequiredMax      *int                  `json:"staff_required_max,omitempty"` // ✅ ADD
-	OperatingHours        *string               `json:"operating_hours,omitempty"`    // ✅ ADD
-	StaffBreakdown        *[]StaffBreakdownItem `json:"staff_breakdown,omitempty"`       // NEW
+	StaffRequiredMin      *int                  `json:"staff_required_min,omitempty"`     // ✅ ADD
+	StaffRequiredMax      *int                  `json:"staff_required_max,omitempty"`     // ✅ ADD
+	OperatingHours        *string               `json:"operating_hours,omitempty"`        // ✅ ADD
+	StaffBreakdown        *[]StaffBreakdownItem `json:"staff_breakdown,omitempty"`        // NEW
 	TrainingProvided      *bool                 `json:"training_provided,omitempty"`
 	TrainingDetails       *string               `json:"training_details,omitempty"`
-	ComputerRequirements  *string               `json:"computer_requirements,omitempty"` // NEW
-	MarketingSupport      *string               `json:"marketing_support,omitempty"`     // NEW
-	PreferredLocations    *string               `json:"preferred_locations,omitempty"`   // NEW
+	ComputerRequirements  *string               `json:"computer_requirements,omitempty"`  // NEW
+	MarketingSupport      *string               `json:"marketing_support,omitempty"`      // NEW
+	PreferredLocations    *string               `json:"preferred_locations,omitempty"`    // NEW
 	QualificationRequired *string               `json:"qualification_required,omitempty"` // NEW
 	SupplyChainSupport    *bool                 `json:"supply_chain_support,omitempty"`
 	QualityControl        *bool                 `json:"quality_control,omitempty"`
@@ -514,9 +514,9 @@ type FullFranchise struct {
 	BusinessOverview *BusinessOverview `json:"business_overview,omitempty"`
 	Investment       *Investment       `json:"investment,omitempty"`
 	Operations       *Operations       `json:"operations,omitempty"`
-	SocialLinks      *SocialLinks      `json:"social_links,omitempty"`     // NEW
-	Stats            *FranchiseStats   `json:"stats,omitempty"`           // Already in Franchise struct but can be duplicated here
-	Cities           []FranchiseCity   `json:"cities,omitempty"`          // NEW: Add cities array
+	SocialLinks      *SocialLinks      `json:"social_links,omitempty"` // NEW
+	Stats            *FranchiseStats   `json:"stats,omitempty"`        // Already in Franchise struct but can be duplicated here
+	Cities           []FranchiseCity   `json:"cities,omitempty"`       // NEW: Add cities array
 }
 
 // ============================================================================
@@ -539,4 +539,212 @@ func isValidURL(url string) bool {
 	// URL must start with http:// or https://
 	matched, _ := regexp.MatchString(`^https?://`, url)
 	return matched
+}
+
+// ============================================================
+// BOOKMARK INPUT/OUTPUT
+// ============================================================
+
+type BookmarkInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId"`
+	FranchiseID   string `json:"franchiseId"`
+}
+
+type BookmarkOutput struct {
+	ID           string `json:"id,omitempty"`
+	UserID       string `json:"userId"`
+	FranchiseID  string `json:"franchiseId"`
+	IsBookmarked bool   `json:"isBookmarked"`
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+}
+
+type GetBookmarksInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId"`
+	Page          int    `json:"page"`
+	Limit         int    `json:"limit"`
+}
+
+type BookmarkedFranchise struct {
+	BookmarkID   string    `json:"bookmarkId"`
+	FranchiseID  string    `json:"franchiseId"`
+	Name         string    `json:"name"`
+	Slug         string    `json:"slug"`
+	LogoURL      string    `json:"logoUrl,omitempty"`
+	Industry     string    `json:"industry,omitempty"`
+	BookmarkedAt time.Time `json:"bookmarkedAt"`
+}
+
+type GetBookmarksOutput struct {
+	Bookmarks  []BookmarkedFranchise `json:"bookmarks"`
+	TotalCount int                   `json:"totalCount"`
+	Page       int                   `json:"page"`
+	Limit      int                   `json:"limit"`
+	Success    bool                  `json:"success"`
+	Message    string                `json:"message"`
+}
+
+type CheckBookmarkInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId"`
+	FranchiseID   string `json:"franchiseId"`
+}
+
+type CheckBookmarkOutput struct {
+	IsBookmarked bool   `json:"isBookmarked"`
+	BookmarkID   string `json:"bookmarkId,omitempty"`
+	Success      bool   `json:"success"`
+}
+
+// ============================================================
+// RATING INPUT/OUTPUT
+// ============================================================
+
+type SubmitRatingInput struct {
+	OperationType string  `json:"operationType"`
+	UserID        string  `json:"userId"`
+	FranchiseID   string  `json:"franchiseId"`
+	Rating        float64 `json:"rating"` // 1.0 to 5.0
+	Review        string  `json:"review,omitempty"`
+}
+
+func (s SubmitRatingInput) Validate() error {
+	if s.UserID == "" {
+		return fmt.Errorf("userId is required")
+	}
+	if s.FranchiseID == "" {
+		return fmt.Errorf("franchiseId is required")
+	}
+	if s.Rating < 1.0 || s.Rating > 5.0 {
+		return fmt.Errorf("rating must be between 1.0 and 5.0")
+	}
+	if len(s.Review) > 2000 {
+		return fmt.Errorf("review must not exceed 2000 characters")
+	}
+	return nil
+}
+
+type UpdateRatingInput struct {
+	OperationType string   `json:"operationType"`
+	UserID        string   `json:"userId"`
+	FranchiseID   string   `json:"franchiseId"`
+	Rating        *float64 `json:"rating,omitempty"`
+	Review        *string  `json:"review,omitempty"`
+}
+
+type RatingOutput struct {
+	ID          string    `json:"id,omitempty"`
+	UserID      string    `json:"userId"`
+	FranchiseID string    `json:"franchiseId"`
+	Rating      float64   `json:"rating"`
+	Review      string    `json:"review,omitempty"`
+	IsNew       bool      `json:"isNew"` // true = created, false = updated
+	Success     bool      `json:"success"`
+	Message     string    `json:"message"`
+	CreatedAt   time.Time `json:"createdAt,omitempty"`
+}
+
+type GetUserRatingInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId"`
+	FranchiseID   string `json:"franchiseId"`
+}
+
+type GetUserRatingOutput struct {
+	HasRated  bool      `json:"hasRated"`
+	Rating    float64   `json:"rating,omitempty"`
+	Review    string    `json:"review,omitempty"`
+	RatingID  string    `json:"ratingId,omitempty"`
+	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	Success   bool      `json:"success"`
+	Message   string    `json:"message"`
+}
+
+type GetFranchiseRatingsInput struct {
+	OperationType string `json:"operationType"`
+	FranchiseID   string `json:"franchiseId"`
+	Page          int    `json:"page"`
+	Limit         int    `json:"limit"`
+}
+
+type RatingItem struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
+	Rating    float64   `json:"rating"`
+	Review    string    `json:"review,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type GetFranchiseRatingsOutput struct {
+	Ratings    []RatingItem `json:"ratings"`
+	TotalCount int          `json:"totalCount"`
+	AvgRating  float64      `json:"avgRating"`
+	Page       int          `json:"page"`
+	Limit      int          `json:"limit"`
+	Success    bool         `json:"success"`
+	Message    string       `json:"message"`
+}
+
+// ============================================================
+// SHARE INPUT/OUTPUT
+// ============================================================
+
+type ShareFranchiseInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId,omitempty"` // optional — anon share
+	FranchiseID   string `json:"franchiseId"`
+	SharePlatform string `json:"sharePlatform"` // whatsapp, twitter, linkedin, email, copy_link
+	IPAddress     string `json:"ipAddress,omitempty"`
+}
+
+func (s ShareFranchiseInput) Validate() error {
+	if s.FranchiseID == "" {
+		return fmt.Errorf("franchiseId is required")
+	}
+	validPlatforms := map[string]bool{
+		"whatsapp":  true,
+		"twitter":   true,
+		"linkedin":  true,
+		"email":     true,
+		"copy_link": true,
+		"facebook":  true,
+		"other":     true,
+	}
+	if s.SharePlatform != "" && !validPlatforms[s.SharePlatform] {
+		return fmt.Errorf("invalid sharePlatform: must be whatsapp/twitter/linkedin/email/copy_link/facebook/other")
+	}
+	return nil
+}
+
+type ShareOutput struct {
+	ShareID       string `json:"shareId"`
+	FranchiseID   string `json:"franchiseId"`
+	SharePlatform string `json:"sharePlatform"`
+	ShareURL      string `json:"shareUrl,omitempty"`
+	Success       bool   `json:"success"`
+	Message       string `json:"message"`
+}
+
+type GetUserSharesInput struct {
+	OperationType string `json:"operationType"`
+	UserID        string `json:"userId"`
+	Page          int    `json:"page"`
+	Limit         int    `json:"limit"`
+}
+
+type ShareItem struct {
+	ShareID       string    `json:"shareId"`
+	FranchiseID   string    `json:"franchiseId"`
+	FranchiseName string    `json:"franchiseName,omitempty"`
+	SharePlatform string    `json:"sharePlatform"`
+	SharedAt      time.Time `json:"sharedAt"`
+}
+
+type GetUserSharesOutput struct {
+	Shares     []ShareItem `json:"shares"`
+	TotalCount int         `json:"totalCount"`
+	Success    bool        `json:"success"`
+	Message    string      `json:"message"`
 }

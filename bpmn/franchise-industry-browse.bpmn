@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <process id="franchise-industry-browse" name="Browse All Franchise Industries" isExecutable="true">
+    <startEvent id="start-browse" name="GET /franchises/industries">
+      <outgoing>flow-start-to-gw</outgoing>
+    </startEvent>
+    <exclusiveGateway id="gw-search-or-browse" name="Search - Browse?">
+      <incoming>flow-start-to-gw</incoming>
+      <outgoing>flow-to-browse</outgoing>
+      <outgoing>flow-to-search</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="task-fetch-all" name="Get All Industries&#10;(query-elasticsearch)">
+      <extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;get_all_industries&#34;" target="queryType" />
+          <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-to-browse</incoming>
+      <outgoing>flow-browse-to-join</outgoing>
+    </serviceTask>
+    <serviceTask id="task-search" name="Search Industries&#10;(query-elasticsearch)">
+      <extensionElements>
+        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;search_industries&#34;" target="queryType" />
+          <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
+          <zeebe:input source="=search" target="search" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-to-search</incoming>
+      <outgoing>flow-search-to-join</outgoing>
+    </serviceTask>
+    <exclusiveGateway id="gw-join" name="Results Ready">
+      <incoming>flow-browse-to-join</incoming>
+      <incoming>flow-search-to-join</incoming>
+      <outgoing>flow-join-to-build</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="task-build-response" name="Build Response&#10;(build-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=queryResults" target="data" />
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=&#34;franchise-list&#34;" target="templateId" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-join-to-build</incoming>
+      <outgoing>flow-build-to-send</outgoing>
+    </serviceTask>
+    <serviceTask id="task-send-response" name="Send API Response&#10;(send-api-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=builtResponse" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-build-to-send</incoming>
+      <outgoing>flow-send-to-end</outgoing>
+    </serviceTask>
+    <endEvent id="end-browse" name="Response Sent">
+      <incoming>flow-send-to-end</incoming>
+    </endEvent>
+    <boundaryEvent id="error-on-fetch" attachedToRef="task-fetch-all">
+      <outgoing>flow-error-to-build</outgoing>
+      <errorEventDefinition />
+    </boundaryEvent>
+    <serviceTask id="task-error-build" name="Build Error Response&#10;(build-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=500" target="statusCode" />
+          <zeebe:input source="=&#34;Failed to fetch industry data&#34;" target="message" />
+          <zeebe:input source="=correlationKey" target="requestId" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-error-to-build</incoming>
+      <outgoing>flow-error-to-send</outgoing>
+    </serviceTask>
+    <serviceTask id="task-error-send" name="Send Error Response&#10;(send-api-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=builtResponse" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-error-to-send</incoming>
+      <outgoing>flow-error-end</outgoing>
+    </serviceTask>
+    <endEvent id="end-error" name="Error Sent">
+      <incoming>flow-error-end</incoming>
+    </endEvent>
+    <sequenceFlow id="flow-start-to-gw" sourceRef="start-browse" targetRef="gw-search-or-browse" />
+    <sequenceFlow id="flow-to-browse" name="no search" sourceRef="gw-search-or-browse" targetRef="task-fetch-all">
+      <conditionExpression xsi:type="tFormalExpression">= search = null or search = ""</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-to-search" name="search" sourceRef="gw-search-or-browse" targetRef="task-search">
+      <conditionExpression xsi:type="tFormalExpression">= search != null and search != ""</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-browse-to-join" sourceRef="task-fetch-all" targetRef="gw-join" />
+    <sequenceFlow id="flow-search-to-join" sourceRef="task-search" targetRef="gw-join" />
+    <sequenceFlow id="flow-join-to-build" sourceRef="gw-join" targetRef="task-build-response" />
+    <sequenceFlow id="flow-build-to-send" sourceRef="task-build-response" targetRef="task-send-response" />
+    <sequenceFlow id="flow-send-to-end" sourceRef="task-send-response" targetRef="end-browse" />
+    <sequenceFlow id="flow-error-to-build" sourceRef="error-on-fetch" targetRef="task-error-build" />
+    <sequenceFlow id="flow-error-to-send" sourceRef="task-error-build" targetRef="task-error-send" />
+    <sequenceFlow id="flow-error-end" sourceRef="task-error-send" targetRef="end-error" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-industry-browse">
+      <bpmndi:BPMNShape id="gw-search-or-browse_di" bpmnElement="gw-search-or-browse" isMarkerVisible="true">
+        <dc:Bounds x="245" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="304" y="276" width="52" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-fetch-all_di" bpmnElement="task-fetch-all">
+        <dc:Bounds x="360" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="start-browse_di" bpmnElement="start-browse">
+        <dc:Bounds x="172" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="146" y="315" width="87" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw-join_di" bpmnElement="gw-join" isMarkerVisible="true">
+        <dc:Bounds x="495" y="265" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="545" y="263" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-search_di" bpmnElement="task-search">
+        <dc:Bounds x="360" y="320" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-build-response_di" bpmnElement="task-build-response">
+        <dc:Bounds x="620" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-send-response_di" bpmnElement="task-send-response">
+        <dc:Bounds x="770" y="250" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end-browse_di" bpmnElement="end-browse">
+        <dc:Bounds x="922" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="903" y="315" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-error-build_di" bpmnElement="task-error-build">
+        <dc:Bounds x="620" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-error-send_di" bpmnElement="task-error-send">
+        <dc:Bounds x="770" y="110" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end-error_di" bpmnElement="end-error">
+        <dc:Bounds x="922" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="916" y="175" width="49" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="error-on-fetch_di" bpmnElement="error-on-fetch">
+        <dc:Bounds x="392" y="172" width="30" height="30" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow-start-to-gw_di" bpmnElement="flow-start-to-gw">
+        <di:waypoint x="208" y="290" />
+        <di:waypoint x="245" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-to-browse_di" bpmnElement="flow-to-browse">
+        <di:waypoint x="270" y="265" />
+        <di:waypoint x="270" y="230" />
+        <di:waypoint x="360" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="281" y="212" width="49" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-to-search_di" bpmnElement="flow-to-search">
+        <di:waypoint x="270" y="315" />
+        <di:waypoint x="270" y="360" />
+        <di:waypoint x="360" y="360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="298" y="363" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-browse-to-join_di" bpmnElement="flow-browse-to-join">
+        <di:waypoint x="460" y="230" />
+        <di:waypoint x="520" y="230" />
+        <di:waypoint x="520" y="265" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-search-to-join_di" bpmnElement="flow-search-to-join">
+        <di:waypoint x="460" y="360" />
+        <di:waypoint x="520" y="360" />
+        <di:waypoint x="520" y="315" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-join-to-build_di" bpmnElement="flow-join-to-build">
+        <di:waypoint x="545" y="290" />
+        <di:waypoint x="620" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-build-to-send_di" bpmnElement="flow-build-to-send">
+        <di:waypoint x="720" y="290" />
+        <di:waypoint x="770" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-send-to-end_di" bpmnElement="flow-send-to-end">
+        <di:waypoint x="870" y="290" />
+        <di:waypoint x="922" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-error-to-build_di" bpmnElement="flow-error-to-build">
+        <di:waypoint x="407" y="172" />
+        <di:waypoint x="407" y="150" />
+        <di:waypoint x="620" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-error-to-send_di" bpmnElement="flow-error-to-send">
+        <di:waypoint x="720" y="150" />
+        <di:waypoint x="770" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-error-end_di" bpmnElement="flow-error-end">
+        <di:waypoint x="870" y="150" />
+        <di:waypoint x="922" y="150" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

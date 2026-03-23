@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -611,6 +612,9 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 	recommended := h.extractArray(data, "recommended")
 	marketInsights := h.extractArray(data, "marketInsights")
+	page := 1
+	pageSize := 6
+	totalCount := int64(0)
 
 	heroDescription := "Explore top franchise opportunities in India"
 
@@ -679,17 +683,6 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		})
 	}
 
-	// if len(recommended) > 0 {
-	// 	sections = append(sections, map[string]interface{}{
-	// 		"type":    "recommended_franchises",
-	// 		"enabled": true,
-	// 		"data": map[string]interface{}{
-	// 			"items": recommended,
-	// 		},
-	// 	})
-	// }
-	// Add this transformation for recommended items
-	// LISTING PAGE - Line 669
 	if len(recommended) > 0 {
 		transformedRecommended := make([]map[string]interface{}, 0, len(recommended))
 
@@ -708,28 +701,6 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			} else if industry, ok := rec["industry"].(string); ok {
 				industryName = industry
 			}
-
-			// // NAYA - logo object se URL nikalo
-			// logoURL := ""
-			// if logo, ok := rec["logo"].(map[string]interface{}); ok {
-			// 	if url, ok := logo["url"].(string); ok {
-			// 		logoURL = url
-			// 	}
-			// } else if url, ok := rec["logo_url"].(string); ok {
-			// 	logoURL = url
-			// }
-
-			// transformed := map[string]interface{}{
-			// 	"id":       rec["id"],
-			// 	"brand":    rec["brand"],
-			// 	"industry": industryName, // ✅ String, not object
-			// 	"slug":     rec["slug"],
-			// 	"image": map[string]interface{}{ // ✅ ADD THIS
-			// 		//"url": rec["logo_url"],
-			// 		"url": logoURL,
-			// 		"alt": rec["brand"],
-			// 	},
-			// }
 
 			circle := ""
 			square := ""
@@ -776,10 +747,36 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		}
 	}
 
+	if p, ok := data["page"].(float64); ok {
+		page = int(p)
+	}
+	if ps, ok := data["pageSize"].(float64); ok {
+		pageSize = int(ps)
+	}
+	if tc, ok := data["totalCount"].(float64); ok {
+		totalCount = int64(tc)
+	}
+
+	totalPages := 0
+	if pageSize > 0 {
+		totalPages = int(math.Ceil(float64(totalCount) / float64(pageSize)))
+	}
+
+	pagination := map[string]interface{}{
+		"page":        page,
+		"page_size":   pageSize,
+		"total_items": totalCount,
+		"total_pages": totalPages,
+		"has_next":    page < totalPages,
+		"has_prev":    page > 1,
+		"is_empty":    totalCount == 0,
+	}
+
 	return map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
-			"sections": sections,
+			"sections":   sections,
+			"pagination": pagination,
 		},
 		"metadata": map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),

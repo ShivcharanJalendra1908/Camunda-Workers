@@ -200,7 +200,8 @@ func main() {
 		log,
 		redisClient.GetClient())
 
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient())
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
+		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination)
 
 	router.GET("/debug/response-handler", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -250,12 +251,15 @@ func main() {
 
 			// ✅ Generic :id route MUST be LAST
 			franchiseGroup.GET("/:id", franchiseHandler.GetByID)
+
+			// Rating
+			franchiseGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
 		}
 
-		// ========================================================================
-		// ENQUIRY ROUTES
-		// ========================================================================
-		publicAPI.POST("/enquiries", placeholderHandler("POST /enquiries"))
+		// // ========================================================================
+		// // ENQUIRY ROUTES
+		// // ========================================================================
+		// publicAPI.POST("/enquiries", placeholderHandler("POST /enquiries"))
 	}
 
 	// ============================================================================
@@ -305,6 +309,16 @@ func main() {
 			franchiseGroup.POST("/favorite/:id", franchiseHandler.AddToFavorites)
 			franchiseGroup.DELETE("/favorite/:id", franchiseHandler.RemoveFromFavorites)
 			franchiseGroup.GET("/favorites", franchiseHandler.GetFavorites)
+			franchiseGroup.POST("/:id/bookmark", franchiseHandler.BookmarkFranchise)
+			franchiseGroup.DELETE("/:id/bookmark", franchiseHandler.UnbookmarkFranchise)
+			franchiseGroup.GET("/:id/bookmark/check", franchiseHandler.CheckBookmark)
+			franchiseGroup.GET("/user/bookmarks", franchiseHandler.GetUserBookmarks)
+			franchiseGroup.POST("/:id/rate", franchiseHandler.RateFranchise)
+			franchiseGroup.PUT("/:id/rate", franchiseHandler.UpdateRating)
+			franchiseGroup.DELETE("/:id/rate", franchiseHandler.DeleteRating)
+			franchiseGroup.GET("/:id/my-rating", franchiseHandler.GetUserRating)
+			franchiseGroup.POST("/:id/share", franchiseHandler.ShareFranchise)
+			franchiseGroup.GET("/user/shares", franchiseHandler.GetUserShares)
 			franchiseGroup.POST("/save-search", franchiseHandler.SaveSearch)
 			franchiseGroup.GET("/saved-searches", franchiseHandler.GetSavedSearches)
 			franchiseGroup.DELETE("/saved-searches/:id", franchiseHandler.DeleteSavedSearch)
@@ -314,6 +328,9 @@ func main() {
 			franchiseGroup.PUT("/:id", workflowHandler.UpdateFranchise)
 			franchiseGroup.DELETE("/:id", workflowHandler.DeleteFranchise)
 			franchiseGroup.GET("/full/:slug", workflowHandler.GetFullFranchise)
+
+			// Enquiry
+			franchiseGroup.POST("/:id/enquiry", franchiseHandler.SubmitFranchiseEnquiry)
 		}
 
 		// ========================================================================
@@ -547,6 +564,17 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/search (workflow)", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/favorite/:id (direct)", port),
 		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/favorites (direct)", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/:id/bookmark", port),
+		fmt.Sprintf("    DEL  http://localhost:%d/api/v1/franchises/:id/bookmark", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/:id/bookmark/check", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/user/bookmarks", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/:id/rate", port),
+		fmt.Sprintf("    PUT  http://localhost:%d/api/v1/franchises/:id/rate", port),
+		fmt.Sprintf("    DEL  http://localhost:%d/api/v1/franchises/:id/rate", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/:id/my-rating", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/:id/ratings (public)", port),
+		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/:id/share", port),
+		fmt.Sprintf("    GET  http://localhost:%d/api/v1/franchises/user/shares", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/franchises/save-search (direct)", port),
 		"",
 		"  🏗️  Franchise CRUD (Workflow-based):",

@@ -37,13 +37,12 @@ import (
 	td "camunda-workers/internal/workers/infrastructure/template-driven"
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
-	// Data Access Workers (4)
-	esindexer "camunda-workers/internal/workers/data-access/franchise-es-indexer"
+	// Data Access Workers (3)
 	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
 
-	// Business Logic Workers (4 from franchise + 5 from application = 9)
+	// Business Logic Workers (4 from franchise + 6 from application = 10)
 	arr "camunda-workers/internal/workers/franchise/apply-relevance-ranking"
 	cms "camunda-workers/internal/workers/franchise/calculate-match-score"
 	psf "camunda-workers/internal/workers/franchise/parse-search-filters"
@@ -54,6 +53,7 @@ import (
 	car "camunda-workers/internal/workers/application/create-application-record"
 	sn "camunda-workers/internal/workers/application/send-notification"
 	vad "camunda-workers/internal/workers/application/validate-application-data"
+	ved "camunda-workers/internal/workers/application/validate-enquiry-data"
 
 	// AI/ML Workers (5)
 	ais "camunda-workers/internal/workers/ai-conversation/ai-search"
@@ -289,7 +289,8 @@ func main() {
 	// ============================================================================
 	// ✅ STEP 2: CREATE FRANCHISE HANDLER (BEFORE REGISTRY)
 	// ============================================================================
-	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redis.GetClient())
+	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redis.GetClient(),
+		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination)
 
 	zapLog.Info("✅ Franchise handler created",
 		zap.Int("pendingResponses", franchiseHandler.PendingResponsesCount()))
@@ -420,7 +421,7 @@ func main() {
 		_ = worker
 	}
 
-	// --- 2. Data Access Workers (4) ---
+	// --- 2. Data Access Workers (3) ---
 	if cfg.Workers[qp.TaskType].Enabled {
 		handler := qp.NewHandler(
 			&qp.Config{
@@ -452,28 +453,10 @@ func main() {
 
 		zapLog.Info("Franchise PostgreSQL worker registered successfully",
 			zap.String("taskType", taskType),
-			zap.Int("supportedOperations", 22),
-			zap.Int("tables", 8),
+			zap.Int("supportedOperations", 33),
+			zap.Int("tables", 10),
 			zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
 			zap.Duration("requestTimeout", fpConfig.RequestTimeout),
-		)
-	}
-
-	// Franchise ES Indexer Worker
-	if taskType := "franchise-es-indexer"; cfg.Workers[taskType].Enabled {
-		esConfig := &esindexer.Config{
-			RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
-			MaxRetries:     3,
-			BatchSize:      100,
-		}
-		handler := esindexer.NewHandler(esConfig, pg.DB, esClient, log)
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
-
-		zapLog.Info("Franchise ES Indexer worker registered successfully",
-			zap.String("taskType", taskType),
-			zap.String("esIndex", esindexer.ESIndex),
-			zap.Int("maxJobsActive", cfg.Workers[taskType].MaxJobsActive),
-			zap.Duration("requestTimeout", esConfig.RequestTimeout),
 		)
 	}
 
@@ -520,6 +503,13 @@ func main() {
 			pg.DB, redis.Client, log,
 		)
 		startWorker(zeebeClient, cms.TaskType, cfg.Workers[cms.TaskType], handler.Handle, zapLog)
+	}
+
+	if cfg.Workers[ved.TaskType].Enabled {
+		handler := ved.NewHandler(&ved.Config{
+			Timeout: time.Duration(cfg.Workers[ved.TaskType].Timeout) * time.Millisecond,
+		}, log)
+		startWorker(zeebeClient, ved.TaskType, cfg.Workers[ved.TaskType], handler.Handle, zapLog)
 	}
 
 	if cfg.Workers[vad.TaskType].Enabled {
@@ -844,7 +834,7 @@ func main() {
 				"timestamp": time.Now().Format(time.RFC3339),
 				"service":   "worker-manager",
 				"version":   cfg.App.Version,
-				"workers":   30, // Updated count
+				"workers":   31, // Updated count
 			})
 		})
 
@@ -854,7 +844,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":    "ready",
 				"timestamp": time.Now().Format(time.RFC3339),
-				"workers":   30, // Updated count
+				"workers":   31, // Updated count
 			})
 		})
 

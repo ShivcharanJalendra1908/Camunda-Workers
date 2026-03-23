@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"camunda-workers/internal/common/camunda"
+	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/validation"
 	"camunda-workers/internal/models"
@@ -20,24 +21,30 @@ import (
 )
 
 type FranchiseHandler struct {
-	camundaClient *camunda.Client
-	logger        logger.Logger
-	redisClient   *redis.Client
-	validator     *validation.Validator
-	sanitizer     *validation.Sanitizer
+	camundaClient      *camunda.Client
+	logger             logger.Logger
+	redisClient        *redis.Client
+	validator          *validation.Validator
+	sanitizer          *validation.Sanitizer
+	internalAlertEmail string
+	paginationCfg      config.PaginationConfig
 }
 
 func NewFranchiseHandler(
 	camundaClient *camunda.Client,
 	log logger.Logger,
 	redisClient *redis.Client,
+	internalEmail string,
+	paginationCfg config.PaginationConfig,
 ) *FranchiseHandler {
 	return &FranchiseHandler{
-		camundaClient: camundaClient,
-		logger:        log,
-		redisClient:   redisClient,
-		validator:     validation.NewValidator(),
-		sanitizer:     validation.NewSanitizer(),
+		camundaClient:      camundaClient,
+		logger:             log,
+		redisClient:        redisClient,
+		validator:          validation.NewValidator(),
+		sanitizer:          validation.NewSanitizer(),
+		internalAlertEmail: internalEmail,
+		paginationCfg:      paginationCfg,
 	}
 }
 
@@ -168,26 +175,38 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
 	industrySlug := c.Query("industry")
+	// page := 1
+	// limit := 12
 	page := 1
-	limit := 12
+	pageSize := h.paginationCfg.DefaultPageSize
 
 	if p := c.Query("page"); p != "" {
 		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
 			page = pageNum
 		}
 	}
-	if l := c.Query("limit"); l != "" {
-		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
-			limit = limitNum
+	// if l := c.Query("limit"); l != "" {
+	// 	if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+	// 		limit = limitNum
+	// 	}
+	// }
+	if ps := c.Query("page_size"); ps != "" {
+		if psNum, err := strconv.Atoi(ps); err == nil && psNum > 0 {
+			if psNum > h.paginationCfg.MaxPageSize {
+				psNum = h.paginationCfg.MaxPageSize
+			}
+			pageSize = psNum
 		}
 	}
+
+	offset := (page - 1) * pageSize
 
 	// If search query exists, use search workflow
 	if searchQuery != "" {
 		_ = models.FranchiseSearchFilters{
-			Query:    searchQuery,
-			Page:     page,
-			Limit:    limit,
+			Query: searchQuery,
+			Page:  page,
+			// Limit:    limit,
 			Category: industrySlug,
 		}
 		h.SearchFranchises(c)
@@ -210,14 +229,16 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		"pageType":       "listing",
 		"industrySlug":   industrySlug,
 		"page":           page,
-		"limit":          limit,
-		"userId":         c.GetString("userId"),
-		"lang":           c.GetHeader("X-Lang"),
-		"traceId":        c.GetString("traceId"),
-		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
-		"userAgent":      c.Request.UserAgent(),
-		"ipAddress":      c.ClientIP(),
+		//"limit":          limit,
+		"pageSize":  pageSize, // ← "limit" -> "pageSize"
+		"offset":    offset,
+		"userId":    c.GetString("userId"),
+		"lang":      c.GetHeader("X-Lang"),
+		"traceId":   c.GetString("traceId"),
+		"spanId":    c.GetString("spanId"),
+		"requestId": c.GetString("X-Request-ID"),
+		"userAgent": c.Request.UserAgent(),
+		"ipAddress": c.ClientIP(),
 	}
 
 	response, err := h.executeWorkflow(ctx, "franchise-listing-page", variables)
@@ -556,14 +577,63 @@ func (h *FranchiseHandler) GetIndustryBySlug(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
-	response, err := h.executeMVPWorkflow(c, "get_industries", map[string]interface{}{
-		"lang":       c.GetHeader("X-Lang"),
-		"userId":     c.GetString("userId"),
-		"activeOnly": c.Query("activeOnly") != "false",
-		"withCounts": c.Query("withCounts") == "true",
-	})
+// Use this with postgres :
+// func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
+// 	ctx := c.Request.Context()
 
+// 	correlationKey := fmt.Sprintf("industries_%s_%d",
+// 		uuid.New().String()[:8],
+// 		time.Now().UnixNano())
+
+// 	variables := map[string]interface{}{
+// 		"correlationKey": correlationKey,
+// 		"operation":      "get_industries",
+// 		// Query level: "industries" / "categories" / "sub-categories"
+// 		"level":      c.Query("level"),
+// 		"industryId": c.Query("industry_id"),
+// 		"categoryId": c.Query("category_id"),
+// 		"search":     c.Query("search"),
+// 		"withCounts": c.Query("withCounts") == "true",
+// 		"activeOnly": c.Query("activeOnly") != "false",
+// 		"lang":       c.GetHeader("X-Lang"),
+// 		"userId":     c.GetString("userId"),
+// 		"traceId":    c.GetString("traceId"),
+// 		"spanId":     c.GetString("spanId"),
+// 		"requestId":  c.GetString("X-Request-ID"),
+// 		"userAgent":  c.Request.UserAgent(),
+// 		"ipAddress":  c.ClientIP(),
+// 	}
+
+// 	response, err := h.executeWorkflow(ctx, "franchise-industry-browse", variables)
+// 	if err != nil {
+// 		h.internalError(c, "Failed to fetch industries", err)
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, response)
+// }
+
+func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	correlationKey := fmt.Sprintf("industries_%s_%d",
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
+
+	variables := map[string]interface{}{
+		"correlationKey": correlationKey,
+		"operation":      "get_industries",
+		"search":         c.Query("search"), // ?search=food — optional
+		"lang":           c.GetHeader("X-Lang"),
+		"userId":         c.GetString("userId"),
+		"traceId":        c.GetString("traceId"),
+		"spanId":         c.GetString("spanId"),
+		"requestId":      c.GetString("X-Request-ID"),
+		"userAgent":      c.Request.UserAgent(),
+		"ipAddress":      c.ClientIP(),
+	}
+
+	response, err := h.executeWorkflow(ctx, "franchise-industry-browse", variables)
 	if err != nil {
 		h.internalError(c, "Failed to fetch industries", err)
 		return
@@ -891,6 +961,486 @@ func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// ========================================================================
+// 🏷️ ENQUERY PAGE
+// ========================================================================
+func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	// Franchise ID from URL param
+	franchiseID := c.Param("id")
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+
+	// User must be logged in — middleware ne userId set kiya hoga
+	userID := c.GetString("userId")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+			"message": "Please login to submit an enquiry",
+		})
+		return
+	}
+
+	// Parse form body
+	var enquiryFormData map[string]interface{}
+	if err := c.ShouldBindJSON(&enquiryFormData); err != nil {
+		h.validationError(c, "Invalid request body: "+err.Error())
+		return
+	}
+
+	correlationKey := fmt.Sprintf("enquiry_%s_%d",
+		uuid.New().String()[:8],
+		time.Now().UnixNano())
+
+	variables := map[string]interface{}{
+		"correlationKey":     correlationKey,
+		"operation":          "franchise_enquiry",
+		"franchiseId":        franchiseID,
+		"userId":             userID,
+		"enquiryFormData":    enquiryFormData,
+		"traceId":            c.GetString("traceId"),
+		"spanId":             c.GetString("spanId"),
+		"requestId":          c.GetString("X-Request-ID"),
+		"userAgent":          c.Request.UserAgent(),
+		"ipAddress":          c.ClientIP(),
+		"internalAlertEmail": h.internalAlertEmail,
+	}
+
+	response, err := h.executeWorkflow(ctx, "franchise-enquiry-submission", variables)
+	if err != nil {
+		h.internalError(c, "Failed to submit enquiry", err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
+// ============================================================
+// BOOKMARK ENDPOINTS
+// ============================================================
+
+// BookmarkFranchise POST /api/franchises/:id/bookmark
+func (h *FranchiseHandler) BookmarkFranchise(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+			"message": "Please login to bookmark a franchise",
+		})
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "add_bookmark", map[string]interface{}{
+		"operationType": "ADD_BOOKMARK",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to bookmark franchise", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// UnbookmarkFranchise DELETE /api/franchises/:id/bookmark
+func (h *FranchiseHandler) UnbookmarkFranchise(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+		})
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "remove_bookmark", map[string]interface{}{
+		"operationType": "REMOVE_BOOKMARK",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to remove bookmark", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetUserBookmarks GET /api/user/bookmarks
+func (h *FranchiseHandler) GetUserBookmarks(c *gin.Context) {
+	userID := c.GetString("userId")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+		})
+		return
+	}
+
+	page := 1
+	limit := 20
+	if p := c.Query("page"); p != "" {
+		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+			page = pageNum
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+			limit = limitNum
+		}
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "get_bookmarks", map[string]interface{}{
+		"operationType": "GET_USER_BOOKMARKS",
+		"userId":        userID,
+		"page":          page,
+		"limit":         limit,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to get bookmarks", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CheckBookmark GET /api/franchises/:id/bookmark/check
+func (h *FranchiseHandler) CheckBookmark(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+	if userID == "" {
+		// Not logged in — return false without error
+		c.JSON(http.StatusOK, gin.H{
+			"success":      true,
+			"isBookmarked": false,
+		})
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "check_bookmark", map[string]interface{}{
+		"operationType": "CHECK_BOOKMARK",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to check bookmark", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================
+// RATING ENDPOINTS
+// ============================================================
+
+// RateFranchise POST /api/franchises/:id/rate
+func (h *FranchiseHandler) RateFranchise(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+			"message": "Please login to rate a franchise",
+		})
+		return
+	}
+
+	var body struct {
+		Rating float64 `json:"rating" binding:"required"`
+		Review string  `json:"review"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		h.validationError(c, "Invalid request: rating (1.0-5.0) is required")
+		return
+	}
+	if body.Rating < 1.0 || body.Rating > 5.0 {
+		h.validationError(c, "Rating must be between 1.0 and 5.0")
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "submit_rating", map[string]interface{}{
+		"operationType": "SUBMIT_USER_RATING",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+		"rating":        body.Rating,
+		"review":        body.Review,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to submit rating", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// UpdateRating PUT /api/franchises/:id/rate
+func (h *FranchiseHandler) UpdateRating(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" || userID == "" {
+		h.validationError(c, "Franchise ID and authentication required")
+		return
+	}
+
+	var body struct {
+		Rating *float64 `json:"rating"`
+		Review *string  `json:"review"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		h.validationError(c, "Invalid request body")
+		return
+	}
+	if body.Rating != nil && (*body.Rating < 1.0 || *body.Rating > 5.0) {
+		h.validationError(c, "Rating must be between 1.0 and 5.0")
+		return
+	}
+
+	vars := map[string]interface{}{
+		"operationType": "UPDATE_USER_RATING",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	}
+	if body.Rating != nil {
+		vars["rating"] = *body.Rating
+	}
+	if body.Review != nil {
+		vars["review"] = *body.Review
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "update_rating", vars)
+	if err != nil {
+		h.internalError(c, "Failed to update rating", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// DeleteRating DELETE /api/franchises/:id/rate
+func (h *FranchiseHandler) DeleteRating(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" || userID == "" {
+		h.validationError(c, "Franchise ID and authentication required")
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "delete_rating", map[string]interface{}{
+		"operationType": "DELETE_USER_RATING",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to delete rating", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetFranchiseRatings GET /api/franchises/:id/ratings (public)
+func (h *FranchiseHandler) GetFranchiseRatings(c *gin.Context) {
+	franchiseID := c.Param("id")
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+
+	page := 1
+	limit := 10
+	if p := c.Query("page"); p != "" {
+		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+			page = pageNum
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+			limit = limitNum
+		}
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "get_franchise_ratings", map[string]interface{}{
+		"operationType": "GET_FRANCHISE_RATINGS",
+		"franchiseId":   franchiseID,
+		"page":          page,
+		"limit":         limit,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to get ratings", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetUserRating GET /api/franchises/:id/my-rating
+func (h *FranchiseHandler) GetUserRating(c *gin.Context) {
+	franchiseID := c.Param("id")
+	userID := c.GetString("userId")
+
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+	if userID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success":  true,
+			"hasRated": false,
+		})
+		return
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "get_user_rating", map[string]interface{}{
+		"operationType": "GET_USER_RATING",
+		"userId":        userID,
+		"franchiseId":   franchiseID,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to get user rating", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================
+// SHARE ENDPOINTS
+// ============================================================
+
+// ShareFranchise POST /api/franchises/:id/share (public — no auth needed)
+func (h *FranchiseHandler) ShareFranchise(c *gin.Context) {
+	franchiseID := c.Param("id")
+	if franchiseID == "" {
+		h.validationError(c, "Franchise ID is required")
+		return
+	}
+
+	var body struct {
+		Platform string `json:"platform"` // whatsapp, twitter, linkedin, email, copy_link
+	}
+	// body optional — default to copy_link
+	_ = c.ShouldBindJSON(&body)
+	if body.Platform == "" {
+		body.Platform = "copy_link"
+	}
+
+	// userID optional — anonymous share allowed
+	userID := c.GetString("userId")
+
+	response, err := h.executeUserActionWorkflow(c, "share_franchise", map[string]interface{}{
+		"operationType": "SHARE_FRANCHISE",
+		"franchiseId":   franchiseID,
+		"userId":        userID, // empty string if not logged in
+		"sharePlatform": body.Platform,
+		"ipAddress":     c.ClientIP(),
+	})
+	if err != nil {
+		h.internalError(c, "Failed to record share", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetUserShares GET /api/user/shares
+func (h *FranchiseHandler) GetUserShares(c *gin.Context) {
+	userID := c.GetString("userId")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "Authentication required",
+		})
+		return
+	}
+
+	page := 1
+	limit := 20
+	if p := c.Query("page"); p != "" {
+		if pageNum, err := strconv.Atoi(p); err == nil && pageNum > 0 {
+			page = pageNum
+		}
+	}
+	if l := c.Query("limit"); l != "" {
+		if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
+			limit = limitNum
+		}
+	}
+
+	response, err := h.executeUserActionWorkflow(c, "get_user_shares", map[string]interface{}{
+		"operationType": "GET_USER_SHARES",
+		"userId":        userID,
+		"page":          page,
+		"limit":         limit,
+	})
+	if err != nil {
+		h.internalError(c, "Failed to get shares", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================
+// HELPER — executeUserActionWorkflow
+// Dedicated workflow executor for user actions
+// Uses franchise-user-actions BPMN process
+// ============================================================
+func (h *FranchiseHandler) executeUserActionWorkflow(
+	c *gin.Context,
+	action string,
+	variables map[string]interface{},
+) (map[string]interface{}, error) {
+	ctx := c.Request.Context()
+
+	correlationKey := fmt.Sprintf("ua_%s_%s_%d",
+		action,
+		uuid.New().String()[:8],
+		time.Now().UnixNano(),
+	)
+
+	variables["correlationKey"] = correlationKey
+	variables["action"] = action
+	variables["traceId"] = c.GetString("traceId")
+	variables["spanId"] = c.GetString("spanId")
+	variables["requestId"] = c.GetString("X-Request-ID")
+	variables["userAgent"] = c.Request.UserAgent()
+	variables["ipAddress"] = c.ClientIP()
+
+	return h.executeWorkflow(ctx, "franchise-user-actions", variables)
 }
 
 // ========================================================================

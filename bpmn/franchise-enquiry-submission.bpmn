@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <process id="franchise-enquiry-submission" name="Franchise Enquiry Submission" isExecutable="true">
+    <startEvent id="start-enquiry" name="POST /franchises/:id/enquiry">
+      <outgoing>flow-start-to-fetch-user</outgoing>
+    </startEvent>
+    <serviceTask id="task-fetch-user" name="Fetch User Profile&#10;(query-postgresql)">
+      <extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;user_profile&#34;" target="queryType" />
+          <zeebe:input source="=userId" target="userId" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-start-to-fetch-user</incoming>
+      <outgoing>flow-user-to-validate</outgoing>
+    </serviceTask>
+    <serviceTask id="task-fetch-franchise" name="Fetch Franchise Name&#10;(query-postgresql)">
+      <extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;franchise_contact_info&#34;" target="queryType" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-user-to-validate</incoming>
+      <outgoing>flow-franchise-to-validate</outgoing>
+    </serviceTask>
+    <serviceTask id="task-validate-enquiry" name="Merge + Validate&#10;(validate-enquiry-data)">
+      <extensionElements>
+        <zeebe:taskDefinition type="validate-enquiry-data" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=userProfile" target="userProfile" />
+          <zeebe:input source="=enquiryFormData" target="enquiryFormData" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-franchise-to-validate</incoming>
+      <outgoing>flow-validate-to-gw</outgoing>
+    </serviceTask>
+    <exclusiveGateway id="gw-valid" name="Valid Data?">
+      <incoming>flow-validate-to-gw</incoming>
+      <outgoing>flow-valid-yes</outgoing>
+      <outgoing>flow-valid-no</outgoing>
+    </exclusiveGateway>
+    <serviceTask id="task-create-record" name="Save Enquiry Record&#10;(create-application-record)">
+      <extensionElements>
+        <zeebe:taskDefinition type="create-application-record" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="seekerId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=mergedData" target="applicationData" />
+          <zeebe:input source="=&#34;medium&#34;" target="priority" />
+          <zeebe:input source="=0" target="readinessScore" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-valid-yes</incoming>
+      <outgoing>flow-record-to-parallel</outgoing>
+    </serviceTask>
+    <parallelGateway id="gw-parallel-split" name="Send 2 Emails">
+      <incoming>flow-record-to-parallel</incoming>
+      <outgoing>flow-to-email-applicant</outgoing>
+      <outgoing>flow-to-email-lemici</outgoing>
+    </parallelGateway>
+    <serviceTask id="task-email-applicant" name="Confirmation to Applicant&#10;(email.send)">
+      <extensionElements>
+        <zeebe:taskDefinition type="email.send" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=mergedData.email" target="to" />
+          <zeebe:input source="=&#34;Your franchise enquiry for &#34; + franchiseInfo.franchiseName + &#34; is received — Ref #&#34; + applicationId" target="subject" />
+          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;Hello &#34; + mergedData.fullName + &#34;,&#60;/h2&#62;&#60;p&#62;Thank you for your interest in &#60;strong&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/strong&#62;.&#60;/p&#62;&#60;p&#62;We have received your enquiry. Our team at Lemici will review your details and connect you with the right opportunity.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Reference Number:&#60;/b&#62; &#34; + applicationId + &#34;&#60;/p&#62;&#60;p&#62;You can expect to hear from us within 2-3 business days.&#60;/p&#62;&#60;p&#62;Best regards,&#60;br/&#62;&#60;b&#62;Team Lemici&#60;/b&#62;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
+          <zeebe:input source="=true" target="isHtml" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-to-email-applicant</incoming>
+      <outgoing>flow-applicant-done</outgoing>
+    </serviceTask>
+    <serviceTask id="task-email-lemici" name="Lead Alert to Lemici Team&#10;(email.send)">
+      <extensionElements>
+        <zeebe:taskDefinition type="email.send" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=internalAlertEmail" target="to" />
+          <zeebe:input source="=&#34;[New Lead] &#34; + franchiseInfo.franchiseName + &#34; — &#34; + mergedData.fullName + &#34; | &#34; + mergedData.approximateInvestmentBudget" target="subject" />
+          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New Franchise Enquiry&#60;/h2&#62;&#60;table border=&#39;1&#39; cellpadding=&#39;10&#39; cellspacing=&#39;0&#39; style=&#39;border-collapse:collapse;width:100%&#39;&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Franchise&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Name&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.fullName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Email&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.email + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Phone&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.phone + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Preferred State&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.preferredState + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Budget&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.approximateInvestmentBudget + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Involvement&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.involvementLevel != null then mergedData.involvementLevel else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Type&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.applicantType != null then mergedData.applicantType else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Background&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.background != null then mergedData.background else &#34;Not provided&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Application Ref&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + applicationId + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;/table&#62;&#60;p style=&#39;color:#888&#39;&#62;Franchise ID: &#34; + franchiseId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
+          <zeebe:input source="=true" target="isHtml" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-to-email-lemici</incoming>
+      <outgoing>flow-lemici-done</outgoing>
+    </serviceTask>
+    <parallelGateway id="gw-parallel-join" name="Both Emails Done">
+      <incoming>flow-applicant-done</incoming>
+      <incoming>flow-lemici-done</incoming>
+      <outgoing>flow-join-to-success</outgoing>
+    </parallelGateway>
+    <serviceTask id="task-success-response" name="Build Success Response&#10;(build-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=&#34;application-success&#34;" target="templateId" />
+          <zeebe:input source="={applicationId: applicationId, message: &#34;Enquiry submitted successfully. Our team will contact you within 2-3 business days.&#34;, success: true}" target="data" />
+          <zeebe:input source="=201" target="statusCode" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-join-to-success</incoming>
+      <outgoing>flow-success-to-send</outgoing>
+    </serviceTask>
+    <serviceTask id="task-send-success" name="Send Response&#10;(send-api-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=builtResponse" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-success-to-send</incoming>
+      <outgoing>flow-send-to-end</outgoing>
+    </serviceTask>
+    <endEvent id="end-success" name="Enquiry Submitted">
+      <incoming>flow-send-to-end</incoming>
+    </endEvent>
+    <serviceTask id="task-422-build" name="Build 422 Response&#10;(build-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=422" target="statusCode" />
+          <zeebe:input source="=&#34;Validation failed. Please check your details.&#34;" target="message" />
+          <zeebe:input source="=validationErrors" target="errors" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-valid-no</incoming>
+      <outgoing>flow-422-to-send</outgoing>
+    </serviceTask>
+    <serviceTask id="task-422-send" name="Send 422 Response&#10;(send-api-response)">
+      <extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=builtResponse" target="response" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-422-to-send</incoming>
+      <outgoing>flow-422-end</outgoing>
+    </serviceTask>
+    <endEvent id="end-422" name="Validation Error Sent">
+      <incoming>flow-422-end</incoming>
+    </endEvent>
+    <sequenceFlow id="flow-start-to-fetch-user" sourceRef="start-enquiry" targetRef="task-fetch-user" />
+    <sequenceFlow id="flow-user-to-validate" sourceRef="task-fetch-user" targetRef="task-fetch-franchise" />
+    <sequenceFlow id="flow-franchise-to-validate" sourceRef="task-fetch-franchise" targetRef="task-validate-enquiry" />
+    <sequenceFlow id="flow-validate-to-gw" sourceRef="task-validate-enquiry" targetRef="gw-valid" />
+    <sequenceFlow id="flow-valid-yes" name="valid" sourceRef="gw-valid" targetRef="task-create-record">
+      <conditionExpression xsi:type="tFormalExpression">= isValid = true</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-valid-no" name="invalid" sourceRef="gw-valid" targetRef="task-422-build">
+      <conditionExpression xsi:type="tFormalExpression">= isValid = false</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-record-to-parallel" sourceRef="task-create-record" targetRef="gw-parallel-split" />
+    <sequenceFlow id="flow-to-email-applicant" sourceRef="gw-parallel-split" targetRef="task-email-applicant" />
+    <sequenceFlow id="flow-to-email-lemici" sourceRef="gw-parallel-split" targetRef="task-email-lemici" />
+    <sequenceFlow id="flow-applicant-done" sourceRef="task-email-applicant" targetRef="gw-parallel-join" />
+    <sequenceFlow id="flow-lemici-done" sourceRef="task-email-lemici" targetRef="gw-parallel-join" />
+    <sequenceFlow id="flow-join-to-success" sourceRef="gw-parallel-join" targetRef="task-success-response" />
+    <sequenceFlow id="flow-success-to-send" sourceRef="task-success-response" targetRef="task-send-success" />
+    <sequenceFlow id="flow-send-to-end" sourceRef="task-send-success" targetRef="end-success" />
+    <sequenceFlow id="flow-422-to-send" sourceRef="task-422-build" targetRef="task-422-send" />
+    <sequenceFlow id="flow-422-end" sourceRef="task-422-send" targetRef="end-422" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-enquiry-submission">
+      <bpmndi:BPMNShape id="task-validate-enquiry_di" bpmnElement="task-validate-enquiry">
+        <dc:Bounds x="520" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end-422_di" bpmnElement="end-422">
+        <dc:Bounds x="1110" y="350" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1092" y="390" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-fetch-franchise_di" bpmnElement="task-fetch-franchise">
+        <dc:Bounds x="380" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-fetch-user_di" bpmnElement="task-fetch-user">
+        <dc:Bounds x="240" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="start-enquiry_di" bpmnElement="start-enquiry">
+        <dc:Bounds x="152" y="210" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="128" y="250" width="84" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw-valid_di" bpmnElement="gw-valid" isMarkerVisible="true">
+        <dc:Bounds x="645" y="205" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="705" y="223" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-422-build_di" bpmnElement="task-422-build">
+        <dc:Bounds x="730" y="330" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-422-send_di" bpmnElement="task-422-send">
+        <dc:Bounds x="870" y="330" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-create-record_di" bpmnElement="task-create-record">
+        <dc:Bounds x="730" y="90" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw-parallel-split_di" bpmnElement="gw-parallel-split">
+        <dc:Bounds x="865" y="105" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="856" y="81" width="67" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-email-applicant_di" bpmnElement="task-email-applicant">
+        <dc:Bounds x="950" y="90" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-email-lemici_di" bpmnElement="task-email-lemici">
+        <dc:Bounds x="950" y="190" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw-parallel-join_di" bpmnElement="gw-parallel-join">
+        <dc:Bounds x="1085" y="155" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1068" y="131" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-success-response_di" bpmnElement="task-success-response">
+        <dc:Bounds x="1170" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-send-success_di" bpmnElement="task-send-success">
+        <dc:Bounds x="1308" y="140" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end-success_di" bpmnElement="end-success">
+        <dc:Bounds x="1340" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1315" y="322" width="86" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow-start-to-fetch-user_di" bpmnElement="flow-start-to-fetch-user">
+        <di:waypoint x="188" y="228" />
+        <di:waypoint x="240" y="228" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-user-to-validate_di" bpmnElement="flow-user-to-validate">
+        <di:waypoint x="340" y="228" />
+        <di:waypoint x="380" y="228" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-franchise-to-validate_di" bpmnElement="flow-franchise-to-validate">
+        <di:waypoint x="480" y="228" />
+        <di:waypoint x="520" y="228" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-validate-to-gw_di" bpmnElement="flow-validate-to-gw">
+        <di:waypoint x="620" y="228" />
+        <di:waypoint x="647" y="228" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-valid-yes_di" bpmnElement="flow-valid-yes">
+        <di:waypoint x="670" y="205" />
+        <di:waypoint x="670" y="128" />
+        <di:waypoint x="730" y="128" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="685" y="103" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-valid-no_di" bpmnElement="flow-valid-no">
+        <di:waypoint x="670" y="255" />
+        <di:waypoint x="670" y="370" />
+        <di:waypoint x="730" y="370" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="685" y="312" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-record-to-parallel_di" bpmnElement="flow-record-to-parallel">
+        <di:waypoint x="830" y="128" />
+        <di:waypoint x="867" y="128" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-to-email-applicant_di" bpmnElement="flow-to-email-applicant">
+        <di:waypoint x="915" y="130" />
+        <di:waypoint x="950" y="130" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-to-email-lemici_di" bpmnElement="flow-to-email-lemici">
+        <di:waypoint x="890" y="155" />
+        <di:waypoint x="890" y="230" />
+        <di:waypoint x="950" y="230" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-applicant-done_di" bpmnElement="flow-applicant-done">
+        <di:waypoint x="1050" y="130" />
+        <di:waypoint x="1105" y="130" />
+        <di:waypoint x="1105" y="160" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-lemici-done_di" bpmnElement="flow-lemici-done">
+        <di:waypoint x="1050" y="230" />
+        <di:waypoint x="1110" y="230" />
+        <di:waypoint x="1110" y="205" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-join-to-success_di" bpmnElement="flow-join-to-success">
+        <di:waypoint x="1133" y="178" />
+        <di:waypoint x="1170" y="178" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-success-to-send_di" bpmnElement="flow-success-to-send">
+        <di:waypoint x="1270" y="178" />
+        <di:waypoint x="1308" y="178" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-send-to-end_di" bpmnElement="flow-send-to-end">
+        <di:waypoint x="1358" y="220" />
+        <di:waypoint x="1358" y="282" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-422-to-send_di" bpmnElement="flow-422-to-send">
+        <di:waypoint x="830" y="370" />
+        <di:waypoint x="870" y="370" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-422-end_di" bpmnElement="flow-422-end">
+        <di:waypoint x="970" y="370" />
+        <di:waypoint x="1110" y="370" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>

@@ -801,3 +801,180 @@ func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[st
 
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
+
+// func AllIndustries(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+// 	activeOnly := true
+// 	if v, ok := params["activeOnly"].(bool); ok {
+// 		activeOnly = v
+// 	}
+
+// 	query := `SELECT id, name, slug, icon_url, color_hex, listing_description, display_order
+// 	          FROM industries`
+// 	if activeOnly {
+// 		query += ` WHERE is_active = true`
+// 	}
+// 	query += ` ORDER BY display_order`
+
+// 	rows, err := db.QueryContext(ctx, query)
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+// 	defer rows.Close()
+
+// 	var industries []map[string]interface{}
+// 	for rows.Next() {
+// 		var id, name, slug, colorHex string
+// 		var iconURL, description sql.NullString
+// 		var displayOrder int
+
+// 		if err := rows.Scan(&id, &name, &slug, &iconURL, &colorHex, &description, &displayOrder); err != nil {
+// 			continue
+// 		}
+
+// 		ind := map[string]interface{}{
+// 			"id":           id,
+// 			"name":         name,
+// 			"slug":         slug,
+// 			"color_hex":    colorHex,
+// 			"displayOrder": displayOrder,
+// 		}
+// 		if iconURL.Valid {
+// 			ind["icon_url"] = iconURL.String
+// 		}
+// 		if description.Valid {
+// 			ind["description"] = description.String
+// 		}
+// 		industries = append(industries, ind)
+// 	}
+
+// 	return industries, len(industries), time.Since(start).Milliseconds(), nil
+// }
+
+// // CategoriesByIndustry - Ek industry ke sab categories (BPMN 1 ke liye)
+// func CategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	industryID, ok := params["industryId"].(string)
+// 	if !ok || industryID == "" {
+// 		return nil, 0, 0, ErrMissingParam
+// 	}
+
+// 	rows, err := db.QueryContext(ctx, `
+// 		SELECT id, name, slug, icon_url, description, display_order
+// 		FROM categories
+// 		WHERE industry_id = $1 AND is_active = true
+// 		ORDER BY display_order`, industryID)
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+// 	defer rows.Close()
+
+// 	var cats []map[string]interface{}
+// 	for rows.Next() {
+// 		var id, name, slug string
+// 		var iconURL, desc sql.NullString
+// 		var order int
+
+// 		if err := rows.Scan(&id, &name, &slug, &iconURL, &desc, &order); err != nil {
+// 			continue
+// 		}
+
+// 		cat := map[string]interface{}{
+// 			"id":           id,
+// 			"name":         name,
+// 			"slug":         slug,
+// 			"displayOrder": order,
+// 		}
+// 		if iconURL.Valid {
+// 			cat["icon_url"] = iconURL.String
+// 		}
+// 		if desc.Valid {
+// 			cat["description"] = desc.String
+// 		}
+// 		cats = append(cats, cat)
+// 	}
+
+// 	return cats, len(cats), time.Since(start).Milliseconds(), nil
+// }
+
+// // SubCategoriesByCategory - Ek category ke sab sub-categories (BPMN 1 ke liye)
+// func SubCategoriesByCategory(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	categoryID, ok := params["categoryId"].(string)
+// 	if !ok || categoryID == "" {
+// 		return nil, 0, 0, ErrMissingParam
+// 	}
+
+// 	rows, err := db.QueryContext(ctx, `
+// 		SELECT id, name, slug, description, display_order
+// 		FROM sub_categories
+// 		WHERE category_id = $1 AND is_active = true
+// 		ORDER BY display_order`, categoryID)
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+// 	defer rows.Close()
+
+// 	var subs []map[string]interface{}
+// 	for rows.Next() {
+// 		var id, name, slug string
+// 		var desc sql.NullString
+// 		var order int
+
+// 		if err := rows.Scan(&id, &name, &slug, &desc, &order); err != nil {
+// 			continue
+// 		}
+
+// 		sub := map[string]interface{}{
+// 			"id":           id,
+// 			"name":         name,
+// 			"slug":         slug,
+// 			"displayOrder": order,
+// 		}
+// 		if desc.Valid {
+// 			sub["description"] = desc.String
+// 		}
+// 		subs = append(subs, sub)
+// 	}
+
+// 	return subs, len(subs), time.Since(start).Milliseconds(), nil
+// }
+
+func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	franchiseID, ok := params["franchiseId"].(string)
+	if !ok || franchiseID == "" {
+		return nil, 0, 0, ErrMissingParam
+	}
+
+	var name string
+	var contactEmail sql.NullString
+
+	err := db.QueryRowContext(ctx,
+		`SELECT name, contact_email FROM franchises WHERE id = $1`,
+		franchiseID,
+	).Scan(&name, &contactEmail)
+
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, 0, 0, ErrNotFound
+		}
+		return nil, 0, 0, err
+	}
+
+	result := map[string]interface{}{
+		"franchiseName": name,
+	}
+	if contactEmail.Valid && contactEmail.String != "" {
+		result["franchiseContactEmail"] = contactEmail.String
+	} else {
+		// Fallback - agar contact_email NULL hai toh internal team ko bhejo
+		result["franchiseContactEmail"] = ""
+		result["useInternalFallback"] = true
+	}
+
+	return result, 1, time.Since(start).Milliseconds(), nil
+}

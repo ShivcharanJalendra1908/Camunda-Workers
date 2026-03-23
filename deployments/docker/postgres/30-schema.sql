@@ -902,5 +902,58 @@ COMMENT ON TABLE industry_market_insights IS
     'Market insights, growth rates, and trends for each industry. Used for industry detail pages and research.';
 
 -- ============================================================
+-- USER ACTIONS SCHEMA - Bookmark, Rating, Share
+-- ============================================================
+
+-- ========================================
+-- USER RATINGS TABLE
+-- ========================================
+CREATE TABLE user_ratings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    rating DECIMAL(2,1) NOT NULL,
+    review TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- One user can rate one franchise only once
+    CONSTRAINT uq_user_franchise_rating UNIQUE (user_id, franchise_id),
+    CONSTRAINT chk_rating_range CHECK (rating >= 1.0 AND rating <= 5.0)
+);
+
+CREATE TRIGGER update_user_ratings_updated_at
+    BEFORE UPDATE ON user_ratings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_user_ratings_user       ON user_ratings(user_id);
+CREATE INDEX idx_user_ratings_franchise  ON user_ratings(franchise_id);
+CREATE INDEX idx_user_ratings_rating     ON user_ratings(rating);
+
+COMMENT ON TABLE user_ratings IS
+    'User-submitted ratings (1-5) and optional review text for franchises. One rating per user per franchise.';
+
+-- ========================================
+-- FRANCHISE SHARES TABLE
+-- ========================================
+CREATE TABLE franchise_shares (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    -- user_id nullable — anonymous share bhi ho sakta hai
+    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    share_platform VARCHAR(50) DEFAULT 'copy_link',
+    -- e.g. 'whatsapp', 'twitter', 'linkedin', 'email', 'copy_link'
+    ip_address VARCHAR(45),
+    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_franchise_shares_franchise ON franchise_shares(franchise_id);
+CREATE INDEX idx_franchise_shares_user      ON franchise_shares(user_id);
+CREATE INDEX idx_franchise_shares_platform  ON franchise_shares(share_platform);
+CREATE INDEX idx_franchise_shares_shared_at ON franchise_shares(shared_at);
+
+COMMENT ON TABLE franchise_shares IS
+    'Tracks when users share a franchise. user_id nullable for anonymous shares. Increments franchise_stats.share_count.';
+-- ============================================================
 -- END OF COMPLETE SCHEMA
 -- ============================================================

@@ -3,6 +3,7 @@ package models
 
 import (
 	"regexp"
+	"time"
 
 	"camunda-workers/internal/common/validation"
 
@@ -22,6 +23,35 @@ type Franchise struct {
 	UpdatedAt        string   `json:"updatedAt"`
 	ApplicationCount int      `json:"applicationCount"`
 	ViewCount        int      `json:"viewCount"`
+}
+
+// UserRating represents a user's rating for a franchise
+type UserRating struct {
+	ID          string    `json:"id" db:"id"`
+	UserID      string    `json:"userId" db:"user_id"`
+	FranchiseID string    `json:"franchiseId" db:"franchise_id"`
+	Rating      float64   `json:"rating" db:"rating"` // 1.0 to 5.0
+	Review      string    `json:"review,omitempty" db:"review"`
+	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
+}
+
+// FranchiseShare represents a share event
+type FranchiseShare struct {
+	ID            string    `json:"id" db:"id"`
+	UserID        string    `json:"userId,omitempty" db:"user_id"`
+	FranchiseID   string    `json:"franchiseId" db:"franchise_id"`
+	SharePlatform string    `json:"sharePlatform" db:"share_platform"`
+	IPAddress     string    `json:"ipAddress,omitempty" db:"ip_address"`
+	SharedAt      time.Time `json:"sharedAt" db:"shared_at"`
+}
+
+// UserBookmark — alias for user_favorites, used in user-actions context
+type UserBookmark struct {
+	ID          string    `json:"id" db:"id"`
+	UserID      string    `json:"userId" db:"user_id"`
+	FranchiseID string    `json:"franchiseId" db:"franchise_id"`
+	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
 }
 
 // Validate validates the Franchise struct
@@ -184,38 +214,3 @@ func (fv FranchiseVerification) Validate() error {
 		),
 	)
 }
-
-// // internal/models/franchise.go
-// package models
-
-// type Franchise struct {
-// 	ID               string   `json:"id"`
-// 	Name             string   `json:"name"`
-// 	Description      string   `json:"description"`
-// 	InvestmentMin    int      `json:"investmentMin"`
-// 	InvestmentMax    int      `json:"investmentMax"`
-// 	Category         string   `json:"category"`
-// 	Locations        []string `json:"locations"`
-// 	IsVerified       bool     `json:"isVerified"`
-// 	CreatedAt        string   `json:"createdAt"`
-// 	UpdatedAt        string   `json:"updatedAt"`
-// 	ApplicationCount int      `json:"applicationCount"`
-// 	ViewCount        int      `json:"viewCount"`
-// }
-
-// type FranchiseOutlet struct {
-// 	ID          string `json:"id"`
-// 	FranchiseID string `json:"franchiseId"`
-// 	Address     string `json:"address"`
-// 	City        string `json:"city"`
-// 	State       string `json:"state"`
-// 	Country     string `json:"country"`
-// 	Phone       string `json:"phone"`
-// }
-
-// type FranchiseVerification struct {
-// 	FranchiseID        string `json:"franchiseId"`
-// 	VerificationStatus string `json:"verificationStatus"`
-// 	VerifiedAt         string `json:"verifiedAt"`
-// 	ComplianceScore    int    `json:"complianceScore"`
-// }

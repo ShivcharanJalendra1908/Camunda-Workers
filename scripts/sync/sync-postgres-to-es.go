@@ -22,6 +22,7 @@ const (
 	ListingsIndex         = "franchise_listings"
 	IndustriesIndex       = "franchise_industries"
 	IndustryInsightsIndex = "industry_insights"
+	BrowseIndex           = "franchise_browse"
 )
 
 type SyncManager struct {
@@ -100,6 +101,13 @@ func main() {
 		log.Printf("❌ Industry insights index sync failed: %v", err)
 	} else {
 		log.Println("✅ Industry insights index synced")
+	}
+
+	log.Println("\n📦 Syncing Index 5: franchise_browse...")
+	if err := manager.syncBrowseIndex(ctx); err != nil {
+		log.Printf("❌ Browse index sync failed: %v", err)
+	} else {
+		log.Println("✅ Browse index synced")
 	}
 
 	log.Println("\n🎉 Sync completed successfully!")
@@ -626,6 +634,122 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 	}
 
 	log.Printf("   ✅ Total industry insights indexed: %d", count)
+	return nil
+}
+
+func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
+	// Sab active industries fetch karo
+	indRows, err := m.db.QueryContext(ctx, `
+		SELECT id, name, slug, color_hex, icon_url, display_order
+		FROM industries
+		WHERE is_active = true
+		ORDER BY display_order
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to query industries: %w", err)
+	}
+	defer indRows.Close()
+
+	count := 0
+	for indRows.Next() {
+		var id, name, slug, colorHex string
+		var iconURL sql.NullString
+		var displayOrder int
+
+		if err := indRows.Scan(&id, &name, &slug, &colorHex, &iconURL, &displayOrder); err != nil {
+			log.Printf("⚠️ Failed to scan industry: %v", err)
+			continue
+		}
+
+		// Categories fetch karo
+		catRows, err := m.db.QueryContext(ctx, `
+			SELECT id, name, slug, display_order
+			FROM categories
+			WHERE industry_id = $1 AND is_active = true
+			ORDER BY display_order
+		`, id)
+		if err != nil {
+			log.Printf("⚠️ Failed to get categories for industry %s: %v", id, err)
+			continue
+		}
+
+		var categories []map[string]interface{}
+		for catRows.Next() {
+			var catID, catName, catSlug string
+			var catOrder int
+
+			if err := catRows.Scan(&catID, &catName, &catSlug, &catOrder); err != nil {
+				continue
+			}
+
+			// Sub-categories fetch karo
+			subRows, err := m.db.QueryContext(ctx, `
+				SELECT id, name, slug, display_order
+				FROM sub_categories
+				WHERE category_id = $1 AND is_active = true
+				ORDER BY display_order
+			`, catID)
+
+			var subCategories []map[string]interface{}
+			if err == nil {
+				for subRows.Next() {
+					var subID, subName, subSlug string
+					var subOrder int
+					if err := subRows.Scan(&subID, &subName, &subSlug, &subOrder); err != nil {
+						continue
+					}
+					subCategories = append(subCategories, map[string]interface{}{
+						"sub_category_id":   subID,
+						"sub_category_name": subName,
+						"sub_category_slug": subSlug,
+						"display_order":     subOrder,
+					})
+				}
+				subRows.Close()
+			}
+
+			if subCategories == nil {
+				subCategories = []map[string]interface{}{}
+			}
+
+			categories = append(categories, map[string]interface{}{
+				"category_id":    catID,
+				"category_name":  catName,
+				"category_slug":  catSlug,
+				"display_order":  catOrder,
+				"sub_categories": subCategories,
+			})
+		}
+		catRows.Close()
+
+		if categories == nil {
+			categories = []map[string]interface{}{}
+		}
+
+		// Document build karo
+		doc := map[string]interface{}{
+			"industry_id":   id,
+			"industry_name": name,
+			"industry_slug": slug,
+			"color_hex":     colorHex,
+			"display_order": displayOrder,
+			"categories":    categories,
+			"updated_at":    time.Now().Format(time.RFC3339),
+		}
+		if iconURL.Valid {
+			doc["icon_url"] = iconURL.String
+		}
+
+		if err := m.indexDocument(ctx, BrowseIndex, id, doc); err != nil {
+			log.Printf("⚠️ Failed to index browse industry %s: %v", id, err)
+			continue
+		}
+
+		count++
+		log.Printf("   Indexed: %s (%d categories)", name, len(categories))
+	}
+
+	log.Printf("   ✅ Total industries indexed in browse: %d", count)
 	return nil
 }
 

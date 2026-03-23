@@ -1,0 +1,18 @@
+package validateenquirydata
+
+const TaskType = "validate-enquiry-data"
+
+// Input - BPMN se aane wala data
+type Input struct {
+	FranchiseID     string                 `json:"franchiseId"`
+	UserID          string                 `json:"userId"`
+	UserProfile     map[string]interface{} `json:"userProfile"`     // DB se fetch hoga
+	EnquiryFormData map[string]interface{} `json:"enquiryFormData"` // Frontend se aaya form data
+}
+
+// Output - merge + validate ke baad
+type Output struct {
+	IsValid          bool                   `json:"isValid"`
+	MergedData       map[string]interface{} `json:"mergedData"`
+	ValidationErrors []string               `json:"validationErrors"`
+}
