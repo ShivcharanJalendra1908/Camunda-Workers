@@ -965,13 +965,52 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 
 func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
 	industries := h.extractArray(data, "industries")
-	if len(industries) == 0 {
-		industries = []interface{}{}
+
+	cleaned := make([]map[string]interface{}, 0, len(industries))
+
+	for _, item := range industries {
+		industry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		cleanedCategories := []map[string]interface{}{}
+		if cats, ok := industry["categories"].([]interface{}); ok {
+			for _, catItem := range cats {
+				cat, ok := catItem.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				cleanedSubs := []map[string]interface{}{}
+				if subs, ok := cat["sub_categories"].([]interface{}); ok {
+					for _, subItem := range subs {
+						sub, ok := subItem.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						cleanedSubs = append(cleanedSubs, map[string]interface{}{
+							"sub_category_name": sub["sub_category_name"],
+						})
+					}
+				}
+
+				cleanedCategories = append(cleanedCategories, map[string]interface{}{
+					"category_name":  cat["category_name"],
+					"sub_categories": cleanedSubs,
+				})
+			}
+		}
+
+		cleaned = append(cleaned, map[string]interface{}{
+			"industry_name": industry["industry_name"],
+			"categories":    cleanedCategories,
+		})
 	}
 
 	return map[string]interface{}{
 		"success": true,
-		"data":    industries,
+		"data":    cleaned,
 		"metadata": map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
 			"source":      "workflow",
@@ -979,6 +1018,23 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 		},
 	}
 }
+
+// func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
+// 	industries := h.extractArray(data, "industries")
+// 	if len(industries) == 0 {
+// 		industries = []interface{}{}
+// 	}
+
+// 	return map[string]interface{}{
+// 		"success": true,
+// 		"data":    industries,
+// 		"metadata": map[string]interface{}{
+// 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+// 			"source":      "workflow",
+// 			"pageType":    "industries",
+// 		},
+// 	}
+// }
 
 // ===== HELPER BUILDERS =====
 func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {
