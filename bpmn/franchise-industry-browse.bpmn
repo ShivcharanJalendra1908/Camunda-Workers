@@ -15,6 +15,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;get_all_industries&#34;" target="queryType" />
           <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
+          <zeebe:output source="=queryResults" target="queryResults" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-browse</incoming>
@@ -27,6 +28,7 @@
           <zeebe:input source="=&#34;search_industries&#34;" target="queryType" />
           <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
           <zeebe:input source="=search" target="search" />
+          <zeebe:output source="=queryResults" target="queryResults" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-search</incoming>
@@ -76,6 +78,7 @@
           <zeebe:input source="=500" target="statusCode" />
           <zeebe:input source="=&#34;Failed to fetch industry data&#34;" target="message" />
           <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:output source="=response" target="builtResponse" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-error-to-build</incoming>
@@ -87,6 +90,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=builtResponse" target="response" />
+          <zeebe:output source="=response" target="builtResponse" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-error-to-send</incoming>
