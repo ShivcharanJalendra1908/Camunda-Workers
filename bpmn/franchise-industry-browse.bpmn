@@ -44,6 +44,7 @@
           <zeebe:input source="=queryResults" target="data" />
           <zeebe:input source="=correlationKey" target="requestId" />
           <zeebe:input source="=&#34;franchise-list&#34;" target="templateId" />
+          <zeebe:input source="=&quot;industries&quot;" target="pageType" /> 
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-join-to-build</incoming>

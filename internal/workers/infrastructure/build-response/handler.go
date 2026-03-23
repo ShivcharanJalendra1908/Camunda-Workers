@@ -252,7 +252,7 @@ func safeSubstring(s string, start, end int) string {
 func (h *Handler) validateInput(input *Input) error {
 	if err := ozzo.Validate(input.PageType,
 		ozzo.Required.Error("pageType is required"),
-		ozzo.In("home", "listing", "detail", "search").Error("must be one of: home, listing, detail, search"),
+		ozzo.In("home", "listing", "detail", "search", "industries").Error("must be one of: home, listing, detail, search, industries"),
 		validation.SafeSQLString,
 	); err != nil {
 		return appErrs.NewValidationError("pageType", err.Error())
@@ -416,6 +416,8 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		response = h.buildDetailResponse(combinedData)
 	case "search":
 		response = h.buildSearchResponse(combinedData)
+	case "industries":
+		response = h.buildIndustriesResponse(combinedData)
 	default:
 		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
 	}
@@ -957,6 +959,23 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
 			"source":      "workflow",
 			"pageType":    "detail",
+		},
+	}
+}
+
+func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
+	industries := h.extractArray(data, "data")
+	if len(industries) == 0 {
+		industries = []interface{}{}
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data":    industries,
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "industries",
 		},
 	}
 }
