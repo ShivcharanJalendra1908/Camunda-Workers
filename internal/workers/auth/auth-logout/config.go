@@ -14,6 +14,10 @@ type Config struct {
 	RedisPort     int           `mapstructure:"redis_port"`
 	RedisPassword string        `mapstructure:"redis_password"`
 	RedisDB       int           `mapstructure:"redis_db"`
+	PostLogoutRedirectURI string  // e.g. "http://localhost:3000/login"
+ClientID              string
+Issuer                string  // e.g. "http://localhost:8180/realms/camunda-platform"
+
 }
 
 // DefaultConfig returns default configuration values

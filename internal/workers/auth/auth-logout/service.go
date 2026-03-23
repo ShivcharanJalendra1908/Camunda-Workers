@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -50,128 +50,196 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		"reason":    input.Reason,
 	})
 
-	// NOTE: Input is already validated and sanitized by the handler
-
-	// 🔒 Safety: Keycloak client must not be nil
-	if s.keycloak == nil {
-		s.logger.Warn("Keycloak client not configured, skipping Keycloak logout", map[string]interface{}{
-			"userId": input.UserID,
-		})
-	}
-
 	var sessionsInvalidated int
 	var tokenRevoked bool
 
-	// Step 1: Revoke refresh token in Keycloak (single session logout)
-	if input.RefreshToken != "" && !input.LogoutAll && s.keycloak != nil {
-		err := s.keycloak.Logout(ctx, input.RefreshToken)
+	// Step 1: Keycloak server-side session revoke
+	if s.keycloak != nil && input.KeycloakUserID != "" {
+		err := s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
 		if err != nil {
-			s.logger.Warn("Failed to logout from Keycloak", map[string]interface{}{
-				"userId": input.UserID,
-				"error":  err.Error(),
+			s.logger.Warn("Keycloak session revoke failed", map[string]interface{}{
+				"error":          err.Error(),
+				"keycloakUserId": input.KeycloakUserID,
 			})
 		} else {
 			tokenRevoked = true
 			sessionsInvalidated = 1
-		}
-	}
-
-    // Step 2: Global logout - revoke ALL sessions in Keycloak
-	if input.LogoutAll && s.keycloak != nil {
-		kcUserID := input.KeycloakUserID
-	
-		if kcUserID == "" && s.db != nil {
-			var providerUserID string
-			err := s.db.QueryRowContext(ctx,
-				`SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1`,
-				input.UserID,
-			).Scan(&providerUserID)
-			if err == nil {
-				kcUserID = providerUserID
-				s.logger.Info("Resolved keycloakUserId from DB", map[string]interface{}{
-					"userId":         input.UserID,
-					"keycloakUserId": kcUserID,
-				})
-			} else {
-				s.logger.Warn("Could not resolve keycloakUserId from DB, skipping Keycloak revoke", map[string]interface{}{
-					"userId": input.UserID,
-					"error":  err.Error(),
-				})
-			}
-		}
-	
-		if kcUserID != "" {
-			s.logger.Info("Attempting Keycloak revoke all sessions", map[string]interface{}{
-				"keycloakUserId": kcUserID,
+			s.logger.Info("Keycloak session revoked successfully", map[string]interface{}{
+				"keycloakUserId": input.KeycloakUserID,
 			})
-			err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
-			if err != nil {
-				s.logger.Error("Keycloak revoke error", map[string]interface{}{
-					"error":          err.Error(),
-					"keycloakUserId": kcUserID,
-				})
-				if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
-					s.logger.Warn("User not found in Keycloak, treating as already logged out", nil)
-				} else {
-					return nil, &errors.StandardError{
-						Code:      "KEYCLOAK_LOGOUT_FAILED",
-						Message:   "Failed to revoke all user sessions in Keycloak",
-						Details:   err.Error(),
-						Retryable: true,
-						Timestamp: time.Now(),
-					}
-				}
-			} else {
-				s.logger.Info("Keycloak revoke all sessions successful", map[string]interface{}{
-					"keycloakUserId": kcUserID,
-				})
-				tokenRevoked = true
-			}
 		}
 	}
 
-	// Step 3: Clean up local Redis sessions
+	// Step 2: Redis local session cleanup
 	if s.redisClient != nil {
-		err := s.cleanupLocalSessions(ctx, input)
-		if err != nil {
+		if err := s.cleanupLocalSessions(ctx, input); err != nil {
 			s.logger.Warn("Failed to cleanup local sessions", map[string]interface{}{
 				"userId": input.UserID,
 				"error":  err.Error(),
 			})
-			// Don't fail the entire logout if Redis cleanup fails
 		}
 	}
 
-	// Step 4: Add access token to revocation list (if provided)
-	if input.AccessToken != "" && s.redisClient != nil {
-		err := s.revokeAccessToken(ctx, input.AccessToken)
-		if err != nil {
-			s.logger.Warn("Failed to add access token to revocation list", map[string]interface{}{
-				"error": err.Error(),
-			})
-		}
-	}
-
-	// Step 5: Log logout event for audit trail
+	// Step 3: Audit log
 	if s.redisClient != nil {
 		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
 	}
+
+	// Step 4: Build Keycloak browser logout URL
+	logoutURL := fmt.Sprintf(
+		"%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
+		s.config.Issuer,
+		s.config.PostLogoutRedirectURI,
+		s.config.ClientID,
+	)
 
 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
 		"userId":              input.UserID,
 		"sessionsInvalidated": sessionsInvalidated,
 		"tokenRevoked":        tokenRevoked,
-		"logoutAll":           input.LogoutAll,
 	})
 
 	return &Output{
 		Success:             true,
-		Message:             s.buildSuccessMessage(input.LogoutAll, sessionsInvalidated),
+		Message:             "Logged out successfully",
 		SessionsInvalidated: sessionsInvalidated,
 		TokenRevoked:        tokenRevoked,
+		LogoutURL:           logoutURL,
 		LogoutAt:            time.Now(),
 	}, nil
 }
+
+// func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
+// 	s.logger.Info("Executing auth logout", map[string]interface{}{
+// 		"userId":    input.UserID,
+// 		"sessionId": input.SessionID,
+// 		"logoutAll": input.LogoutAll,
+// 		"deviceId":  input.DeviceID,
+// 		"reason":    input.Reason,
+// 	})
+
+// 	// NOTE: Input is already validated and sanitized by the handler
+
+// 	// 🔒 Safety: Keycloak client must not be nil
+// 	if s.keycloak == nil {
+// 		s.logger.Warn("Keycloak client not configured, skipping Keycloak logout", map[string]interface{}{
+// 			"userId": input.UserID,
+// 		})
+// 	}
+
+// 	var sessionsInvalidated int
+// 	var tokenRevoked bool
+
+// 	// Step 1: Revoke refresh token in Keycloak (single session logout)
+// 	if input.RefreshToken != "" && !input.LogoutAll && s.keycloak != nil {
+// 		err := s.keycloak.Logout(ctx, input.RefreshToken)
+// 		if err != nil {
+// 			s.logger.Warn("Failed to logout from Keycloak", map[string]interface{}{
+// 				"userId": input.UserID,
+// 				"error":  err.Error(),
+// 			})
+// 		} else {
+// 			tokenRevoked = true
+// 			sessionsInvalidated = 1
+// 		}
+// 	}
+
+//     // Step 2: Global logout - revoke ALL sessions in Keycloak
+// 	if input.LogoutAll && s.keycloak != nil {
+// 		kcUserID := input.KeycloakUserID
+
+// 		if kcUserID == "" && s.db != nil {
+// 			var providerUserID string
+// 			err := s.db.QueryRowContext(ctx,
+// 				`SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1`,
+// 				input.UserID,
+// 			).Scan(&providerUserID)
+// 			if err == nil {
+// 				kcUserID = providerUserID
+// 				s.logger.Info("Resolved keycloakUserId from DB", map[string]interface{}{
+// 					"userId":         input.UserID,
+// 					"keycloakUserId": kcUserID,
+// 				})
+// 			} else {
+// 				s.logger.Warn("Could not resolve keycloakUserId from DB, skipping Keycloak revoke", map[string]interface{}{
+// 					"userId": input.UserID,
+// 					"error":  err.Error(),
+// 				})
+// 			}
+// 		}
+
+// 		if kcUserID != "" {
+// 			s.logger.Info("Attempting Keycloak revoke all sessions", map[string]interface{}{
+// 				"keycloakUserId": kcUserID,
+// 			})
+// 			err := s.keycloak.RevokeAllUserSessions(ctx, kcUserID)
+// 			if err != nil {
+// 				s.logger.Error("Keycloak revoke error", map[string]interface{}{
+// 					"error":          err.Error(),
+// 					"keycloakUserId": kcUserID,
+// 				})
+// 				if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "User not found") {
+// 					s.logger.Warn("User not found in Keycloak, treating as already logged out", nil)
+// 				} else {
+// 					return nil, &errors.StandardError{
+// 						Code:      "KEYCLOAK_LOGOUT_FAILED",
+// 						Message:   "Failed to revoke all user sessions in Keycloak",
+// 						Details:   err.Error(),
+// 						Retryable: true,
+// 						Timestamp: time.Now(),
+// 					}
+// 				}
+// 			} else {
+// 				s.logger.Info("Keycloak revoke all sessions successful", map[string]interface{}{
+// 					"keycloakUserId": kcUserID,
+// 				})
+// 				tokenRevoked = true
+// 			}
+// 		}
+// 	}
+
+// 	// Step 3: Clean up local Redis sessions
+// 	if s.redisClient != nil {
+// 		err := s.cleanupLocalSessions(ctx, input)
+// 		if err != nil {
+// 			s.logger.Warn("Failed to cleanup local sessions", map[string]interface{}{
+// 				"userId": input.UserID,
+// 				"error":  err.Error(),
+// 			})
+// 			// Don't fail the entire logout if Redis cleanup fails
+// 		}
+// 	}
+
+// 	// Step 4: Add access token to revocation list (if provided)
+// 	if input.AccessToken != "" && s.redisClient != nil {
+// 		err := s.revokeAccessToken(ctx, input.AccessToken)
+// 		if err != nil {
+// 			s.logger.Warn("Failed to add access token to revocation list", map[string]interface{}{
+// 				"error": err.Error(),
+// 			})
+// 		}
+// 	}
+
+// 	// Step 5: Log logout event for audit trail
+// 	if s.redisClient != nil {
+// 		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
+// 	}
+
+// 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
+// 		"userId":              input.UserID,
+// 		"sessionsInvalidated": sessionsInvalidated,
+// 		"tokenRevoked":        tokenRevoked,
+// 		"logoutAll":           input.LogoutAll,
+// 	})
+
+// 	return &Output{
+// 		Success:             true,
+// 		Message:             s.buildSuccessMessage(input.LogoutAll, sessionsInvalidated),
+// 		SessionsInvalidated: sessionsInvalidated,
+// 		TokenRevoked:        tokenRevoked,
+// 		LogoutAt:            time.Now(),
+// 	}, nil
+// }
 
 func (s *Service) validateInput(input *Input) error {
 	if input.UserID == "" {

@@ -286,6 +286,7 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		"logoutSuccess": output.Success,
 		"logoutMessage": output.Message,
 		"logoutAt":      output.LogoutAt.Format(time.RFC3339),
+		"logoutUrl":     output.LogoutURL,
 	}
 
 	if output.SessionsInvalidated > 0 {
@@ -487,6 +488,8 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			cfg.RedisPassword = appConfig.Database.Redis.Password
 			cfg.RedisDB = appConfig.Database.Redis.DB
 		}
+
+		
 	}
 
 	return cfg

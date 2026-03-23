@@ -18,6 +18,7 @@ auth:
     clientId: "frontend-app"
     redirectUrl: "http://localhost:3000/callback"
     publicBaseUrl: "http://localhost:8081"
+    post_logout_redirect_uri: "http://localhost:3000/login" 
   
   session:
     secure: false  # Allow HTTP in dev

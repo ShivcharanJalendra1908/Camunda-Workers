@@ -61,41 +61,96 @@ SELECT 'CREATE DATABASE camunda'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'camunda')\gexec
 
 -- ========================================
+-- EXTENSIONS
+-- ========================================
+CREATE EXTENSION IF NOT EXISTS citext;
+
+-- ========================================
 -- USERS TABLE
 -- ========================================
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255),
-    phone VARCHAR(20),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    CONSTRAINT chk_email_format 
-        CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+CREATE TABLE IF NOT EXISTS users (
+    id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email           citext      NOT NULL,
+    email_verified  boolean     NOT NULL DEFAULT false,
+    status          text        NOT NULL DEFAULT 'active',
+    name            varchar(255),
+    phone           varchar(20),
+    created_at      timestamptz NOT NULL DEFAULT NOW(),
+    updated_at      timestamptz NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT users_email_unique UNIQUE (email),
+    CONSTRAINT chk_email_format
+        CHECK (email::text ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_users_email ON users(email);
-
 COMMENT ON TABLE users IS 'Platform users - franchise seekers, franchisors, and admins';
 
+-- ========================================
+-- IDENTITIES TABLE
+-- ========================================
 CREATE TABLE IF NOT EXISTS identities (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider text NOT NULL,
-    provider_user_id text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    id               uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          uuid  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider         text  NOT NULL,
+    provider_user_id text  NOT NULL,
+    created_at       timestamptz NOT NULL DEFAULT NOW(),
+    updated_at       timestamptz NOT NULL DEFAULT NOW(),
+
     CONSTRAINT identities_provider_unique
         UNIQUE (provider, provider_user_id)
 );
 
-CREATE INDEX IF NOT EXISTS identities_user_id_idx
-ON identities (user_id);
+CREATE INDEX IF NOT EXISTS identities_user_id_idx ON identities(user_id);
+-- -- ========================================
+-- -- USERS TABLE
+-- -- ========================================
+-- CREATE TABLE users (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     email VARCHAR(255) UNIQUE NOT NULL,
+--     name VARCHAR(255),
+--     phone VARCHAR(20),
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+--     CONSTRAINT chk_email_format 
+--         CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+-- );
+
+-- CREATE TRIGGER update_users_updated_at
+--     BEFORE UPDATE ON users
+--     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- CREATE INDEX idx_users_email ON users(email);
+
+-- COMMENT ON TABLE users IS 'Platform users - franchise seekers, franchisors, and admins';
+
+-- CREATE TABLE IF NOT EXISTS identities (
+--     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+--     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+--     provider text NOT NULL,
+--     provider_user_id text NOT NULL,
+--     created_at timestamptz NOT NULL DEFAULT NOW(),
+--     updated_at timestamptz NOT NULL DEFAULT NOW(),
+--     CONSTRAINT identities_provider_unique
+--         UNIQUE (provider, provider_user_id)
+-- );
+
+-- CREATE INDEX IF NOT EXISTS identities_user_id_idx
+-- ON identities (user_id);
 
 -- ========================================
 -- IDEMPOTENCY KEYS TABLE

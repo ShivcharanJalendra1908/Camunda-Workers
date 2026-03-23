@@ -1019,6 +1019,7 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 	}
 }
 
+// Use below code for all data with industry_name, industry_slug, color_hex, icon_url, categories, sub_categories
 // func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
 // 	industries := h.extractArray(data, "industries")
 // 	if len(industries) == 0 {

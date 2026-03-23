@@ -68,6 +68,7 @@ auth:
     redirectUrl: "http://localhost:3000/callback"
     # publicBaseUrl: "http://keycloak:8180"
     publicBaseUrl: "http://localhost:8180" 
+    post_logout_redirect_uri: "http://localhost:3000/login" 
   
   # Session Configuration
   session:

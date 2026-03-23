@@ -29,6 +29,7 @@ type Output struct {
 	SessionsInvalidated int       `json:"sessionsInvalidated,omitempty"` // Number of sessions invalidated
 	TokenRevoked        bool      `json:"tokenRevoked,omitempty"`        // Whether Keycloak tokens were revoked
 	LogoutAt            time.Time `json:"logoutAt"`                      // Timestamp of logout
+	LogoutURL           string 
 }
 
 // ServiceDependencies contains all external dependencies for the service
