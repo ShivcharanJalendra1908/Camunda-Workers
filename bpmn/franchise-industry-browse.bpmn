@@ -15,7 +15,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;get_all_industries&#34;" target="queryType" />
           <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
-          <zeebe:output source="=queryResults" target="queryResults" />
+          <zeebe:output source="=data" target="queryResults" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-browse</incoming>
@@ -28,7 +28,7 @@
           <zeebe:input source="=&#34;search_industries&#34;" target="queryType" />
           <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
           <zeebe:input source="=search" target="search" />
-          <zeebe:output source="=queryResults" target="queryResults" />
+          <zeebe:output source="=data" target="queryResults" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-search</incoming>
