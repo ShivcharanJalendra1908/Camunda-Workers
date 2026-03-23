@@ -964,7 +964,7 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 }
 
 func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
-	industries := h.extractArray(data, "data")
+	industries := h.extractArray(data, "industries")
 	if len(industries) == 0 {
 		industries = []interface{}{}
 	}
