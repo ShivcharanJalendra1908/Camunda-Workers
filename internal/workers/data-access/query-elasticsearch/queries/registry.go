@@ -714,22 +714,24 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 
 	industrySlug, _ := params["industrySlug"].(string)
-	page, _ := params["page"].(int)
-	pageSize, _ := params["pageSize"].(int) // ← CHANGE 1: limit → pageSize
-
-	if page <= 0 {
-		page = 1
+	page := 1
+	if v, ok := params["page"].(float64); ok && v > 0 {
+		page = int(v)
+	} else if v, ok := params["page"].(int); ok && v > 0 {
+		page = v
 	}
-	if pageSize <= 0 {
-		pageSize = 10
-	} // ← CHANGE 1: limit → pageSize
+
+	pageSize := 10
+	if v, ok := params["pageSize"].(float64); ok && v > 0 {
+		pageSize = int(v)
+	} else if v, ok := params["pageSize"].(int); ok && v > 0 {
+		pageSize = v
+	}
 	if pageSize > 50 {
 		pageSize = 50
-	} // ← CHANGE 1: limit → pageSize
+	}
 
-	// ← REMOVE: round-to-3 logic poora hata do
-
-	from := (page - 1) * pageSize // ← CHANGE 1: limit → pageSize
+	from := (page - 1) * pageSize
 
 	query := map[string]interface{}{
 		"from":             from,

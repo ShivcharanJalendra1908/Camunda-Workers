@@ -227,16 +227,36 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 	}
 
 	// ✅ FIXED: Try exact match first, then partial match
+	// query := `
+	// 	SELECT id, name, slug, listing_description
+	// 	FROM industries
+	// 	WHERE (slug = $1 OR slug LIKE $1 || '%' OR $1 LIKE slug || '%')
+	// 	  AND is_active = true
+	// 	ORDER BY
+	// 	  CASE WHEN slug = $1 THEN 1 ELSE 2 END,
+	// 	  LENGTH(slug)
+	// 	LIMIT 1
+	// `
 	query := `
-		SELECT id, name, slug, listing_description
-		FROM industries
-		WHERE (slug = $1 OR slug LIKE $1 || '%' OR $1 LIKE slug || '%')
-		  AND is_active = true
-		ORDER BY 
-		  CASE WHEN slug = $1 THEN 1 ELSE 2 END,
-		  LENGTH(slug)
-		LIMIT 1
-	`
+    SELECT id, name, slug, listing_description
+    FROM industries
+    WHERE (
+        slug = $1                          -- exact: "food-beverage"
+        OR slug LIKE $1 || '%'             -- prefix: "food" → "food-beverage"
+        OR slug LIKE '%' || $1 || '%'      -- contains: "travel" → "hotel-travel-tourism"
+        OR $1 LIKE '%' || slug || '%'      -- reverse: slug inside input
+        OR name ILIKE '%' || $1 || '%'     -- name fuzzy: "hotels" → "Hotel, Travel & Tourism"
+    )
+    AND is_active = true
+    ORDER BY 
+        CASE WHEN slug = $1 THEN 1
+             WHEN slug LIKE $1 || '%' THEN 2
+             WHEN slug LIKE '%' || $1 || '%' THEN 3
+             ELSE 4
+        END,
+        LENGTH(slug)
+    LIMIT 1
+`
 
 	var id, name, industrySlug string
 	var description sql.NullString
@@ -708,8 +728,24 @@ func CategoryQuestionsByIndustry(
 		referenceID = v
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
 		// Lookup industry ID by slug
-		err := db.QueryRowContext(ctx,
-			"SELECT id FROM industries WHERE slug = $1 AND is_active = true", v,
+		// err := db.QueryRowContext(ctx,
+		// 	"SELECT id FROM industries WHERE slug = $1 AND is_active = true", v,
+		// ).Scan(&referenceID)
+		err := db.QueryRowContext(ctx, `
+    SELECT id FROM industries 
+    WHERE (
+        slug = $1 
+        OR slug LIKE $1 || '%'
+        OR slug LIKE '%' || $1 || '%'
+        OR name ILIKE '%' || $1 || '%'
+    )
+    AND is_active = true
+    ORDER BY
+        CASE WHEN slug = $1 THEN 1
+             WHEN slug LIKE $1 || '%' THEN 2
+             ELSE 3
+        END
+    LIMIT 1`, v,
 		).Scan(&referenceID)
 		if err != nil {
 			if err == sql.ErrNoRows {
