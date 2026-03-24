@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -18,7 +19,8 @@ import (
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/metrics"
 	"camunda-workers/internal/common/validation"
-"database/sql"
+	"database/sql"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -49,7 +51,7 @@ type HandlerOptions struct {
 	Logger       logger.Logger
 	CBManager    *circuitbreaker.Manager
 	RedisClient  *redis.Client
-	DB           *sql.DB 
+	DB           *sql.DB
 }
 
 func NewHandler(opts HandlerOptions) (*Handler, error) {
@@ -89,7 +91,7 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 		Keycloak:    handler.keycloak,
 		Logger:      loggerInstance,
 		RedisClient: opts.RedisClient,
-		DB:          opts.DB, 
+		DB:          opts.DB,
 	}, handler.config)
 
 	return handler, nil
@@ -489,7 +491,15 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			cfg.RedisDB = appConfig.Database.Redis.DB
 		}
 
-		
+		// ✅ Keycloak config — Issuer, ClientID, PostLogoutRedirectURI
+		if appConfig.Auth.Keycloak.URL != "" {
+			cfg.Issuer = fmt.Sprintf("%s/realms/%s",
+				strings.TrimSuffix(appConfig.Auth.Keycloak.URL, "/"),
+				appConfig.Auth.Keycloak.Realm,
+			)
+			cfg.ClientID = appConfig.Auth.Keycloak.ClientID
+			cfg.PostLogoutRedirectURI = appConfig.Auth.Keycloak.PostLogoutRedirectURI
+		}
 	}
 
 	return cfg

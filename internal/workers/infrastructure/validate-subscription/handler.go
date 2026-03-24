@@ -319,8 +319,8 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 		return nil, ErrSubscriptionInvalid
 	}
 
-	if sub.ExpiresAt != "" {
-		exp, parseErr := time.Parse(time.RFC3339, sub.ExpiresAt)
+	if sub.ExpiresAt.Valid && sub.ExpiresAt.String != "" {
+		exp, parseErr := time.Parse(time.RFC3339, sub.ExpiresAt.String)
 		if parseErr != nil {
 			h.logger.Debug("Failed to parse expiration date, skipping expiration check", map[string]interface{}{
 				"userId":    sub.UserID,

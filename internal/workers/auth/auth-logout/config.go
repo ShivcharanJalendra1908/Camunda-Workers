@@ -7,16 +7,16 @@ import (
 
 // Config defines the configuration for the auth logout worker
 type Config struct {
-	Enabled       bool          `mapstructure:"enabled"`
-	MaxJobsActive int           `mapstructure:"max_jobs_active"`
-	Timeout       time.Duration `mapstructure:"timeout"`
-	RedisHost     string        `mapstructure:"redis_host"`
-	RedisPort     int           `mapstructure:"redis_port"`
-	RedisPassword string        `mapstructure:"redis_password"`
-	RedisDB       int           `mapstructure:"redis_db"`
-	PostLogoutRedirectURI string  // e.g. "http://localhost:3000/login"
-ClientID              string
-Issuer                string  // e.g. "http://localhost:8180/realms/camunda-platform"
+	Enabled               bool          `mapstructure:"enabled"`
+	MaxJobsActive         int           `mapstructure:"max_jobs_active"`
+	Timeout               time.Duration `mapstructure:"timeout"`
+	RedisHost             string        `mapstructure:"redis_host"`
+	RedisPort             int           `mapstructure:"redis_port"`
+	RedisPassword         string        `mapstructure:"redis_password"`
+	RedisDB               int           `mapstructure:"redis_db"`
+	PostLogoutRedirectURI string        // e.g. "http://localhost:3000/login"
+	ClientID              string
+	Issuer                string // e.g. "http://localhost:8180/realms/camunda-platform"
 
 }
 

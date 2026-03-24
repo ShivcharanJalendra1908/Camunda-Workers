@@ -115,9 +115,20 @@ CREATE TABLE IF NOT EXISTS identities (
 );
 
 CREATE INDEX IF NOT EXISTS identities_user_id_idx ON identities(user_id);
--- -- ========================================
--- -- USERS TABLE
--- -- ========================================
+
+-- ========================================
+-- USERS SUBSCRIPTIONS TABLE
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tier VARCHAR(50) NOT NULL DEFAULT 'free',
+    is_valid BOOLEAN NOT NULL DEFAULT true,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_user_subscription UNIQUE (user_id, tier)
+);
 -- CREATE TABLE users (
 --     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 --     email VARCHAR(255) UNIQUE NOT NULL,
