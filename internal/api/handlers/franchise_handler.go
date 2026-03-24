@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"camunda-workers/internal/common/camunda"
@@ -174,7 +175,8 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
-	industrySlug := c.Query("industry")
+	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
+	// industrySlug := c.Query("industry")
 	// page := 1
 	// limit := 12
 	page := 1
@@ -206,6 +208,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		_ = models.FranchiseSearchFilters{
 			Query: searchQuery,
 			Page:  page,
+			Limit: pageSize,
 			// Limit:    limit,
 			Category: industrySlug,
 		}

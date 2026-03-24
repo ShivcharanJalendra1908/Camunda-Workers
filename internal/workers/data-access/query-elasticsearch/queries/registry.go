@@ -675,32 +675,30 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 
 //		return executeQuery(ctx, esClient, "franchise_listings", query)
 //	}
-func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client,
-	params map[string]interface{}) (*QueryResult, error) {
+func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 
 	industrySlug, _ := params["industrySlug"].(string)
 	page, _ := params["page"].(int)
-	pageSize, _ := params["pageSize"].(int) // ← "limit" → "pageSize"
+	pageSize, _ := params["pageSize"].(int) // ← CHANGE 1: limit → pageSize
 
-	// safety net only — actual value config se handler → BPMN → yahan aati hai
 	if page <= 0 {
 		page = 1
 	}
 	if pageSize <= 0 {
 		pageSize = 10
-	}
+	} // ← CHANGE 1: limit → pageSize
 	if pageSize > 50 {
 		pageSize = 50
-	}
+	} // ← CHANGE 1: limit → pageSize
 
 	// ← REMOVE: round-to-3 logic poora hata do
 
-	from := (page - 1) * pageSize
+	from := (page - 1) * pageSize // ← CHANGE 1: limit → pageSize
 
 	query := map[string]interface{}{
 		"from":             from,
-		"size":             pageSize,
-		"track_total_hits": true, // ← ADD — yeh nahi tha, totalCount ke liye must hai
+		"size":             pageSize, // ← CHANGE 1: limit → pageSize
+		"track_total_hits": true,     // ← CHANGE 2: naya add karo
 		"sort": []map[string]interface{}{
 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			{"_score": map[string]interface{}{"order": "desc"}},
@@ -712,7 +710,7 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client,
 			"match": map[string]interface{}{
 				"industry.slug": map[string]interface{}{
 					"query":    industrySlug,
-					"operator": "and",
+					"operator": "and", // ← same rakha, pehle se kaam kar raha tha
 				},
 			},
 		}
