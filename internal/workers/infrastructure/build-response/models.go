@@ -20,6 +20,10 @@ type Input struct {
 	KeyMarketInsights     []interface{} `json:"keyMarketInsights,omitempty"`
 	HeroDescription       string        `json:"heroDescription,omitempty"`
 
+	TotalCount float64 `json:"totalCount,omitempty"`
+	Page       float64 `json:"page,omitempty"`
+	PageSize   float64 `json:"pageSize,omitempty"`
+
 	// DETAIL PAGE FIELDS
 	BasicInfo         map[string]interface{} `json:"basicInfo,omitempty"`
 	Business          map[string]interface{} `json:"business,omitempty"`

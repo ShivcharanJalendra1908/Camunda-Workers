@@ -380,6 +380,10 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		combinedData["heroDescription"] = input.HeroDescription
 	}
 
+	combinedData["totalCount"] = input.TotalCount
+	combinedData["page"] = input.Page
+	combinedData["pageSize"] = input.PageSize
+
 	// ✅ HOME PAGE - Map home-specific fields
 	if len(input.HeroBrands) > 0 {
 		combinedData["heroBrands"] = input.HeroBrands
@@ -749,14 +753,45 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		}
 	}
 
-	if p, ok := data["page"].(float64); ok {
-		page = int(p)
+	// if p, ok := data["page"].(float64); ok {
+	// 	page = int(p)
+	// }
+	// if ps, ok := data["pageSize"].(float64); ok {
+	// 	pageSize = int(ps)
+	// }
+	// if tc, ok := data["totalCount"].(float64); ok {
+	// 	totalCount = int64(tc)
+	// }
+
+	switch v := data["page"].(type) {
+	case float64:
+		if v > 0 {
+			page = int(v)
+		}
+	case int:
+		if v > 0 {
+			page = v
+		}
 	}
-	if ps, ok := data["pageSize"].(float64); ok {
-		pageSize = int(ps)
+
+	switch v := data["pageSize"].(type) {
+	case float64:
+		if v > 0 {
+			pageSize = int(v)
+		}
+	case int:
+		if v > 0 {
+			pageSize = v
+		}
 	}
-	if tc, ok := data["totalCount"].(float64); ok {
-		totalCount = int64(tc)
+
+	switch v := data["totalCount"].(type) {
+	case float64:
+		totalCount = int64(v)
+	case int:
+		totalCount = int64(v)
+	case int64:
+		totalCount = v
 	}
 
 	totalPages := 0
