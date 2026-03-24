@@ -43,11 +43,29 @@ func createInput(userID, subscriptionTier string) *Input {
 	}
 }
 
+//	func createSubscription(userID, tier string, isValid bool, expiresAt string) *Subscription {
+//		return &Subscription{
+//			UserID:    userID,
+//			Tier:      tier,
+//			ExpiresAt: expiresAt,
+//			IsValid:   isValid,
+//		}
+//	}
+//
+// createSubscription returns a Subscription with proper sql.NullString for ExpiresAt
 func createSubscription(userID, tier string, isValid bool, expiresAt string) *Subscription {
+	expiresAtNull := sql.NullString{}
+	if expiresAt != "" {
+		expiresAtNull = sql.NullString{
+			String: expiresAt,
+			Valid:  true,
+		}
+	}
+
 	return &Subscription{
 		UserID:    userID,
 		Tier:      tier,
-		ExpiresAt: expiresAt,
+		ExpiresAt: expiresAtNull,
 		IsValid:   isValid,
 	}
 }

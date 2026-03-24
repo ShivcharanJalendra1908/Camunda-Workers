@@ -60,10 +60,10 @@ func NewHandler(config *Config, db *sql.DB, redis *redis.Client, log logger.Logg
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	// ✅ EXTRACT TRACE CONTEXT
 	ctx := context.Background()
-	
+
 	var traceID, parentSpanID string
 	var jobVars map[string]interface{}
-	
+
 	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
 		if tid, ok := jobVars["traceId"].(string); ok {
 			traceID = tid
@@ -72,7 +72,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			parentSpanID = psid
 		}
 	}
-	
+
 	// ✅ CREATE WORKER SPAN
 	tracer := otel.Tracer("worker-manager")
 	ctx, span := tracer.Start(ctx, "worker:"+TaskType,
@@ -86,7 +86,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		),
 	)
 	defer span.End()
-	
+
 	h.logger.Info("processing job", map[string]interface{}{
 		"jobKey":      job.Key,
 		"workflowKey": job.ProcessInstanceKey,
@@ -128,7 +128,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	if err != nil {
 		span.RecordError(err)
-		
+
 		var stdErr *appErrs.StandardError
 		if errors.Is(err, ErrSubscriptionInvalid) {
 			span.SetAttributes(attribute.Bool("subscription.invalid", true))
@@ -248,14 +248,14 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 
 	cacheKey := "sub:" + sanitizedUserID + ":" + sanitizedTier
-	
+
 	// Cache check with tracing
 	ctxCache, spanCache := otel.Tracer("worker-manager").Start(ctx, "validate-subscription.cacheCheck")
 	if val, err := h.redis.Get(ctxCache, cacheKey).Result(); err == nil {
 		var sub Subscription
 		if err := json.Unmarshal([]byte(val), &sub); err == nil {
 			spanCache.End()
-			
+
 			permissions := h.getPermissionsForTier(sub.Tier)
 			span := trace.SpanFromContext(ctx)
 			span.SetAttributes(
@@ -263,7 +263,7 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 				attribute.Bool("subscription.valid", sub.IsValid),
 				attribute.Bool("cache.hit", true),
 			)
-			
+
 			return &Output{
 				IsValid:     sub.IsValid,
 				TierLevel:   sub.Tier,
@@ -283,13 +283,13 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	err := h.db.QueryRowContext(ctxDB, query, sanitizedUserID, sanitizedTier).Scan(
 		&sub.UserID, &sub.Tier, &sub.ExpiresAt, &sub.IsValid,
 	)
-	
+
 	if err != nil {
 		spanDB.RecordError(err)
-		
+
 		if errors.Is(err, sql.ErrNoRows) {
 			spanDB.SetAttributes(attribute.Bool("no.rows", true))
-			
+
 			// Try without tier filter for backward compatibility
 			queryFallback := `SELECT user_id, tier, expires_at, is_valid FROM user_subscriptions WHERE user_id = $1`
 			errFallback := h.db.QueryRowContext(ctxDB, queryFallback, sanitizedUserID).Scan(
@@ -419,5 +419,3 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 	return h.execute(ctx, input)
 }
-
-
