@@ -268,7 +268,10 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 						},
 						map[string]interface{}{
 							"match": map[string]interface{}{
-								"industry.name": industrySlug,
+								"industry.name": map[string]interface{}{
+									"query":     industrySlug,
+									"fuzziness": "AUTO",
+								},
 							},
 						},
 						map[string]interface{}{
@@ -279,7 +282,40 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 										" ", "-")),
 							},
 						},
+						map[string]interface{}{
+							"wildcard": map[string]interface{}{
+								"industry.slug": map[string]interface{}{
+									"value": "*" + strings.ToLower(industrySlug) + "*",
+								},
+							},
+						},
+						map[string]interface{}{
+							"prefix": map[string]interface{}{
+								"industry.slug": strings.ToLower(industrySlug),
+							},
+						},
 					},
+					// "should": []interface{}{
+					// 	map[string]interface{}{
+					// 		"term": map[string]interface{}{
+					// 			"industry.name.keyword": industrySlug,
+					// 		},
+					// 	},
+					// 	map[string]interface{}{
+					// 		"match": map[string]interface{}{
+					// 			"industry.name": industrySlug,
+					// 		},
+					// 	},
+					// 	map[string]interface{}{
+					// 		"term": map[string]interface{}{
+					// 			"industry.slug": strings.ToLower(
+					// 				strings.ReplaceAll(
+					// 					strings.ReplaceAll(industrySlug, " & ", "-"),
+					// 					" ", "-")),
+					// 		},
+					// 	},
+					// },
+
 					"minimum_should_match": 1,
 				},
 			},
@@ -705,13 +741,51 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 		},
 	}
 
+	// if industrySlug != "" {
+	// 	query["query"] = map[string]interface{}{
+	// 		"match": map[string]interface{}{
+	// 			"industry.slug": map[string]interface{}{
+	// 				"query":    industrySlug,
+	// 				"operator": "and", // ← same rakha, pehle se kaam kar raha tha
+	// 			},
+	// 		},
+	// 	}
+	// } else {
+	// 	query["query"] = map[string]interface{}{
+	// 		"match_all": map[string]interface{}{},
+	// 	}
+	// }
 	if industrySlug != "" {
 		query["query"] = map[string]interface{}{
-			"match": map[string]interface{}{
-				"industry.slug": map[string]interface{}{
-					"query":    industrySlug,
-					"operator": "and", // ← same rakha, pehle se kaam kar raha tha
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{
+						"term": map[string]interface{}{
+							"industry.slug": industrySlug,
+						},
+					},
+					map[string]interface{}{
+						"prefix": map[string]interface{}{
+							"industry.slug": industrySlug,
+						},
+					},
+					map[string]interface{}{
+						"wildcard": map[string]interface{}{
+							"industry.slug": map[string]interface{}{
+								"value": "*" + industrySlug + "*",
+							},
+						},
+					},
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"industry.name": map[string]interface{}{
+								"query":     industrySlug,
+								"fuzziness": "AUTO",
+							},
+						},
+					},
 				},
+				"minimum_should_match": 1,
 			},
 		}
 	} else {
