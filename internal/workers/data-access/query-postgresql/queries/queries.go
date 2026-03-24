@@ -283,25 +283,24 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 }
 
 // FranchiseOverview - Get franchising overview for detail page
+
 func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	// franchiseID, ok := params["franchiseId"].(string)
-	// if !ok {
-	// 	return nil, 0, 0, ErrInvalidParams
-	// }
 	franchiseID, err := extractFranchiseID(params)
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
 	query := `
-SELECT 
+SELECT
 	f.contact_email,
 	f.parent_company,
 	f.business_type,
 	f.leader_name,
 	f.leader_role,
+	f.established_year,
+	f.units_count,
 	fc.city,
 	fir.franchise_fee,
 	fir.royalty_percentage,
@@ -325,6 +324,8 @@ WHERE f.id = $1
 	var (
 		email, parentCompany, businessType sql.NullString
 		leaderName, leaderRole, city       sql.NullString
+		establishedYear                    sql.NullInt32
+		unitsCount                         sql.NullInt32
 		franchiseFee, royaltyPercent       sql.NullFloat64
 		turnoverMin, turnoverMax           sql.NullFloat64
 		spaceMin, spaceMax                 sql.NullInt32
@@ -336,6 +337,8 @@ WHERE f.id = $1
 		&businessType,
 		&leaderName,
 		&leaderRole,
+		&establishedYear,
+		&unitsCount,
 		&city,
 		&franchiseFee,
 		&royaltyPercent,
@@ -369,6 +372,12 @@ WHERE f.id = $1
 	if leaderRole.Valid {
 		overview["leader_role"] = leaderRole.String
 	}
+	if establishedYear.Valid {
+		overview["established_year"] = establishedYear.Int32
+	}
+	if unitsCount.Valid {
+		overview["units_count"] = unitsCount.Int32
+	}
 	if city.Valid {
 		overview["city"] = city.String
 	}
@@ -393,6 +402,113 @@ WHERE f.id = $1
 
 	return overview, 1, time.Since(start).Milliseconds(), nil
 }
+
+// func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	franchiseID, err := extractFranchiseID(params)
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+
+// 	query := `
+// SELECT
+// 	f.contact_email,
+// 	f.parent_company,
+// 	f.business_type,
+// 	f.leader_name,
+// 	f.leader_role,
+// 	fc.city,
+// 	fir.franchise_fee,
+// 	fir.royalty_percentage,
+// 	fir.monthly_turnover_min,
+// 	fir.monthly_turnover_max,
+// 	fo.space_min_sqft,
+// 	fo.space_max_sqft
+// FROM franchises f
+// LEFT JOIN franchise_investment_requirement fir ON f.id = fir.franchise_id
+// LEFT JOIN franchise_operations fo ON f.id = fo.franchise_id
+// LEFT JOIN LATERAL (
+// 	SELECT city
+// 	FROM franchise_cities
+// 	WHERE franchise_id = f.id
+// 	ORDER BY created_at DESC
+// 	LIMIT 1
+// ) fc ON true
+// WHERE f.id = $1
+// 	`
+
+// 	var (
+// 		email, parentCompany, businessType sql.NullString
+// 		leaderName, leaderRole, city       sql.NullString
+// 		franchiseFee, royaltyPercent       sql.NullFloat64
+// 		turnoverMin, turnoverMax           sql.NullFloat64
+// 		spaceMin, spaceMax                 sql.NullInt32
+// 	)
+
+// 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
+// 		&email,
+// 		&parentCompany,
+// 		&businessType,
+// 		&leaderName,
+// 		&leaderRole,
+// 		&city,
+// 		&franchiseFee,
+// 		&royaltyPercent,
+// 		&turnoverMin,
+// 		&turnoverMax,
+// 		&spaceMin,
+// 		&spaceMax,
+// 	)
+
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return nil, 0, 0, ErrNotFound
+// 		}
+// 		return nil, 0, 0, err
+// 	}
+
+// 	overview := map[string]interface{}{}
+
+// 	if email.Valid {
+// 		overview["email"] = email.String
+// 	}
+// 	if parentCompany.Valid {
+// 		overview["parent_company"] = parentCompany.String
+// 	}
+// 	if businessType.Valid {
+// 		overview["business_type"] = businessType.String
+// 	}
+// 	if leaderName.Valid {
+// 		overview["leader_name"] = leaderName.String
+// 	}
+// 	if leaderRole.Valid {
+// 		overview["leader_role"] = leaderRole.String
+// 	}
+// 	if city.Valid {
+// 		overview["city"] = city.String
+// 	}
+// 	if franchiseFee.Valid {
+// 		overview["franchise_fee"] = franchiseFee.Float64
+// 	}
+// 	if royaltyPercent.Valid {
+// 		overview["royalty_percentage"] = royaltyPercent.Float64
+// 	}
+// 	if turnoverMin.Valid {
+// 		overview["monthly_turnover_min"] = turnoverMin.Float64
+// 	}
+// 	if turnoverMax.Valid {
+// 		overview["monthly_turnover_max"] = turnoverMax.Float64
+// 	}
+// 	if spaceMin.Valid {
+// 		overview["space_min_sqft"] = spaceMin.Int32
+// 	}
+// 	if spaceMax.Valid {
+// 		overview["space_max_sqft"] = spaceMax.Int32
+// 	}
+
+// 	return overview, 1, time.Since(start).Milliseconds(), nil
+// }
 
 // FranchiseBusiness - Get business overview (products/services)
 func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
@@ -440,11 +556,6 @@ func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interf
 func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	// franchiseID, ok := params["franchiseId"].(string)
-	// if !ok {
-	// 	return nil, 0, 0, ErrInvalidParams
-	// }
-
 	franchiseID, err := extractFranchiseID(params)
 	if err != nil {
 		return nil, 0, 0, err
@@ -457,6 +568,10 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 			franchise_fee,
 			royalty_percentage,
 			marketing_fee_percentage,
+			payback_min_months,
+			payback_max_months,
+			roi_min_percentage,
+			roi_max_percentage,
 			monthly_turnover_min,
 			monthly_turnover_max,
 			single_unit_cost_min,
@@ -468,6 +583,8 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 	var (
 		minInv, maxInv, franchiseFee sql.NullFloat64
 		royaltyPct, marketingPct     sql.NullFloat64
+		paybackMin, paybackMax       sql.NullInt32
+		roiMin, roiMax               sql.NullFloat64
 		turnoverMin, turnoverMax     sql.NullFloat64
 		unitCostMin, unitCostMax     sql.NullFloat64
 	)
@@ -478,6 +595,10 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 		&franchiseFee,
 		&royaltyPct,
 		&marketingPct,
+		&paybackMin,
+		&paybackMax,
+		&roiMin,
+		&roiMax,
 		&turnoverMin,
 		&turnoverMax,
 		&unitCostMin,
@@ -508,6 +629,18 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 	if marketingPct.Valid {
 		investment["marketing_fee_percentage"] = marketingPct.Float64
 	}
+	if paybackMin.Valid {
+		investment["payback_min_months"] = paybackMin.Int32
+	}
+	if paybackMax.Valid {
+		investment["payback_max_months"] = paybackMax.Int32
+	}
+	if roiMin.Valid {
+		investment["roi_min_percentage"] = roiMin.Float64
+	}
+	if roiMax.Valid {
+		investment["roi_max_percentage"] = roiMax.Float64
+	}
 	if turnoverMin.Valid {
 		investment["monthly_turnover_min"] = turnoverMin.Float64
 	}
@@ -523,6 +656,88 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 
 	return investment, 1, time.Since(start).Milliseconds(), nil
 }
+
+// func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	franchiseID, err := extractFranchiseID(params)
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+
+// 	query := `
+// 		SELECT
+// 			initial_investment_min,
+// 			initial_investment_max,
+// 			franchise_fee,
+// 			royalty_percentage,
+// 			marketing_fee_percentage,
+// 			monthly_turnover_min,
+// 			monthly_turnover_max,
+// 			single_unit_cost_min,
+// 			single_unit_cost_max
+// 		FROM franchise_investment_requirement
+// 		WHERE franchise_id = $1
+// 	`
+
+// 	var (
+// 		minInv, maxInv, franchiseFee sql.NullFloat64
+// 		royaltyPct, marketingPct     sql.NullFloat64
+// 		turnoverMin, turnoverMax     sql.NullFloat64
+// 		unitCostMin, unitCostMax     sql.NullFloat64
+// 	)
+
+// 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
+// 		&minInv,
+// 		&maxInv,
+// 		&franchiseFee,
+// 		&royaltyPct,
+// 		&marketingPct,
+// 		&turnoverMin,
+// 		&turnoverMax,
+// 		&unitCostMin,
+// 		&unitCostMax,
+// 	)
+
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return map[string]interface{}{}, 0, time.Since(start).Milliseconds(), nil
+// 		}
+// 		return nil, 0, 0, err
+// 	}
+
+// 	investment := map[string]interface{}{}
+
+// 	if minInv.Valid {
+// 		investment["initial_investment_min"] = minInv.Float64
+// 	}
+// 	if maxInv.Valid {
+// 		investment["initial_investment_max"] = maxInv.Float64
+// 	}
+// 	if franchiseFee.Valid {
+// 		investment["franchise_fee"] = franchiseFee.Float64
+// 	}
+// 	if royaltyPct.Valid {
+// 		investment["royalty_percentage"] = royaltyPct.Float64
+// 	}
+// 	if marketingPct.Valid {
+// 		investment["marketing_fee_percentage"] = marketingPct.Float64
+// 	}
+// 	if turnoverMin.Valid {
+// 		investment["monthly_turnover_min"] = turnoverMin.Float64
+// 	}
+// 	if turnoverMax.Valid {
+// 		investment["monthly_turnover_max"] = turnoverMax.Float64
+// 	}
+// 	if unitCostMin.Valid {
+// 		investment["single_unit_cost_min"] = unitCostMin.Float64
+// 	}
+// 	if unitCostMax.Valid {
+// 		investment["single_unit_cost_max"] = unitCostMax.Float64
+// 	}
+
+// 	return investment, 1, time.Since(start).Milliseconds(), nil
+// }
 
 // FranchiseOperations - Get operations details
 func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {

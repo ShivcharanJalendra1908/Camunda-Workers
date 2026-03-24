@@ -1176,9 +1176,83 @@ func (h *Handler) buildSocialMediaStructure(socialLinks []interface{}) map[strin
 	return result
 }
 
+// func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicInfo map[string]interface{}) map[string]interface{} {
+// 	result := map[string]interface{}{}
+
+// 	minInv := getFloatValue(investment, "initial_investment_min")
+// 	maxInv := getFloatValue(investment, "initial_investment_max")
+// 	if minInv > 0 || maxInv > 0 {
+// 		result["initial_investment"] = map[string]interface{}{
+// 			"min":  minInv,
+// 			"max":  maxInv,
+// 			"unit": "INR",
+// 		}
+// 	}
+
+// 	// ✅ DEFENSIVE: Check overview, then basicInfo for total_outlets
+// 	if units, ok := overview["total_outlets"].(float64); ok {
+// 		result["number_of_units"] = int(units)
+// 	} else if units, ok := basicInfo["total_outlets"].(float64); ok {
+// 		result["number_of_units"] = int(units)
+// 	} else if units, ok := basicInfo["no_of_outlets"].(float64); ok {
+// 		result["number_of_units"] = int(units)
+// 	}
+
+// 	minSpace := getFloatValue(overview, "space_min_sqft")
+// 	maxSpace := getFloatValue(overview, "space_max_sqft")
+// 	if minSpace > 0 || maxSpace > 0 {
+// 		result["space_requirement"] = map[string]interface{}{
+// 			"min":  minSpace,
+// 			"max":  maxSpace,
+// 			"unit": "sq. ft.",
+// 		}
+// 	}
+
+// 	if parentCompany, ok := overview["parent_company"].(string); ok && parentCompany != "" {
+// 		result["parent_company"] = parentCompany
+// 	}
+
+// 	if businessType, ok := overview["business_type"].(string); ok && businessType != "" {
+// 		result["business_type"] = businessType
+// 	}
+
+// 	if leader, ok := overview["leader_name"].(string); ok && leader != "" {
+// 		result["leadership"] = leader
+// 	}
+
+// 	if email, ok := overview["email"].(string); ok && email != "" {
+// 		result["email"] = email
+// 	}
+
+// 	fee := getFloatValue(overview, "franchise_fee")
+// 	if fee == 0 {
+// 		fee = getFloatValue(investment, "franchise_fee")
+// 	}
+// 	if fee > 0 {
+// 		result["franchise_fees"] = map[string]interface{}{
+// 			"min":   fee,
+// 			"max":   fee,
+// 			"unit":  "INR",
+// 			"notes": "",
+// 		}
+// 	}
+
+// 	if yearFounded, ok := overview["year_founded"].(float64); ok {
+// 		result["year_founded"] = int(yearFounded)
+// 	}
+
+// 	if hq, ok := overview["headquarters"].(string); ok && hq != "" {
+// 		result["headquarters"] = hq
+// 	} else if city, ok := overview["city"].(string); ok && city != "" {
+// 		result["headquarters"] = city
+// 	}
+
+//		return result
+//	}
 func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicInfo map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 
+	// Initial investment
 	minInv := getFloatValue(investment, "initial_investment_min")
 	maxInv := getFloatValue(investment, "initial_investment_max")
 	if minInv > 0 || maxInv > 0 {
@@ -1189,15 +1263,32 @@ func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicI
 		}
 	}
 
-	// ✅ DEFENSIVE: Check overview, then basicInfo for total_outlets
-	if units, ok := overview["total_outlets"].(float64); ok {
-		result["number_of_units"] = int(units)
-	} else if units, ok := basicInfo["total_outlets"].(float64); ok {
-		result["number_of_units"] = int(units)
-	} else if units, ok := basicInfo["no_of_outlets"].(float64); ok {
-		result["number_of_units"] = int(units)
+	// Units count — with "as of year" context
+	unitsCount := 0
+	if u, ok := overview["units_count"].(float64); ok {
+		unitsCount = int(u)
+	} else if u, ok := overview["units_count"].(int32); ok {
+		unitsCount = int(u)
+	} else if u, ok := basicInfo["total_outlets"].(float64); ok {
+		unitsCount = int(u)
+	} else if u, ok := basicInfo["no_of_outlets"].(float64); ok {
+		unitsCount = int(u)
 	}
 
+	if unitsCount > 0 {
+		unitsData := map[string]interface{}{
+			"count": unitsCount,
+		}
+		// FIX: attach established_year so frontend can render "X units as of 20XX"
+		if year, ok := overview["established_year"].(int32); ok && year > 0 {
+			unitsData["as_of_year"] = year
+		} else if year, ok := overview["established_year"].(float64); ok && year > 0 {
+			unitsData["as_of_year"] = int(year)
+		}
+		result["number_of_units"] = unitsData
+	}
+
+	// Space requirement
 	minSpace := getFloatValue(overview, "space_min_sqft")
 	maxSpace := getFloatValue(overview, "space_max_sqft")
 	if minSpace > 0 || maxSpace > 0 {
@@ -1208,22 +1299,33 @@ func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicI
 		}
 	}
 
+	// Parent company
 	if parentCompany, ok := overview["parent_company"].(string); ok && parentCompany != "" {
 		result["parent_company"] = parentCompany
 	}
 
+	// Business type
 	if businessType, ok := overview["business_type"].(string); ok && businessType != "" {
 		result["business_type"] = businessType
 	}
 
-	if leader, ok := overview["leader_name"].(string); ok && leader != "" {
-		result["leadership"] = leader
+	// FIX: leader_name + leader_role together
+	if leaderName, ok := overview["leader_name"].(string); ok && leaderName != "" {
+		leaderData := map[string]interface{}{
+			"name": leaderName,
+		}
+		if leaderRole, ok := overview["leader_role"].(string); ok && leaderRole != "" {
+			leaderData["role"] = leaderRole
+		}
+		result["leadership"] = leaderData
 	}
 
+	// Email
 	if email, ok := overview["email"].(string); ok && email != "" {
 		result["email"] = email
 	}
 
+	// Franchise fee
 	fee := getFloatValue(overview, "franchise_fee")
 	if fee == 0 {
 		fee = getFloatValue(investment, "franchise_fee")
@@ -1237,10 +1339,39 @@ func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicI
 		}
 	}
 
-	if yearFounded, ok := overview["year_founded"].(float64); ok {
-		result["year_founded"] = int(yearFounded)
+	// FIX: royalty percentage
+	royalty := getFloatValue(overview, "royalty_percentage")
+	if royalty == 0 {
+		royalty = getFloatValue(investment, "royalty_percentage")
+	}
+	if royalty > 0 {
+		result["royalty_percentage"] = royalty
 	}
 
+	// FIX: marketing fee percentage
+	marketingFee := getFloatValue(investment, "marketing_fee_percentage")
+	if marketingFee > 0 {
+		result["marketing_fee_percentage"] = marketingFee
+	}
+
+	// FIX: monthly turnover range
+	turnoverMin := getFloatValue(overview, "monthly_turnover_min")
+	turnoverMax := getFloatValue(overview, "monthly_turnover_max")
+	if turnoverMin == 0 {
+		turnoverMin = getFloatValue(investment, "monthly_turnover_min")
+	}
+	if turnoverMax == 0 {
+		turnoverMax = getFloatValue(investment, "monthly_turnover_max")
+	}
+	if turnoverMin > 0 || turnoverMax > 0 {
+		result["monthly_turnover"] = map[string]interface{}{
+			"min":  turnoverMin,
+			"max":  turnoverMax,
+			"unit": "INR",
+		}
+	}
+
+	// Headquarters
 	if hq, ok := overview["headquarters"].(string); ok && hq != "" {
 		result["headquarters"] = hq
 	} else if city, ok := overview["city"].(string); ok && city != "" {
@@ -1288,9 +1419,55 @@ func (h *Handler) buildBusinessOverviewStructure(business, operations map[string
 	return result
 }
 
+// func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[string]interface{}) map[string]interface{} {
+// 	result := map[string]interface{}{}
+
+// 	minInv := getFloatValue(investment, "initial_investment_min")
+// 	maxInv := getFloatValue(investment, "initial_investment_max")
+// 	if minInv > 0 || maxInv > 0 {
+// 		result["initial_investment"] = map[string]interface{}{
+// 			"min":   minInv / 100000,
+// 			"max":   maxInv / 100000,
+// 			"unit":  "Lakhs",
+// 			"notes": "",
+// 		}
+// 	}
+
+// 	result["investment_breakdown"] = []string{
+// 		"Franchise Fee",
+// 		"Equipment & Fixtures",
+// 		"Initial Inventory",
+// 		"Marketing & Promotion",
+// 		"Working Capital",
+// 	}
+
+// 	fee := getFloatValue(investment, "franchise_fee")
+// 	if fee > 0 {
+// 		result["franchise_fee"] = map[string]interface{}{
+// 			"min":  fee / 100000,
+// 			"max":  fee / 100000,
+// 			"unit": "Lakhs",
+// 		}
+// 	}
+
+// 	result["required_property_location"] = []string{"Commercial", "High Street", "Mall"}
+
+// 	minSpace := getFloatValue(operations, "space_min_sqft")
+// 	maxSpace := getFloatValue(operations, "space_max_sqft")
+// 	if minSpace > 0 || maxSpace > 0 {
+// 		result["floor_area"] = map[string]interface{}{
+// 			"min":  minSpace,
+// 			"max":  maxSpace,
+// 			"unit": "sq. ft.",
+// 		}
+// 	}
+
+//		return result
+//	}
 func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 
+	// Initial investment (in Lakhs)
 	minInv := getFloatValue(investment, "initial_investment_min")
 	maxInv := getFloatValue(investment, "initial_investment_max")
 	if minInv > 0 || maxInv > 0 {
@@ -1310,6 +1487,7 @@ func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[str
 		"Working Capital",
 	}
 
+	// Franchise fee
 	fee := getFloatValue(investment, "franchise_fee")
 	if fee > 0 {
 		result["franchise_fee"] = map[string]interface{}{
@@ -1319,8 +1497,54 @@ func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[str
 		}
 	}
 
+	// FIX: royalty percentage
+	royalty := getFloatValue(investment, "royalty_percentage")
+	if royalty > 0 {
+		result["royalty_percentage"] = royalty
+	}
+
+	// FIX: marketing fee percentage
+	marketingFee := getFloatValue(investment, "marketing_fee_percentage")
+	if marketingFee > 0 {
+		result["marketing_fee_percentage"] = marketingFee
+	}
+
+	// FIX: payback period
+	paybackMin := getFloatValue(investment, "payback_min_months")
+	paybackMax := getFloatValue(investment, "payback_max_months")
+	if paybackMin > 0 || paybackMax > 0 {
+		result["payback_period"] = map[string]interface{}{
+			"min":  int(paybackMin),
+			"max":  int(paybackMax),
+			"unit": "months",
+		}
+	}
+
+	// FIX: ROI range
+	roiMin := getFloatValue(investment, "roi_min_percentage")
+	roiMax := getFloatValue(investment, "roi_max_percentage")
+	if roiMin > 0 || roiMax > 0 {
+		result["roi"] = map[string]interface{}{
+			"min":  roiMin,
+			"max":  roiMax,
+			"unit": "%",
+		}
+	}
+
+	// FIX: monthly turnover range
+	turnoverMin := getFloatValue(investment, "monthly_turnover_min")
+	turnoverMax := getFloatValue(investment, "monthly_turnover_max")
+	if turnoverMin > 0 || turnoverMax > 0 {
+		result["monthly_turnover"] = map[string]interface{}{
+			"min":  turnoverMin,
+			"max":  turnoverMax,
+			"unit": "INR",
+		}
+	}
+
 	result["required_property_location"] = []string{"Commercial", "High Street", "Mall"}
 
+	// Floor area from operations
 	minSpace := getFloatValue(operations, "space_min_sqft")
 	maxSpace := getFloatValue(operations, "space_max_sqft")
 	if minSpace > 0 || maxSpace > 0 {
