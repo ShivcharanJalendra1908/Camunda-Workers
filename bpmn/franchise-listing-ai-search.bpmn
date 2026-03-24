@@ -71,12 +71,12 @@
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=&#34;listing&#34;" target="pageType" />
           <zeebe:input source="=franchises" target="franchiseListings" />
-          <zeebe:input source="=totalResults" target="totalResults" />
+          <zeebe:input source="=totalResults" target="totalCount" />
           <zeebe:input source="=categories" target="featuredCategories" />
           <zeebe:input source="=recommended" target="recommendedFranchises" />
           <zeebe:input source="=filters" target="searchParams" />
           <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=limit" target="limit" />
+          <zeebe:input source="=limit" target="pageSize" />
           <zeebe:output source="=response" target="finalResponse" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

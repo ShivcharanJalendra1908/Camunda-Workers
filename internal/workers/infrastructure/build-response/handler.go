@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -1288,6 +1289,12 @@ func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicI
 		result["number_of_units"] = unitsData
 	}
 
+	if unitsCount == 0 {
+		if u, ok := basicInfo["no_of_outlets"].(float64); ok && u > 0 {
+			unitsCount = int(u)
+		}
+	}
+
 	// Space requirement
 	minSpace := getFloatValue(overview, "space_min_sqft")
 	maxSpace := getFloatValue(overview, "space_max_sqft")
@@ -1296,6 +1303,17 @@ func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicI
 			"min":  minSpace,
 			"max":  maxSpace,
 			"unit": "sq. ft.",
+		}
+	}
+
+	if minSpace == 0 && maxSpace == 0 {
+		if space, ok := basicInfo["space"].(map[string]interface{}); ok {
+			if v, err := strconv.ParseFloat(fmt.Sprintf("%v", space["minSpace"]), 64); err == nil {
+				minSpace = v
+			}
+			if v, err := strconv.ParseFloat(fmt.Sprintf("%v", space["maxSpace"]), 64); err == nil {
+				maxSpace = v
+			}
 		}
 	}
 

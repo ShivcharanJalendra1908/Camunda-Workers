@@ -64,13 +64,26 @@ func extractFranchiseID(params map[string]interface{}) (string, error) {
 func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
+	// query := `
+	// 	SELECT id, name, slug, icon_url
+	// 	FROM industries
+	// 	WHERE is_active = true
+	// 	ORDER BY display_order
+	// 	LIMIT 9
+	// `
 	query := `
-		SELECT id, name, slug, icon_url
-		FROM industries
-		WHERE is_active = true
-		ORDER BY display_order
-		LIMIT 9
-	`
+    SELECT i.id, i.name, i.slug, i.icon_url
+    FROM industries i
+    INNER JOIN (
+        SELECT industry_id, COUNT(*) as franchise_count
+        FROM franchises
+        WHERE is_active = true
+        GROUP BY industry_id
+    ) f ON f.industry_id = i.id
+    WHERE i.is_active = true
+    ORDER BY f.franchise_count DESC
+    LIMIT 10
+    `
 
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
