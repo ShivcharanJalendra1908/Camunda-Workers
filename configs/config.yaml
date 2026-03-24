@@ -646,5 +646,5 @@ error_handling:
 # PAGINATION CONFIGURATION  
 # ============================================================================
 pagination:
-  default_page_size: 12    # ← yahan 6 likho → poora system 6 cards dikhayega
+  default_page_size: 6    # ← yahan 6 likho → poora system 6 cards dikhayega
   max_page_size: 50
