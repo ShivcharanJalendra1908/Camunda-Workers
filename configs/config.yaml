@@ -647,4 +647,4 @@ error_handling:
 # ============================================================================
 pagination:
   default_page_size: 9    # ← yahan 9 likho → poora system 9 cards dikhayega
-  max_page_size: 50
+  max_page_size: 90

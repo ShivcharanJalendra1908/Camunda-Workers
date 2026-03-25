@@ -659,7 +659,11 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 	}
 
 	from := 0
-	if limit > 0 {
+	if v, ok := params["offset"].(float64); ok && v >= 0 {
+		from = int(v)
+	} else if v, ok := params["offset"].(int); ok && v >= 0 {
+		from = v
+	} else if limit > 0 {
 		from = (page - 1) * limit
 	}
 
@@ -754,7 +758,11 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 	}
 
 	from := 0
-	if pageSize > 0 {
+	if v, ok := params["offset"].(float64); ok && v >= 0 {
+		from = int(v)
+	} else if v, ok := params["offset"].(int); ok && v >= 0 {
+		from = v
+	} else if pageSize > 0 {
 		from = (page - 1) * pageSize
 	}
 	// pageSize := 10

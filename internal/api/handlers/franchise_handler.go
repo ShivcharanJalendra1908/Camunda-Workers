@@ -365,6 +365,7 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		},
 		"page":       filters.Page,
 		"limit":      filters.Limit,
+		"offset":     (filters.Page - 1) * filters.Limit,
 		"userId":     c.GetString("userId"),
 		"searchType": "advanced",
 		"traceId":    c.GetString("traceId"),
