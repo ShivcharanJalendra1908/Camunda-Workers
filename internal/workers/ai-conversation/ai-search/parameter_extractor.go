@@ -18,8 +18,17 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 // BuildPrompt - Modelfile mein TEMPLATE + SYSTEM already set hai
 // Ollama automatically ChatML wrap karta hai jab /api/generate call hoti hai
 // Isliye sirf plain query bhejna hai — server.py bhi yahi karta tha internally
+//
+//	func (pe *ParameterExtractor) BuildPrompt(query string) string {
+//		return query
+//	}
 func (pe *ParameterExtractor) BuildPrompt(query string) string {
-	return query
+	q := strings.TrimSpace(query)
+	// Single word hai toh franchise context add karo
+	if len(strings.Fields(q)) == 1 {
+		return q + " franchise"
+	}
+	return q
 }
 
 // ftModelOutput - Fine-tuned model ka exact output schema (notebook se)
