@@ -245,16 +245,19 @@ func (h *Handler) validateIndustryBySlug(input *Input) error {
 }
 
 // ✅ FIXED: Accept either industrySlug or industryId
+// func (h *Handler) validateCategoryQuestions(input *Input) error {
+// 	hasSlug := input.IndustrySlug != "" ||
+// 		(input.Filters != nil && input.Filters["industrySlug"] != nil)
+// 	hasId := input.IndustryID != "" ||
+// 		(input.Filters != nil && input.Filters["industryId"] != nil)
+
+// 	if !hasSlug && !hasId {
+// 		return appErrs.NewRequiredFieldError("industrySlug or industryId")
+// 	}
+
+//		return nil
+//	}
 func (h *Handler) validateCategoryQuestions(input *Input) error {
-	hasSlug := input.IndustrySlug != "" ||
-		(input.Filters != nil && input.Filters["industrySlug"] != nil)
-	hasId := input.IndustryID != "" ||
-		(input.Filters != nil && input.Filters["industryId"] != nil)
-
-	if !hasSlug && !hasId {
-		return appErrs.NewRequiredFieldError("industrySlug or industryId")
-	}
-
 	return nil
 }
 
