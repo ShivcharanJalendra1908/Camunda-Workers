@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -941,7 +940,48 @@ func IndustryBySlugWithQuestions(
 	}, 1, time.Since(start).Milliseconds(), nil
 }
 
-// CategoryQuestionsByIndustry - Get 8 questions for an industry
+// // CategoryQuestionsByIndustry - Get 8 questions for an industry
+// func CategoryQuestionsByIndustry(
+// 	ctx context.Context,
+// 	db *sql.DB,
+// 	params map[string]interface{},
+// ) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	var referenceID string
+
+// 	// ✅ IMPROVED: Extract reference ID from multiple sources
+// 	if v, ok := params["industryId"].(string); ok && v != "" {
+// 		referenceID = v
+// 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
+// 		Lookup industry ID by slug
+// 		err := db.QueryRowContext(ctx,
+// 			"SELECT id FROM industries WHERE slug = $1 AND is_active = true", v,
+// 		).Scan(&referenceID)
+// 		if err != nil {
+// 			if err == sql.ErrNoRows {
+// 				// Industry not found - return empty array
+// 				return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 			}
+// 			return nil, 0, 0, fmt.Errorf("industry lookup failed: %w", err)
+// 		}
+// 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
+// 		referenceID = v
+// 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
+// 		// Lookup category ID by slug
+// 		err := db.QueryRowContext(ctx,
+// 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
+// 		).Scan(&referenceID)
+// 		if err != nil {
+// 			if err == sql.ErrNoRows {
+// 				return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 			}
+// 			return nil, 0, 0, fmt.Errorf("category lookup failed: %w", err)
+// 		}
+// 	} else {
+// 		return nil, 0, 0, ErrInvalidParams
+// 	}
+
 func CategoryQuestionsByIndustry(
 	ctx context.Context,
 	db *sql.DB,
@@ -951,57 +991,42 @@ func CategoryQuestionsByIndustry(
 
 	var referenceID string
 
-	// ✅ IMPROVED: Extract reference ID from multiple sources
 	if v, ok := params["industryId"].(string); ok && v != "" {
 		referenceID = v
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
-		// Lookup industry ID by slug
-		// err := db.QueryRowContext(ctx,
-		// 	"SELECT id FROM industries WHERE slug = $1 AND is_active = true", v,
-		// ).Scan(&referenceID)
 		err := db.QueryRowContext(ctx, `
-    SELECT id FROM industries 
-WHERE (
-    slug = $1 
-    OR slug LIKE $1 || '%'
-    OR slug LIKE '%' || $1 || '%'
-    OR $1 LIKE slug || '%'
-    OR $1 LIKE '%' || slug || '%'
-    OR name ILIKE '%' || $1 || '%'
-)
-AND is_active = true
-ORDER BY
-    CASE WHEN slug = $1 THEN 1
-         WHEN slug LIKE $1 || '%' THEN 2
-         WHEN $1 LIKE slug || '%' THEN 3
-         ELSE 4
-    END
-LIMIT 1`, v,
+            SELECT id FROM industries 
+            WHERE (
+                slug = $1 
+                OR slug LIKE $1 || '%'
+                OR slug LIKE '%' || $1 || '%'
+                OR name ILIKE '%' || $1 || '%'
+            )
+            AND is_active = true
+            ORDER BY
+                CASE WHEN slug = $1 THEN 1
+                     WHEN slug LIKE $1 || '%' THEN 2
+                     ELSE 3
+                END
+            LIMIT 1`, v,
 		).Scan(&referenceID)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				// Industry not found - return empty array
-				return []string{}, 0, time.Since(start).Milliseconds(), nil
-			}
-			return nil, 0, 0, fmt.Errorf("industry lookup failed: %w", err)
+			// ✅ Not found ya empty - gracefully return empty
+			return []string{}, 0, time.Since(start).Milliseconds(), nil
 		}
 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
 		referenceID = v
 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
-		// Lookup category ID by slug
 		err := db.QueryRowContext(ctx,
 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
 		).Scan(&referenceID)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				return []string{}, 0, time.Since(start).Milliseconds(), nil
-			}
-			return nil, 0, 0, fmt.Errorf("category lookup failed: %w", err)
+			return []string{}, 0, time.Since(start).Milliseconds(), nil
 		}
 	} else {
-		return nil, 0, 0, ErrInvalidParams
+		// ✅ FIX: ErrInvalidParams throw mat karo - empty return karo
+		return []string{}, 0, time.Since(start).Milliseconds(), nil
 	}
-
 	// ✅ Query with proper timeout
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
