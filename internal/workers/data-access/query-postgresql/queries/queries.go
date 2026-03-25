@@ -961,19 +961,22 @@ func CategoryQuestionsByIndustry(
 		// ).Scan(&referenceID)
 		err := db.QueryRowContext(ctx, `
     SELECT id FROM industries 
-    WHERE (
-        slug = $1 
-        OR slug LIKE $1 || '%'
-        OR slug LIKE '%' || $1 || '%'
-        OR name ILIKE '%' || $1 || '%'
-    )
-    AND is_active = true
-    ORDER BY
-        CASE WHEN slug = $1 THEN 1
-             WHEN slug LIKE $1 || '%' THEN 2
-             ELSE 3
-        END
-    LIMIT 1`, v,
+WHERE (
+    slug = $1 
+    OR slug LIKE $1 || '%'
+    OR slug LIKE '%' || $1 || '%'
+    OR $1 LIKE slug || '%'
+    OR $1 LIKE '%' || slug || '%'
+    OR name ILIKE '%' || $1 || '%'
+)
+AND is_active = true
+ORDER BY
+    CASE WHEN slug = $1 THEN 1
+         WHEN slug LIKE $1 || '%' THEN 2
+         WHEN $1 LIKE slug || '%' THEN 3
+         ELSE 4
+    END
+LIMIT 1`, v,
 		).Scan(&referenceID)
 		if err != nil {
 			if err == sql.ErrNoRows {

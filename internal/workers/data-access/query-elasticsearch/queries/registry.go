@@ -506,14 +506,37 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			},
 			"size": 1,
 		}
+		// } else if hasSlug && industrySlug != "" {
+		// 	query = map[string]interface{}{
+		// 		"query": map[string]interface{}{
+		// 			"match": map[string]interface{}{
+		// 				"industry_slug": map[string]interface{}{
+		// 					"query":    industrySlug,
+		// 					"operator": "and",
+		// 				},
+		// 			},
+		// 		},
+		// 		"size": 1,
+		// 	}
 	} else if hasSlug && industrySlug != "" {
+		slugPrefix := strings.Split(industrySlug, "-")[0]
+
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
-				"match": map[string]interface{}{
-					"industry_slug": map[string]interface{}{
-						"query":    industrySlug,
-						"operator": "and",
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						map[string]interface{}{
+							"term": map[string]interface{}{
+								"industry_slug": industrySlug,
+							},
+						},
+						map[string]interface{}{
+							"prefix": map[string]interface{}{
+								"industry_slug": slugPrefix,
+							},
+						},
 					},
+					"minimum_should_match": 1,
 				},
 			},
 			"size": 1,
