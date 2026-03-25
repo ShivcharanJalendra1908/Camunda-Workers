@@ -26,6 +26,7 @@
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
           <zeebe:output source="=data" target="franchises" />
+          <zeebe:input source="=(page - 1) * limit" target="offset" />
           <zeebe:output source="=total" target="totalResults" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

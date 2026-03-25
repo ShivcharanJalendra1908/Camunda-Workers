@@ -625,22 +625,43 @@ func getStringOrDefault(data map[string]interface{}, key string, defaultVal stri
 }
 
 // SearchWithFilters - Advanced search with filters
+// func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+// 	filters, _ := params["filters"].(map[string]interface{})
+// 	page, _ := params["page"].(int)
+// 	limit, _ := params["limit"].(int)
+
+// 	if page <= 0 {
+// 		page = 1
+// 	}
+// 	if limit <= 0 {
+// 		limit = 12
+// 	}
+// 	if limit > 100 {
+// 		limit = 100
+// 	}
+
+// from := (page - 1) * limit
 func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	filters, _ := params["filters"].(map[string]interface{})
-	page, _ := params["page"].(int)
-	limit, _ := params["limit"].(int)
 
-	if page <= 0 {
-		page = 1
-	}
-	if limit <= 0 {
-		limit = 12
-	}
-	if limit > 100 {
-		limit = 100
+	page := 1
+	if v, ok := params["page"].(float64); ok && v > 0 {
+		page = int(v)
+	} else if v, ok := params["page"].(int); ok && v > 0 {
+		page = v
 	}
 
-	from := (page - 1) * limit
+	limit := 0
+	if v, ok := params["limit"].(float64); ok && v > 0 {
+		limit = int(v)
+	} else if v, ok := params["limit"].(int); ok && v > 0 {
+		limit = v
+	}
+
+	from := 0
+	if limit > 0 {
+		from = (page - 1) * limit
+	}
 
 	// Build query
 	query := buildSearchQuery(filters)
@@ -721,17 +742,32 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 		page = v
 	}
 
-	pageSize := 10
+	pageSize := 0
 	if v, ok := params["pageSize"].(float64); ok && v > 0 {
 		pageSize = int(v)
 	} else if v, ok := params["pageSize"].(int); ok && v > 0 {
 		pageSize = v
-	}
-	if pageSize > 50 {
-		pageSize = 50
+	} else if v, ok := params["limit"].(float64); ok && v > 0 {
+		pageSize = int(v)
+	} else if v, ok := params["limit"].(int); ok && v > 0 {
+		pageSize = v
 	}
 
-	from := (page - 1) * pageSize
+	from := 0
+	if pageSize > 0 {
+		from = (page - 1) * pageSize
+	}
+	// pageSize := 10
+	// if v, ok := params["pageSize"].(float64); ok && v > 0 {
+	// 	pageSize = int(v)
+	// } else if v, ok := params["pageSize"].(int); ok && v > 0 {
+	// 	pageSize = v
+	// }
+	// if pageSize > 50 {
+	// 	pageSize = 50
+	// }
+
+	// from := (page - 1) * pageSize
 
 	query := map[string]interface{}{
 		"from":             from,

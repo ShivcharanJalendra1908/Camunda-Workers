@@ -338,10 +338,10 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		filters.Page = 1
 	}
 	if filters.Limit <= 0 {
-		filters.Limit = 10
+		filters.Limit = h.paginationCfg.DefaultPageSize
 	}
-	if filters.Limit > 100 {
-		filters.Limit = 100
+	if filters.Limit > h.paginationCfg.MaxPageSize {
+		filters.Limit = h.paginationCfg.MaxPageSize
 	}
 
 	correlationKey := fmt.Sprintf("search_%s_%d",
