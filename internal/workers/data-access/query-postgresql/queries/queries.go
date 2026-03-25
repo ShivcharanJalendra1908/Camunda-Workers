@@ -75,10 +75,10 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
     SELECT i.id, i.name, i.slug, i.icon_url
     FROM industries i
     INNER JOIN (
-        SELECT industry_id, COUNT(*) as franchise_count
-        FROM franchises
-        WHERE is_active = true
-        GROUP BY industry_id
+        SELECT c.industry_id, COUNT(*) as franchise_count
+        FROM franchise_categories fc
+        INNER JOIN categories c ON fc.category_id = c.id
+        GROUP BY c.industry_id
     ) f ON f.industry_id = i.id
     WHERE i.is_active = true
     ORDER BY f.franchise_count DESC
