@@ -257,7 +257,7 @@ func (h *Handler) validateIndustryBySlug(input *Input) error {
 
 //		return nil
 //	}
-func (h *Handler) validateCategoryQuestions(input *Input) error {
+func (h *Handler) validateCategoryQuestions(_ *Input) error {
 	return nil
 }
 

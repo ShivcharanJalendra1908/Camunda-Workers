@@ -226,6 +226,18 @@ func (h *Handler) sanitizeInput(input *Input) {
 	if input.Category != "" {
 		input.Category = strings.TrimSpace(input.Category)
 	}
+	if input.Page > 0 && input.Pagination.Page == 0 {
+		input.Pagination.Page = input.Page
+	}
+	if input.PageSize > 0 && input.Pagination.Size == 0 {
+		input.Pagination.Size = input.PageSize
+	}
+	if input.Offset > 0 && input.Pagination.From == 0 {
+		input.Pagination.From = input.Offset
+	}
+	if input.Pagination.From == 0 && input.Pagination.Page > 0 && input.Pagination.Size > 0 {
+		input.Pagination.From = (input.Pagination.Page - 1) * input.Pagination.Size
+	}
 }
 
 // ===== COMPREHENSIVE VALIDATION =====
@@ -733,6 +745,16 @@ func (h *Handler) buildRegistryParams(input *Input) map[string]interface{} {
 			params["page"] = page
 			params["limit"] = input.Pagination.Size
 		}
+	}
+
+	if params["page"] == nil && input.Pagination.Page > 0 {
+		params["page"] = input.Pagination.Page
+	}
+	if params["pageSize"] == nil && input.Pagination.Size > 0 {
+		params["pageSize"] = input.Pagination.Size
+	}
+	if params["offset"] == nil && input.Pagination.From >= 0 {
+		params["offset"] = input.Pagination.From
 	}
 
 	return params

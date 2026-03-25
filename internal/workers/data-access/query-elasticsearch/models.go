@@ -30,6 +30,10 @@ type Input struct {
 	IndustrySlug string                 `json:"industrySlug"` // ✅ ADDED: For industry-specific queries
 	Pagination   Pagination             `json:"pagination"`
 
+	Page     int `json:"page,omitempty"`
+	PageSize int `json:"pageSize,omitempty"`
+	Offset   int `json:"offset,omitempty"`
+
 	// ✅ NEW: Timeout configuration per request
 	TimeoutMs int64 `json:"timeoutMs,omitempty"` // Request-specific timeout
 }

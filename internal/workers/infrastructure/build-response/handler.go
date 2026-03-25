@@ -800,6 +800,10 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		totalPages = int(math.Ceil(float64(totalCount) / float64(pageSize)))
 	}
 
+	if totalPages > 0 && page > totalPages {
+		page = totalPages
+	}
+
 	pagination := map[string]interface{}{
 		"page":        page,
 		"page_size":   pageSize,
