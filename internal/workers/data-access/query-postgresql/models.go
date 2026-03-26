@@ -75,6 +75,7 @@ func (i *Input) Validate() error {
 		string(models.QueryTypeIndustryBySlugWithQuestions),
 		string(models.QueryTypeCategoryQuestionsByIndustry),
 		string(models.QueryTypeFeaturedCategoriesByIndustry),
+		string(models.QueryTypeFranchiseContactInfo),
 	}
 
 	return ozzo.ValidateStruct(i,
@@ -144,4 +145,3 @@ var (
 	QueryTypeFranchiseOperations   = models.QueryTypeFranchiseOperations
 	QueryTypeFranchiseSocial       = models.QueryTypeFranchiseSocial
 )
-
