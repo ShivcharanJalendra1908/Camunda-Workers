@@ -144,4 +144,5 @@ var (
 	QueryTypeFranchiseInvestment   = models.QueryTypeFranchiseInvestment
 	QueryTypeFranchiseOperations   = models.QueryTypeFranchiseOperations
 	QueryTypeFranchiseSocial       = models.QueryTypeFranchiseSocial
+	QueryTypeFranchiseContactInfo  = models.QueryTypeFranchiseContactInfo
 )
