@@ -174,6 +174,9 @@ func (h *Handler) validateInput(input *Input) error {
 		string(models.QueryTypeFeaturedCategoriesByIndustry):
 		return nil // These don't need additional validation
 
+	case string(models.QueryTypeFranchiseContactInfo):
+		return h.validateFranchiseById(input)
+
 	default:
 		return appErrs.NewInvalidQueryTypeError(input.QueryType)
 	}

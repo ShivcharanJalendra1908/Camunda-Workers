@@ -4,8 +4,8 @@ package queries
 import (
 	"context"
 	"database/sql"
-	"time"
 	"fmt"
+	"time"
 )
 
 func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
@@ -167,6 +167,43 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 
 	execTime := time.Since(start).Milliseconds()
 	return results, len(results), execTime, nil
+}
+
+func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	franchiseID, ok := params["franchiseId"].(string)
+	if !ok || franchiseID == "" {
+		return nil, 0, 0, ErrMissingParam
+	}
+
+	var name string
+	var contactEmail sql.NullString
+
+	err := db.QueryRowContext(ctx,
+		`SELECT name, contact_email FROM franchises WHERE id = $1`,
+		franchiseID,
+	).Scan(&name, &contactEmail)
+
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			return nil, 0, 0, ErrNotFound
+		}
+		return nil, 0, 0, err
+	}
+
+	result := map[string]interface{}{
+		"franchiseName": name,
+	}
+	if contactEmail.Valid && contactEmail.String != "" {
+		result["franchiseContactEmail"] = contactEmail.String
+	} else {
+		// Fallback - agar contact_email NULL hai toh internal team ko bhejo
+		result["franchiseContactEmail"] = ""
+		result["useInternalFallback"] = true
+	}
+
+	return result, 1, time.Since(start).Milliseconds(), nil
 }
 
 func join(a []string, sep string) string {
