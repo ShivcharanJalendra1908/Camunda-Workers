@@ -12,14 +12,20 @@ camunda:
 
 auth:
   # keycloak:
-  #   realm: "camunda-platform"  
+  #   issuer: "http://localhost:8081/realms/auth-service"
+  #   clientId: "frontend-app"
+  #   redirectUrl: "http://localhost:3000/callback"
+  #   publicBaseUrl: "http://localhost:8081"
+  #   post_logout_redirect_uri: "http://localhost:3000/login" 
   keycloak:
-    issuer: "http://localhost:8081/realms/auth-service"
-    clientId: "frontend-app"
+    url: "http://keycloak:8080"
+    realm: "camunda-platform"
+    issuer: "http://keycloak:8080/realms/camunda-platform"
+    clientId: "lemici-frontend"
     redirectUrl: "http://localhost:3000/callback"
-    publicBaseUrl: "http://localhost:8081"
-    post_logout_redirect_uri: "http://localhost:3000/login" 
-  
+    publicBaseUrl: "${KEYCLOAK_PUBLIC_URL}"   # env variable se aayega
+    post_logout_redirect_uri: "http://localhost:3000/login"
+    
   session:
     secure: false  # Allow HTTP in dev
     sameSite: "Lax"

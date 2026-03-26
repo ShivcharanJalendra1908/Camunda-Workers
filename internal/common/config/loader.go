@@ -390,6 +390,17 @@ func overrideEmptyConfig(cfg *Config) {
 		}
 	}
 
+	// PublicBaseURL for browser-facing Keycloak URL
+	if cfg.Auth.Keycloak.PublicBaseURL == "" {
+		if val := os.Getenv("KEYCLOAK_PUBLIC_URL"); val != "" {
+			cfg.Auth.Keycloak.PublicBaseURL = val
+		}
+	}
+	// Always override PublicBaseURL from env if set (not just when empty)
+	if val := os.Getenv("KEYCLOAK_PUBLIC_URL"); val != "" {
+		cfg.Auth.Keycloak.PublicBaseURL = val
+	}
+
 	// ============================================================================
 	// EXTERNAL INTEGRATIONS
 	// ============================================================================
