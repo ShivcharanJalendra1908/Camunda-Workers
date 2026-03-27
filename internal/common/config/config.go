@@ -431,9 +431,9 @@ type IntegrationConfig struct {
 	} `mapstructure:"twilio"`
 
 	Internal struct {
-		EnquiryAlertEmail string `yaml:"enquiry_alert_email"`
-		EnquiryAlertName  string `yaml:"enquiry_alert_name"`
-	} `yaml:"internal"`
+		EnquiryAlertEmail string `mapstructure:"enquiry_alert_email"`
+		EnquiryAlertName  string `mapstructure:"enquiry_alert_name"`
+	} `mapstructure:"internal"`
 }
 
 // ============================================================================
