@@ -1565,7 +1565,8 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			c.Header("Cache-Control", "no-store")
 			c.Header("Pragma", "no-cache")
 			c.Header("X-Content-Type-Options", "nosniff")
-			c.Redirect(http.StatusFound, "http://localhost:3000/home")
+			// c.Redirect(http.StatusFound, "http://localhost:3000/home")
+			c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
 			return
 		}
 
@@ -1583,7 +1584,8 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 					c.Header("Cache-Control", "no-store")
 					c.Header("Pragma", "no-cache")
 					c.Header("X-Content-Type-Options", "nosniff")
-					c.Redirect(http.StatusFound, "http://localhost:3000/home")
+					// c.Redirect(http.StatusFound, "http://localhost:3000/home")
+					c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
 					return
 				}
 				c.JSON(http.StatusOK, response)
@@ -2046,7 +2048,8 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
 	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
 	c.SetCookie("session_id", "", -1, "/", "", true, true)
-	c.Redirect(http.StatusFound, "http://localhost:3000/login?error=auth_failed")
+	// c.Redirect(http.StatusFound, "http://localhost:3000/login?error=auth_failed")
+	c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/login?error=auth_failed")
 }
 
 // // internal/api/handlers/workflow_handler.go

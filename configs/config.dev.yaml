@@ -22,9 +22,11 @@ auth:
     realm: "camunda-platform"
     issuer: "http://keycloak:8080/realms/camunda-platform"
     clientId: "lemici-frontend"
-    redirectUrl: "http://localhost:3000/callback"
+    # redirectUrl: "http://localhost:3000/callback"
+    redirectUrl: "https://d3c34598mt7qdx.cloudfront.net/callback"
     publicBaseUrl: "${KEYCLOAK_PUBLIC_URL}"   # env variable se aayega
-    post_logout_redirect_uri: "http://localhost:3000/login"
+    # post_logout_redirect_uri: "http://localhost:3000/login"
+    post_logout_redirect_uri: "https://d3c34598mt7qdx.cloudfront.net/login"
     
   session:
     secure: false  # Allow HTTP in dev
