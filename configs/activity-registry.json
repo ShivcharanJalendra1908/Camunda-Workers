@@ -940,12 +940,12 @@
       "tags": ["integration", "crm", "zoho"]
     },
     {
-      "id": "email.send",
+      "id": "email-send",
       "displayName": "Email Send",
       "description": "Sends emails using AWS SES",
       "category": "integration",
       "version": "1.0.0",
-      "taskType": "integration.email.send",
+      "taskType": "integration.email-send",
       "implementationStatus": "completed",
       "inputSchema": {
         "type": "object",

@@ -21,6 +21,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;franchise_contact_info&#34;" target="queryType" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:output source="=result" target="franchiseInfo" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-user-to-validate</incoming>
@@ -79,7 +80,7 @@
     </parallelGateway>
     <serviceTask id="task-email-applicant" name="Confirmation to Applicant">
       <extensionElements>
-        <zeebe:taskDefinition type="email.send" />
+        <zeebe:taskDefinition type="email-send" />
         <zeebe:ioMapping>
           <zeebe:input source="=mergedData.email" target="to" />
           <zeebe:input source="=&#34;Your franchise enquiry for &#34; + franchiseInfo.franchiseName + &#34; is received — Ref #&#34; + applicationId" target="subject" />
@@ -92,7 +93,7 @@
     </serviceTask>
     <serviceTask id="task-email-lemici" name="Lead Alert to Lemici Team">
       <extensionElements>
-        <zeebe:taskDefinition type="email.send" />
+        <zeebe:taskDefinition type="email-send" />
         <zeebe:ioMapping>
           <zeebe:input source="=internalAlertEmail" target="to" />
           <zeebe:input source="=&#34;[New Lead] &#34; + franchiseInfo.franchiseName + &#34; — &#34; + mergedData.fullName + &#34; | &#34; + mergedData.approximateInvestmentBudget" target="subject" />

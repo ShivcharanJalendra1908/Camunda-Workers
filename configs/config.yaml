@@ -464,7 +464,7 @@ workers:
     max_jobs_active: 5
     timeout: 20000
 
-  email.send:
+  email-send:
     enabled: true
     max_jobs_active: 5
     timeout: 15000

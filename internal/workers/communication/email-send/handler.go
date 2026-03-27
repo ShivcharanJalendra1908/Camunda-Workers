@@ -24,7 +24,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const TaskType = "email.send"
+const TaskType = "email-send"
 
 type ServiceInterface interface {
 	Execute(ctx context.Context, input *Input) (*Output, error)

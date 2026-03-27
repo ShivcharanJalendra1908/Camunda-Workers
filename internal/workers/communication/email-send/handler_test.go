@@ -56,7 +56,7 @@ func createMockJob(key int64, variables map[string]interface{}) entities.Job {
 
 	activatedJob := &pb.ActivatedJob{
 		Key:                      key,
-		Type:                     "email.send",
+		Type:                     "email-send",
 		ProcessInstanceKey:       key * 10,
 		BpmnProcessId:            "test-process",
 		ProcessDefinitionVersion: 1,
@@ -551,7 +551,7 @@ func TestHandler_ParseInputWithInvalidJSON(t *testing.T) {
 
 	activatedJob := &pb.ActivatedJob{
 		Key:       12345,
-		Type:      "email.send",
+		Type:      "email-send",
 		Variables: "invalid json{",
 	}
 	job := entities.Job{ActivatedJob: activatedJob}
@@ -1115,7 +1115,7 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 
 func TestHandler_GetTaskType(t *testing.T) {
 	handler := &Handler{}
-	assert.Equal(t, "email.send", handler.GetTaskType())
+	assert.Equal(t, "email-send", handler.GetTaskType())
 	assert.Equal(t, TaskType, handler.GetTaskType())
 }
 
