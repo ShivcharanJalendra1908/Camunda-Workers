@@ -692,7 +692,7 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://d3c34598mt7qdx.cloudfront.net/"
+        "https://d3c34598mt7qdx.cloudfront.net/*"
       ],
       "webOrigins": [
         "https://d3c34598mt7qdx.cloudfront.net"
