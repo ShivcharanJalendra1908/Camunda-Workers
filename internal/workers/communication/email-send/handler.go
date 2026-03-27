@@ -308,6 +308,8 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		}
 	}
 
+	resolveEmailAliases(variables)
+
 	schema := GetInputSchema()
 	validationResult := validation.ValidateInput(variables, schema)
 	if !validationResult.Valid {
@@ -578,4 +580,32 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 	}
 
 	return cfg
+}
+
+func resolveEmailAliases(vars map[string]interface{}) {
+	// Map "email" → "to" if "to" is absent
+	if _, hasTo := vars["to"]; !hasTo {
+		if email, ok := vars["email"].(string); ok && email != "" {
+			vars["to"] = email
+		}
+	}
+
+	// Build subject from applicant name if absent
+	if _, hasSubject := vars["subject"]; !hasSubject {
+		name, _ := vars["fullName"].(string)
+		if name == "" {
+			name = "Applicant"
+		}
+		vars["subject"] = fmt.Sprintf("Thank you for your franchise enquiry, %s", name)
+	}
+
+	// Build body from enquiry fields if absent
+	if _, hasBody := vars["body"]; !hasBody {
+		city, _ := vars["city"].(string)
+		franchise, _ := vars["franchiseId"].(string)
+		vars["body"] = fmt.Sprintf(
+			"Dear %s,\n\nWe have received your enquiry for franchise %s in %s. Our team will contact you shortly.\n\nTeam LeMiCi",
+			vars["fullName"], franchise, city,
+		)
+	}
 }
