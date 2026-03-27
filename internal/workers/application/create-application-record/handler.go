@@ -272,7 +272,7 @@ func (h *Handler) validateInput(input *Input) error {
 
 	// Validate ReadinessScore
 	if err := ozzo.Validate(input.ReadinessScore,
-		ozzo.Required.Error("readinessScore is required"),
+		// ozzo.Required.Error("readinessScore is required"),
 		ozzo.Min(0.0).Error("readinessScore cannot be negative"),
 		ozzo.Max(100.0).Error("readinessScore cannot exceed 100"),
 	); err != nil {

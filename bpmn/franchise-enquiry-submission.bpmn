@@ -8,7 +8,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;user_profile&#34;" target="queryType" />
+          <zeebe:input source="=&quot;user_profile&quot;" target="queryType" />
           <zeebe:input source="=userId" target="userId" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -19,7 +19,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;franchise_contact_info&#34;" target="queryType" />
+          <zeebe:input source="=&quot;franchise_contact_info&quot;" target="queryType" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -44,6 +44,20 @@
       <outgoing>flow-valid-yes</outgoing>
       <outgoing>flow-valid-no</outgoing>
     </exclusiveGateway>
+    <serviceTask id="task-check-readiness" name="Check Readiness Score&#10;(check-readiness-score)">
+      <extensionElements>
+        <zeebe:taskDefinition type="check-readiness-score" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=mergedData" target="applicationData" />
+          <zeebe:output source="=readinessScore" target="readinessScore" />
+          <zeebe:output source="=qualificationLevel" target="qualificationLevel" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-valid-yes</incoming>
+      <outgoing>flow-readiness-to-record</outgoing>
+    </serviceTask>
     <serviceTask id="task-create-record" name="Save Enquiry Record&#10;(create-application-record)">
       <extensionElements>
         <zeebe:taskDefinition type="create-application-record" />
@@ -51,11 +65,11 @@
           <zeebe:input source="=userId" target="seekerId" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
           <zeebe:input source="=mergedData" target="applicationData" />
-          <zeebe:input source="=&#34;medium&#34;" target="priority" />
-          <zeebe:input source="=0" target="readinessScore" />
+          <zeebe:input source="=&quot;medium&quot;" target="priority" />
+          <zeebe:input source="=readinessScore" target="readinessScore" />
         </zeebe:ioMapping>
       </extensionElements>
-      <incoming>flow-valid-yes</incoming>
+      <incoming>flow-readiness-to-record</incoming>
       <outgoing>flow-record-to-parallel</outgoing>
     </serviceTask>
     <parallelGateway id="gw-parallel-split" name="Send 2 Emails">
@@ -68,8 +82,8 @@
         <zeebe:taskDefinition type="email.send" />
         <zeebe:ioMapping>
           <zeebe:input source="=mergedData.email" target="to" />
-          <zeebe:input source="=&#34;Your franchise enquiry for &#34; + franchiseInfo.franchiseName + &#34; is received — Ref #&#34; + applicationId" target="subject" />
-          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;Hello &#34; + mergedData.fullName + &#34;,&#60;/h2&#62;&#60;p&#62;Thank you for your interest in &#60;strong&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/strong&#62;.&#60;/p&#62;&#60;p&#62;We have received your enquiry. Our team at Lemici will review your details and connect you with the right opportunity.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Reference Number:&#60;/b&#62; &#34; + applicationId + &#34;&#60;/p&#62;&#60;p&#62;You can expect to hear from us within 2-3 business days.&#60;/p&#62;&#60;p&#62;Best regards,&#60;br/&#62;&#60;b&#62;Team Lemici&#60;/b&#62;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
+          <zeebe:input source="=&quot;Your franchise enquiry for &quot; + franchiseInfo.franchiseName + &quot; is received — Ref #&quot; + applicationId" target="subject" />
+          <zeebe:input source="=&quot;&lt;html&gt;&lt;body style='font-family:Arial,sans-serif'&gt;&lt;h2&gt;Hello &quot; + mergedData.fullName + &quot;,&lt;/h2&gt;&lt;p&gt;Thank you for your interest in &lt;strong&gt;&quot; + franchiseInfo.franchiseName + &quot;&lt;/strong&gt;.&lt;/p&gt;&lt;p&gt;We have received your enquiry. Our team at Lemici will review your details and connect you with the right opportunity.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Reference Number:&lt;/b&gt; &quot; + applicationId + &quot;&lt;/p&gt;&lt;p&gt;You can expect to hear from us within 2-3 business days.&lt;/p&gt;&lt;p&gt;Best regards,&lt;br/&gt;&lt;b&gt;Team Lemici&lt;/b&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;&quot;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -81,8 +95,8 @@
         <zeebe:taskDefinition type="email.send" />
         <zeebe:ioMapping>
           <zeebe:input source="=internalAlertEmail" target="to" />
-          <zeebe:input source="=&#34;[New Lead] &#34; + franchiseInfo.franchiseName + &#34; — &#34; + mergedData.fullName + &#34; | &#34; + mergedData.approximateInvestmentBudget" target="subject" />
-          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New Franchise Enquiry&#60;/h2&#62;&#60;table border=&#39;1&#39; cellpadding=&#39;10&#39; cellspacing=&#39;0&#39; style=&#39;border-collapse:collapse;width:100%&#39;&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Franchise&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Name&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.fullName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Email&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.email + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Phone&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.phone + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Preferred State&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.preferredState + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Budget&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.approximateInvestmentBudget + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Involvement&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.involvementLevel != null then mergedData.involvementLevel else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Type&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.applicantType != null then mergedData.applicantType else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Background&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.background != null then mergedData.background else &#34;Not provided&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Application Ref&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + applicationId + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;/table&#62;&#60;p style=&#39;color:#888&#39;&#62;Franchise ID: &#34; + franchiseId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
+          <zeebe:input source="=&quot;[New Lead] &quot; + franchiseInfo.franchiseName + &quot; — &quot; + mergedData.fullName + &quot; | &quot; + mergedData.approximateInvestmentBudget" target="subject" />
+          <zeebe:input source="=&quot;&lt;html&gt;&lt;body style='font-family:Arial,sans-serif'&gt;&lt;h2&gt;New Franchise Enquiry&lt;/h2&gt;&lt;table border='1' cellpadding='10' cellspacing='0' style='border-collapse:collapse;width:100%'&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Franchise&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + franchiseInfo.franchiseName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Applicant Name&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.fullName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Email&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.email + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Phone&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.phone + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Preferred State&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.preferredState + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Budget&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.approximateInvestmentBudget + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Involvement&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.involvementLevel != null then mergedData.involvementLevel else &quot;N/A&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Applicant Type&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.applicantType != null then mergedData.applicantType else &quot;N/A&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Background&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.background != null then mergedData.background else &quot;Not provided&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Application Ref&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + applicationId + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;p style='color:#888'&gt;Franchise ID: &quot; + franchiseId + &quot;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;&quot;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -99,8 +113,8 @@
         <zeebe:taskDefinition type="build-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="requestId" />
-          <zeebe:input source="=&#34;application-success&#34;" target="templateId" />
-          <zeebe:input source="={applicationId: applicationId, message: &#34;Enquiry submitted successfully. Our team will contact you within 2-3 business days.&#34;, success: true}" target="data" />
+          <zeebe:input source="=&quot;application-success&quot;" target="templateId" />
+          <zeebe:input source="{applicationId: applicationId, message: &quot;Enquiry submitted successfully. Our team will contact you within 2-3 business days.&quot;, success: true}" target="data" />
           <zeebe:input source="=201" target="statusCode" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -127,7 +141,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="requestId" />
           <zeebe:input source="=422" target="statusCode" />
-          <zeebe:input source="=&#34;Validation failed. Please check your details.&#34;" target="message" />
+          <zeebe:input source="=&quot;Validation failed. Please check your details.&quot;" target="message" />
           <zeebe:input source="=validationErrors" target="errors" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -152,9 +166,10 @@
     <sequenceFlow id="flow-user-to-validate" sourceRef="task-fetch-user" targetRef="task-fetch-franchise" />
     <sequenceFlow id="flow-franchise-to-validate" sourceRef="task-fetch-franchise" targetRef="task-validate-enquiry" />
     <sequenceFlow id="flow-validate-to-gw" sourceRef="task-validate-enquiry" targetRef="gw-valid" />
-    <sequenceFlow id="flow-valid-yes" name="valid" sourceRef="gw-valid" targetRef="task-create-record">
+    <sequenceFlow id="flow-valid-yes" name="valid" sourceRef="gw-valid" targetRef="task-check-readiness">
       <conditionExpression xsi:type="tFormalExpression">= isValid = true</conditionExpression>
     </sequenceFlow>
+    <sequenceFlow id="flow-readiness-to-record" sourceRef="task-check-readiness" targetRef="task-create-record" />
     <sequenceFlow id="flow-valid-no" name="invalid" sourceRef="gw-valid" targetRef="task-422-build">
       <conditionExpression xsi:type="tFormalExpression">= isValid = false</conditionExpression>
     </sequenceFlow>
@@ -195,42 +210,46 @@
           <dc:Bounds x="705" y="223" width="54" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task-create-record_di" bpmnElement="task-create-record">
+      <bpmndi:BPMNShape id="task-check-readiness_di" bpmnElement="task-check-readiness">
         <dc:Bounds x="730" y="90" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-create-record_di" bpmnElement="task-create-record">
+        <dc:Bounds x="860" y="90" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw-parallel-split_di" bpmnElement="gw-parallel-split">
-        <dc:Bounds x="865" y="105" width="50" height="50" />
+        <dc:Bounds x="995" y="105" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="856" y="81" width="67" height="14" />
+          <dc:Bounds x="986" y="81" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-email-applicant_di" bpmnElement="task-email-applicant">
-        <dc:Bounds x="950" y="90" width="100" height="80" />
+        <dc:Bounds x="1080" y="90" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-email-lemici_di" bpmnElement="task-email-lemici">
-        <dc:Bounds x="950" y="190" width="100" height="80" />
+        <dc:Bounds x="1080" y="190" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw-parallel-join_di" bpmnElement="gw-parallel-join">
-        <dc:Bounds x="1085" y="155" width="50" height="50" />
+        <dc:Bounds x="1215" y="155" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="991.5" y="173" width="83" height="14" />
+          <dc:Bounds x="1121.5" y="173" width="83" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-success-response_di" bpmnElement="task-success-response">
-        <dc:Bounds x="1170" y="140" width="100" height="80" />
+        <dc:Bounds x="1300" y="140" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-send-success_di" bpmnElement="task-send-success">
-        <dc:Bounds x="1308" y="140" width="100" height="80" />
+        <dc:Bounds x="1438" y="140" width="100" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end-success_di" bpmnElement="end-success">
-        <dc:Bounds x="1340" y="282" width="36" height="36" />
+        <dc:Bounds x="1470" y="282" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1315" y="322" width="86" height="14" />
+          <dc:Bounds x="1445" y="322" width="86" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-422-build_di" bpmnElement="task-422-build">
@@ -275,6 +294,11 @@
           <dc:Bounds x="685" y="103" width="22" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-readiness-to-record_di" bpmnElement="flow-readiness-to-record">
+        <di:waypoint x="830" y="128" />
+        <di:waypoint x="860" y="128" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-valid-no_di" bpmnElement="flow-valid-no">
         <di:waypoint x="670" y="255" />
         <di:waypoint x="670" y="370" />
@@ -284,46 +308,46 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-record-to-parallel_di" bpmnElement="flow-record-to-parallel">
-        <di:waypoint x="830" y="128" />
-        <di:waypoint x="867" y="128" />
+        <di:waypoint x="960" y="128" />
+        <di:waypoint x="997" y="128" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-to-email-applicant_di" bpmnElement="flow-to-email-applicant">
-        <di:waypoint x="915" y="130" />
-        <di:waypoint x="950" y="130" />
+        <di:waypoint x="1045" y="130" />
+        <di:waypoint x="1080" y="130" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-to-email-lemici_di" bpmnElement="flow-to-email-lemici">
-        <di:waypoint x="890" y="155" />
-        <di:waypoint x="890" y="230" />
-        <di:waypoint x="950" y="230" />
+        <di:waypoint x="1020" y="155" />
+        <di:waypoint x="1020" y="230" />
+        <di:waypoint x="1080" y="230" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-applicant-done_di" bpmnElement="flow-applicant-done">
-        <di:waypoint x="1050" y="130" />
-        <di:waypoint x="1110" y="130" />
-        <di:waypoint x="1110" y="155" />
+        <di:waypoint x="1180" y="130" />
+        <di:waypoint x="1240" y="130" />
+        <di:waypoint x="1240" y="155" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-lemici-done_di" bpmnElement="flow-lemici-done">
-        <di:waypoint x="1050" y="230" />
-        <di:waypoint x="1110" y="230" />
-        <di:waypoint x="1110" y="205" />
+        <di:waypoint x="1180" y="230" />
+        <di:waypoint x="1240" y="230" />
+        <di:waypoint x="1240" y="205" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-join-to-success_di" bpmnElement="flow-join-to-success">
-        <di:waypoint x="1133" y="178" />
-        <di:waypoint x="1170" y="178" />
+        <di:waypoint x="1263" y="178" />
+        <di:waypoint x="1300" y="178" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-success-to-send_di" bpmnElement="flow-success-to-send">
-        <di:waypoint x="1270" y="178" />
-        <di:waypoint x="1308" y="178" />
+        <di:waypoint x="1400" y="178" />
+        <di:waypoint x="1438" y="178" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-send-to-end_di" bpmnElement="flow-send-to-end">
-        <di:waypoint x="1358" y="220" />
-        <di:waypoint x="1358" y="282" />
+        <di:waypoint x="1488" y="220" />
+        <di:waypoint x="1488" y="282" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-422-to-send_di" bpmnElement="flow-422-to-send">

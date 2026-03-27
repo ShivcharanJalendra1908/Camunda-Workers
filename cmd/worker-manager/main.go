@@ -518,7 +518,7 @@ func main() {
 	}
 
 	if cfg.Workers[crs.TaskType].Enabled {
-		handler := crs.NewHandler(&crs.Config{}, log)
+		handler := crs.NewHandler(&crs.Config{}, pg.DB, log)
 		startWorker(zeebeClient, crs.TaskType, cfg.Workers[crs.TaskType], handler.Handle, zapLog)
 	}
 

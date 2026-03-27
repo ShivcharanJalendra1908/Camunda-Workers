@@ -2,8 +2,10 @@ package checkreadinessscore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -26,14 +28,16 @@ const (
 )
 
 type Handler struct {
+	db           *sql.DB
 	logger       logger.Logger
 	errorHandler *errors.ErrorHandler
 	validator    *validation.Validator // ✅ ADDED
 	sanitizer    *validation.Sanitizer // ✅ ADDED
 }
 
-func NewHandler(config *Config, log logger.Logger) *Handler {
+func NewHandler(config *Config, db *sql.DB, log logger.Logger) *Handler {
 	return &Handler{
+		db:           db,
 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
 		errorHandler: errors.NewErrorHandler(log),
 		validator:    validation.NewValidator(), // ✅ ADDED
@@ -193,7 +197,10 @@ func (h *Handler) validateApplicationData(data map[string]interface{}) error {
 			// Check for script injection in strings
 			if strings.Contains(strings.ToLower(v), "javascript:") ||
 				strings.Contains(strings.ToLower(v), "script:") ||
-				strings.Contains(strings.ToLower(v), "data:") ||
+				// strings.Contains(strings.ToLower(v), "data:") ||
+				strings.Contains(strings.ToLower(v), "data:text/html") ||
+				strings.Contains(strings.ToLower(v), "data:text/javascript") ||
+				strings.Contains(strings.ToLower(v), "data:application/") ||
 				strings.Contains(strings.ToLower(v), "<script") {
 				return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
 					"value contains potentially unsafe content")
@@ -327,10 +334,43 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 		data = make(map[string]interface{})
 	}
 
+	// ✅ DERIVE financialInfo from approximateInvestmentBudget if not present
+	if _, ok := data["financialInfo"]; !ok {
+		budget, _ := data["approximateInvestmentBudget"].(string)
+		data["financialInfo"] = map[string]interface{}{
+			"liquidCapital": h.budgetToCapital(budget),
+			"netWorth":      h.budgetToNetWorth(budget),
+			"creditScore":   0,
+		}
+	}
+
+	// ✅ DERIVE experience from background text if not present
+	if _, ok := data["experience"]; !ok {
+		background, _ := data["background"].(string)
+		applicantType, _ := data["applicantType"].(string)
+		data["experience"] = map[string]interface{}{
+			"yearsInIndustry":      h.parseYearsFromBackground(background),
+			"managementExperience": applicantType == "company",
+			"businessOwnership":    applicantType == "company",
+		}
+	}
+
+	// ✅ DERIVE timeAvailability from involvementLevel if not present
+	if _, ok := data["timeAvailability"]; !ok {
+		involvement, _ := data["involvementLevel"].(string)
+		data["timeAvailability"] = h.involvementToHours(involvement)
+	}
+
+	// ✅ DERIVE relocationWilling — default false if not present
+	if _, ok := data["relocationWilling"]; !ok {
+		data["relocationWilling"] = false
+	}
+
 	financial := h.calculateFinancialReadiness(data)
 	experience := h.calculateExperience(data)
 	commitment := h.calculateCommitment(data)
-	compatibility := h.calculateCompatibility(data)
+	// compatibility := h.calculateCompatibility(data)
+	compatibility := h.calculateCompatibilityFromDB(ctx, input.FranchiseID, data)
 
 	// Calculate weighted average: Financial(30%) + Experience(25%) + Commitment(20%) + Compatibility(25%)
 	finalScore := int(
@@ -614,6 +654,107 @@ func (h *Handler) classifyQualificationLevel(score int) string {
 	default:
 		return "low"
 	}
+}
+
+func (h *Handler) calculateCompatibilityFromDB(ctx context.Context, franchiseID string, data map[string]interface{}) int {
+	score := 0
+
+	// 1. locationMatch — franchise_cities table se check karo
+	preferredState, _ := data["preferredState"].(string)
+	if preferredState != "" {
+		var count int
+		err := h.db.QueryRowContext(ctx, `
+            SELECT COUNT(*) FROM franchise_cities
+            WHERE franchise_id = $1 AND LOWER(state) = LOWER($2)
+        `, franchiseID, preferredState).Scan(&count)
+		if err == nil && count > 0 {
+			score += 30 // locationMatch = true
+		}
+	}
+
+	// 2. categoryMatch — franchise_categories → categories → industries
+	// user ki industry background se match karo
+	userIndustry, _ := data["industryBackground"].(string) // form field (add karna hoga)
+	if userIndustry != "" {
+		var count int
+		err := h.db.QueryRowContext(ctx, `
+            SELECT COUNT(*)
+            FROM franchise_categories fc
+            JOIN categories c ON fc.category_id = c.id
+            JOIN industries i ON c.industry_id = i.id
+            WHERE fc.franchise_id = $1 AND LOWER(i.slug) = LOWER($2)
+        `, franchiseID, userIndustry).Scan(&count)
+		if err == nil && count > 0 {
+			score += 40 // categoryMatch = true
+		}
+	}
+
+	// 3. skillAlignment — involvementLevel vs franchise_operations.qualification_required
+	involvementLevel, _ := data["involvementLevel"].(string)
+	if involvementLevel != "" {
+		var qualReq sql.NullString
+		err := h.db.QueryRowContext(ctx, `
+            SELECT qualification_required FROM franchise_operations
+            WHERE franchise_id = $1
+        `, franchiseID).Scan(&qualReq)
+		if err == nil && qualReq.Valid {
+			// full-time-owner → highest alignment
+			switch involvementLevel {
+			case "full-time-owner":
+				score += 30
+			case "part-time-with-manager":
+				score += 15
+			}
+			// investor-only = 0 pts
+		}
+	}
+
+	return h.clamp(score, 0, 100)
+}
+
+func (h *Handler) budgetToCapital(budget string) float64 {
+	budgetMap := map[string]float64{
+		"Under 10 Lakhs":     500000,
+		"10-25 Lakhs":        1000000,
+		"25-50 Lakhs":        2500000,
+		"50 Lakhs - 1 Crore": 5000000,
+		"1-2 Crores":         10000000,
+		"Above 2 Crores":     20000000,
+	}
+	if val, ok := budgetMap[budget]; ok {
+		return val
+	}
+	return 0
+}
+
+func (h *Handler) budgetToNetWorth(budget string) float64 {
+	// Net worth typically 2-3x liquid capital
+	return h.budgetToCapital(budget) * 2.5
+}
+
+// "I have 5 years of retail experience." → 5
+func (h *Handler) parseYearsFromBackground(background string) int {
+	re := regexp.MustCompile(`(\d+)\s*year`)
+	matches := re.FindStringSubmatch(strings.ToLower(background))
+	if len(matches) >= 2 {
+		if years, err := strconv.Atoi(matches[1]); err == nil {
+			return years
+		}
+	}
+	return 0
+}
+
+// "full-time-owner" → 40 hours/week
+func (h *Handler) involvementToHours(involvement string) float64 {
+	hoursMap := map[string]float64{
+		"full-time-owner":        40,
+		"part-time-with-manager": 20,
+		"investor-only":          5,
+	}
+	if val, ok := hoursMap[involvement]; ok {
+		return val
+	}
+	return 0
 }
 
 func (h *Handler) parseInt(raw interface{}) (int, error) {
