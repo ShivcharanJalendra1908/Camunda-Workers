@@ -67,7 +67,12 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	// ===== STEP 3: MERGE profile + form data =====
-	merged := h.mergeData(input.UserProfile, input.EnquiryFormData)
+	// merged := h.mergeData(input.UserProfile, input.EnquiryFormData)
+	profile := input.UserProfile
+	if len(profile) == 0 && len(input.Data) > 0 {
+		profile = input.Data // fallback - query-postgresql ka output
+	}
+	merged := h.mergeData(profile, input.EnquiryFormData)
 
 	// ===== STEP 4: VALIDATE MERGED DATA =====
 	errors := h.validateMergedData(merged)

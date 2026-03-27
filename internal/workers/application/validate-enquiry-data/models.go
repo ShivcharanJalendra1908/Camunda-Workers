@@ -6,7 +6,8 @@ const TaskType = "validate-enquiry-data"
 type Input struct {
 	FranchiseID     string                 `json:"franchiseId"`
 	UserID          string                 `json:"userId"`
-	UserProfile     map[string]interface{} `json:"userProfile"`     // DB se fetch hoga
+	UserProfile     map[string]interface{} `json:"userProfile"` // DB se fetch hoga
+	Data            map[string]interface{} `json:"data"`
 	EnquiryFormData map[string]interface{} `json:"enquiryFormData"` // Frontend se aaya form data
 }
 

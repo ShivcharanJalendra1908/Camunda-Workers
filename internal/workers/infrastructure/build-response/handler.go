@@ -251,6 +251,11 @@ func safeSubstring(s string, start, end int) string {
 
 // ===== VALIDATION FUNCTION =====
 func (h *Handler) validateInput(input *Input) error {
+	// pageType empty skip (enquiry/application workflows)
+	if input.PageType == "" {
+		return nil
+	}
+
 	if err := ozzo.Validate(input.PageType,
 		ozzo.Required.Error("pageType is required"),
 		ozzo.In("home", "listing", "detail", "search", "industries").Error("must be one of: home, listing, detail, search, industries"),
@@ -263,7 +268,6 @@ func (h *Handler) validateInput(input *Input) error {
 		if err := h.validateDataDepth(input.Data, 0); err != nil {
 			return err
 		}
-
 		if err := h.validateDataSize(input.Data); err != nil {
 			return err
 		}
@@ -271,6 +275,28 @@ func (h *Handler) validateInput(input *Input) error {
 
 	return nil
 }
+
+// func (h *Handler) validateInput(input *Input) error {
+// 	if err := ozzo.Validate(input.PageType,
+// 		ozzo.Required.Error("pageType is required"),
+// 		ozzo.In("home", "listing", "detail", "search", "industries").Error("must be one of: home, listing, detail, search, industries"),
+// 		validation.SafeSQLString,
+// 	); err != nil {
+// 		return appErrs.NewValidationError("pageType", err.Error())
+// 	}
+
+// 	if input.Data != nil {
+// 		if err := h.validateDataDepth(input.Data, 0); err != nil {
+// 			return err
+// 		}
+
+// 		if err := h.validateDataSize(input.Data); err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }
 
 func (h *Handler) validateDataDepth(data map[string]interface{}, depth int) error {
 	if depth > 10 {
@@ -323,6 +349,23 @@ func (h *Handler) validateDataSize(data map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+func (h *Handler) buildGenericResponse(input *Input) map[string]interface{} {
+	data := map[string]interface{}{}
+	if input.Data != nil {
+		for k, v := range input.Data {
+			data[k] = v
+		}
+	}
+	return map[string]interface{}{
+		"success": true,
+		"data":    data,
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+		},
+	}
 }
 
 // ===== EXECUTE METHOD =====
@@ -424,7 +467,9 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	case "industries":
 		response = h.buildIndustriesResponse(combinedData)
 	default:
-		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
+		// Generic response - enquiry/application workflows
+		response = h.buildGenericResponse(input)
+		// return nil, fmt.Errorf("unknown page type: %s", input.PageType)
 	}
 
 	return &Output{Success: true, Response: response}, nil
