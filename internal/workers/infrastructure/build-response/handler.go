@@ -351,23 +351,6 @@ func (h *Handler) validateDataSize(data map[string]interface{}) error {
 	return nil
 }
 
-func (h *Handler) buildGenericResponse(input *Input) map[string]interface{} {
-	data := map[string]interface{}{}
-	if input.Data != nil {
-		for k, v := range input.Data {
-			data[k] = v
-		}
-	}
-	return map[string]interface{}{
-		"success": true,
-		"data":    data,
-		"metadata": map[string]interface{}{
-			"generatedAt": time.Now().UTC().Format(time.RFC3339),
-			"source":      "workflow",
-		},
-	}
-}
-
 // ===== EXECUTE METHOD =====
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	combinedData := make(map[string]interface{})
@@ -1048,6 +1031,7 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 	}
 }
 
+// ===== INDUSTRIES PAGE BUILDER =====
 func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
 	industries := h.extractArray(data, "industries")
 
@@ -1104,23 +1088,23 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 	}
 }
 
-// Use below code for all data with industry_name, industry_slug, color_hex, icon_url, categories, sub_categories
-// func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[string]interface{} {
-// 	industries := h.extractArray(data, "industries")
-// 	if len(industries) == 0 {
-// 		industries = []interface{}{}
-// 	}
-
-// 	return map[string]interface{}{
-// 		"success": true,
-// 		"data":    industries,
-// 		"metadata": map[string]interface{}{
-// 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
-// 			"source":      "workflow",
-// 			"pageType":    "industries",
-// 		},
-// 	}
-// }
+// ===== GENERIC RESPONSE BUILDER =====
+func (h *Handler) buildGenericResponse(input *Input) map[string]interface{} {
+	data := map[string]interface{}{}
+	if input.Data != nil {
+		for k, v := range input.Data {
+			data[k] = v
+		}
+	}
+	return map[string]interface{}{
+		"success": true,
+		"data":    data,
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+		},
+	}
+}
 
 // ===== HELPER BUILDERS =====
 func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {

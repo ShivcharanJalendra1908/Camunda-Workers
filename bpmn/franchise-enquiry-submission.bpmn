@@ -112,7 +112,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=builtResponse" target="response" />
+          <zeebe:input source="=response" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-success-to-send</incoming>
@@ -139,7 +139,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=builtResponse" target="response" />
+          <zeebe:input source="=response" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-422-to-send</incoming>
