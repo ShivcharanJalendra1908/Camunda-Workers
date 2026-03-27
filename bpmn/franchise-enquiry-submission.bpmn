@@ -8,7 +8,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;user_profile&quot;" target="queryType" />
+          <zeebe:input source="=&#34;user_profile&#34;" target="queryType" />
           <zeebe:input source="=userId" target="userId" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -19,7 +19,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;franchise_contact_info&quot;" target="queryType" />
+          <zeebe:input source="=&#34;franchise_contact_info&#34;" target="queryType" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -44,7 +44,7 @@
       <outgoing>flow-valid-yes</outgoing>
       <outgoing>flow-valid-no</outgoing>
     </exclusiveGateway>
-    <serviceTask id="task-check-readiness" name="Check Readiness Score&#10;(check-readiness-score)">
+    <serviceTask id="task-check-readiness" name="Check Readiness Score">
       <extensionElements>
         <zeebe:taskDefinition type="check-readiness-score" />
         <zeebe:ioMapping>
@@ -58,14 +58,14 @@
       <incoming>flow-valid-yes</incoming>
       <outgoing>flow-readiness-to-record</outgoing>
     </serviceTask>
-    <serviceTask id="task-create-record" name="Save Enquiry Record&#10;(create-application-record)">
+    <serviceTask id="task-create-record" name="Save Enquiry Record">
       <extensionElements>
         <zeebe:taskDefinition type="create-application-record" />
         <zeebe:ioMapping>
           <zeebe:input source="=userId" target="seekerId" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
           <zeebe:input source="=mergedData" target="applicationData" />
-          <zeebe:input source="=&quot;medium&quot;" target="priority" />
+          <zeebe:input source="=&#34;medium&#34;" target="priority" />
           <zeebe:input source="=readinessScore" target="readinessScore" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -77,26 +77,26 @@
       <outgoing>flow-to-email-applicant</outgoing>
       <outgoing>flow-to-email-lemici</outgoing>
     </parallelGateway>
-    <serviceTask id="task-email-applicant" name="Confirmation to Applicant&#10;(email.send)">
+    <serviceTask id="task-email-applicant" name="Confirmation to Applicant">
       <extensionElements>
         <zeebe:taskDefinition type="email.send" />
         <zeebe:ioMapping>
           <zeebe:input source="=mergedData.email" target="to" />
-          <zeebe:input source="=&quot;Your franchise enquiry for &quot; + franchiseInfo.franchiseName + &quot; is received — Ref #&quot; + applicationId" target="subject" />
-          <zeebe:input source="=&quot;&lt;html&gt;&lt;body style='font-family:Arial,sans-serif'&gt;&lt;h2&gt;Hello &quot; + mergedData.fullName + &quot;,&lt;/h2&gt;&lt;p&gt;Thank you for your interest in &lt;strong&gt;&quot; + franchiseInfo.franchiseName + &quot;&lt;/strong&gt;.&lt;/p&gt;&lt;p&gt;We have received your enquiry. Our team at Lemici will review your details and connect you with the right opportunity.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Reference Number:&lt;/b&gt; &quot; + applicationId + &quot;&lt;/p&gt;&lt;p&gt;You can expect to hear from us within 2-3 business days.&lt;/p&gt;&lt;p&gt;Best regards,&lt;br/&gt;&lt;b&gt;Team Lemici&lt;/b&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;&quot;" target="body" />
+          <zeebe:input source="=&#34;Your franchise enquiry for &#34; + franchiseInfo.franchiseName + &#34; is received — Ref #&#34; + applicationId" target="subject" />
+          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;Hello &#34; + mergedData.fullName + &#34;,&#60;/h2&#62;&#60;p&#62;Thank you for your interest in &#60;strong&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/strong&#62;.&#60;/p&#62;&#60;p&#62;We have received your enquiry. Our team at Lemici will review your details and connect you with the right opportunity.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Reference Number:&#60;/b&#62; &#34; + applicationId + &#34;&#60;/p&#62;&#60;p&#62;You can expect to hear from us within 2-3 business days.&#60;/p&#62;&#60;p&#62;Best regards,&#60;br/&#62;&#60;b&#62;Team Lemici&#60;/b&#62;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-email-applicant</incoming>
       <outgoing>flow-applicant-done</outgoing>
     </serviceTask>
-    <serviceTask id="task-email-lemici" name="Lead Alert to Lemici Team&#10;(email.send)">
+    <serviceTask id="task-email-lemici" name="Lead Alert to Lemici Team">
       <extensionElements>
         <zeebe:taskDefinition type="email.send" />
         <zeebe:ioMapping>
           <zeebe:input source="=internalAlertEmail" target="to" />
-          <zeebe:input source="=&quot;[New Lead] &quot; + franchiseInfo.franchiseName + &quot; — &quot; + mergedData.fullName + &quot; | &quot; + mergedData.approximateInvestmentBudget" target="subject" />
-          <zeebe:input source="=&quot;&lt;html&gt;&lt;body style='font-family:Arial,sans-serif'&gt;&lt;h2&gt;New Franchise Enquiry&lt;/h2&gt;&lt;table border='1' cellpadding='10' cellspacing='0' style='border-collapse:collapse;width:100%'&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Franchise&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + franchiseInfo.franchiseName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Applicant Name&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.fullName + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Email&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.email + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Phone&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.phone + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Preferred State&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.preferredState + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Budget&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + mergedData.approximateInvestmentBudget + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Involvement&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.involvementLevel != null then mergedData.involvementLevel else &quot;N/A&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Applicant Type&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.applicantType != null then mergedData.applicantType else &quot;N/A&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr style='background:#f5f5f5'&gt;&lt;td&gt;&lt;b&gt;Background&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + (if mergedData.background != null then mergedData.background else &quot;Not provided&quot;) + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Application Ref&lt;/b&gt;&lt;/td&gt;&lt;td&gt;&quot; + applicationId + &quot;&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;p style='color:#888'&gt;Franchise ID: &quot; + franchiseId + &quot;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;&quot;" target="body" />
+          <zeebe:input source="=&#34;[New Lead] &#34; + franchiseInfo.franchiseName + &#34; — &#34; + mergedData.fullName + &#34; | &#34; + mergedData.approximateInvestmentBudget" target="subject" />
+          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New Franchise Enquiry&#60;/h2&#62;&#60;table border=&#39;1&#39; cellpadding=&#39;10&#39; cellspacing=&#39;0&#39; style=&#39;border-collapse:collapse;width:100%&#39;&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Franchise&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + franchiseInfo.franchiseName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Name&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.fullName + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Email&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.email + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Phone&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.phone + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Preferred State&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.preferredState + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Budget&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + mergedData.approximateInvestmentBudget + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Involvement&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.involvementLevel != null then mergedData.involvementLevel else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Applicant Type&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.applicantType != null then mergedData.applicantType else &#34;N/A&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr style=&#39;background:#f5f5f5&#39;&#62;&#60;td&#62;&#60;b&#62;Background&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + (if mergedData.background != null then mergedData.background else &#34;Not provided&#34;) + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;tr&#62;&#60;td&#62;&#60;b&#62;Application Ref&#60;/b&#62;&#60;/td&#62;&#60;td&#62;&#34; + applicationId + &#34;&#60;/td&#62;&#60;/tr&#62;&#60;/table&#62;&#60;p style=&#39;color:#888&#39;&#62;Franchise ID: &#34; + franchiseId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -108,20 +108,20 @@
       <incoming>flow-lemici-done</incoming>
       <outgoing>flow-join-to-success</outgoing>
     </parallelGateway>
-    <serviceTask id="task-success-response" name="Build Success Response&#10;(build-response)">
+    <serviceTask id="task-success-response" name="Build Success Response">
       <extensionElements>
         <zeebe:taskDefinition type="build-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="requestId" />
-          <zeebe:input source="=&quot;application-success&quot;" target="templateId" />
-          <zeebe:input source="{applicationId: applicationId, message: &quot;Enquiry submitted successfully. Our team will contact you within 2-3 business days.&quot;, success: true}" target="data" />
+          <zeebe:input source="=&#34;application-success&#34;" target="templateId" />
+          <zeebe:input source="{applicationId: applicationId, message: &#34;Enquiry submitted successfully. Our team will contact you within 2-3 business days.&#34;, success: true}" target="data" />
           <zeebe:input source="=201" target="statusCode" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-join-to-success</incoming>
       <outgoing>flow-success-to-send</outgoing>
     </serviceTask>
-    <serviceTask id="task-send-success" name="Send Response&#10;(send-api-response)">
+    <serviceTask id="task-send-success" name="Send Response">
       <extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
@@ -135,20 +135,20 @@
     <endEvent id="end-success" name="Enquiry Submitted">
       <incoming>flow-send-to-end</incoming>
     </endEvent>
-    <serviceTask id="task-422-build" name="Build 422 Response&#10;(build-response)">
+    <serviceTask id="task-422-build" name="Build 422 Response">
       <extensionElements>
         <zeebe:taskDefinition type="build-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="requestId" />
           <zeebe:input source="=422" target="statusCode" />
-          <zeebe:input source="=&quot;Validation failed. Please check your details.&quot;" target="message" />
+          <zeebe:input source="=&#34;Validation failed. Please check your details.&#34;" target="message" />
           <zeebe:input source="=validationErrors" target="errors" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-valid-no</incoming>
       <outgoing>flow-422-to-send</outgoing>
     </serviceTask>
-    <serviceTask id="task-422-send" name="Send 422 Response&#10;(send-api-response)">
+    <serviceTask id="task-422-send" name="Send 422 Response">
       <extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
