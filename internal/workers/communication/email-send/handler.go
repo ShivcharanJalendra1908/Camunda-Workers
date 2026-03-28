@@ -310,9 +310,34 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 	resolveEmailAliases(variables)
 
+	// ✅ DEBUG: Log variables after alias resolution
+	h.logger.Info("Email job variables debug", map[string]interface{}{
+		"hasTo":        variables["to"] != nil,
+		"hasSubject":   variables["subject"] != nil,
+		"hasBody":      variables["body"] != nil,
+		"toValue":      variables["to"],
+		"subjectValue": variables["subject"],
+		"bodyPreview": func() string {
+			if body, ok := variables["body"].(string); ok && len(body) > 100 {
+				return body[:100] + "..."
+			}
+			return fmt.Sprintf("%v", variables["body"])
+		}(),
+		"allKeys": fmt.Sprintf("%v", getMapKeys(variables)),
+	})
+
 	schema := GetInputSchema()
 	validationResult := validation.ValidateInput(variables, schema)
 	if !validationResult.Valid {
+		h.logger.Warn("Schema validation failed", map[string]interface{}{
+			"errors": validationResult.GetErrorMessages(),
+			"keys":   fmt.Sprintf("%v", getMapKeys(variables)),
+			"variables": map[string]interface{}{
+				"to":      variables["to"],
+				"subject": variables["subject"],
+				"body":    variables["body"],
+			},
+		})
 		return nil, &errors.StandardError{
 			Code:      "VALIDATION_FAILED",
 			Message:   "Input validation failed",
@@ -608,4 +633,12 @@ func resolveEmailAliases(vars map[string]interface{}) {
 			vars["fullName"], franchise, city,
 		)
 	}
+}
+
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

@@ -75,6 +75,7 @@ func (p *Provider) AuthCodeURL(state string, codeChallenge string) string {
 		oauth2.AccessTypeOnline,
 		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+		oauth2.SetAuthURLParam("response_mode", "query"),
 	)
 }
 

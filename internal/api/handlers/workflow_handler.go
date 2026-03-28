@@ -1489,6 +1489,115 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 // KEYCLOAK UNIFIED LOGIN/LOGOUT
 // ============================================================================
 
+// func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
+// 	var input struct {
+// 		Code        string                 `json:"code"`
+// 		State       string                 `json:"state"`
+// 		Provider    string                 `json:"provider"`
+// 		RedirectURL string                 `json:"redirectUrl"`
+// 		Metadata    map[string]interface{} `json:"metadata"`
+// 	}
+
+// 	if err := c.ShouldBindJSON(&input); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	claims := middleware.ExtractClaims(c)
+// 	if claims == nil {
+// 		claims = &middleware.Claims{}
+// 	}
+
+// 	correlationKey := uuid.New().String()
+// 	ctx := c.Request.Context()
+
+// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+// 	pubsub := h.redisClient.Subscribe(ctx, channel)
+// 	defer pubsub.Close()
+
+// 	if _, err := pubsub.Receive(ctx); err != nil {
+// 		h.redirectToLogin(c)
+// 		return
+// 	}
+
+// 	variables := map[string]interface{}{
+// 		"sessionId":      claims.SessionID,
+// 		"sourceSystem":   claims.SourceSystem,
+// 		"requestId":      uuid.New().String(),
+// 		"correlationKey": correlationKey,
+// 	}
+
+// 	if input.Code != "" && input.State != "" {
+// 		if err := h.validateString(input.Code, 1, 500); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
+// 			return
+// 		}
+// 		if err := h.validateString(input.State, 1, 500); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
+// 			return
+// 		}
+// 		variables["action"] = "callback"
+// 		variables["code"] = input.Code
+// 		variables["state"] = input.State
+// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+// 	} else {
+// 		variables["action"] = "initiate"
+// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
+// 		variables["redirectUrl"] = input.RedirectURL
+// 	}
+
+// 	if input.Metadata != nil {
+// 		variables["metadata"] = input.Metadata
+// 	}
+
+// 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
+
+// 	select {
+// 	case msg := <-pubsub.Channel():
+// 		var response map[string]interface{}
+// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+// 			h.redirectToLogin(c)
+// 			return
+// 		}
+
+// 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
+// 			c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
+// 			c.Header("Cache-Control", "no-store")
+// 			c.Header("Pragma", "no-cache")
+// 			c.Header("X-Content-Type-Options", "nosniff")
+// 			// c.Redirect(http.StatusFound, "http://localhost:3000/home")
+// 			c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
+// 			return
+// 		}
+
+// 		// Initiate flow — authorizationUrl return karo
+// 		c.JSON(http.StatusOK, response)
+
+// 	case <-time.After(30 * time.Second):
+// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
+// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+// 		if err == nil {
+// 			var response map[string]interface{}
+// 			if json.Unmarshal([]byte(cached), &response) == nil {
+// 				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
+// 					c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
+// 					c.Header("Cache-Control", "no-store")
+// 					c.Header("Pragma", "no-cache")
+// 					c.Header("X-Content-Type-Options", "nosniff")
+// 					// c.Redirect(http.StatusFound, "http://localhost:3000/home")
+// 					c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
+// 					return
+// 				}
+// 				c.JSON(http.StatusOK, response)
+// 				return
+// 			}
+// 		}
+// 		h.redirectToLogin(c)
+
+//		case <-ctx.Done():
+//			h.redirectToLogin(c)
+//		}
+//	}
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
 		Code        string                 `json:"code"`
@@ -1515,8 +1624,11 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	pubsub := h.redisClient.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	if _, err := pubsub.Receive(ctx); err != nil {
-		h.redirectToLogin(c)
+	// FIX 1: dedicated 3s timeout, redirectToLogin nahi — 500 return
+	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer confirmCancel()
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
+		h.redirectToLoginWithError(c, "service_unavailable")
 		return
 	}
 
@@ -1550,13 +1662,14 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		variables["metadata"] = input.Metadata
 	}
 
+	// FIX 2: workflow BAAD mein start hoga subscribe confirm ke
 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
 
 	select {
 	case msg := <-pubsub.Channel():
 		var response map[string]interface{}
 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-			h.redirectToLogin(c)
+			h.redirectToLoginWithError(c, "invalid_response")
 			return
 		}
 
@@ -1565,7 +1678,6 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			c.Header("Cache-Control", "no-store")
 			c.Header("Pragma", "no-cache")
 			c.Header("X-Content-Type-Options", "nosniff")
-			// c.Redirect(http.StatusFound, "http://localhost:3000/home")
 			c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
 			return
 		}
@@ -1584,7 +1696,6 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 					c.Header("Cache-Control", "no-store")
 					c.Header("Pragma", "no-cache")
 					c.Header("X-Content-Type-Options", "nosniff")
-					// c.Redirect(http.StatusFound, "http://localhost:3000/home")
 					c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
 					return
 				}
@@ -1592,11 +1703,19 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				return
 			}
 		}
-		h.redirectToLogin(c)
+		h.redirectToLoginWithError(c, "timeout")
 
 	case <-ctx.Done():
-		h.redirectToLogin(c)
+		h.redirectToLoginWithError(c, "request_cancelled")
 	}
+}
+
+func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode string) {
+	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
+	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
+	c.SetCookie("session_id", "", -1, "/", "", true, true)
+	c.Redirect(http.StatusFound,
+		"https://d3c34598mt7qdx.cloudfront.net/login?error="+errorCode)
 }
 
 func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
