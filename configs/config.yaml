@@ -178,10 +178,10 @@ integrations:
   smtp:
     host: "mailhog"
     port: 1025
-    username: "test"
-    password: "test"
+    username: ""
+    password: ""
     use_tls: false
-    default_from: "noreply@franchisehub.dev"
+    default_from: "noreply@lemici.com"
 
   # Email id for Enquiry 
   internal: 
