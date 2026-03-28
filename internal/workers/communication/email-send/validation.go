@@ -458,7 +458,7 @@ func GetInputSchema() validation.JSONSchema {
 				Description: "Additional metadata for the email",
 			},
 		},
-		AdditionalProperties: false,
+		AdditionalProperties: true,
 	}
 }
 
