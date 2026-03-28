@@ -307,7 +307,7 @@ func (h *Handler) validateDataDepth(data map[string]interface{}, depth int) erro
 		if err := ozzo.Validate(key,
 			ozzo.Length(1, 100).Error("key must be 1-100 characters"),
 			validation.SafeNoSQLString,
-			validation.AlphanumericOnly,
+			// validation.AlphanumericOnly,
 		); err != nil {
 			return appErrs.NewValidationError(fmt.Sprintf("data.%s", key), err.Error())
 		}
