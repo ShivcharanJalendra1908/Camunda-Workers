@@ -264,9 +264,21 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		span.SetAttributes(attribute.Bool("execution_error", true))
 		errorCode := extractErrorCode(err)
 		metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
+		if h.idempotencyChecker != nil {
+			failKey := h.keyGenerator.GenerateNotificationKeySimple("email", input.To)
+			h.idempotencyChecker.MarkFailed(ctx, failKey)
+		}
 		h.failJob(ctx, client, job, err)
 		return
 	}
+	// if err != nil {
+	// 	span.RecordError(err)
+	// 	span.SetAttributes(attribute.Bool("execution_error", true))
+	// 	errorCode := extractErrorCode(err)
+	// 	metrics.WorkerJobsFailed.WithLabelValues(TaskType, errorCode).Inc()
+	// 	h.failJob(ctx, client, job, err)
+	// 	return
+	// }
 
 	// ===== ✅ STEP 6: STORE SUCCESS RESULT =====
 	if h.idempotencyChecker != nil && output.Success {

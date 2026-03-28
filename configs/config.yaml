@@ -176,7 +176,7 @@ integrations:
   
   # SMTP (Fallback/Development)
   smtp:
-    host: "localhost"
+    host: "mailhog"
     port: 1025
     username: "test"
     password: "test"
