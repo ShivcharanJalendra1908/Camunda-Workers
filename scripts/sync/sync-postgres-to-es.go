@@ -663,8 +663,8 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 
 		// Categories fetch karo
 		catRows, err := m.db.QueryContext(ctx, `
-			SELECT id, name, slug, display_order
-			FROM categories
+			SELECT id, name, slug, icon_url, display_order
+            FROM categories
 			WHERE industry_id = $1 AND is_active = true
 			ORDER BY display_order
 		`, id)
@@ -676,9 +676,10 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		var categories []map[string]interface{}
 		for catRows.Next() {
 			var catID, catName, catSlug string
+			var catIconURL sql.NullString
 			var catOrder int
 
-			if err := catRows.Scan(&catID, &catName, &catSlug, &catOrder); err != nil {
+			if err := catRows.Scan(&catID, &catName, &catSlug, &catIconURL, &catOrder); err != nil {
 				continue
 			}
 
@@ -717,6 +718,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 				"category_name":  catName,
 				"category_slug":  catSlug,
 				"display_order":  catOrder,
+				"icon_url":       catIconURL.String,
 				"sub_categories": subCategories,
 			})
 		}

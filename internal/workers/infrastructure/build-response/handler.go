@@ -1066,6 +1066,8 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 
 				cleanedCategories = append(cleanedCategories, map[string]interface{}{
 					"category_name":  cat["category_name"],
+					"category_slug":  cat["category_slug"],
+					"icon_url":       cat["icon_url"], // ✅ AD
 					"sub_categories": cleanedSubs,
 				})
 			}
