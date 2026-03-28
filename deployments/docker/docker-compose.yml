@@ -396,3 +396,12 @@ services:
       retries: 3
       start_period: 90s
     restart: on-failure:3
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - camunda-network
