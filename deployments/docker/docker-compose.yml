@@ -222,6 +222,8 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
+      - /home/ubuntu/keycloak-theme/lemici:/opt/keycloak/themes/lemici
+      
     depends_on:
       postgres:
         condition: service_healthy
