@@ -1,0 +1,259 @@
+/* Exact UI Match for LeMiCi Keycloak Theme */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+
+:root {
+    --primary-color: #6D3E93;
+    --primary-hover: #5B2E7E;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --bg-white: #ffffff;
+    --border-gray: #d1d5db;
+    --link-blue: #3b82f6;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif !important;
+    background-color: white !important;
+    height: 100vh;
+}
+
+.login-split-container {
+    display: flex;
+    width: 100%;
+    height: 100vh;
+}
+
+/* Left Side - Form */
+.login-form-side {
+    width: 50%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    position: relative;
+    overflow-y: auto;
+}
+
+.back-button {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    display: flex;
+    align-items: center;
+    color: #4b5563;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.back-button i {
+    margin-right: 8px;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 384px; /* max-w-sm */
+}
+
+.login-header {
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+.login-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 8px;
+}
+
+.login-header p {
+    font-size: 14px;
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: #1f2937;
+}
+
+.input-wrapper {
+    position: relative;
+}
+
+.input-wrapper i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    font-size: 14px;
+}
+
+.pf-c-form-control {
+    width: 100% !important;
+    padding: 8px 12px 8px 40px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    outline: none !important;
+}
+
+.pf-c-form-control:focus {
+    border-color: #a855f7 !important;
+    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4) !important;
+}
+
+.forgot-password-link {
+    display: block;
+    text-align: right;
+    font-size: 14px;
+    color: var(--link-blue);
+    text-decoration: none;
+    margin-top: 4px;
+}
+
+.forgot-password-link:hover {
+    text-decoration: underline;
+}
+
+/* Submit Button */
+.pf-c-button.pf-m-primary {
+    width: 100% !important;
+    background-color: var(--primary-color) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px !important;
+    font-weight: 500 !important;
+    font-size: 16px !important;
+    cursor: pointer !important;
+    margin-top: 24px !important;
+    transition: background 0.2s;
+}
+
+.pf-c-button.pf-m-primary:hover {
+    background-color: var(--primary-hover) !important;
+}
+
+/* Divider */
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 24px 0;
+}
+
+.divider hr {
+    flex-grow: 1;
+    border: 0;
+    border-top: 1px solid #d1d5db;
+}
+
+.divider span {
+    padding: 0 8px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+/* Social Buttons */
+#kc-social-providers ul {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.social-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    transition: background 0.2s;
+    text-decoration: none;
+}
+
+.social-btn:hover {
+    background: #f3f4f6;
+}
+
+.social-btn.google i { color: #DB4437; }
+.social-btn.facebook i { color: #1877F2; }
+.social-btn.apple i { color: #000000; }
+
+/* Right Side - Image Area */
+.login-image-side {
+    width: 50%;
+    background-image: url('../img/signin-bg.jpg');
+    background-size: cover;
+    background-position: center;
+    border-radius: 12px 0 0 12px;
+    margin: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-image-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+}
+
+.login-testimonial {
+    position: absolute;
+    bottom: 24px;
+    left: 24px;
+    color: white;
+    max-width: 384px;
+}
+
+.stars {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.stars i { color: #facc15; font-size: 18px; }
+
+.login-testimonial h2 { font-size: 24px; font-weight: 700; margin: 0; }
+.login-testimonial p.desc { font-size: 14px; line-height: 1.5; margin: 8px 0 12px 0; opacity: 0.9; }
+.login-testimonial .directors { font-size: 14px; font-weight: 600; color: #60a5fa; margin: 0; }
+.login-testimonial .title { font-size: 12px; margin: 0; }
+
+/* Messages */
+.alert-error {
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .login-form-side { width: 100%; padding: 20px; }
+    .login-image-side { display: none; }
+}
