@@ -310,7 +310,7 @@ workers:
       max_tokens: 300
       temperature: 0.0
 
-  franchise_postgres:
+  franchise-postgres:
     worker_name: "franchise-postgres-worker"
     job_type: "franchise-postgres"
     max_jobs_active: 10
