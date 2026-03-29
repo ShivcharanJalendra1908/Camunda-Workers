@@ -2821,8 +2821,8 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
  
 	if input.Review != nil {
 		sanitized := h.sanitizer.SanitizeString(*input.Review)
-		if err := h.validateString("review", sanitized, 0, 2000); err != nil {
-			return nil, err
+		if len(sanitized) > 2000 {
+			return nil, fmt.Errorf("%w: review must not exceed 2000 characters", ErrValidationError)
 		}
 		query += fmt.Sprintf(", review = $%d", argPos)
 		args = append(args, sanitized)
