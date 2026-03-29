@@ -38,9 +38,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;ADD_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=&#34;ADD_BOOKMARK&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=id" target="bookmarkId" />
           <zeebe:output source="=isBookmarked" target="isBookmarked" />
           <zeebe:output source="=success" target="success" />
@@ -58,9 +58,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;REMOVE_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=&#34;REMOVE_BOOKMARK&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
         </zeebe:ioMapping>
@@ -72,7 +72,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_USER_BOOKMARKS&#34;" target="operationType" />
+          <zeebe:input source="=&#34;GET_USER_BOOKMARKS&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
@@ -88,9 +88,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;CHECK_BOOKMARK&#34;" target="operationType" />
+          <zeebe:input source="=&#34;CHECK_BOOKMARK&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=isBookmarked" target="isBookmarked" />
           <zeebe:output source="=bookmarkId" target="bookmarkId" />
           <zeebe:output source="=success" target="success" />
@@ -111,9 +111,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;SUBMIT_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=&#34;SUBMIT_USER_RATING&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=rating" target="rating" />
           <zeebe:input source="=review" target="review" />
           <zeebe:output source="=id" target="ratingId" />
@@ -134,9 +134,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;UPDATE_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=&#34;UPDATE_USER_RATING&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=rating" target="rating" />
           <zeebe:input source="=review" target="review" />
           <zeebe:output source="=success" target="success" />
@@ -150,9 +150,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=&#34;GET_USER_RATING&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=hasRated" target="hasRated" />
           <zeebe:output source="=rating" target="userRating" />
           <zeebe:output source="=review" target="userReview" />
@@ -166,8 +166,8 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_FRANCHISE_RATINGS&#34;" target="operationType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=&#34;GET_FRANCHISE_RATINGS&#34;" target="operation_type" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
           <zeebe:output source="=ratings" target="ratings" />
@@ -183,9 +183,9 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;DELETE_USER_RATING&#34;" target="operationType" />
+          <zeebe:input source="=&#34;DELETE_USER_RATING&#34;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
         </zeebe:ioMapping>
@@ -197,8 +197,8 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;SHARE_FRANCHISE&#34;" target="operationType" />
-          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=&#34;SHARE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=sharePlatform" target="sharePlatform" />
           <zeebe:input source="=ipAddress" target="ipAddress" />
@@ -232,7 +232,7 @@
         <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={success: success, message: message, data: {bookmarkId: bookmarkId, isBookmarked: isBookmarked, bookmarks: bookmarks, ratingId: ratingId, rating: submittedRating, hasRated: hasRated, ratings: ratings, avgRating: avgRating, shareId: shareId, totalCount: totalCount}}" target="response" />
+          <zeebe:input source="={success: success, message: message, data: {bookmarkId: bookmarkId, isBookmarked: isBookmarked, bookmarks: bookmarks, ratingId: ratingId, rating: if submittedRating != null then submittedRating else userRating, userRating: userRating, userReview: userReview, hasRated: hasRated, ratings: ratings, avgRating: avgRating, shareId: shareId, totalCount: totalCount}}" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToSendResponse</incoming>
