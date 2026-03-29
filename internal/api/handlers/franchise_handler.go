@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,6 +30,7 @@ type FranchiseHandler struct {
 	sanitizer          *validation.Sanitizer
 	internalAlertEmail string
 	paginationCfg      config.PaginationConfig
+	db                 *sql.DB
 }
 
 func NewFranchiseHandler(
@@ -37,6 +39,7 @@ func NewFranchiseHandler(
 	redisClient *redis.Client,
 	internalEmail string,
 	paginationCfg config.PaginationConfig,
+	db *sql.DB,
 ) *FranchiseHandler {
 	return &FranchiseHandler{
 		camundaClient:      camundaClient,
@@ -46,6 +49,7 @@ func NewFranchiseHandler(
 		sanitizer:          validation.NewSanitizer(),
 		internalAlertEmail: internalEmail,
 		paginationCfg:      paginationCfg,
+		db:                 db,
 	}
 }
 
@@ -214,6 +218,19 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		}
 		h.SearchFranchises(c)
 		return
+	}
+
+	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
+	if industrySlug == "" && categorySlug != "" {
+		var resolved string
+		err := h.db.QueryRowContext(ctx,
+			`SELECT i.slug FROM industries i
+             JOIN categories c ON c.industry_id = i.id
+             WHERE c.slug = $1 LIMIT 1`, categorySlug,
+		).Scan(&resolved)
+		if err == nil && resolved != "" {
+			industrySlug = resolved
+		}
 	}
 
 	// Industry slug required for listing page
