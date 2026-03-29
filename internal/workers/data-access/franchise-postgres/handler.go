@@ -80,7 +80,6 @@ func (h *Handler) validateBaseInput(input *BaseInput) error {
 	if err := ozzo.Validate(input.OperationType,
 		ozzo.Required.Error("operationType is required"),
 		validation.ValidateStringLength(3, 50),
-		validation.SafeSQLString,
 		validation.ValidateEnum([]string{
 			"CREATE_FRANCHISE",
 			"UPDATE_FRANCHISE",
@@ -2615,8 +2614,8 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 			uf.franchise_id,
 			f.name,
 			f.slug,
-			COALESCE(f.logo_url_circle, '') as logo_url,
-			COALESCE(f.industry, '') as industry,
+			COALESCE(f.logo_url_circle, f.logo_url_square, '') as logo_url,
+			COALESCE((SELECT i.name FROM franchise_categories fc JOIN categories c ON fc.category_id = c.id JOIN industries i ON c.industry_id = i.id WHERE fc.franchise_id = f.id AND fc.is_primary = true LIMIT 1), '') as industry,
 			uf.created_at as bookmarked_at
 		FROM user_favorites uf
 		INNER JOIN franchises f ON uf.franchise_id = f.id
