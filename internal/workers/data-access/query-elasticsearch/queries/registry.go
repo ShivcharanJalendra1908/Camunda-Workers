@@ -165,18 +165,6 @@ func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[
 			"brandId": source["franchise_id"], // Use brandId NOT franchise_id
 			"name":    getStringField(source, "name", ""),
 			"slug":    getStringField(source, "slug", ""),
-			// "logo": map[string]interface{}{ // Create logo object
-			// 	//"url": getStringField(source, "logo_url", ""),
-			// 	"url": func() string {
-			// 		if logo, ok := source["logo"].(map[string]interface{}); ok {
-			// 			if url, ok := logo["url"].(string); ok {
-			// 				return url
-			// 			}
-			// 		}
-			// 		return ""
-			// 	}(),
-			// 	"alt": getStringField(source, "name", ""),
-			// },
 			"logo": func() map[string]interface{} {
 				circle := ""
 				square := ""
@@ -245,77 +233,27 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 	var query map[string]interface{}
 
 	if ok && industrySlug != "" {
-		// Filter by industry
-		// query = map[string]interface{}{
-		// 	"query": map[string]interface{}{
-		// 		"match": map[string]interface{}{
-		// 			"industry.slug": map[string]interface{}{
-		// 				"query":    industrySlug,
-		// 				"operator": "and",
-		// 			},
-		// 		},
-		// 	},
-		// ✅ NAYA — industry.name se match karo (text field hai, sahi rahega)
-		// industrySlug yahan actually "Food & Beverage" jaisa string aata hai BPMN se
+		// Convert name→slug if needed: "Food & Beverage" → "food-beverage"
+		slugValue := strings.ToLower(
+			strings.ReplaceAll(
+				strings.ReplaceAll(industrySlug, " & ", "-"),
+				" ", "-"))
+
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"should": []interface{}{
 						map[string]interface{}{
 							"term": map[string]interface{}{
-								"industry.name.keyword": industrySlug,
-							},
-						},
-						map[string]interface{}{
-							"match": map[string]interface{}{
-								"industry.name": map[string]interface{}{
-									"query":     industrySlug,
-									"fuzziness": "AUTO",
-								},
+								"industry.slug": slugValue, // "food-beverage"
 							},
 						},
 						map[string]interface{}{
 							"term": map[string]interface{}{
-								"industry.slug": strings.ToLower(
-									strings.ReplaceAll(
-										strings.ReplaceAll(industrySlug, " & ", "-"),
-										" ", "-")),
-							},
-						},
-						map[string]interface{}{
-							"wildcard": map[string]interface{}{
-								"industry.slug": map[string]interface{}{
-									"value": "*" + strings.ToLower(industrySlug) + "*",
-								},
-							},
-						},
-						map[string]interface{}{
-							"prefix": map[string]interface{}{
-								"industry.slug": strings.ToLower(industrySlug),
+								"industry.name.keyword": industrySlug, // "Food & Beverage"
 							},
 						},
 					},
-					// "should": []interface{}{
-					// 	map[string]interface{}{
-					// 		"term": map[string]interface{}{
-					// 			"industry.name.keyword": industrySlug,
-					// 		},
-					// 	},
-					// 	map[string]interface{}{
-					// 		"match": map[string]interface{}{
-					// 			"industry.name": industrySlug,
-					// 		},
-					// 	},
-					// 	map[string]interface{}{
-					// 		"term": map[string]interface{}{
-					// 			"industry.slug": strings.ToLower(
-					// 				strings.ReplaceAll(
-					// 					strings.ReplaceAll(industrySlug, " & ", "-"),
-					// 					" ", "-")),
-					// 		},
-					// 	},
-					// },
-
 					"minimum_should_match": 1,
 				},
 			},
@@ -326,7 +264,6 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 		}
 	} else {
-		// Get any top franchises
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"match_all": map[string]interface{}{},
@@ -341,6 +278,110 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 
 	return executeQuery(ctx, esClient, "franchise_listings", query)
 }
+
+// RecommendedByIndustry - Get recommended franchises by industry
+// func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+// 	industrySlug, ok := params["industrySlug"].(string)
+
+// 	var query map[string]interface{}
+
+// 	if ok && industrySlug != "" {
+// 		// Filter by industry
+// 		// query = map[string]interface{}{
+// 		// 	"query": map[string]interface{}{
+// 		// 		"match": map[string]interface{}{
+// 		// 			"industry.slug": map[string]interface{}{
+// 		// 				"query":    industrySlug,
+// 		// 				"operator": "and",
+// 		// 			},
+// 		// 		},
+// 		// 	},
+// 		// ✅ NAYA — industry.name se match karo (text field hai, sahi rahega)
+// 		// industrySlug yahan actually "Food & Beverage" jaisa string aata hai BPMN se
+// 		query = map[string]interface{}{
+// 			"query": map[string]interface{}{
+// 				"bool": map[string]interface{}{
+// 					"should": []interface{}{
+// 						map[string]interface{}{
+// 							"term": map[string]interface{}{
+// 								"industry.name.keyword": industrySlug,
+// 							},
+// 						},
+// 						map[string]interface{}{
+// 							"match": map[string]interface{}{
+// 								"industry.name": map[string]interface{}{
+// 									"query":     industrySlug,
+// 									"fuzziness": "AUTO",
+// 								},
+// 							},
+// 						},
+// 						map[string]interface{}{
+// 							"term": map[string]interface{}{
+// 								"industry.slug": strings.ToLower(
+// 									strings.ReplaceAll(
+// 										strings.ReplaceAll(industrySlug, " & ", "-"),
+// 										" ", "-")),
+// 							},
+// 						},
+// 						map[string]interface{}{
+// 							"wildcard": map[string]interface{}{
+// 								"industry.slug": map[string]interface{}{
+// 									"value": "*" + strings.ToLower(industrySlug) + "*",
+// 								},
+// 							},
+// 						},
+// 						map[string]interface{}{
+// 							"prefix": map[string]interface{}{
+// 								"industry.slug": strings.ToLower(industrySlug),
+// 							},
+// 						},
+// 					},
+// 					// "should": []interface{}{
+// 					// 	map[string]interface{}{
+// 					// 		"term": map[string]interface{}{
+// 					// 			"industry.name.keyword": industrySlug,
+// 					// 		},
+// 					// 	},
+// 					// 	map[string]interface{}{
+// 					// 		"match": map[string]interface{}{
+// 					// 			"industry.name": industrySlug,
+// 					// 		},
+// 					// 	},
+// 					// 	map[string]interface{}{
+// 					// 		"term": map[string]interface{}{
+// 					// 			"industry.slug": strings.ToLower(
+// 					// 				strings.ReplaceAll(
+// 					// 					strings.ReplaceAll(industrySlug, " & ", "-"),
+// 					// 					" ", "-")),
+// 					// 		},
+// 					// 	},
+// 					// },
+
+// 					"minimum_should_match": 1,
+// 				},
+// 			},
+// 			"size": 4,
+// 			"sort": []map[string]interface{}{
+// 				{"rating": map[string]interface{}{"order": "desc"}},
+// 			},
+// 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
+// 		}
+// 	} else {
+// 		// Get any top franchises
+// 		query = map[string]interface{}{
+// 			"query": map[string]interface{}{
+// 				"match_all": map[string]interface{}{},
+// 			},
+// 			"size": 4,
+// 			"sort": []map[string]interface{}{
+// 				{"rating": map[string]interface{}{"order": "desc"}},
+// 			},
+// 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
+// 		}
+// 	}
+
+// 	return executeQuery(ctx, esClient, "franchise_listings", query)
+// }
 
 func FranchiseBySlug(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	slug, ok := params["slug"].(string)
@@ -703,62 +744,6 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 }
 
 // FranchiseListing - Paginated franchise listing (Listing Page MAIN query)
-// func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
-
-// 	industrySlug, _ := params["industrySlug"].(string)
-// 	page, _ := params["page"].(int)
-// 	limit, _ := params["limit"].(int)
-
-// 	if page <= 0 {
-// 		page = 1
-// 	}
-// 	if limit <= 0 {
-// 		limit = 12
-// 	}
-// 	if limit > 50 {
-// 		limit = 50
-// 	}
-
-// 	// ✅ ADD THIS: Round to nearest multiple of 3
-// 	if limit != 9 && limit != 12 && limit != 15 && limit != 18 && limit != 21 {
-// 		// Round to nearest multiple of 3
-// 		limit = ((limit + 2) / 3) * 3
-// 		if limit > 12 {
-// 			limit = 12 // Cap at 12 for listing page
-// 		}
-// 		if limit < 9 {
-// 			limit = 9 // Minimum 9
-// 		}
-// 	}
-
-// 	from := (page - 1) * limit
-
-// 	query := map[string]interface{}{
-// 		"from": from,
-// 		"size": limit,
-// 		"sort": []map[string]interface{}{
-// 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
-// 			{"_score": map[string]interface{}{"order": "desc"}},
-// 		},
-// 	}
-
-// 	if industrySlug != "" {
-// 		query["query"] = map[string]interface{}{
-// 			"match": map[string]interface{}{
-// 				"industry.slug": map[string]interface{}{
-// 					"query":    industrySlug,
-// 					"operator": "and",
-// 				},
-// 			},
-// 		}
-// 	} else {
-// 		query["query"] = map[string]interface{}{
-// 			"match_all": map[string]interface{}{},
-// 		}
-// 	}
-
-//		return executeQuery(ctx, esClient, "franchise_listings", query)
-//	}
 func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 
 	industrySlug, _ := params["industrySlug"].(string)
@@ -788,17 +773,6 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 	} else if pageSize > 0 {
 		from = (page - 1) * pageSize
 	}
-	// pageSize := 10
-	// if v, ok := params["pageSize"].(float64); ok && v > 0 {
-	// 	pageSize = int(v)
-	// } else if v, ok := params["pageSize"].(int); ok && v > 0 {
-	// 	pageSize = v
-	// }
-	// if pageSize > 50 {
-	// 	pageSize = 50
-	// }
-
-	// from := (page - 1) * pageSize
 
 	query := map[string]interface{}{
 		"from":             from,
@@ -810,20 +784,6 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 		},
 	}
 
-	// if industrySlug != "" {
-	// 	query["query"] = map[string]interface{}{
-	// 		"match": map[string]interface{}{
-	// 			"industry.slug": map[string]interface{}{
-	// 				"query":    industrySlug,
-	// 				"operator": "and", // ← same rakha, pehle se kaam kar raha tha
-	// 			},
-	// 		},
-	// 	}
-	// } else {
-	// 	query["query"] = map[string]interface{}{
-	// 		"match_all": map[string]interface{}{},
-	// 	}
-	// }
 	if industrySlug != "" {
 		query["query"] = map[string]interface{}{
 			"bool": map[string]interface{}{
@@ -1126,29 +1086,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			})
 		}
 	}
-	// // Text search
-	// if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
-	// 	// ADD THIS:
-	// 	cleanQuery := searchQuery
-	// 	for _, prep := range []string{" in ", " at ", " near ", " from ", " around "} {
-	// 		if idx := strings.Index(strings.ToLower(cleanQuery), prep); idx != -1 {
-	// 			cleanQuery = cleanQuery[:idx]
-	// 		}
-	// 	}
-	// 	cleanQuery = strings.TrimSpace(cleanQuery)
-	// 	if cleanQuery == "" {
-	// 		cleanQuery = searchQuery
-	// 	}
-	// 	// USE cleanQuery instead of searchQuery:
-	// 	mustClauses = append(mustClauses, map[string]interface{}{
-	// 		"multi_match": map[string]interface{}{
-	// 			"query":     cleanQuery, // "food franchise" not "food franchise in mumbai"
-	// 			"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
-	// 			"type":      "best_fields",
-	// 			"fuzziness": "AUTO",
-	// 		},
-	// 	})
-	// }
 
 	// Category/Industry filter
 	category := ""
@@ -1184,17 +1121,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			},
 		})
 	}
-	// if category != "" {
-	// 	filterClauses = append(filterClauses, map[string]interface{}{
-	// 		"bool": map[string]interface{}{
-	// 			"should": []map[string]interface{}{
-	// 				{"term": map[string]interface{}{"industry.slug": category}},
-	// 				{"match": map[string]interface{}{"industry.name": category}},
-	// 			},
-	// 			"minimum_should_match": 1,
-	// 		},
-	// 	})
-	// }
 
 	// Location filter
 	if location, ok := filters["location"].(string); ok && location != "" {
@@ -1260,38 +1186,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Tags filter
-	// if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
-	// 	tagShoulds := []interface{}{}
-	// 	for _, tag := range tags {
-	// 		if tagStr, ok := tag.(string); ok {
-	// 			tagShoulds = append(tagShoulds, map[string]interface{}{
-	// 				"match": map[string]interface{}{"industry.name": tagStr},
-	// 			})
-	// 			tagShoulds = append(tagShoulds, map[string]interface{}{
-	// 				"term": map[string]interface{}{"tags": strings.ToLower(tagStr)},
-	// 			})
-	// 		}
-	// 	}
-	// 	if len(tagShoulds) > 0 {
-	// 		filterClauses = append(filterClauses, map[string]interface{}{
-	// 			"bool": map[string]interface{}{
-	// 				"should":               tagShoulds,
-	// 				"minimum_should_match": 1,
-	// 			},
-	// 		})
-	// 	}
-	// 	// if len(tagShoulds) > 0 {
-	// 	// 	mustClauses = append(mustClauses, map[string]interface{}{
-	// 	// 		"bool": map[string]interface{}{
-	// 	// 			"should": tagShoulds,
-	// 	// 			// minimum_should_match NAHI — optional boost
-	// 	// 		},
-	// 	// 	})
-	// 	// }
-	// }
-
-	// Tags filter
-	// ✅ NAYA — multi-word tags ko split karke match karo
 	if tags, ok := filters["tags"].([]interface{}); ok && len(tags) > 0 {
 		tagShoulds := []interface{}{}
 		for _, tag := range tags {

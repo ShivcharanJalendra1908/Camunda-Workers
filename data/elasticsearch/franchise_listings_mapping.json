@@ -47,7 +47,8 @@
         "type": "keyword"
       },
       "tags": {
-        "type": "keyword"
+        "type": "text",
+        "fields": {"keyword": {"type": "keyword"}}
       },
       "space": {
         "type": "object",

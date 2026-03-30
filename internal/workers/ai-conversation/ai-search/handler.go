@@ -411,12 +411,29 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		}
 	}
 
+	// boolQuery := map[string]interface{}{
+	// 	"should": []interface{}{
+	// 		map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": cleanQuery, "boost": 3}}},
+	// 		map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": cleanQuery, "boost": 2}}},
+	// 		map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": cleanQuery, "fuzziness": "AUTO"}}},
+	// 		map[string]interface{}{"match": map[string]interface{}{"description": cleanQuery}},
+	// 	},
+	// 	"minimum_should_match": 1,
+	// }
 	boolQuery := map[string]interface{}{
 		"should": []interface{}{
-			map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": cleanQuery, "boost": 3}}},
-			map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": cleanQuery, "boost": 2}}},
-			map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": cleanQuery, "fuzziness": "AUTO"}}},
-			map[string]interface{}{"match": map[string]interface{}{"description": cleanQuery}},
+			map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{
+				"query": cleanQuery, "boost": 5, "fuzziness": "AUTO",
+			}}},
+			map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{
+				"query": cleanQuery, "boost": 3, "fuzziness": "AUTO",
+			}}},
+			map[string]interface{}{"match": map[string]interface{}{"description": map[string]interface{}{
+				"query": cleanQuery, "boost": 2, "fuzziness": "AUTO",
+			}}},
+			map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{
+				"query": cleanQuery, "boost": 1,
+			}}},
 		},
 		"minimum_should_match": 1,
 	}
@@ -903,8 +920,16 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"tags":          []string{},
 	}
 
+	// if params.Industry != "" {
+	// 	extractedParams["industry"] = params.Industry
+	// }
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
+		// industrySlug bhi set karo — BPMN Task_GetRecommended ko yahi chahiye
+		extractedParams["industrySlug"] = strings.ToLower(
+			strings.ReplaceAll(
+				strings.ReplaceAll(params.Industry, " & ", "-"),
+				" ", "-"))
 	}
 	if params.Category != "" {
 		extractedParams["category"] = params.Category

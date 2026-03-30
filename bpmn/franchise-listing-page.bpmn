@@ -1,40 +1,51 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_listing" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_merged" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
   <bpmn:process id="franchise-listing-page" name="Franchise Listing Page" isExecutable="true">
     <bpmn:startEvent id="Start_Listing" name="Listing Request">
-      <bpmn:outgoing>Flow_To_Parallel</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_AICheck</bpmn:outgoing>
     </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_AICheck" name="Search Query?">
+      <bpmn:incoming>Flow_To_AICheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_AISearch</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Skip_AI</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_AISearch" name="AI Interpret Search Query">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="ai-search" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=searchQuery" target="query" />
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:output source="=extractedParams" target="filters" />
+          <zeebe:output source="=extractedParams" target="extractedParams" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_AISearch</bpmn:incoming>
+      <bpmn:outgoing>Flow_AI_To_Merge</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Merge" name="Merge">
+      <bpmn:incoming>Flow_AI_To_Merge</bpmn:incoming>
+      <bpmn:incoming>Flow_Skip_AI</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Parallel</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
     <bpmn:parallelGateway id="Gateway_Parallel">
       <bpmn:incoming>Flow_To_Parallel</bpmn:incoming>
-      <bpmn:outgoing>Flow_To_Industry</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Listings</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_Industry</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Categories</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Questions</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Recommended</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Insights</bpmn:outgoing>
     </bpmn:parallelGateway>
-    <bpmn:serviceTask id="Task_GetIndustry" name="Get Industry Description">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="query-postgresql" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;INDUSTRY_BY_SLUG&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="slug" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
-          <zeebe:output source="=data" target="industryInfo" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_To_Industry</bpmn:incoming>
-      <bpmn:outgoing>Flow_Industry_To_Join</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_GetListings" name="Get Franchise Listings">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;FRANCHISE_LISTING&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then &#34;SEARCH_WITH_FILTERS&#34; else &#34;FRANCHISE_LISTING&#34;" target="queryType" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then filters else null" target="filters" />
           <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=pageSize" target="pageSize" />
-          <zeebe:input source="=offset" target="offset" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then limit else pageSize" target="pageSize" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (page - 1) * limit else offset" target="offset" />
+          <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then industrySlug else null" target="industrySlug" />
           <zeebe:output source="=data" target="franchises" />
           <zeebe:output source="=total" target="totalCount" />
         </zeebe:ioMapping>
@@ -42,12 +53,25 @@
       <bpmn:incoming>Flow_To_Listings</bpmn:incoming>
       <bpmn:outgoing>Flow_Listings_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_GetIndustry" name="Get Industry Description">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;INDUSTRY_BY_SLUG&#34;" target="queryType" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="slug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
+          <zeebe:output source="=data" target="industryInfo" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_Industry</bpmn:incoming>
+      <bpmn:outgoing>Flow_Industry_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_GetCategories" name="Get Featured Categories">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORIES_FEATURED_8&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="categories" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -59,7 +83,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORY_QUESTIONS_BY_INDUSTRY&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="categoryQuestions" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -71,7 +95,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;RECOMMENDED_BY_INDUSTRY&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="recommended" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -83,7 +107,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;MARKET_INSIGHTS&#34;" target="queryType" />
-          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
           <zeebe:output source="=if data != null and count(data) &#62; 0 then data[1] else null" target="marketInsights" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -91,8 +115,8 @@
       <bpmn:outgoing>Flow_Insights_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:parallelGateway id="Gateway_Join">
-      <bpmn:incoming>Flow_Industry_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Listings_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Industry_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Categories_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Questions_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Recommended_To_Join</bpmn:incoming>
@@ -111,8 +135,9 @@
           <zeebe:input source="=categoryQuestions" target="understandingCategory" />
           <zeebe:input source="=recommended" target="recommendedFranchises" />
           <zeebe:input source="=if marketInsights != null then [marketInsights] else []" target="keyMarketInsights" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then filters else null" target="searchParams" />
           <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=pageSize" target="pageSize" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then limit else pageSize" target="pageSize" />
           <zeebe:input source="=totalCount" target="totalCount" />
           <zeebe:output source="=response" target="finalResponse" />
         </zeebe:ioMapping>
@@ -134,144 +159,187 @@
     <bpmn:endEvent id="End_Listing" name="Response Sent">
       <bpmn:incoming>Flow_To_End</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_To_Parallel" sourceRef="Start_Listing" targetRef="Gateway_Parallel" />
-    <bpmn:sequenceFlow id="Flow_To_Industry" sourceRef="Gateway_Parallel" targetRef="Task_GetIndustry" />
+    <bpmn:sequenceFlow id="Flow_To_AICheck" sourceRef="Start_Listing" targetRef="Gateway_AICheck" />
+    <bpmn:sequenceFlow id="Flow_To_AISearch" sourceRef="Gateway_AICheck" targetRef="Task_AISearch">
+      <bpmn:conditionExpression>=searchQuery != null and searchQuery != ""</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Skip_AI" sourceRef="Gateway_AICheck" targetRef="Gateway_Merge">
+      <bpmn:conditionExpression>=searchQuery = null or searchQuery = ""</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_AI_To_Merge" sourceRef="Task_AISearch" targetRef="Gateway_Merge" />
+    <bpmn:sequenceFlow id="Flow_To_Parallel" sourceRef="Gateway_Merge" targetRef="Gateway_Parallel" />
     <bpmn:sequenceFlow id="Flow_To_Listings" sourceRef="Gateway_Parallel" targetRef="Task_GetListings" />
+    <bpmn:sequenceFlow id="Flow_To_Industry" sourceRef="Gateway_Parallel" targetRef="Task_GetIndustry" />
     <bpmn:sequenceFlow id="Flow_To_Categories" sourceRef="Gateway_Parallel" targetRef="Task_GetCategories" />
     <bpmn:sequenceFlow id="Flow_To_Questions" sourceRef="Gateway_Parallel" targetRef="Task_GetQuestions" />
     <bpmn:sequenceFlow id="Flow_To_Recommended" sourceRef="Gateway_Parallel" targetRef="Task_GetRecommended" />
-    <bpmn:sequenceFlow id="Flow_Industry_To_Join" sourceRef="Task_GetIndustry" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_To_Insights" sourceRef="Gateway_Parallel" targetRef="Task_GetInsights" />
     <bpmn:sequenceFlow id="Flow_Listings_To_Join" sourceRef="Task_GetListings" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Industry_To_Join" sourceRef="Task_GetIndustry" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Categories_To_Join" sourceRef="Task_GetCategories" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Questions_To_Join" sourceRef="Task_GetQuestions" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Recommended_To_Join" sourceRef="Task_GetRecommended" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_Insights_To_Join" sourceRef="Task_GetInsights" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
     <bpmn:sequenceFlow id="Flow_To_Send" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_To_End" sourceRef="Task_SendResponse" targetRef="End_Listing" />
-    <bpmn:sequenceFlow id="Flow_To_Insights" sourceRef="Gateway_Parallel" targetRef="Task_GetInsights" />
-    <bpmn:sequenceFlow id="Flow_Insights_To_Join" sourceRef="Task_GetInsights" targetRef="Gateway_Join" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="Diagram_Listing">
-    <bpmndi:BPMNPlane id="Plane_Listing" bpmnElement="franchise-listing-page">
-      <bpmndi:BPMNShape id="Shape_Gateway_Parallel" bpmnElement="Gateway_Parallel">
-        <dc:Bounds x="238" y="245" width="50" height="50" />
+  <bpmndi:BPMNDiagram id="Diagram_Merged">
+    <bpmndi:BPMNPlane bpmnElement="franchise-listing-page">
+      <bpmndi:BPMNShape bpmnElement="Task_GetListings">
+        <dc:Bounds x="645" y="40" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetIndustry" bpmnElement="Task_GetIndustry">
-        <dc:Bounds x="328" y="40" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Task_GetIndustry">
+        <dc:Bounds x="645" y="120" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetListings" bpmnElement="Task_GetListings">
-        <dc:Bounds x="328" y="120" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Task_GetCategories">
+        <dc:Bounds x="645" y="200" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetCategories" bpmnElement="Task_GetCategories">
-        <dc:Bounds x="328" y="200" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Task_GetQuestions">
+        <dc:Bounds x="645" y="280" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetQuestions" bpmnElement="Task_GetQuestions">
-        <dc:Bounds x="328" y="280" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Task_GetRecommended">
+        <dc:Bounds x="645" y="360" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetRecommended" bpmnElement="Task_GetRecommended">
-        <dc:Bounds x="328" y="360" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Task_GetInsights">
+        <dc:Bounds x="645" y="440" width="160" height="60" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_GetInsights" bpmnElement="Task_GetInsights">
-        <dc:Bounds x="328" y="440" width="120" height="60" />
+      <bpmndi:BPMNShape bpmnElement="Gateway_Parallel">
+        <dc:Bounds x="545" y="285" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Gateway_Join" bpmnElement="Gateway_Join">
-        <dc:Bounds x="488" y="245" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_BuildResponse" bpmnElement="Task_BuildResponse">
-        <dc:Bounds x="574" y="240" width="120" height="60" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_SendResponse" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="738" y="240" width="120" height="60" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_End_Listing" bpmnElement="End_Listing">
-        <dc:Bounds x="898" y="252" width="36" height="36" />
+      <bpmndi:BPMNShape bpmnElement="Gateway_Merge" isMarkerVisible="true">
+        <dc:Bounds x="455" y="285" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="879" y="295" width="74" height="14" />
+          <dc:Bounds x="465" y="342" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Start_Listing" bpmnElement="Start_Listing">
-        <dc:Bounds x="172" y="252" width="36" height="36" />
+      <bpmndi:BPMNShape bpmnElement="Task_AISearch">
+        <dc:Bounds x="300" y="210" width="160" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Gateway_AICheck" isMarkerVisible="true">
+        <dc:Bounds x="255" y="285" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="153" y="295" width="74" height="14" />
+          <dc:Bounds x="243" y="342" width="74" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Parallel" bpmnElement="Flow_To_Parallel">
-        <di:waypoint x="208" y="270" />
-        <di:waypoint x="238" y="270" />
+      <bpmndi:BPMNShape bpmnElement="Start_Listing">
+        <dc:Bounds x="172" y="292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="153" y="335" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Gateway_Join">
+        <dc:Bounds x="855" y="285" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_BuildResponse">
+        <dc:Bounds x="940" y="280" width="160" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="Task_SendResponse">
+        <dc:Bounds x="940" y="170" width="160" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="End_Listing">
+        <dc:Bounds x="1152" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1133" y="158" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_AICheck">
+        <di:waypoint x="208" y="310" />
+        <di:waypoint x="255" y="310" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Industry" bpmnElement="Flow_To_Industry">
-        <di:waypoint x="263" y="245" />
-        <di:waypoint x="263" y="70" />
-        <di:waypoint x="328" y="70" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_AISearch">
+        <di:waypoint x="280" y="285" />
+        <di:waypoint x="280" y="240" />
+        <di:waypoint x="300" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="150" y="225" width="70" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Listings" bpmnElement="Flow_To_Listings">
-        <di:waypoint x="263" y="245" />
-        <di:waypoint x="263" y="150" />
-        <di:waypoint x="328" y="150" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Skip_AI">
+        <di:waypoint x="305" y="310" />
+        <di:waypoint x="455" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="220" y="270" width="70" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Categories" bpmnElement="Flow_To_Categories">
-        <di:waypoint x="263" y="245" />
-        <di:waypoint x="263" y="230" />
-        <di:waypoint x="328" y="230" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_AI_To_Merge">
+        <di:waypoint x="460" y="240" />
+        <di:waypoint x="480" y="240" />
+        <di:waypoint x="480" y="285" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Questions" bpmnElement="Flow_To_Questions">
-        <di:waypoint x="263" y="295" />
-        <di:waypoint x="263" y="310" />
-        <di:waypoint x="328" y="310" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Parallel">
+        <di:waypoint x="505" y="310" />
+        <di:waypoint x="545" y="310" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Recommended" bpmnElement="Flow_To_Recommended">
-        <di:waypoint x="263" y="295" />
-        <di:waypoint x="263" y="390" />
-        <di:waypoint x="328" y="390" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Listings">
+        <di:waypoint x="570" y="285" />
+        <di:waypoint x="570" y="70" />
+        <di:waypoint x="645" y="70" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Industry_To_Join" bpmnElement="Flow_Industry_To_Join">
-        <di:waypoint x="448" y="70" />
-        <di:waypoint x="513" y="70" />
-        <di:waypoint x="513" y="245" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Industry">
+        <di:waypoint x="570" y="285" />
+        <di:waypoint x="570" y="150" />
+        <di:waypoint x="645" y="150" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Listings_To_Join" bpmnElement="Flow_Listings_To_Join">
-        <di:waypoint x="448" y="150" />
-        <di:waypoint x="513" y="150" />
-        <di:waypoint x="513" y="245" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Categories">
+        <di:waypoint x="570" y="285" />
+        <di:waypoint x="570" y="230" />
+        <di:waypoint x="645" y="230" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Categories_To_Join" bpmnElement="Flow_Categories_To_Join">
-        <di:waypoint x="448" y="230" />
-        <di:waypoint x="463" y="230" />
-        <di:waypoint x="463" y="270" />
-        <di:waypoint x="488" y="270" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Questions">
+        <di:waypoint x="595" y="310" />
+        <di:waypoint x="645" y="310" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Questions_To_Join" bpmnElement="Flow_Questions_To_Join">
-        <di:waypoint x="448" y="310" />
-        <di:waypoint x="463" y="310" />
-        <di:waypoint x="463" y="270" />
-        <di:waypoint x="488" y="270" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Recommended">
+        <di:waypoint x="570" y="335" />
+        <di:waypoint x="570" y="390" />
+        <di:waypoint x="645" y="390" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Recommended_To_Join" bpmnElement="Flow_Recommended_To_Join">
-        <di:waypoint x="448" y="390" />
-        <di:waypoint x="513" y="390" />
-        <di:waypoint x="513" y="295" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Insights">
+        <di:waypoint x="570" y="335" />
+        <di:waypoint x="570" y="470" />
+        <di:waypoint x="645" y="470" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Build" bpmnElement="Flow_To_Build">
-        <di:waypoint x="538" y="270" />
-        <di:waypoint x="574" y="270" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Listings_To_Join">
+        <di:waypoint x="805" y="70" />
+        <di:waypoint x="880" y="70" />
+        <di:waypoint x="880" y="285" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Send" bpmnElement="Flow_To_Send">
-        <di:waypoint x="694" y="270" />
-        <di:waypoint x="738" y="270" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Industry_To_Join">
+        <di:waypoint x="805" y="150" />
+        <di:waypoint x="880" y="150" />
+        <di:waypoint x="880" y="285" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_End" bpmnElement="Flow_To_End">
-        <di:waypoint x="858" y="270" />
-        <di:waypoint x="898" y="270" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Categories_To_Join">
+        <di:waypoint x="805" y="230" />
+        <di:waypoint x="880" y="230" />
+        <di:waypoint x="880" y="285" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_To_Insights" bpmnElement="Flow_To_Insights">
-        <di:waypoint x="263" y="295" />
-        <di:waypoint x="263" y="470" />
-        <di:waypoint x="328" y="470" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Questions_To_Join">
+        <di:waypoint x="805" y="310" />
+        <di:waypoint x="855" y="310" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Insights_To_Join" bpmnElement="Flow_Insights_To_Join">
-        <di:waypoint x="448" y="470" />
-        <di:waypoint x="513" y="470" />
-        <di:waypoint x="513" y="295" />
+      <bpmndi:BPMNEdge bpmnElement="Flow_Recommended_To_Join">
+        <di:waypoint x="805" y="390" />
+        <di:waypoint x="880" y="390" />
+        <di:waypoint x="880" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_Insights_To_Join">
+        <di:waypoint x="805" y="470" />
+        <di:waypoint x="880" y="470" />
+        <di:waypoint x="880" y="335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Build">
+        <di:waypoint x="905" y="310" />
+        <di:waypoint x="940" y="310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_Send">
+        <di:waypoint x="1020" y="280" />
+        <di:waypoint x="1020" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="Flow_To_End">
+        <di:waypoint x="1100" y="200" />
+        <di:waypoint x="1152" y="200" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

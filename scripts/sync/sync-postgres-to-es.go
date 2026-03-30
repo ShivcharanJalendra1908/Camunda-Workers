@@ -251,7 +251,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		).Scan(&location)
 
 		// Get and clean tags
-		tags := m.getCleanedTags(ctx, id)
+		// tags := m.getCleanedTags(ctx, id)
+		tags := m.generateSearchTags(ctx, id, name, industryName)
 
 		// Get space data
 		var minSpace, maxSpace sql.NullInt32
@@ -306,12 +307,6 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		// Add space object
-		// if minSpace.Valid || maxSpace.Valid {
-		// 	doc["space"] = map[string]interface{}{
-		// 		"minSpace": minSpace.Int32,
-		// 		"maxSpace": maxSpace.Int32,
-		// 	}
-		// }
 		if minSpace.Valid || maxSpace.Valid {
 			doc["space"] = map[string]interface{}{
 				"minSpace":  fmt.Sprintf("%d", minSpace.Int32), // Convert to string
@@ -369,6 +364,54 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 
 	log.Printf("   ✅ Total franchises indexed: %d", count)
 	return nil
+}
+
+func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franchiseName, industryName string) []string {
+	tags := []string{}
+	seen := make(map[string]bool)
+
+	addTag := func(t string) {
+		t = strings.TrimSpace(t)
+		if t != "" && !seen[strings.ToLower(t)] {
+			seen[strings.ToLower(t)] = true
+			tags = append(tags, t)
+		}
+	}
+
+	// Industry name
+	addTag(industryName)
+
+	// Categories + subcategories from DB
+	rows, err := m.db.QueryContext(ctx, `
+        SELECT c.name, sc.name
+        FROM franchise_categories fc
+        INNER JOIN categories c ON fc.category_id = c.id
+        LEFT JOIN sub_categories sc ON fc.sub_category_id = sc.id
+        WHERE fc.franchise_id = $1
+        ORDER BY fc.is_primary DESC
+    `, franchiseID)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var catName string
+			var subCatName sql.NullString
+			if err := rows.Scan(&catName, &subCatName); err == nil {
+				addTag(catName)
+				if subCatName.Valid {
+					addTag(subCatName.String)
+				}
+			}
+		}
+	}
+
+	// Brand first word + full name
+	nameParts := strings.Fields(franchiseName)
+	if len(nameParts) > 0 {
+		addTag(nameParts[0])
+	}
+	addTag(franchiseName)
+
+	return tags
 }
 
 // ============================================================
