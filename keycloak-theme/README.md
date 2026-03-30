@@ -1,3 +1,4 @@
+
 # Keycloak Theme Installation Guide
 
 To use the custom **LeMiCi** theme in your Dockerized Keycloak, follow these steps:
