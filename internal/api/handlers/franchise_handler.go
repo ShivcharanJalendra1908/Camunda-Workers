@@ -392,7 +392,7 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		"ipAddress":  c.ClientIP(),
 	}
 
-	response, err := h.executeWorkflow(ctx, "franchise-listing-ai-search", variables)
+	response, err := h.executeWorkflow(ctx, "franchise-listing-page", variables)
 	if err != nil {
 		h.internalError(c, "Failed to search franchises", err)
 		return
