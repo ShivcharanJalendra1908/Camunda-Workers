@@ -611,6 +611,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		SELECT 
 			imi.industry_id,
 			imi.industry_slug,
+			imi.intent_tag,
 			imi.growth_rate_title,
 			imi.growth_rate_description,
 			imi.market_trend_title,
@@ -633,6 +634,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		var (
 			industryID             string
 			industrySlug           string
+			intentTag              string
 			growthRateTitle        string
 			growthRateDescription  string
 			marketTrendTitle       string
@@ -643,6 +645,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		if err := rows.Scan(
 			&industryID,
 			&industrySlug,
+			&intentTag,
 			&growthRateTitle,
 			&growthRateDescription,
 			&marketTrendTitle,
@@ -657,6 +660,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		doc := map[string]interface{}{
 			"industry_id":              industryID,
 			"industry_slug":            industrySlug,
+			"intent_tag":               intentTag,
 			"growth_rate_title":        growthRateTitle,
 			"growth_rate_description":  growthRateDescription,
 			"market_trend_title":       marketTrendTitle,

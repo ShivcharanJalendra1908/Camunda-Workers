@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -744,22 +745,43 @@ func IndustryBySlugWithQuestions(
 	}, 1, time.Since(start).Milliseconds(), nil
 }
 
+func detectIntentTag(searchQuery string) string {
+	q := strings.ToLower(searchQuery)
+	for _, kw := range []string{"cheap", "low investment", "budget", "affordable", "under 5", "under 10", "5 lakh", "10 lakh", "less investment", "minimum investment", "small investment"} {
+		if strings.Contains(q, kw) {
+			return "low-investment"
+		}
+	}
+	for _, kw := range []string{"delhi", "mumbai", "bangalore", "bengaluru", "hyderabad", "chennai", "pune", "kolkata", "jaipur", "lucknow", "indore", "city", "location", "near me", "tier 2", "tier 3", "local"} {
+		if strings.Contains(q, kw) {
+			return "location-based"
+		}
+	}
+	for _, kw := range []string{"roi", "profit", "return", "earning", "income", "revenue", "margin", "payback", "profitable"} {
+		if strings.Contains(q, kw) {
+			return "roi-focused"
+		}
+	}
+	return "general"
+}
+
 func CategoryQuestionsByIndustry(
 	ctx context.Context,
 	db *sql.DB,
 	params map[string]interface{},
 ) (interface{}, int, int64, error) {
 	start := time.Now()
-
 	var referenceID string
+	searchQuery, _ := params["searchQuery"].(string)
+	intentTag := "general"
 
 	if v, ok := params["industryId"].(string); ok && v != "" {
 		referenceID = v
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
 		err := db.QueryRowContext(ctx, `
-            SELECT id FROM industries 
+            SELECT id FROM industries
             WHERE (
-                slug = $1 
+                slug = $1
                 OR slug LIKE $1 || '%'
                 OR slug LIKE '%' || $1 || '%'
                 OR name ILIKE '%' || $1 || '%'
@@ -773,8 +795,8 @@ func CategoryQuestionsByIndustry(
             LIMIT 1`, v,
 		).Scan(&referenceID)
 		if err != nil {
-			// ✅ Not found ya empty - gracefully return empty
-			return []string{}, 0, time.Since(start).Milliseconds(), nil
+			referenceID = "00000000-0000-0000-0000-000000000000"
+			intentTag = detectIntentTag(searchQuery)
 		}
 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
 		referenceID = v
@@ -786,10 +808,10 @@ func CategoryQuestionsByIndustry(
 			return []string{}, 0, time.Since(start).Milliseconds(), nil
 		}
 	} else {
-		// ✅ FIX: ErrInvalidParams throw mat karo - empty return karo
-		return []string{}, 0, time.Since(start).Milliseconds(), nil
+		referenceID = "00000000-0000-0000-0000-000000000000"
+		intentTag = detectIntentTag(searchQuery)
 	}
-	// ✅ Query with proper timeout
+
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -797,16 +819,16 @@ func CategoryQuestionsByIndustry(
         SELECT question
         FROM category_questions
         WHERE reference_id = $1
-        ORDER BY created_at
+          AND (intent_tag = $2 OR intent_tag = 'general')
+        ORDER BY
+            CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
+            created_at
         LIMIT 8
-    `, referenceID)
-
+    `, referenceID, intentTag)
 	if err != nil {
-		// Return empty array on error (graceful degradation)
 		return []string{}, 0, time.Since(start).Milliseconds(), nil
 	}
 	defer rows.Close()
-
 	var questions []string
 	for rows.Next() {
 		var q string
@@ -814,9 +836,82 @@ func CategoryQuestionsByIndustry(
 			questions = append(questions, q)
 		}
 	}
-
 	return questions, len(questions), time.Since(start).Milliseconds(), nil
 }
+
+// func CategoryQuestionsByIndustry(
+// 	ctx context.Context,
+// 	db *sql.DB,
+// 	params map[string]interface{},
+// ) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	var referenceID string
+
+// 	if v, ok := params["industryId"].(string); ok && v != "" {
+// 		referenceID = v
+// 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
+// 		err := db.QueryRowContext(ctx, `
+//             SELECT id FROM industries
+//             WHERE (
+//                 slug = $1
+//                 OR slug LIKE $1 || '%'
+//                 OR slug LIKE '%' || $1 || '%'
+//                 OR name ILIKE '%' || $1 || '%'
+//             )
+//             AND is_active = true
+//             ORDER BY
+//                 CASE WHEN slug = $1 THEN 1
+//                      WHEN slug LIKE $1 || '%' THEN 2
+//                      ELSE 3
+//                 END
+//             LIMIT 1`, v,
+// 		).Scan(&referenceID)
+// 		if err != nil {
+// 			// ✅ Not found ya empty - gracefully return empty
+// 			return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 		}
+// 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
+// 		referenceID = v
+// 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
+// 		err := db.QueryRowContext(ctx,
+// 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
+// 		).Scan(&referenceID)
+// 		if err != nil {
+// 			return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 		}
+// 	} else {
+// 		// ✅ FIX: ErrInvalidParams throw mat karo - empty return karo
+// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 	}
+// 	// ✅ Query with proper timeout
+// 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+// 	defer cancel()
+
+// 	rows, err := db.QueryContext(queryCtx, `
+//         SELECT question
+//         FROM category_questions
+//         WHERE reference_id = $1
+//         ORDER BY created_at
+//         LIMIT 8
+//     `, referenceID)
+
+// 	if err != nil {
+// 		// Return empty array on error (graceful degradation)
+// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
+// 	}
+// 	defer rows.Close()
+
+// 	var questions []string
+// 	for rows.Next() {
+// 		var q string
+// 		if err := rows.Scan(&q); err == nil && q != "" {
+// 			questions = append(questions, q)
+// 		}
+// 	}
+
+// 	return questions, len(questions), time.Since(start).Milliseconds(), nil
+// }
 
 // FeaturedCategoriesByIndustry - Get featured categories for an industry (detail page)
 func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {

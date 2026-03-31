@@ -524,6 +524,7 @@ CREATE TABLE category_questions (
     -- Refers to either industries.id OR categories.id (decided by AI / backend)
 
     question TEXT NOT NULL,
+    intent_tag VARCHAR(50) NOT NULL DEFAULT 'general',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -829,6 +830,7 @@ CREATE TABLE industry_market_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     industry_id UUID NOT NULL REFERENCES industries(id) ON DELETE CASCADE,
     industry_slug VARCHAR(100) NOT NULL,
+    intent_tag VARCHAR(50) NOT NULL DEFAULT 'general',
     growth_rate_title VARCHAR(200) NOT NULL,
     growth_rate_description TEXT NOT NULL,
     market_trend_title VARCHAR(200) NOT NULL,
@@ -837,7 +839,7 @@ CREATE TABLE industry_market_insights (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Ensure one insight per industry
-    CONSTRAINT uq_industry_insights UNIQUE (industry_id)
+    CONSTRAINT uq_industry_intent UNIQUE (industry_id, intent_tag)
 );
 
 -- Add trigger for auto-updating updated_at

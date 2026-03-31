@@ -1,4 +1,5 @@
 id,name,slug,icon_name,icon_url,color_hex,color_name,listing_title,listing_description,display_order,is_active,is_featured,meta_title,meta_description,created_at,updated_at
+00000000-0000-0000-0000-000000000000,General,general,,,#6B7280,,,,,true,false,,,2026-1-8 20:55,2026-1-8 20:55
 5ed3c109-2d23-4148-a019-f347fda26ed4,Automotive,automotive,,/FranchiseHomePage/industry-automobiles.png,#D32F2F,Engine Red,Automotive Franchises,,1,True,True,,,2026-1-8 20:55,2026-1-8 20:55
 42467fa8-06f1-4047-baf5-212e10ea66d8,Beauty,beauty,,/FranchiseHomePage/industry-beauty-salon.png,#E91E63,Rose Pink,Beauty & Salon Franchises,,2,True,True,,,2026-1-8 20:55,2026-1-8 20:55
 f26791cd-9656-452d-8326-9b9296125906,Health,health,,/FranchiseHomePage/industry-health-wellness.png,#00897B,Medical Teal,Health & Wellness Franchises,,3,True,True,,,2026-1-8 20:55,2026-1-8 20:55

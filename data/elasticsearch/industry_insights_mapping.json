@@ -7,6 +7,9 @@
       "industry_slug": {
         "type": "keyword"
       },
+      "intent_tag": {
+        "type": "keyword"
+      },
       "growth_rate_title": {
         "type": "text"
       },
