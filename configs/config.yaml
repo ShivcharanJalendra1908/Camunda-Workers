@@ -365,13 +365,6 @@ workers:
     enabled: true
     max_jobs_active: 5
     timeout: 10000
-
-  # # ✅ NEW: Franchise ES Indexer
-  # franchise-es-indexer:
-  #   enabled: true
-  #   max_jobs_active: 5
-  #   timeout: 30000  # 30 seconds
-  #   concurrency: 3
   
   # ✅ UPDATED: Search Franchises (with single index)
   search-franchises:
@@ -425,26 +418,6 @@ workers:
     enabled: true
     max_jobs_active: 5
     timeout: 5000
-
-  auth-signin-google:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 10000
-
-  auth-signin-linkedin:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 10000
-
-  auth-signup-google:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 10000
-
-  auth-signup-linkedin:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 10000
 
   auth-logout:
     enabled: true

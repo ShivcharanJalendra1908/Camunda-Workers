@@ -62,12 +62,8 @@ import (
 	pui "camunda-workers/internal/workers/ai-conversation/parse-user-intent"
 	qid "camunda-workers/internal/workers/ai-conversation/query-internal-data"
 
-	// Authentication & Utility Workers (10)
+	// Authentication & Utility Workers (6)
 	alo "camunda-workers/internal/workers/auth/auth-logout"
-	asig "camunda-workers/internal/workers/auth/auth-signin-google"
-	asil "camunda-workers/internal/workers/auth/auth-signin-linkedin"
-	asug "camunda-workers/internal/workers/auth/auth-signup-google"
-	asul "camunda-workers/internal/workers/auth/auth-signup-linkedin"
 	cv "camunda-workers/internal/workers/auth/captcha-verify"
 	keycloaksignin "camunda-workers/internal/workers/auth/keycloak-signin"
 	sessionmanager "camunda-workers/internal/workers/auth/session-manager"
@@ -453,7 +449,7 @@ func main() {
 
 		zapLog.Info("Franchise PostgreSQL worker registered successfully",
 			zap.String("taskType", taskType),
-			zap.Int("supportedOperations", 33),
+			zap.Int("supportedOperations", 29),
 			zap.Int("tables", 10),
 			zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
 			zap.Duration("requestTimeout", fpConfig.RequestTimeout),
@@ -667,70 +663,7 @@ func main() {
 		}
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
-	// Auth Signin Google
-	if taskType := "auth-signin-google"; cfg.Workers[taskType].Enabled {
-		handler, err := asig.NewHandler(asig.HandlerOptions{
-			AppConfig:          cfg,
-			Camunda:            nil,
-			Logger:             log,
-			CBManager:          cbManager,      // NEW: Pass circuit breaker manager
-			Keycloak:           keycloakClient, // NEW: Pass Keycloak client
-			IdempotencyChecker: idempotencyChecker,
-		})
-		if err != nil {
-			zapLog.Fatal("failed to create auth-signin-google handler", zap.Error(err))
-		}
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
-	}
-
-	// Auth Signin LinkedIn
-	if taskType := "auth-signin-linkedin"; cfg.Workers[taskType].Enabled {
-		handler, err := asil.NewHandler(asil.HandlerOptions{
-			AppConfig:          cfg,
-			Camunda:            nil,
-			Logger:             log,
-			CBManager:          cbManager,
-			Keycloak:           keycloakClient,
-			IdempotencyChecker: idempotencyChecker,
-		})
-		if err != nil {
-			zapLog.Fatal("failed to create auth-signin-linkedin handler", zap.Error(err))
-		}
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
-	}
-
-	// Auth Signup Google
-	if taskType := "auth-signup-google"; cfg.Workers[taskType].Enabled {
-		handler, err := asug.NewHandler(asug.HandlerOptions{
-			AppConfig:          cfg,
-			Camunda:            nil,
-			Logger:             log,
-			CBManager:          cbManager,
-			Keycloak:           keycloakClient,
-			IdempotencyChecker: idempotencyChecker,
-		})
-		if err != nil {
-			zapLog.Fatal("failed to create auth-signup-google handler", zap.Error(err))
-		}
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
-	}
-
-	// Auth Signup LinkedIn
-	if taskType := "auth-signup-linkedin"; cfg.Workers[taskType].Enabled {
-		handler, err := asul.NewHandler(asul.HandlerOptions{
-			AppConfig:          cfg,
-			Camunda:            nil,
-			Logger:             log,
-			CBManager:          cbManager,
-			Keycloak:           keycloakClient,
-			IdempotencyChecker: idempotencyChecker,
-		})
-		if err != nil {
-			zapLog.Fatal("failed to create auth-signup-linkedin handler", zap.Error(err))
-		}
-		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
-	}
-
+	
 	// Auth Logout
 	if taskType := "auth-logout"; cfg.Workers[taskType].Enabled {
 		handler, err := alo.NewHandler(alo.HandlerOptions{
@@ -791,7 +724,7 @@ func main() {
 	}
 
 	zapLog.Info("All workers registered successfully",
-		zap.Int("totalWorkers", 33))
+		zap.Int("totalWorkers", 29))
 
 	// ============================================================================
 	// START IDEMPOTENCY CLEANUP JOB

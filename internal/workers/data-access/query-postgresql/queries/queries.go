@@ -233,22 +233,15 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
+	// slug, ok := params["slug"].(string)
+	// if !ok {
+	// 	return nil, 0, 0, ErrInvalidParams
+	// }
 	slug, ok := params["slug"].(string)
-	if !ok {
-		return nil, 0, 0, ErrInvalidParams
+	if !ok || slug == "" {
+		return map[string]interface{}{}, 0, 0, nil
 	}
 
-	// ✅ FIXED: Try exact match first, then partial match
-	// query := `
-	// 	SELECT id, name, slug, listing_description
-	// 	FROM industries
-	// 	WHERE (slug = $1 OR slug LIKE $1 || '%' OR $1 LIKE slug || '%')
-	// 	  AND is_active = true
-	// 	ORDER BY
-	// 	  CASE WHEN slug = $1 THEN 1 ELSE 2 END,
-	// 	  LENGTH(slug)
-	// 	LIMIT 1
-	// `
 	query := `
     SELECT id, name, slug, listing_description
     FROM industries
