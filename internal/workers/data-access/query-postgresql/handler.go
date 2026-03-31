@@ -223,7 +223,7 @@ func (h *Handler) validateIndustryBySlug(input *Input) error {
 	}
 
 	if slug == "" {
-		return appErrs.NewRequiredFieldError("slug or industrySlug")
+		return nil
 	}
 
 	// Clean malformed quotes from slug
