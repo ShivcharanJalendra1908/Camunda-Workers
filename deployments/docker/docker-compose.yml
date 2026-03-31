@@ -285,7 +285,7 @@ services:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway:latest
     container_name: api-gateway
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
       - "9090:9090"
     environment:
       APP_NAME: api-gateway
