@@ -583,12 +583,28 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			"size": 1,
 		}
 	} else {
-		// No valid industry identifier - return empty result
-		return &QueryResult{
-			Data:      []map[string]interface{}{},
-			TotalHits: 0,
-			Took:      0,
-		}, nil
+		// No valid industry identifier - generic fallback with intent detection
+		searchQuery, _ := params["searchQuery"].(string)
+		intentTag := detectESIntentTag(searchQuery)
+		query = map[string]interface{}{
+			"query": map[string]interface{}{
+				"bool": map[string]interface{}{
+					"must": []interface{}{
+						map[string]interface{}{
+							"term": map[string]interface{}{
+								"industry_id": "00000000-0000-0000-0000-000000000000",
+							},
+						},
+						map[string]interface{}{
+							"term": map[string]interface{}{
+								"intent_tag": intentTag,
+							},
+						},
+					},
+				},
+			},
+			"size": 1,
+		}
 	}
 
 	// Execute search against industry_insights index
@@ -678,6 +694,34 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 		TotalHits: 1,
 		Took:      time.Since(start).Milliseconds(),
 	}, nil
+}
+
+// detectESIntentTag - detects intent from search query for generic fallback
+func detectESIntentTag(searchQuery string) string {
+	q := strings.ToLower(searchQuery)
+
+	lowInvestmentKeywords := []string{"cheap", "low investment", "budget", "affordable", "under 5", "under 10", "5 lakh", "10 lakh", "less investment", "minimum investment", "small investment"}
+	for _, kw := range lowInvestmentKeywords {
+		if strings.Contains(q, kw) {
+			return "low-investment"
+		}
+	}
+
+	locationKeywords := []string{"delhi", "mumbai", "bangalore", "bengaluru", "hyderabad", "chennai", "pune", "kolkata", "jaipur", "lucknow", "indore", "city", "location", "near me", "tier 2", "tier 3", "local"}
+	for _, kw := range locationKeywords {
+		if strings.Contains(q, kw) {
+			return "location-based"
+		}
+	}
+
+	roiKeywords := []string{"roi", "profit", "return", "earning", "income", "revenue", "margin", "payback", "profitable"}
+	for _, kw := range roiKeywords {
+		if strings.Contains(q, kw) {
+			return "roi-focused"
+		}
+	}
+
+	return "general"
 }
 
 // Helper function to safely extract string values with defaults
