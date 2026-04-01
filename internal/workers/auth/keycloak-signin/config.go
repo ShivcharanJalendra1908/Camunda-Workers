@@ -32,10 +32,12 @@ func DefaultConfig() *Config {
 		MaxJobsActive: 10,
 		Timeout:       30 * time.Second,
 		// ✅ DEFAULT VALUES - will be overridden by config.yaml
-		Issuer:   "http://keycloak:8080/realms/camunda-platform",
+		// Issuer:   "http://keycloak:8080/realms/camunda-platform",
+		Issuer: "http://us-dev-api.lemici.com/realms/camunda-platform"
 		ClientID: "lemici-frontend",
 		// RedirectURL: "http://localhost:3000/callback",
-		RedirectURL: "https://d3c34598mt7qdx.cloudfront.net/callback",
+		// RedirectURL: "https://d3c34598mt7qdx.cloudfront.net/callback",
+		RedirectURL: "https://d595hydlunw5u.cloudfront.net/*"
 		// PublicBaseURL: "http://localhost:8180",
 		PublicBaseURL: "",
 		RedisHost:     "redis",
