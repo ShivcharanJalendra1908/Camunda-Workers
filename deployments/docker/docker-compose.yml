@@ -209,6 +209,8 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: 8080
+      KC_HOSTNAME: us-dev-api.lemici.com
+      KC_PROXY: edge
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_DB: postgres
@@ -301,7 +303,7 @@ services:
       POSTGRES_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
-      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_URL: http://us-dev-api.lemici.com
       # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES - only place to update
       KEYCLOAK_PUBLIC_URL: https://us-dev-api.lemici.com
       KEYCLOAK_REALM: camunda-platform
@@ -358,7 +360,7 @@ services:
       DB_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
-      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_URL: http://us-dev-api.lemici.com
       # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES - only place to update
       KEYCLOAK_PUBLIC_URL: https://us-dev-api.lemici.com
       KEYCLOAK_REALM: camunda-platform
