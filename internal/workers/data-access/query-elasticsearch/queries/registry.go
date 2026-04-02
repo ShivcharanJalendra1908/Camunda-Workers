@@ -285,137 +285,67 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 	industrySlug, _ := params["industrySlug"].(string)
 	extracted, hasExtracted := params["extractedParams"].(map[string]interface{})
 
-	var filterClauses []interface{}
-	var shouldClauses []interface{}
-
+	// Effective slug — extractedParams se override karo agar available ho
 	effectiveSlug := industrySlug
 	if hasExtracted {
-		// ✅ "industrySlug" key — buildResponse mein set hoti hai
 		if s, ok := extracted["industrySlug"].(string); ok && s != "" {
 			effectiveSlug = s
 		}
 	}
 
-	// if effectiveSlug != "" {
-	// 	shouldClauses = append(shouldClauses,
-	// 		map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
-	// 		map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": extracted["industry"]}},
-	// 	)
-	// }
+	// ============================================================
+	// CASE 1: Industry context hai — same industry ke top rated
+	// ============================================================
 	if effectiveSlug != "" {
-		shouldClauses = append(shouldClauses,
-			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
-		)
-		// industry.name.keyword sirf tab add karo jab actually available ho
+		industryName := ""
 		if hasExtracted {
-			if industryName, ok := extracted["industry"].(string); ok && industryName != "" {
-				shouldClauses = append(shouldClauses,
-					map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": industryName}},
-				)
-			}
+			industryName, _ = extracted["industry"].(string)
 		}
-	}
 
-	if hasExtracted {
-		// ✅ Investment — INR mein hai, lakhs mein convert karo
-		investRange := map[string]interface{}{}
-		if max, ok := toFloat64(extracted["maxInvestment"]); ok && max > 0 {
-			investRange["lte"] = max / 100000 // INR → Lakhs
+		shouldClauses := []interface{}{
+			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
 		}
-		if min, ok := toFloat64(extracted["minInvestment"]); ok && min > 0 {
-			investRange["gte"] = min / 100000
+		if industryName != "" {
+			shouldClauses = append(shouldClauses,
+				map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": industryName}},
+			)
 		}
-		if len(investRange) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investmentRange.minInvestment": investRange,
+
+		query := map[string]interface{}{
+			"query": map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldClauses,
+					"minimum_should_match": 1,
 				},
-			})
-		}
-
-		// ✅ ROI — key "roi" hai
-		if roi, ok := toFloat64(extracted["roi"]); ok && roi > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"roi.min": map[string]interface{}{"gte": roi},
-				},
-			})
-		}
-
-		// ✅ Space — key "maxSpace" hai
-		if maxSpace, ok := toFloat64(extracted["maxSpace"]); ok && maxSpace > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.minSpace": map[string]interface{}{"lte": maxSpace},
-				},
-			})
-		}
-
-		// ✅ Category — key "category" hai, nested query chahiye
-		if cat, ok := extracted["category"].(string); ok && cat != "" {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"nested": map[string]interface{}{
-					"path": "categories",
-					"query": map[string]interface{}{
-						"match": map[string]interface{}{
-							"categories.name": cat, // slug nahi, name se match karo
-						},
-					},
-				},
-			})
-		}
-
-		// ✅ Location — key "location" string hai
-		if loc, ok := extracted["location"].(string); ok && loc != "" {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"terms": map[string]interface{}{
-					"location": location.BuildLocationTerms(loc),
-				},
-			})
-		}
-	}
-
-	// Query build
-	var query map[string]interface{}
-	if len(filterClauses) == 0 && len(shouldClauses) == 0 {
-		query = map[string]interface{}{
-			"query":   map[string]interface{}{"match_all": map[string]interface{}{}},
-			"size":    4,
-			"sort":    []map[string]interface{}{{"rating": map[string]interface{}{"order": "desc"}}},
+			},
+			"size": 4,
+			"sort": []map[string]interface{}{
+				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+				{"no_of_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+			},
 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 		}
-	} else {
-		boolQuery := map[string]interface{}{}
-		if len(shouldClauses) > 0 {
-			boolQuery["should"] = shouldClauses
-			boolQuery["minimum_should_match"] = 1
-		}
-		if len(filterClauses) > 0 {
-			boolQuery["filter"] = filterClauses
-		}
-		query = map[string]interface{}{
-			"query":   map[string]interface{}{"bool": boolQuery},
-			"size":    4,
-			"sort":    []map[string]interface{}{{"rating": map[string]interface{}{"order": "desc"}}},
-			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
-		}
+
+		return executeQuery(ctx, esClient, "franchise_listings", query)
+	}
+
+	// ============================================================
+	// CASE 2: No industry — global top rated (match_all + rating)
+	// Real world: "You might also like" — popular franchises
+	// ============================================================
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"match_all": map[string]interface{}{},
+		},
+		"size": 4,
+		"sort": []map[string]interface{}{
+			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+			{"no_of_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+		},
+		"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 	}
 
 	return executeQuery(ctx, esClient, "franchise_listings", query)
-}
-
-// Helper
-func toFloat64(v interface{}) (float64, bool) {
-	switch val := v.(type) {
-	case float64:
-		return val, true
-	case int:
-		return float64(val), true
-	case json.Number:
-		f, err := val.Float64()
-		return f, err == nil
-	}
-	return 0, false
 }
 
 func FranchiseBySlug(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {

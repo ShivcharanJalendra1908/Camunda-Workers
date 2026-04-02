@@ -163,7 +163,72 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
 
-// CategoriesFeatured8 - Get 8 featured categories for listing page
+// // CategoriesFeatured8 - Get 8 featured categories for listing page
+// func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	industryID, hasIndustry := params["industryId"].(string)
+// 	industrySlug, hasSlug := params["industrySlug"].(string)
+
+// 	var rows *sql.Rows
+// 	var err error
+
+// 	if hasIndustry && industryID != "" {
+// 		rows, err = db.QueryContext(ctx, `
+// 			SELECT c.id, c.name, c.slug, c.icon_url
+// 			FROM categories c
+// 			WHERE c.industry_id = $1 AND c.is_active = true
+// 			ORDER BY c.display_order
+// 			LIMIT 8
+// 		`, industryID)
+// 	} else if hasSlug && industrySlug != "" {
+// 		rows, err = db.QueryContext(ctx, `
+// 			SELECT c.id, c.name, c.slug, c.icon_url
+// 			FROM categories c
+// 			INNER JOIN industries i ON c.industry_id = i.id
+// 			WHERE i.slug = $1 AND c.is_active = true
+// 			ORDER BY c.display_order
+// 			LIMIT 8
+// 		`, industrySlug)
+// 	} else {
+// 		rows, err = db.QueryContext(ctx, `
+// 			SELECT c.id, c.name, c.slug, c.icon_url
+// 			FROM categories c
+// 			WHERE c.is_active = true
+// 			ORDER BY c.display_order
+// 			LIMIT 8
+// 		`)
+// 	}
+// 	if err != nil {
+// 		return nil, 0, 0, err
+// 	}
+// 	defer rows.Close()
+
+// 	var categories []map[string]interface{}
+// 	for rows.Next() {
+// 		var id, name, slug string
+// 		var iconURL sql.NullString
+
+// 		if err := rows.Scan(&id, &name, &slug, &iconURL); err != nil {
+// 			continue
+// 		}
+
+// 		category := map[string]interface{}{
+// 			"id":   id,
+// 			"name": name,
+// 			"slug": slug,
+// 		}
+
+// 		// ✅ CHANGED: Use icon_url instead of icon_name
+// 		if iconURL.Valid {
+// 			category["icon_url"] = iconURL.String
+// 		}
+
+// 		categories = append(categories, category)
+// 	}
+
+//		return categories, len(categories), time.Since(start).Milliseconds(), nil
+//	}
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
@@ -175,30 +240,40 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 
 	if hasIndustry && industryID != "" {
 		rows, err = db.QueryContext(ctx, `
-			SELECT c.id, c.name, c.slug, c.icon_url
+			SELECT c.id, c.name, c.slug, c.icon_url,
+			       COUNT(DISTINCT fc.franchise_id) as franchise_count
 			FROM categories c
+			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
 			WHERE c.industry_id = $1 AND c.is_active = true
-			ORDER BY c.display_order
+			GROUP BY c.id, c.name, c.slug, c.icon_url
+			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
 		`, industryID)
 	} else if hasSlug && industrySlug != "" {
 		rows, err = db.QueryContext(ctx, `
-			SELECT c.id, c.name, c.slug, c.icon_url
+			SELECT c.id, c.name, c.slug, c.icon_url,
+			       COUNT(DISTINCT fc.franchise_id) as franchise_count
 			FROM categories c
 			INNER JOIN industries i ON c.industry_id = i.id
+			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
 			WHERE i.slug = $1 AND c.is_active = true
-			ORDER BY c.display_order
+			GROUP BY c.id, c.name, c.slug, c.icon_url
+			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
 		`, industrySlug)
 	} else {
 		rows, err = db.QueryContext(ctx, `
-			SELECT c.id, c.name, c.slug, c.icon_url
+			SELECT c.id, c.name, c.slug, c.icon_url,
+			       COUNT(DISTINCT fc.franchise_id) as franchise_count
 			FROM categories c
+			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
 			WHERE c.is_active = true
-			ORDER BY c.display_order
+			GROUP BY c.id, c.name, c.slug, c.icon_url
+			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
 		`)
 	}
+
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -208,18 +283,19 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	for rows.Next() {
 		var id, name, slug string
 		var iconURL sql.NullString
+		var franchiseCount int
 
-		if err := rows.Scan(&id, &name, &slug, &iconURL); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &iconURL, &franchiseCount); err != nil {
 			continue
 		}
 
 		category := map[string]interface{}{
-			"id":   id,
-			"name": name,
-			"slug": slug,
+			"id":              id,
+			"name":            name,
+			"slug":            slug,
+			"franchise_count": franchiseCount, // Count nhi chaheye toh comment this line only
 		}
 
-		// ✅ CHANGED: Use icon_url instead of icon_name
 		if iconURL.Valid {
 			category["icon_url"] = iconURL.String
 		}
@@ -231,43 +307,91 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 }
 
 // IndustryBySlug - Get industry info by slug
+// func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// 	start := time.Now()
+
+// 	slug, ok := params["slug"].(string)
+// 	if !ok || slug == "" {
+// 		return map[string]interface{}{}, 0, 0, nil
+// 	}
+
+// 	query := `
+//     SELECT id, name, slug, listing_description
+//     FROM industries
+//     WHERE (
+//         slug = $1                          -- exact: "food-beverage"
+//         OR slug LIKE $1 || '%'             -- prefix: "food" → "food-beverage"
+//         OR slug LIKE '%' || $1 || '%'      -- contains: "travel" → "hotel-travel-tourism"
+//         OR $1 LIKE '%' || slug || '%'      -- reverse: slug inside input
+//         OR name ILIKE '%' || $1 || '%'     -- name fuzzy: "hotels" → "Hotel, Travel & Tourism"
+//     )
+//     AND is_active = true
+//     ORDER BY
+//         CASE WHEN slug = $1 THEN 1
+//              WHEN slug LIKE $1 || '%' THEN 2
+//              WHEN slug LIKE '%' || $1 || '%' THEN 3
+//              ELSE 4
+//         END,
+//         LENGTH(slug)
+//     LIMIT 1
+// `
+
+// 	var id, name, industrySlug string
+// 	var description sql.NullString
+
+// 	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &description)
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return nil, 0, 0, ErrNotFound
+// 		}
+// 		return nil, 0, 0, err
+// 	}
+
+// 	industry := map[string]interface{}{
+// 		"id":   id,
+// 		"name": name,
+// 		"slug": industrySlug,
+// 	}
+
+// 	if description.Valid {
+// 		industry["description"] = description.String
+// 	}
+
+//		return industry, 1, time.Since(start).Milliseconds(), nil
+//	}
 func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	// slug, ok := params["slug"].(string)
-	// if !ok {
-	// 	return nil, 0, 0, ErrInvalidParams
-	// }
 	slug, ok := params["slug"].(string)
 	if !ok || slug == "" {
 		return map[string]interface{}{}, 0, 0, nil
 	}
 
 	query := `
-    SELECT id, name, slug, listing_description
-    FROM industries
-    WHERE (
-        slug = $1                          -- exact: "food-beverage"
-        OR slug LIKE $1 || '%'             -- prefix: "food" → "food-beverage"
-        OR slug LIKE '%' || $1 || '%'      -- contains: "travel" → "hotel-travel-tourism"
-        OR $1 LIKE '%' || slug || '%'      -- reverse: slug inside input
-        OR name ILIKE '%' || $1 || '%'     -- name fuzzy: "hotels" → "Hotel, Travel & Tourism"
-    )
-    AND is_active = true
-    ORDER BY 
-        CASE WHEN slug = $1 THEN 1
-             WHEN slug LIKE $1 || '%' THEN 2
-             WHEN slug LIKE '%' || $1 || '%' THEN 3
-             ELSE 4
-        END,
-        LENGTH(slug)
-    LIMIT 1
-`
+		SELECT id, name, slug, listing_title, listing_description
+		FROM industries
+		WHERE (
+			slug = $1
+			OR slug LIKE $1 || '%'
+			OR slug LIKE '%' || $1 || '%'
+			OR $1 LIKE '%' || slug || '%'
+			OR name ILIKE '%' || $1 || '%'
+		)
+		AND is_active = true
+		ORDER BY 
+			CASE WHEN slug = $1 THEN 1
+				 WHEN slug LIKE $1 || '%' THEN 2
+				 WHEN slug LIKE '%' || $1 || '%' THEN 3
+				 ELSE 4
+			END,
+			LENGTH(slug)
+		LIMIT 1
+	`
 
 	var id, name, industrySlug string
-	var description sql.NullString
+	var listingTitle, description sql.NullString
 
-	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &description)
+	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &listingTitle, &description)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, 0, 0, ErrNotFound
@@ -281,8 +405,11 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 		"slug": industrySlug,
 	}
 
-	if description.Valid {
-		industry["description"] = description.String
+	if listingTitle.Valid && listingTitle.String != "" {
+		industry["listing_title"] = listingTitle.String
+	}
+	if description.Valid && description.String != "" {
+		industry["listing_description"] = description.String
 	}
 
 	return industry, 1, time.Since(start).Milliseconds(), nil

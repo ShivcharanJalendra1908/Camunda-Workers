@@ -651,17 +651,51 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	pageSize := 6
 	totalCount := int64(0)
 
+	// heroDescription := "Explore top franchise opportunities in India"
+
+	// if len(industryInfo) > 0 {
+	// 	if desc, ok := industryInfo["listing_description"].(string); ok && desc != "" {
+	// 		heroDescription = desc
+	// 	} else if desc, ok := industryInfo["description"].(string); ok && desc != "" {
+	// 		heroDescription = desc
+	// 	} else if name, ok := industryInfo["name"].(string); ok && name != "" {
+	// 		heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+	// 	} else if name, ok := industryInfo["industry_name"].(string); ok && name != "" {
+	// 		heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+	// 	}
+	// }
+
+	// sections = append(sections, map[string]interface{}{
+	// 	"type":    "hero",
+	// 	"enabled": true,
+	// 	"data": map[string]interface{}{
+	// 		"description": heroDescription,
+	// 	},
+	// })
+	// REPLACE karo ye poora block:
+	heroTitle := "Franchise Opportunities in India"
 	heroDescription := "Explore top franchise opportunities in India"
 
 	if len(industryInfo) > 0 {
-		if desc, ok := industryInfo["listing_description"].(string); ok && desc != "" {
-			heroDescription = desc
-		} else if desc, ok := industryInfo["description"].(string); ok && desc != "" {
-			heroDescription = desc
-		} else if name, ok := industryInfo["name"].(string); ok && name != "" {
+		// Name se default title/description banao
+		name := ""
+		if n, ok := industryInfo["name"].(string); ok && n != "" {
+			name = n
+		} else if n, ok := industryInfo["industry_name"].(string); ok && n != "" {
+			name = n
+		}
+
+		if name != "" {
+			heroTitle = fmt.Sprintf("%s Franchise Opportunities in India", name)
 			heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
-		} else if name, ok := industryInfo["industry_name"].(string); ok && name != "" {
-			heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+		}
+
+		// DB mein stored hai toh override karo
+		if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
+			heroTitle = t
+		}
+		if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
+			heroDescription = d
 		}
 	}
 
@@ -669,6 +703,7 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		"type":    "hero",
 		"enabled": true,
 		"data": map[string]interface{}{
+			"title":       heroTitle,
 			"description": heroDescription,
 		},
 	})
