@@ -524,7 +524,7 @@ CREATE TABLE category_questions (
     -- Refers to either industries.id OR categories.id (decided by AI / backend)
 
     question TEXT NOT NULL,
-    intent_tag VARCHAR(50) NOT NULL DEFAULT 'general',
+    intent_tag VARCHAR(50),           -- NOT NULL DEFAULT 'general',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -53,7 +53,8 @@ var (
 
 	// NoSQL Injection prevention (MongoDB, Elasticsearch)
 	SafeNoSQLString = ozzo.NewStringRule(func(s string) bool {
-		dangerous := []string{"$where", "$ne", "$gt", "$regex", "script", "eval(", "function("}
+		// dangerous := []string{"$where", "$ne", "$gt", "$regex", "script", "eval(", "function("}
+		dangerous := []string{"$where", "$ne", "$gt", "$regex", "<script", "eval(", "function("}
 		lower := strings.ToLower(s)
 		for _, pattern := range dangerous {
 			if strings.Contains(lower, pattern) {
