@@ -321,7 +321,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"size": 4,
 			"sort": []map[string]interface{}{
 				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
-				{"no_of_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+				{"total_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			},
 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 		}
@@ -338,9 +338,10 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"match_all": map[string]interface{}{},
 		},
 		"size": 4,
+		// CORRECT
 		"sort": []map[string]interface{}{
 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
-			{"no_of_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+			{"total_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
 		},
 		"_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
 	}
