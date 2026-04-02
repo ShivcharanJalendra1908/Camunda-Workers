@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"camunda-workers/internal/common/location"
 	"camunda-workers/internal/models"
 
 	"github.com/elastic/go-elasticsearch/v8"
@@ -287,37 +288,29 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 	var filterClauses []interface{}
 	var shouldClauses []interface{}
 
-	// --- Industry slug resolve karo ---
 	effectiveSlug := industrySlug
 	if hasExtracted {
+		// ✅ "industrySlug" key — buildResponse mein set hoti hai
 		if s, ok := extracted["industrySlug"].(string); ok && s != "" {
 			effectiveSlug = s
 		}
 	}
 
 	if effectiveSlug != "" {
-		slugValue := strings.ToLower(
-			strings.ReplaceAll(
-				strings.ReplaceAll(effectiveSlug, " & ", "-"),
-				" ", "-"))
 		shouldClauses = append(shouldClauses,
-			map[string]interface{}{
-				"term": map[string]interface{}{"industry.slug": slugValue},
-			},
-			map[string]interface{}{
-				"term": map[string]interface{}{"industry.name.keyword": effectiveSlug},
-			},
+			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
+			map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": extracted["industry"]}},
 		)
 	}
 
 	if hasExtracted {
-		// --- Investment filter ---
+		// ✅ Investment — INR mein hai, lakhs mein convert karo
 		investRange := map[string]interface{}{}
-		if min, ok := toFloat64(extracted["minInvestment"]); ok {
-			investRange["gte"] = min
+		if max, ok := toFloat64(extracted["maxInvestment"]); ok && max > 0 {
+			investRange["lte"] = max / 100000 // INR → Lakhs
 		}
-		if max, ok := toFloat64(extracted["maxInvestment"]); ok {
-			investRange["lte"] = max
+		if min, ok := toFloat64(extracted["minInvestment"]); ok && min > 0 {
+			investRange["gte"] = min / 100000
 		}
 		if len(investRange) > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
@@ -327,8 +320,8 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			})
 		}
 
-		// --- ROI filter ---
-		if roi, ok := toFloat64(extracted["roiMin"]); ok {
+		// ✅ ROI — key "roi" hai
+		if roi, ok := toFloat64(extracted["roi"]); ok && roi > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
 					"roi.min": map[string]interface{}{"gte": roi},
@@ -336,33 +329,41 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			})
 		}
 
-		// --- Space filter ---
-		if space, ok := toFloat64(extracted["maxSpaceSqFt"]); ok {
+		// ✅ Space — key "maxSpace" hai
+		if maxSpace, ok := toFloat64(extracted["maxSpace"]); ok && maxSpace > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"space.minSpace": map[string]interface{}{"lte": space},
+					"space.minSpace": map[string]interface{}{"lte": maxSpace},
 				},
 			})
 		}
 
-		// --- Category filter (nested) ---
-		if cat, ok := extracted["categorySlug"].(string); ok && cat != "" {
+		// ✅ Category — key "category" hai, nested query chahiye
+		if cat, ok := extracted["category"].(string); ok && cat != "" {
 			filterClauses = append(filterClauses, map[string]interface{}{
 				"nested": map[string]interface{}{
 					"path": "categories",
 					"query": map[string]interface{}{
-						"term": map[string]interface{}{
-							"categories.slug": cat,
+						"match": map[string]interface{}{
+							"categories.name": cat, // slug nahi, name se match karo
 						},
 					},
 				},
 			})
 		}
+
+		// ✅ Location — key "location" string hai
+		if loc, ok := extracted["location"].(string); ok && loc != "" {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"terms": map[string]interface{}{
+					"location": location.BuildLocationTerms(loc),
+				},
+			})
+		}
 	}
 
-	// --- Query build karo ---
+	// Query build
 	var query map[string]interface{}
-
 	if len(filterClauses) == 0 && len(shouldClauses) == 0 {
 		query = map[string]interface{}{
 			"query":   map[string]interface{}{"match_all": map[string]interface{}{}},
@@ -387,8 +388,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 		}
 	}
 
-	return executeQuery(ctx, esClient,
-		"franchise_listings", query)
+	return executeQuery(ctx, esClient, "franchise_listings", query)
 }
 
 // Helper
@@ -1189,26 +1189,14 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Location filter
-	if location, ok := filters["location"].(string); ok && location != "" {
-		city := strings.TrimSpace(location)
-		// Title case banao: "delhi" → "Delhi"
-		if len(city) > 0 {
-			city = strings.ToUpper(city[:1]) + strings.ToLower(city[1:])
-		}
+	// Location filter
+	if loc, ok := filters["location"].(string); ok && loc != "" {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
 						"terms": map[string]interface{}{
-							"location": []string{
-								city,
-								strings.ToUpper(city),
-								strings.ToLower(city),
-								"Pan India", "Pan-India",
-								"All major Indian cities",
-								"North Indian Cities", "South Indian Cities",
-								"East Indian Cities", "West Indian Cities",
-							},
+							"location": location.BuildLocationTerms(loc),
 						},
 					},
 				},
