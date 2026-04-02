@@ -1,9 +1,9 @@
 {
   "id": "b774afd9-530b-485d-b24f-7b4389fe2af2",
   "realm": "camunda-platform",
-  "displayName": "",
-  "displayNameHtml": "",
+  "displayName": "Camunda Platform",
   "notBefore": 0,
+  "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
   "refreshTokenMaxReuse": 0,
   "accessTokenLifespan": 3600,
@@ -27,9 +27,9 @@
   "oauth2DeviceCodeLifespan": 600,
   "oauth2DevicePollingInterval": 5,
   "enabled": true,
-  "sslRequired": "none",
+  "sslRequired": "external",
   "registrationAllowed": true,
-  "registrationEmailAsUsername": true,
+  "registrationEmailAsUsername": false,
   "rememberMe": true,
   "verifyEmail": false,
   "loginWithEmailAllowed": true,
@@ -38,12 +38,12 @@
   "editUsernameAllowed": false,
   "bruteForceProtected": false,
   "permanentLockout": false,
-  "maxFailureWaitSeconds": 0,
-  "minimumQuickLoginWaitSeconds": 0,
-  "waitIncrementSeconds": 0,
-  "quickLoginCheckMilliSeconds": 0,
-  "maxDeltaTimeSeconds": 0,
-  "failureFactor": 0,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 30,
   "roles": {
     "realm": [
       {
@@ -692,14 +692,10 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://d595hydlunw5u.cloudfront.net/*",
-        "http://localhost:3000/*",
         "https://d3c34598mt7qdx.cloudfront.net/*"
       ],
       "webOrigins": [
-        "https://d3c34598mt7qdx.cloudfront.net",
-        "http://localhost:3000/",
-        "https://d595hydlunw5u.cloudfront.net"
+        "https://d3c34598mt7qdx.cloudfront.net"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -713,11 +709,9 @@
       "protocol": "openid-connect",
       "attributes": {
         "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
-        "login_theme": "lemici",
-        "post.logout.redirect.uris": "https://d3c34598mt7qdx.cloudfront.net/*##https://d595hydlunw5u.cloudfront.net/*##http://localhost:3000/*",
-        "display.on.consent.screen": "false",
+        "post.logout.redirect.uris": "https://d3c34598mt7qdx.cloudfront.net/*",
         "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
         "backchannel.logout.revoke.offline.tokens": "false"
       },
       "authenticationFlowBindingOverrides": {},
@@ -1493,12 +1487,17 @@
     "phone",
     "microprofile-jwt"
   ],
-  "browserSecurityHeaders": {},
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "referrerPolicy": "no-referrer",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
   "smtpServer": {},
-  "loginTheme": "lemici",
-  "accountTheme": "keycloak.v2",
-  "adminTheme": "keycloak.v2",
-  "emailTheme": "",
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"
@@ -1593,14 +1592,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-address-mapper",
-            "oidc-usermodel-attribute-mapper",
             "oidc-usermodel-property-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
+            "saml-role-list-mapper",
+            "oidc-address-mapper",
             "saml-user-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-usermodel-attribute-mapper",
             "oidc-full-name-mapper",
-            "saml-user-property-mapper",
-            "saml-role-list-mapper"
+            "saml-user-property-mapper"
           ]
         }
       },
@@ -1628,14 +1627,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-property-mapper",
-            "saml-user-attribute-mapper",
-            "saml-role-list-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
             "oidc-full-name-mapper",
+            "saml-role-list-mapper",
             "oidc-address-mapper",
+            "saml-user-attribute-mapper",
+            "oidc-usermodel-attribute-mapper",
             "saml-user-property-mapper",
-            "oidc-usermodel-attribute-mapper"
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-usermodel-property-mapper"
           ]
         }
       }
@@ -2459,19 +2458,17 @@
   "dockerAuthenticationFlow": "docker auth",
   "attributes": {
     "cibaBackchannelTokenDeliveryMode": "poll",
-    "cibaAuthRequestedUserHint": "login_hint",
-    "oauth2DevicePollingInterval": "5",
-    "clientOfflineSessionMaxLifespan": "0",
-    "clientSessionIdleTimeout": "0",
-    "clientOfflineSessionIdleTimeout": "0",
-    "cibaInterval": "5",
-    "realmReusableOtpCode": "false",
     "cibaExpiresIn": "120",
+    "cibaAuthRequestedUserHint": "login_hint",
     "oauth2DeviceCodeLifespan": "600",
+    "clientOfflineSessionMaxLifespan": "0",
+    "oauth2DevicePollingInterval": "5",
+    "clientSessionIdleTimeout": "0",
     "parRequestUriLifespan": "60",
     "clientSessionMaxLifespan": "0",
-    "frontendUrl": "",
-    "acr.loa.map": "{}"
+    "clientOfflineSessionIdleTimeout": "0",
+    "cibaInterval": "5",
+    "realmReusableOtpCode": "false"
   },
   "keycloakVersion": "23.0.7",
   "userManagedAccessAllowed": false,

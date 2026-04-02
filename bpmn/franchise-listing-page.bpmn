@@ -95,7 +95,8 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;RECOMMENDED_BY_INDUSTRY&#34;" target="queryType" />
-          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null then extractedParams.industrySlug else &#34;&#34;) else industrySlug" target="industrySlug" />
+          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (if extractedParams != null and extractedParams.industrySlug != null and extractedParams.industrySlug != &#34;&#34; then extractedParams.industrySlug else industrySlug) else industrySlug" target="industrySlug" />
+          <zeebe:input source="=extractedParams" target="extractedParams" />
           <zeebe:output source="=data" target="recommended" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

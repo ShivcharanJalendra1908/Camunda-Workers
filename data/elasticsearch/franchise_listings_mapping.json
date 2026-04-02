@@ -6,131 +6,81 @@
   },
   "mappings": {
     "properties": {
-      "franchise_id": {
-        "type": "keyword"
-      },
+      "franchise_id": { "type": "keyword" },
       "name": {
         "type": "text",
-        "fields": {
-          "keyword": {
-            "type": "keyword"
-          }
-        }
+        "fields": { "keyword": { "type": "keyword" } }
       },
-      "slug": {
-        "type": "keyword"
-      },
-      "description": {
-        "type": "text"
-      },
+      "slug": { "type": "keyword" },
+      "description": { "type": "text" },
       "logo": {
         "type": "object",
         "properties": {
-          "circle": {
-            "type": "keyword"
-          },
-          "square": {
-            "type": "keyword"
-          },
-          "alt": {
-            "type": "keyword"
-          }
+          "circle": { "type": "keyword" },
+          "square": { "type": "keyword" },
+          "alt":    { "type": "keyword" }
         }
       },
-      "year_of_establishment": {
-        "type": "integer"
-      },
-      "rating": {
-        "type": "float"
-      },
-      "location": {
-        "type": "keyword"
-      },
+      "year_of_establishment": { "type": "integer" },
+      "rating":   { "type": "float" },
+      "location": { "type": "keyword" },
       "tags": {
         "type": "text",
-        "fields": {"keyword": {"type": "keyword"}}
+        "fields": { "keyword": { "type": "keyword" } }
       },
       "space": {
         "type": "object",
         "properties": {
-          "minSpace": {
-            "type": "keyword"
-          },
-          "maxSpace": {
-            "type": "keyword"
-          },
-          "spaceUnit": {
-            "type": "keyword"
-          }
+          "minSpace":  { "type": "float" },
+          "maxSpace":  { "type": "float" },
+          "spaceUnit": { "type": "keyword" }
         }
       },
-      "total_outlets": {
-        "type": "integer"
-      },
+      "total_outlets": { "type": "integer" },
       "investmentRange": {
         "type": "object",
         "properties": {
-          "minInvestment": {
-            "type": "keyword"
-          },
-          "maxInvestment": {
-            "type": "keyword"
-          },
-          "investmentUnit": {
-            "type": "keyword"
-          }
+          "minInvestment":  { "type": "float" },
+          "maxInvestment":  { "type": "float" },
+          "investmentUnit": { "type": "keyword" }
         }
       },
       "investment": {
         "type": "object",
         "properties": {
-          "min_investment": {
-            "type": "float"
-          },
-          "max_investment": {
-            "type": "float"
-          }
+          "min_investment": { "type": "float" },
+          "max_investment": { "type": "float" }
+        }
+      },
+      "roi": {
+        "type": "object",
+        "properties": {
+          "min":           { "type": "float" },
+          "max":           { "type": "float" },
+          "period_months": { "type": "integer" }
         }
       },
       "industry": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "keyword"
-          },
+          "id":    { "type": "keyword" },
           "name": {
             "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword"
-              }
-            }
+            "fields": { "keyword": { "type": "keyword" } }
           },
-          "slug": {
-            "type": "keyword"
-          },
-          "color": {
-            "type": "keyword"
-          }
+          "slug":  { "type": "keyword" },
+          "color": { "type": "keyword" }
         }
       },
       "categories": {
         "type": "nested",
         "properties": {
-          "id": {
-            "type": "keyword"
-          },
-          "name": {
-            "type": "text"
-          },
-          "slug": {
-            "type": "keyword"
-          }
+          "id":   { "type": "keyword" },
+          "name": { "type": "text" },
+          "slug": { "type": "keyword" }
         }
       },
-      "updated_at": {
-        "type": "date"
-      }
+      "updated_at": { "type": "date" }
     }
   }
 }

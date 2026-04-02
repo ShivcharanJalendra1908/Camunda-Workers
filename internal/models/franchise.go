@@ -11,18 +11,19 @@ import (
 )
 
 type Franchise struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Description      string   `json:"description"`
-	InvestmentMin    int      `json:"investmentMin"`
-	InvestmentMax    int      `json:"investmentMax"`
-	Category         string   `json:"category"`
-	Locations        []string `json:"locations"`
-	IsVerified       bool     `json:"isVerified"`
-	CreatedAt        string   `json:"createdAt"`
-	UpdatedAt        string   `json:"updatedAt"`
-	ApplicationCount int      `json:"applicationCount"`
-	ViewCount        int      `json:"viewCount"`
+	ID               string       `json:"id"`
+	Name             string       `json:"name"`
+	Description      string       `json:"description"`
+	InvestmentMin    int          `json:"investmentMin"`
+	InvestmentMax    int          `json:"investmentMax"`
+	Category         string       `json:"category"`
+	Locations        []string     `json:"locations"`
+	IsVerified       bool         `json:"isVerified"`
+	CreatedAt        string       `json:"createdAt"`
+	UpdatedAt        string       `json:"updatedAt"`
+	ApplicationCount int          `json:"applicationCount"`
+	ViewCount        int          `json:"viewCount"`
+	ROI              FranchiseROI `json:"roi" db:"roi"`
 }
 
 // UserRating represents a user's rating for a franchise
@@ -52,6 +53,12 @@ type UserBookmark struct {
 	UserID      string    `json:"userId" db:"user_id"`
 	FranchiseID string    `json:"franchiseId" db:"franchise_id"`
 	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
+}
+
+type FranchiseROI struct {
+	Min          float64 `json:"min" db:"roi_min"`
+	Max          float64 `json:"max" db:"roi_max"`
+	PeriodMonths int     `json:"period_months" db:"roi_period_months"`
 }
 
 // Validate validates the Franchise struct
