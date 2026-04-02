@@ -296,11 +296,24 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 		}
 	}
 
+	// if effectiveSlug != "" {
+	// 	shouldClauses = append(shouldClauses,
+	// 		map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
+	// 		map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": extracted["industry"]}},
+	// 	)
+	// }
 	if effectiveSlug != "" {
 		shouldClauses = append(shouldClauses,
 			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
-			map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": extracted["industry"]}},
 		)
+		// industry.name.keyword sirf tab add karo jab actually available ho
+		if hasExtracted {
+			if industryName, ok := extracted["industry"].(string); ok && industryName != "" {
+				shouldClauses = append(shouldClauses,
+					map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": industryName}},
+				)
+			}
+		}
 	}
 
 	if hasExtracted {
