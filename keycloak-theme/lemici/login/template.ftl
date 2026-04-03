@@ -51,19 +51,39 @@
         .login-header h1 { font-size: 26px; font-weight: 700; color: #111827; margin: 0 0 8px 0; }
         .login-header p { font-size: 14px; color: #4b5563; line-height: 1.5; margin: 0; }
         
-        .form-group { margin-bottom: 18px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #374151; }
-        .input-wrapper { position: relative; display: flex; align-items: center; }
-        .input-wrapper svg { position: absolute; left: 12px; color: #9ca3af; width: 16px; height: 16px; }
+        .form-group { margin-bottom: 20px; width: 100%; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #374151; text-align: left; }
+        .input-wrapper { 
+            position: relative !important; 
+            width: 100% !important; 
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+        }
+        .input-wrapper svg:not(.eye-icon) { 
+            position: absolute; 
+            left: 12px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            color: #9ca3af; 
+            width: 16px; 
+            height: 16px; 
+            pointer-events: none; 
+            z-index: 10; 
+        }
         .pf-c-form-control {
+            display: block !important;
             width: 100% !important;
-            padding: 10px 12px 10px 38px !important;
+            box-sizing: border-box !important;
+            padding: 12px 12px 12px 40px !important;
             border: 1px solid #d1d5db !important;
             border-radius: 8px !important;
             font-size: 14px !important;
             outline: none !important;
+            background-color: white !important;
         }
-        .pf-c-form-control:focus { border-color: #6D3E93 !important; ring: 1px solid #6D3E93 !important; }
+        .pf-c-form-control:focus { border-color: #6D3E93 !important; ring: 2px solid rgba(109, 62, 147, 0.2) !important; }
         
         .forgot-password-link { display: block; text-align: right; font-size: 13px; color: #3b82f6; text-decoration: none; margin-top: 4px; }
         
@@ -118,24 +138,28 @@
         .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
 
         /* Password Eye Toggle */
-        .password-wrapper { position: relative; }
-        .password-wrapper .pf-c-form-control { padding-right: 42px !important; }
+        .password-wrapper .pf-c-form-control { padding-right: 45px !important; }
         .eye-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: #9ca3af;
-            padding: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: absolute !important;
+            right: 4px !important;
+            top: 0 !important;
+            bottom: 0 !important;
+            margin: auto 0 !important;
+            height: 100% !important;
+            width: 40px !important;
+            background: none !important;
+            border: none !important;
+            cursor: pointer !important;
+            color: #9ca3af !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 20 !important;
+            outline: none !important;
+            padding: 0 !important;
         }
-        .eye-toggle:hover { color: #6D3E93; }
-        .eye-icon { width: 18px; height: 18px; }
+        .eye-toggle:hover { color: #6D3E93 !important; }
+        .eye-icon { width: 20px; height: 20px; pointer-events: none; }
 
         @media (max-width: 768px) {
             .login-form-side { width: 100%; }
