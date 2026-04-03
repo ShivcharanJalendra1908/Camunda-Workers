@@ -34,9 +34,8 @@ jobs:
             echo "Pulling latest code..."
             git pull origin mvp
 
+            echo "Restarting Keycloak..."
             cd deployments/docker
+            docker compose restart keycloak
             
-            echo "Recreating Keycloak..."
-            docker compose up -d keycloak
-
             echo "Done"
