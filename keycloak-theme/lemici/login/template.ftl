@@ -117,6 +117,26 @@
         
         .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
 
+        /* Password Eye Toggle */
+        .password-wrapper { position: relative; }
+        .password-wrapper .pf-c-form-control { padding-right: 42px !important; }
+        .eye-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #9ca3af;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .eye-toggle:hover { color: #6D3E93; }
+        .eye-icon { width: 18px; height: 18px; }
+
         @media (max-width: 768px) {
             .login-form-side { width: 100%; }
             .login-image-side { display: none; }
@@ -168,5 +188,21 @@
         </div>
     </div>
 </body>
+<script>
+    function togglePassword(inputId, btn) {
+        var input = document.getElementById(inputId);
+        var eyeOff = btn.querySelector('.eye-off');
+        var eyeOn = btn.querySelector('.eye-on');
+        if (input.type === 'password') {
+            input.type = 'text';
+            eyeOff.style.display = 'none';
+            eyeOn.style.display = 'block';
+        } else {
+            input.type = 'password';
+            eyeOff.style.display = 'block';
+            eyeOn.style.display = 'none';
+        }
+    }
+</script>
 </html>
 </#macro>
