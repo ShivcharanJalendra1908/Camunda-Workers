@@ -6,32 +6,36 @@ on:
     paths:
       - 'keycloak-theme/**'
 
+permissions:
+  id-token: write
+  contents: read
+ 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
-          aws-region: ${{ secrets.AWS_REGION }}
-          
+          aws-region: ${{ secrets.AWS_REGION_DEV }}
+
       - name: SSH and Deploy
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST_DEV }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY_DEV }}
           script: |
-            cd /home/ubuntu/Workflow-and-Workers
-            
+            cd ~/Workflow-and-Workers
             echo "Pulling latest code..."
             git pull origin mvp
 
             cd deployments/docker
-            
             echo "Recreating Keycloak..."
             docker compose up -d keycloak
-
             echo "Done"
