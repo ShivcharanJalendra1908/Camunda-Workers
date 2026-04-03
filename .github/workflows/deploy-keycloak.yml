@@ -5,7 +5,12 @@ on:
     branches: [mvp]
     paths:
       - 'keycloak-theme/**'
-
+      
+permissions:
+ contents: read
+ id-token: write
+ actions: read  
+ 
 jobs:
   deploy:
     runs-on: ubuntu-latest
