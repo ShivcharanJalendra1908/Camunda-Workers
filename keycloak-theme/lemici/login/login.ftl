@@ -61,4 +61,4 @@
             or <a href="${url.registrationUrl!'#'}" style="color: #3b82f6; text-decoration: none;">create an account</a> if you don't have one yet
         </div>
     </#if>
-</@layout.registrationLayout>
+</@layout.registrationLayout> 
