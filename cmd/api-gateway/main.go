@@ -169,6 +169,9 @@ func main() {
 	// 4. CORS (handle cross-origin requests)
 	router.Use(middleware.CORS(cfg.API.CORS))
 
+	// 4.1 CSRF Token Issuer (issue CSRF token for each request)
+	router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient()))
+
 	// 5. Security Headers
 	router.Use(middleware.SecurityHeaders())
 
@@ -272,6 +275,7 @@ func main() {
 	}
 	//protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
 	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
+	protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
 	{
 		// ========================================================================
 		// AI CONVERSATION WORKFLOWS
@@ -390,9 +394,9 @@ func main() {
 		Burst:             50,
 	}
 	adminAPI.Use(middleware.RateLimiter(adminRateLimit))
-	//adminAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
 	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
+	adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
 	{
 		// Workflow management
 		workflowGroup := adminAPI.Group("/workflows")

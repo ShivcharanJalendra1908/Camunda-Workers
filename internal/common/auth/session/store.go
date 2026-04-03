@@ -10,7 +10,9 @@ type Session struct {
 	UserID            string
 	CreatedAt         time.Time
 	AbsoluteExpiresAt time.Time
-	ExpiresAt         time.Time // current effective expiry (idle-adjusted)
+	ExpiresAt         time.Time
+	Version           int
+	CSRFToken         string
 }
 
 type Store interface {

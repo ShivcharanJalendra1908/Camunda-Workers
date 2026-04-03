@@ -2,6 +2,8 @@ package sessionmanager
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -55,6 +57,7 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 }
 
 func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, error) {
+
 	// ✅ FIX: Generate session ID first
 	sessionID, err := session.GenerateID()
 	if err != nil {
@@ -67,14 +70,28 @@ func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, erro
 		}
 	}
 
-	// Calculate expiry
-	expiresAt := time.Now().Add(time.Duration(input.ExpiresIn) * time.Second)
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(input.ExpiresIn) * time.Second)
 
-	// Create session object
+	csrfToken, err := generateCSRFToken()
+	if err != nil {
+		return nil, &cerrors.StandardError{
+			Code:      "CSRF_TOKEN_GENERATION_FAILED",
+			Message:   "Failed to generate CSRF token",
+			Details:   err.Error(),
+			Retryable: true,
+			Timestamp: time.Now(),
+		}
+	}
+
 	sess := session.Session{
-		SessionID: sessionID,
-		UserID:    input.UserID,
-		ExpiresAt: expiresAt,
+		SessionID:         sessionID,
+		UserID:            input.UserID,
+		CreatedAt:         now,
+		AbsoluteExpiresAt: expiresAt,
+		ExpiresAt:         expiresAt,
+		Version:           1,
+		CSRFToken:         csrfToken,
 	}
 
 	// ✅ FIX: Store in Redis (pass session struct)
@@ -220,4 +237,15 @@ func (s *Service) buildClearCookieHeader() string {
 
 func (s *Service) TestConnection(ctx context.Context) error {
 	return s.redis.Ping(ctx).Err()
+}
+
+func generateCSRFToken() (string, error) {
+	const size = 32 // 256 bits
+
+	b := make([]byte, size)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("csrf: failed to generate token: %w", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
