@@ -19,7 +19,7 @@
                 </div>
             <#else>
                 <div style="text-align: center; margin-top: 20px;">
-                    <a href="/" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Homepage</a>
+                    <a href="https://d595hydlunw5u.cloudfront.net" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Homepage</a>
                 </div>
             </#if>
         </div>
