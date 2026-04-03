@@ -111,8 +111,28 @@ func (s *Service) handleInitiate(ctx context.Context, _ *Input) (*Output, error)
 
 func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, error) {
 	// 1. Retrieve and validate state
+	// stateKey := fmt.Sprintf("oauth:state:%s", input.State)
+	// verifier, err := s.redis.Get(ctx, stateKey).Result()
+	// if err != nil {
+	// 	return nil, &cerrors.StandardError{
+	// 		Code:      "INVALID_STATE",
+	// 		Message:   "Invalid or expired OAuth state",
+	// 		Details:   err.Error(),
+	// 		Retryable: false,
+	// 		Timestamp: time.Now(),
+	// 	}
+	// }
+	// LAGAO YEH
 	stateKey := fmt.Sprintf("oauth:state:%s", input.State)
-	verifier, err := s.redis.Get(ctx, stateKey).Result()
+	atomicGetDel := redis.NewScript(`
+    local val = redis.call('GET', KEYS[1])
+    if val == false then
+        return nil
+    end
+    redis.call('DEL', KEYS[1])
+    return val
+`)
+	verifier, err := atomicGetDel.Run(ctx, s.redis, []string{stateKey}).Text()
 	if err != nil {
 		return nil, &cerrors.StandardError{
 			Code:      "INVALID_STATE",
