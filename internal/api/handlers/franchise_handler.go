@@ -233,11 +233,11 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		}
 	}
 
-	// Industry slug required for listing page
-	if industrySlug == "" {
-		h.validationError(c, "Either search query (q) or industry slug (industry) is required")
-		return
-	}
+	// // Industry slug required for listing page
+	// if industrySlug == "" {
+	// 	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
+	// 	return
+	// }
 
 	correlationKey := fmt.Sprintf("listing_%s_%d",
 		uuid.New().String()[:8],
