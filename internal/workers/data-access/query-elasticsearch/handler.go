@@ -405,11 +405,15 @@ func (h *Handler) validateQueryTypeRequirements(input *Input) error {
 	case models.ESQueryTypeRecommendedByIndustry, models.ESQueryTypeMarketInsights:
 		// Optional - set if available
 		var slug string
-		if input.Params != nil {
-			if s, ok := input.Params["industrySlug"].(string); ok {
-				slug = s
-			}
-		}
+		// if input.Params != nil {
+		// 	if s, ok := input.Params["industrySlug"].(string); ok {
+		// 		slug = s
+		// 	}
+		// }
+		if input.IndustrySlug != "" {
+                slug = input.IndustrySlug
+        }
+		
 		if slug == "" && input.Filters != nil {
 			if s, ok := input.Filters["category"].(string); ok {
 				slug = s

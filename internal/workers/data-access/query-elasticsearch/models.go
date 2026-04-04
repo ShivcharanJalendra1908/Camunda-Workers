@@ -412,23 +412,23 @@ func validateByQueryType(input *Input) error {
 		}
 
 	case models.ESQueryTypeRecommendedByIndustry:
-		// Must have industrySlug or franchiseId (to derive industry)
-		hasIndustry := input.IndustrySlug != "" ||
-			input.FranchiseID != "" ||
-			(input.Params != nil && input.Params["industrySlug"] != nil)
+		// // Must have industrySlug or franchiseId (to derive industry)
+		// hasIndustry := input.IndustrySlug != "" ||
+		// 	input.FranchiseID != "" ||
+		// 	(input.Params != nil && input.Params["industrySlug"] != nil)
 
-		if !hasIndustry {
-			return errors.New("RECOMMENDED_BY_INDUSTRY query requires industrySlug or franchiseId")
-		}
+		// if !hasIndustry {
+		// 	return errors.New("RECOMMENDED_BY_INDUSTRY query requires industrySlug or franchiseId")
+		// }
 
 	case models.ESQueryTypeMarketInsights:
-		// Must have industrySlug
-		hasIndustry := input.IndustrySlug != "" ||
-			(input.Params != nil && input.Params["industrySlug"] != nil)
+		// // Must have industrySlug
+		// hasIndustry := input.IndustrySlug != "" ||
+		// 	(input.Params != nil && input.Params["industrySlug"] != nil)
 
-		if !hasIndustry {
-			return errors.New("MARKET_INSIGHTS query requires industrySlug")
-		}
+		// if !hasIndustry {
+		// 	return errors.New("MARKET_INSIGHTS query requires industrySlug")
+		// }
 
 	case models.ESQueryTypeSearchWithFilters:
 		fallthrough
