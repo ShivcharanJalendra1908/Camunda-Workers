@@ -4,16 +4,26 @@ import "strings"
 
 // CityAliases — known alternate spellings/names
 var CityAliases = map[string][]string{
-	"bangalore": {"Bengaluru", "bengaluru", "Bangalore", "bangalore", "BANGALORE"},
-	"bengaluru": {"Bangalore", "bangalore", "Bengaluru", "bengaluru", "BENGALURU"},
-	"mumbai":    {"Mumbai", "mumbai", "Bombay", "bombay", "MUMBAI"},
-	"delhi":     {"Delhi", "delhi", "New Delhi", "new delhi", "DELHI"},
-	"kolkata":   {"Kolkata", "kolkata", "Calcutta", "calcutta", "KOLKATA"},
-	"chennai":   {"Chennai", "chennai", "Madras", "madras", "CHENNAI"},
-	"hyderabad": {"Hyderabad", "hyderabad", "HYDERABAD"},
-	"pune":      {"Pune", "pune", "PUNE"},
-	"ahmedabad": {"Ahmedabad", "ahmedabad", "AHMEDABAD"},
-	"jaipur":    {"Jaipur", "jaipur", "JAIPUR"},
+	"bangalore":     {"Bengaluru", "bengaluru", "Bangalore", "bangalore", "BANGALORE"},
+	"bengaluru":     {"Bangalore", "bangalore", "Bengaluru", "bengaluru", "BENGALURU"},
+	"mumbai":        {"Mumbai", "mumbai", "Bombay", "bombay", "MUMBAI"},
+	"delhi":         {"Delhi", "delhi", "New Delhi", "new delhi", "DELHI"},
+	"kolkata":       {"Kolkata", "kolkata", "Calcutta", "calcutta", "KOLKATA"},
+	"chennai":       {"Chennai", "chennai", "Madras", "madras", "CHENNAI"},
+	"hyderabad":     {"Hyderabad", "hyderabad", "HYDERABAD"},
+	"pune":          {"Pune", "pune", "PUNE"},
+	"ahmedabad":     {"Ahmedabad", "ahmedabad", "AHMEDABAD"},
+	"jaipur":        {"Jaipur", "jaipur", "JAIPUR"},
+	"gurgaon":       {"Gurgaon", "gurgaon", "Gurugram", "gurugram", "GURGAON"},
+	"gurugram":      {"Gurugram", "gurugram", "Gurgaon", "gurgaon", "GURUGRAM"},
+	"noida":         {"Noida", "noida", "NOIDA"},
+	"vizag":         {"Visakhapatnam", "visakhapatnam", "Vizag", "vizag"},
+	"visakhapatnam": {"Visakhapatnam", "visakhapatnam", "Vizag", "vizag"},
+	"trivandrum":    {"Thiruvananthapuram", "thiruvananthapuram", "Trivandrum", "trivandrum"},
+	"cochin":        {"Kochi", "kochi", "Cochin", "cochin"},
+	"kochi":         {"Kochi", "kochi", "Cochin", "cochin"},
+	"mysuru":        {"Mysore", "mysore", "Mysuru", "mysuru"},
+	"mysore":        {"Mysore", "mysore", "Mysuru", "mysuru"},
 }
 
 // CityZoneMap — city → regional zone
@@ -54,6 +64,12 @@ var ZoneKeywords = map[string]string{
 	"south india": "south indian cities", "south indian": "south indian cities",
 	"west india": "west indian cities", "west indian": "west indian cities",
 	"east india": "east indian cities", "east indian": "east indian cities",
+	"central india": "west indian cities", "central indian": "west indian cities",
+	"northeast india": "east indian cities", "northeast indian": "east indian cities",
+	"western india": "west indian cities", "western indian": "west indian cities",
+	"northern india": "north indian cities", "northern indian": "north indian cities",
+	"southern india": "south indian cities", "southern indian": "south indian cities",
+	"eastern india": "east indian cities", "eastern indian": "east indian cities",
 }
 
 // CityStateMap — optional, agar dono workers mein hai toh yahan bhi shift kar do

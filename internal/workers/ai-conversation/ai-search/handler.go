@@ -781,15 +781,27 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 
 	// if params.Industry != "" {
 	// 	extractedParams["industry"] = params.Industry
+	// 	// industrySlug bhi set karo — BPMN Task_GetRecommended ko yahi chahiye
+	// 	extractedParams["industrySlug"] = strings.ToLower(
+	// 		strings.ReplaceAll(
+	// 			strings.ReplaceAll(params.Industry, " & ", "-"),
+	// 			" ", "-"))
 	// }
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
-		// industrySlug bhi set karo — BPMN Task_GetRecommended ko yahi chahiye
-		extractedParams["industrySlug"] = strings.ToLower(
-			strings.ReplaceAll(
-				strings.ReplaceAll(params.Industry, " & ", "-"),
-				" ", "-"))
+		slug := strings.ToLower(params.Industry)
+		slug = strings.ReplaceAll(slug, " & ", "-")
+		slug = strings.ReplaceAll(slug, " / ", "-")
+		slug = strings.ReplaceAll(slug, "&", "")
+		slug = strings.ReplaceAll(slug, "/", "")
+		slug = strings.ReplaceAll(slug, ",", "")
+		slug = strings.ReplaceAll(slug, " ", "-")
+		for strings.Contains(slug, "--") {
+			slug = strings.ReplaceAll(slug, "--", "-")
+		}
+		extractedParams["industrySlug"] = slug
 	}
+
 	if params.Category != "" {
 		extractedParams["category"] = params.Category
 	}

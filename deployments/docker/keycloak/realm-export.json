@@ -1518,7 +1518,7 @@
       "addReadTokenRoleOnCreate": false,
       "authenticateByDefault": false,
       "linkOnly": false,
-      "firstBrokerLoginFlowAlias": "first broker login",
+      "firstBrokerLoginFlowAlias": "Auto Link Flow",
       "config": {
         "hideOnLoginPage": "false",
         "acceptsPromptNoneForwardFromClient": "false",
@@ -1723,6 +1723,24 @@
       ]
     },
     {
+      "id": "41cb9506-d5da-44b4-9574-540bc3c4dff0",
+      "alias": "Auto Link Flow",
+      "description": "",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "idp-auto-link",
+          "authenticatorFlow": false,
+          "requirement": "REQUIRED",
+          "priority": 0,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
       "id": "6a78e286-a09e-4ac8-81d1-a05e63a3e627",
       "alias": "Browser - Conditional OTP",
       "description": "Flow to determine if the OTP is required for the authentication",
@@ -1915,7 +1933,7 @@
         {
           "authenticator": "idp-confirm-link",
           "authenticatorFlow": false,
-          "requirement": "REQUIRED",
+          "requirement": "DISABLED",
           "priority": 10,
           "autheticatorFlow": false,
           "userSetupAllowed": false
@@ -2183,7 +2201,7 @@
           "authenticatorConfig": "review profile config",
           "authenticator": "idp-review-profile",
           "authenticatorFlow": false,
-          "requirement": "REQUIRED",
+          "requirement": "DISABLED",
           "priority": 10,
           "autheticatorFlow": false,
           "userSetupAllowed": false

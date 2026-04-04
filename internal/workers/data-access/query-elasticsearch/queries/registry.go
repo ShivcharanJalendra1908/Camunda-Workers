@@ -1120,10 +1120,11 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 					},
 					map[string]interface{}{
 						"term": map[string]interface{}{
-							"industry.slug": strings.ToLower(
-								strings.ReplaceAll(
-									strings.ReplaceAll(category, " & ", "-"),
-									" ", "-")), // "food-beverage" slug fallback
+							// "industry.slug": strings.ToLower(
+							// 	strings.ReplaceAll(
+							// 		strings.ReplaceAll(category, " & ", "-"),
+							// 		" ", "-")), // "food-beverage" slug fallback
+							"industry.slug": buildIndustrySlug(category),
 						},
 					},
 				},
@@ -1132,7 +1133,6 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		})
 	}
 
-	// Location filter
 	// Location filter
 	if loc, ok := filters["location"].(string); ok && loc != "" {
 		filterClauses = append(filterClauses, map[string]interface{}{
@@ -1253,6 +1253,24 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			"bool": boolQuery,
 		},
 	}
+}
+
+// buildIndustrySlug converts industry name to ES slug format
+// "Sports & Fitness" → "sports-fitness"
+// "Finance / Banking" → "finance-banking"
+// "Hotel, Travel & Tourism" → "hotel-travel-tourism"
+func buildIndustrySlug(name string) string {
+	slug := strings.ToLower(name)
+	slug = strings.ReplaceAll(slug, " & ", "-")
+	slug = strings.ReplaceAll(slug, " / ", "-")
+	slug = strings.ReplaceAll(slug, "&", "")
+	slug = strings.ReplaceAll(slug, "/", "")
+	slug = strings.ReplaceAll(slug, ",", "")
+	slug = strings.ReplaceAll(slug, " ", "-")
+	for strings.Contains(slug, "--") {
+		slug = strings.ReplaceAll(slug, "--", "-")
+	}
+	return slug
 }
 
 // executeQuery executes an Elasticsearch query
