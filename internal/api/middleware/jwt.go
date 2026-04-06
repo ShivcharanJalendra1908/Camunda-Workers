@@ -11,7 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/config"
+	"camunda-workers/internal/common/constants"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -462,6 +464,30 @@ func respondWithError(c *gin.Context, status int, code, message string, details 
 }
 
 // ============================================================================
+// SESSION SECURITY CONFIGURATION
+// ============================================================================
+
+// enforceUserAgentBinding controls whether UserAgent mismatches invalidate the session.
+// false = observe/log only (safe for prod transition)
+// true  = enforce — mismatch kills session, clears cookie, returns 401
+const enforceUserAgentBinding = false
+
+// sessionCookieName is the name of the session cookie issued to clients.
+const sessionCookieName = "session_id"
+
+// sessionCookiePath is the cookie path.
+const sessionCookiePath = "/"
+
+// sessionCookieSecure ensures cookie is only sent over HTTPS.
+const sessionCookieSecure = true
+
+// sessionCookieHTTPOnly ensures cookie is inaccessible to JavaScript.
+const sessionCookieHTTPOnly = true
+
+// sessionTTL is the sliding-window TTL added to a session on each valid access.
+const sessionTTL = 30 * time.Minute
+
+// ============================================================================
 // TOKEN BLACKLIST (for logout functionality)
 // ============================================================================
 
@@ -490,39 +516,345 @@ func BlacklistMiddleware(blacklist TokenBlacklist) gin.HandlerFunc {
 	}
 }
 
+// func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin.HandlerFunc {
+// 	jwtService := NewJWTService(jwtConfig)
+
+// 	return func(c *gin.Context) {
+// 		ctx := c.Request.Context()
+
+// 		// STEP 1: Try session cookie first
+// 		cookie, err := c.Cookie(sessionCookieName)
+// 		if err == nil && cookie != "" {
+
+// 			val, err := redisClient.Get(ctx, "session:"+cookie).Result()
+// 			if err == nil {
+
+// 				var sess session.Session
+
+// 				if json.Unmarshal([]byte(val), &sess) == nil {
+
+// 					now := time.Now()
+
+// 					// Backward compatibility (old sessions)
+// 					if sess.AbsoluteExpiresAt.IsZero() {
+// 						sess.AbsoluteExpiresAt = sess.ExpiresAt.Add(24 * time.Hour)
+// 					}
+
+// 					// Absolute expiry (hard limit)
+// 					if now.After(sess.AbsoluteExpiresAt) {
+// 						_ = redisClient.Del(ctx, "session:"+cookie).Err()
+// 						c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
+// 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (absolute)", nil)
+// 						c.Abort()
+// 						return
+// 					}
+
+// 					// Idle expiry
+// 					if now.After(sess.ExpiresAt) {
+// 						_ = redisClient.Del(ctx, "session:"+cookie).Err()
+// 						c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
+// 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (idle)", nil)
+// 						c.Abort()
+// 						return
+// 					}
+
+// 					// STEP 2: Risk-based session validation
+// 					riskScore := 0
+// 					uaMismatch := false
+// 					ipMismatch := false
+
+// 					// --- UserAgent check ---
+// 					currentUA := c.GetHeader("User-Agent")
+// 					if sess.UserAgent != "" && currentUA != "" {
+// 						storedUA := normalizeUserAgent(sess.UserAgent)
+// 						currentUAParsed := normalizeUserAgent(currentUA)
+
+// 						if storedUA != "unknown" && currentUAParsed != "unknown" && storedUA != currentUAParsed {
+// 							uaMismatch = true
+// 							riskScore += 2
+// 						}
+
+// 						if isUnknownUA(currentUAParsed) {
+// 							riskScore += 1
+// 						}
+// 					}
+
+// 					// --- IP check ---
+// 					currentIP := c.ClientIP()
+// 					if sess.IP != "" && currentIP != "" {
+// 						if !sameIPSubnet(sess.IP, currentIP) {
+// 							ipMismatch = true
+// 							riskScore += 1
+// 						}
+// 					}
+
+// 					// --- Logging ---
+// 					if uaMismatch || ipMismatch {
+// 						fmt.Printf(
+// 							"[SECURITY] session_anomaly risk_score=%d session_id=%s user_id=%s ua_mismatch=%v ip_mismatch=%v stored_ip=%s current_ip=%s\n",
+// 							riskScore,
+// 							sess.SessionID,
+// 							sess.UserID,
+// 							uaMismatch,
+// 							ipMismatch,
+// 							sess.IP,
+// 							currentIP,
+// 						)
+// 					}
+
+// 					// --- Decision ---
+// 					if riskScore >= 3 {
+// 						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
+// 							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
+// 						}
+
+// 						c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
+
+// 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session risk detected", nil)
+// 						c.Abort()
+// 						return
+// 					}
+
+// 					// STEP 3: Extend TTL ONLY after validation
+// 					// Sliding window update (idle expiry)
+// 					sess.ExpiresAt = now.Add(30 * time.Minute)
+// 					data, _ := json.Marshal(sess)
+// 					// Redis TTL aligned with absolute expiry
+// 					ttl := time.Until(sess.AbsoluteExpiresAt)
+// 					if ttl <= 0 {
+// 						_ = redisClient.Del(ctx, "session:"+cookie).Err()
+// 						c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
+// 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired", nil)
+// 						c.Abort()
+// 						return
+// 					}
+
+// 					if err := redisClient.Set(ctx, "session:"+cookie, data, ttl).Err(); err != nil {
+// 						fmt.Printf("[SECURITY] session_persist_failed session_id=%s error=%v\n", sess.SessionID, err)
+// 					}
+
+// 					// STEP 4: Attach session to context
+// 					c.Set("userId", sess.UserID)
+// 					c.Set("sessionId", sess.SessionID)
+// 					c.Set("claims", &Claims{
+// 						UserID:    sess.UserID,
+// 						SessionID: sess.SessionID,
+// 					})
+
+// 					c.Next()
+// 					return
+// 				}
+// 			}
+
+// 			// Session invalid/expired → delete cookie
+// 			c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
+// 		}
+
+// 		// STEP 2: JWT Bearer fallback
+// 		authHeader := c.GetHeader("Authorization")
+// 		if authHeader == "" {
+// 			respondWithError(c, http.StatusUnauthorized, "AUTH_REQUIRED", "session cookie or bearer token required", nil)
+// 			c.Abort()
+// 			return
+// 		}
+
+// 		parts := strings.SplitN(authHeader, " ", 2)
+// 		if len(parts) != 2 || parts[0] != "Bearer" {
+// 			respondWithError(c, http.StatusUnauthorized, "AUTH_INVALID_FORMAT", "invalid authorization header format", nil)
+// 			c.Abort()
+// 			return
+// 		}
+
+// 		claims, err := jwtService.ValidateToken(parts[1])
+// 		if err != nil {
+// 			respondWithError(c, http.StatusUnauthorized, "AUTH_INVALID_TOKEN", "invalid token", map[string]interface{}{
+// 				"details": err.Error(),
+// 			})
+// 			c.Abort()
+// 			return
+// 		}
+
+// 		c.Set("claims", claims)
+// 		c.Set("userId", claims.UserID)
+// 		c.Set("email", claims.Email)
+// 		c.Set("sessionId", claims.SessionID)
+// 		c.Set("sourceSystem", claims.SourceSystem)
+// 		c.Set("subscriptionTier", claims.SubscriptionTier)
+// 		c.Set("roles", claims.Roles)
+
+// 		ctxWithClaims := context.WithValue(ctx, claimsKey, claims)
+// 		c.Request = c.Request.WithContext(ctxWithClaims)
+
+// 		c.Next()
+// 	}
+// }
+
 func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin.HandlerFunc {
 	jwtService := NewJWTService(jwtConfig)
 
 	return func(c *gin.Context) {
-		// ✅ STEP 1: Session cookie try karo pehle
-		cookie, err := c.Cookie("session_id")
-		if err == nil && cookie != "" {
-			val, err := redisClient.Get(c.Request.Context(), "session:"+cookie).Result()
-			if err == nil {
-				var sess struct {
-					SessionID string    `json:"SessionID"`
-					UserID    string    `json:"UserID"`
-					ExpiresAt time.Time `json:"ExpiresAt"`
-				}
-				if json.Unmarshal([]byte(val), &sess) == nil && time.Now().Before(sess.ExpiresAt) {
-					// Sliding window extend
-					redisClient.Expire(c.Request.Context(), "session:"+cookie, 30*time.Minute)
+		ctx := c.Request.Context()
 
+		// STEP 1: Try session cookie first
+		cookie, err := c.Cookie(constants.SessionCookieName)
+		if err == nil && cookie != "" {
+
+			val, err := redisClient.Get(ctx, "session:"+cookie).Result()
+			if err != nil && err != redis.Nil {
+				fmt.Printf("[SECURITY] session_fetch_failed session_id=%s error=%v\n", cookie, err)
+			}
+
+			if err == nil {
+
+				var sess session.Session
+
+				if err := json.Unmarshal([]byte(val), &sess); err != nil {
+					fmt.Printf("[SECURITY] session_unmarshal_failed session_id=%s error=%v\n", cookie, err)
+				} else {
+
+					now := time.Now()
+
+					// Backward compatibility (old sessions)
+					if sess.AbsoluteExpiresAt.IsZero() {
+						sess.AbsoluteExpiresAt = sess.ExpiresAt.Add(24 * time.Hour)
+					}
+
+					// Absolute expiry (hard limit)
+					if now.After(sess.AbsoluteExpiresAt) {
+						fmt.Printf("[SECURITY] session_expired type=absolute session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
+
+						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
+							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
+						}
+
+						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (absolute)", nil)
+						c.Abort()
+						return
+					}
+
+					// Idle expiry
+					if now.After(sess.ExpiresAt) {
+						fmt.Printf("[SECURITY] session_expired type=idle session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
+
+						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
+							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
+						}
+
+						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (idle)", nil)
+						c.Abort()
+						return
+					}
+
+					// STEP 2: Risk-based session validation
+					riskScore := 0
+					uaMismatch := false
+					ipMismatch := false
+
+					currentUA := c.GetHeader("User-Agent")
+					currentIP := c.ClientIP()
+
+					var storedUA, currentUAParsed string
+
+					// --- UserAgent check ---
+					if sess.UserAgent != "" && currentUA != "" {
+						storedUA = normalizeUserAgent(sess.UserAgent)
+						currentUAParsed = normalizeUserAgent(currentUA)
+
+						if storedUA != "unknown" && currentUAParsed != "unknown" && storedUA != currentUAParsed {
+							uaMismatch = true
+							riskScore += 2
+						}
+
+						if isUnknownUA(currentUAParsed) {
+							riskScore += 1
+						}
+					}
+
+					// --- IP check ---
+					if sess.IP != "" && currentIP != "" {
+						if !sameIPSubnet(sess.IP, currentIP) {
+							ipMismatch = true
+							riskScore += 1
+						}
+					}
+
+					// --- Logging anomalies ---
+					if uaMismatch || ipMismatch {
+						fmt.Printf(
+							"[SECURITY] session_anomaly risk_score=%d session_id=%s user_id=%s ua_mismatch=%v ip_mismatch=%v stored_ua=%s current_ua=%s stored_ip=%s current_ip=%s\n",
+							riskScore,
+							sess.SessionID,
+							sess.UserID,
+							uaMismatch,
+							ipMismatch,
+							storedUA,
+							currentUAParsed,
+							sess.IP,
+							currentIP,
+						)
+					}
+
+					// --- Decision ---
+					if riskScore >= 3 {
+						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
+							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
+						}
+
+						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+
+						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session risk detected", nil)
+						c.Abort()
+						return
+					}
+
+					// STEP 3: Sliding window update (idle expiry)
+					sess.ExpiresAt = now.Add(30 * time.Minute)
+
+					data, err := json.Marshal(sess)
+					if err != nil {
+						fmt.Printf("[SECURITY] session_marshal_failed session_id=%s error=%v\n", sess.SessionID, err)
+						c.AbortWithStatus(http.StatusInternalServerError)
+						return
+					}
+
+					ttl := time.Until(sess.AbsoluteExpiresAt)
+					if ttl <= 0 {
+						fmt.Printf("[SECURITY] session_expired_race session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
+
+						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
+							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
+						}
+
+						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired", nil)
+						c.Abort()
+						return
+					}
+
+					if err := redisClient.Set(ctx, "session:"+cookie, data, ttl).Err(); err != nil {
+						fmt.Printf("[SECURITY] session_persist_failed session_id=%s error=%v\n", sess.SessionID, err)
+					}
+
+					// STEP 4: Attach session to context
 					c.Set("userId", sess.UserID)
 					c.Set("sessionId", sess.SessionID)
 					c.Set("claims", &Claims{
 						UserID:    sess.UserID,
 						SessionID: sess.SessionID,
 					})
+
 					c.Next()
 					return
 				}
 			}
-			// Session expired/invalid — cookie delete karo
-			c.SetCookie("session_id", "", -1, "/", "", true, true)
+
+			// Session invalid/expired → delete cookie
+			c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
 		}
 
-		// ✅ STEP 2: JWT Bearer fallback
+		// STEP 2: JWT Bearer fallback
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			respondWithError(c, http.StatusUnauthorized, "AUTH_REQUIRED", "session cookie or bearer token required", nil)
@@ -554,9 +886,46 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 		c.Set("subscriptionTier", claims.SubscriptionTier)
 		c.Set("roles", claims.Roles)
 
-		ctx := context.WithValue(c.Request.Context(), claimsKey, claims)
-		c.Request = c.Request.WithContext(ctx)
+		ctxWithClaims := context.WithValue(ctx, claimsKey, claims)
+		c.Request = c.Request.WithContext(ctxWithClaims)
 
 		c.Next()
 	}
+}
+
+// normalizeUserAgent extracts browser family from User-Agent
+func normalizeUserAgent(ua string) string {
+	ua = strings.ToLower(ua)
+
+	switch {
+	case strings.Contains(ua, "chrome") && !strings.Contains(ua, "edg"):
+		return "chrome"
+	case strings.Contains(ua, "firefox"):
+		return "firefox"
+	case strings.Contains(ua, "safari") && !strings.Contains(ua, "chrome"):
+		return "safari"
+	case strings.Contains(ua, "edg"):
+		return "edge"
+	case strings.Contains(ua, "opr") || strings.Contains(ua, "opera"):
+		return "opera"
+	default:
+		return "unknown"
+	}
+}
+
+// sameIPSubnet checks if two IPv4 addresses belong to same /16 subnet
+func sameIPSubnet(ip1, ip2 string) bool {
+	p1 := strings.Split(ip1, ".")
+	p2 := strings.Split(ip2, ".")
+
+	if len(p1) < 2 || len(p2) < 2 {
+		return false
+	}
+
+	return p1[0] == p2[0] && p1[1] == p2[1]
+}
+
+// isUnknownUA checks if normalized UA is unknown
+func isUnknownUA(ua string) bool {
+	return ua == "unknown"
 }
