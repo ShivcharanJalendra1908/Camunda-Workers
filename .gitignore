@@ -3,3 +3,4 @@ deployments/docker/ollama/qwen-extractor.gguf
 deployments/docker/ollama/*.gguf
 /arms_cache/*
 /.vscode/*
+/docs/kintesh_plan/*

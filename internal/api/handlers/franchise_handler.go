@@ -1027,8 +1027,17 @@ func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
 }
 
 // ========================================================================
-// 🏷️ ENQUERY PAGE
+// 🏷️ ENQUIRY PAGE
 // ========================================================================
+
+// SubmitFranchiseEnquiry handles franchise enquiry submissions.
+// Works for BOTH logged-in and anonymous users.
+//
+// Anonymous users: Limited to 3 enquiries per 24h window (enforced by
+// AnonymousInquiryLimiter middleware upstream). No userId in context.
+//
+// Logged-in users: Unlimited enquiries. userId set by SessionOrJWTAuth
+// middleware (if route is also in protectedAPI group) or optional.
 func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -1039,18 +1048,13 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 		return
 	}
 
-	// User must be logged in — middleware ne userId set kiya hoga
+	// userId is OPTIONAL — empty string for anonymous users.
+	// AnonymousInquiryLimiter middleware already enforced the 3-inquiry
+	// limit before we reach here, so we just pass whatever we have.
 	userID := c.GetString("userId")
-	if userID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"error":   "Authentication required",
-			"message": "Please login to submit an enquiry",
-		})
-		return
-	}
+	isAnonymous := userID == ""
 
-	// Parse form body
+	// Parse enquiry body
 	var enquiryFormData map[string]interface{}
 	if err := c.ShouldBindJSON(&enquiryFormData); err != nil {
 		h.validationError(c, "Invalid request body: "+err.Error())
@@ -1065,7 +1069,8 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 		"correlationKey":     correlationKey,
 		"operation":          "franchise_enquiry",
 		"franchiseId":        franchiseID,
-		"userId":             userID,
+		"userId":             userID,      // empty string for anonymous
+		"isAnonymous":        isAnonymous, // downstream workers can use this
 		"enquiryFormData":    enquiryFormData,
 		"traceId":            c.GetString("traceId"),
 		"spanId":             c.GetString("spanId"),
