@@ -9,10 +9,12 @@ type Session struct {
 	SessionID         string
 	UserID            string
 	CreatedAt         time.Time
-	AbsoluteExpiresAt time.Time
 	ExpiresAt         time.Time
+	AbsoluteExpiresAt time.Time
 	Version           int
 	CSRFToken         string
+	UserAgent         string `json:"user_agent"`
+	IP                string `json:"ip"`
 }
 
 type Store interface {

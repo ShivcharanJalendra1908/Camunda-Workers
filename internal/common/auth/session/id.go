@@ -6,8 +6,6 @@ import (
 	"fmt"
 )
 
-// GenerateID generates a cryptographically secure session ID.
-// 32 bytes = 256 bits of entropy.
 func GenerateID() (string, error) {
 
 	const size = 32 // 256 bits

@@ -21,10 +21,14 @@ type CookieOptions struct {
 // normalize applies safe defaults without breaking callers
 func (o CookieOptions) normalize() CookieOptions {
 	if o.Path == "" {
-		o.Path = "/" // required for __Host-
+		o.Path = "/"
 	}
-	if !o.HttpOnly {
-		o.HttpOnly = true // secure default
+	// Enforce security (NOT optional)
+	o.HttpOnly = true
+	o.Secure = true
+	if o.SameSite == 0 {
+		// o.SameSite = http.SameSiteLaxMode
+		o.SameSite = http.SameSiteStrictMode
 	}
 	return o
 }
