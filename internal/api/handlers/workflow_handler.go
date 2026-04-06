@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"camunda-workers/internal/api/middleware"
+	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
@@ -19,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/validation"
 
 	ozzo "github.com/go-ozzo/ozzo-validation/v4"
@@ -109,21 +111,12 @@ func (h *WorkflowHandler) validatePhone(phone string) error {
 }
 
 func (h *WorkflowHandler) sanitizeInput(input string) string {
-	// Basic sanitization - remove dangerous characters
-	// Replace with your actual sanitizer implementation or use a library
 	if h.sanitizer != nil {
-		// Try to call the appropriate method on sanitizer
-		// Based on common sanitizer patterns, it might be:
-		// - h.sanitizer.Clean(input)
-		// - h.sanitizer.SanitizeString(input)
-		// - Or implement our own sanitization
 		return strings.TrimSpace(input)
 	}
 
-	// Fallback basic sanitization
 	input = strings.TrimSpace(input)
 
-	// Remove common SQL injection patterns
 	dangerousPatterns := []string{
 		"'", "\"", ";", "--", "/*", "*/", "@@", "@",
 		"char(", "nchar(", "varchar(", "nvarchar(",
@@ -135,11 +128,14 @@ func (h *WorkflowHandler) sanitizeInput(input string) string {
 		"onerror=", "onclick=",
 	}
 
+	lower := strings.ToLower(input)
 	for _, pattern := range dangerousPatterns {
-		input = strings.ReplaceAll(strings.ToLower(input), strings.ToLower(pattern), "")
+		if strings.Contains(lower, pattern) {
+			input = strings.ReplaceAll(input, pattern, "")
+			input = strings.ReplaceAll(input, strings.ToUpper(pattern), "")
+		}
 	}
 
-	// Remove HTML tags
 	input = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(input, "")
 
 	return input
@@ -1485,119 +1481,6 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// ============================================================================
-// KEYCLOAK UNIFIED LOGIN/LOGOUT
-// ============================================================================
-
-// func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
-// 	var input struct {
-// 		Code        string                 `json:"code"`
-// 		State       string                 `json:"state"`
-// 		Provider    string                 `json:"provider"`
-// 		RedirectURL string                 `json:"redirectUrl"`
-// 		Metadata    map[string]interface{} `json:"metadata"`
-// 	}
-
-// 	if err := c.ShouldBindJSON(&input); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	claims := middleware.ExtractClaims(c)
-// 	if claims == nil {
-// 		claims = &middleware.Claims{}
-// 	}
-
-// 	correlationKey := uuid.New().String()
-// 	ctx := c.Request.Context()
-
-// 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-// 	pubsub := h.redisClient.Subscribe(ctx, channel)
-// 	defer pubsub.Close()
-
-// 	if _, err := pubsub.Receive(ctx); err != nil {
-// 		h.redirectToLogin(c)
-// 		return
-// 	}
-
-// 	variables := map[string]interface{}{
-// 		"sessionId":      claims.SessionID,
-// 		"sourceSystem":   claims.SourceSystem,
-// 		"requestId":      uuid.New().String(),
-// 		"correlationKey": correlationKey,
-// 	}
-
-// 	if input.Code != "" && input.State != "" {
-// 		if err := h.validateString(input.Code, 1, 500); err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid authorization code"})
-// 			return
-// 		}
-// 		if err := h.validateString(input.State, 1, 500); err != nil {
-// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state"})
-// 			return
-// 		}
-// 		variables["action"] = "callback"
-// 		variables["code"] = input.Code
-// 		variables["state"] = input.State
-// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
-// 	} else {
-// 		variables["action"] = "initiate"
-// 		variables["provider"] = getOrDefault(input.Provider, "keycloak")
-// 		variables["redirectUrl"] = input.RedirectURL
-// 	}
-
-// 	if input.Metadata != nil {
-// 		variables["metadata"] = input.Metadata
-// 	}
-
-// 	h.startWorkflow(ctx, "keycloak-login-workflow", variables)
-
-// 	select {
-// 	case msg := <-pubsub.Channel():
-// 		var response map[string]interface{}
-// 		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-// 			h.redirectToLogin(c)
-// 			return
-// 		}
-
-// 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-// 			c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-// 			c.Header("Cache-Control", "no-store")
-// 			c.Header("Pragma", "no-cache")
-// 			c.Header("X-Content-Type-Options", "nosniff")
-// 			// c.Redirect(http.StatusFound, "http://localhost:3000/home")
-// 			c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
-// 			return
-// 		}
-
-// 		// Initiate flow — authorizationUrl return karo
-// 		c.JSON(http.StatusOK, response)
-
-// 	case <-time.After(30 * time.Second):
-// 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
-// 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
-// 		if err == nil {
-// 			var response map[string]interface{}
-// 			if json.Unmarshal([]byte(cached), &response) == nil {
-// 				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-// 					c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-// 					c.Header("Cache-Control", "no-store")
-// 					c.Header("Pragma", "no-cache")
-// 					c.Header("X-Content-Type-Options", "nosniff")
-// 					// c.Redirect(http.StatusFound, "http://localhost:3000/home")
-// 					c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
-// 					return
-// 				}
-// 				c.JSON(http.StatusOK, response)
-// 				return
-// 			}
-// 		}
-// 		h.redirectToLogin(c)
-
-//		case <-ctx.Done():
-//			h.redirectToLogin(c)
-//		}
-//	}
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
 		Code        string                 `json:"code"`
@@ -1616,6 +1499,8 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	if claims == nil {
 		claims = &middleware.Claims{}
 	}
+
+	userAgent := c.GetHeader("User-Agent")
 
 	correlationKey := uuid.New().String()
 	ctx := c.Request.Context()
@@ -1674,11 +1559,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		}
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-			c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-			c.Header("Cache-Control", "no-store")
-			c.Header("Pragma", "no-cache")
-			c.Header("X-Content-Type-Options", "nosniff")
-			c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
+			h.completeLoginFlow(c, ctx, sessionID, userAgent)
 			return
 		}
 
@@ -1692,11 +1573,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			var response map[string]interface{}
 			if json.Unmarshal([]byte(cached), &response) == nil {
 				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-					c.SetCookie("session_id", sessionID, 86400, "/", "", true, true)
-					c.Header("Cache-Control", "no-store")
-					c.Header("Pragma", "no-cache")
-					c.Header("X-Content-Type-Options", "nosniff")
-					c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
+					h.completeLoginFlow(c, ctx, sessionID, userAgent)
 					return
 				}
 				c.JSON(http.StatusOK, response)
@@ -1803,10 +1680,20 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 	timeout, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	requestID := variables["requestId"].(string)
+	requestID, _ := variables["requestId"].(string)
 
-	// ✅ ADD THIS BLOCK - Extract and inject trace context
-	if ginCtx, ok := ctx.(*gin.Context); ok {
+	if requestID == "" {
+		requestID = uuid.New().String()
+		variables["requestId"] = requestID
+	}
+
+	// SAFE: gin context extraction
+	var ginCtx *gin.Context
+	if g, ok := ctx.(*gin.Context); ok {
+		ginCtx = g
+	}
+
+	if ginCtx != nil {
 		traceID := ginCtx.GetString("traceId")
 		spanID := ginCtx.GetString("spanId")
 
@@ -1820,17 +1707,16 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 		}
 	}
 
-	// ===== ✅ IDEMPOTENCY CHECK =====
+	// ===== IDEMPOTENCY =====
 	if h.redisStore != nil {
-		// Check for client-provided idempotency key in header
 		var idempotencyKey string
-		if ginCtx, ok := ctx.(*gin.Context); ok {
+
+		if ginCtx != nil {
 			if key := ginCtx.GetHeader("X-Idempotency-Key"); key != "" && h.keyGenerator.ValidateAPIKey(key) {
 				idempotencyKey = key
 			}
 		}
 
-		// Generate key if not provided
 		if idempotencyKey == "" {
 			idempotencyKey = h.keyGenerator.GenerateWorkerKeyWithTimestamp(processID, variables, 1*time.Hour)
 		}
@@ -1840,18 +1726,12 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 			"processId":      processID,
 		})
 
-		// Check if already processed
 		cachedResponse, found, err := h.redisStore.CheckAPIRequest(timeout, idempotencyKey)
 		if err != nil {
 			h.logger.Warn("Idempotency check failed", map[string]interface{}{
 				"error": err.Error(),
 			})
 		} else if found {
-			h.logger.Info("Duplicate workflow request detected", map[string]interface{}{
-				"idempotencyKey": idempotencyKey,
-				"processId":      processID,
-			})
-
 			return WorkflowResponse{
 				WorkflowInstanceKey: int64(cachedResponse["workflowInstanceKey"].(float64)),
 				ProcessID:           cachedResponse["processId"].(string),
@@ -1867,20 +1747,12 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 		"requestId": requestID,
 	})
 
-	// Create the command
 	cmd := h.camunda.GetClient().NewCreateInstanceCommand().
 		BPMNProcessId(processID).
 		LatestVersion()
 
-	// Add variables and check for error
 	cmdStep, err := cmd.VariablesFromMap(variables)
 	if err != nil {
-		h.logger.Error("Failed to set workflow variables", map[string]interface{}{
-			"processId": processID,
-			"requestId": requestID,
-			"error":     err.Error(),
-		})
-
 		return WorkflowResponse{
 			ProcessID: processID,
 			RequestID: requestID,
@@ -1889,15 +1761,8 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 		}
 	}
 
-	// Send the command
 	result, err := cmdStep.Send(timeout)
 	if err != nil {
-		h.logger.Error("Failed to start workflow", map[string]interface{}{
-			"processId": processID,
-			"requestId": requestID,
-			"error":     err.Error(),
-		})
-
 		return WorkflowResponse{
 			ProcessID: processID,
 			RequestID: requestID,
@@ -1906,13 +1771,7 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 		}
 	}
 
-	h.logger.Info("Workflow started successfully", map[string]interface{}{
-		"processId":           processID,
-		"requestId":           requestID,
-		"workflowInstanceKey": result.GetProcessInstanceKey(),
-	})
-
-	// ===== ✅ STORE SUCCESS RESULT =====
+	// ===== STORE RESULT =====
 	if h.redisStore != nil {
 		response := map[string]interface{}{
 			"workflowInstanceKey": result.GetProcessInstanceKey(),
@@ -1922,7 +1781,7 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 		}
 
 		var idempotencyKey string
-		if ginCtx, ok := ctx.(*gin.Context); ok {
+		if ginCtx != nil {
 			if key := ginCtx.GetHeader("X-Idempotency-Key"); key != "" && h.keyGenerator.ValidateAPIKey(key) {
 				idempotencyKey = key
 			}
@@ -1932,14 +1791,9 @@ func (h *WorkflowHandler) startWorkflow(ctx context.Context, processID string, v
 			idempotencyKey = h.keyGenerator.GenerateWorkerKeyWithTimestamp(processID, variables, 1*time.Hour)
 		}
 
-		if err := h.redisStore.StoreAPIRequest(timeout, idempotencyKey, response, 24*time.Hour); err != nil {
-			h.logger.Warn("Failed to store workflow result", map[string]interface{}{
-				"error": err.Error(),
-			})
-		}
+		_ = h.redisStore.StoreAPIRequest(timeout, idempotencyKey, response, 24*time.Hour)
 	}
 
-	// ✅ FIXED: Return after storing in redis
 	return WorkflowResponse{
 		WorkflowInstanceKey: result.GetProcessInstanceKey(),
 		ProcessID:           processID,
@@ -1957,14 +1811,17 @@ func getOrDefault(value, defaultValue string) string {
 	return value
 }
 
-// Used for krycloak signin (with commented part)
+// Used for keycloak signin (with commented part)
 func waitForRedisResponse(ctx context.Context, client *redis.Client, correlationKey string, timeout time.Duration) (map[string]interface{}, error) {
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
 
 	pubsub := client.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	if _, err := pubsub.Receive(ctx); err != nil {
+	confirmCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
 		return nil, err
 	}
 
@@ -1975,8 +1832,8 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 			return nil, err
 		}
 		return response, nil
+
 	case <-time.After(timeout):
-		// Fallback: check cache
 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
 		cached, err := client.Get(ctx, cacheKey).Result()
 		if err == nil {
@@ -1986,6 +1843,7 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 			}
 		}
 		return nil, fmt.Errorf("timeout")
+
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -1997,4 +1855,86 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 	c.SetCookie("session_id", "", -1, "/", "", true, true)
 	// c.Redirect(http.StatusFound, "http://localhost:3000/login?error=auth_failed")
 	c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/login?error=auth_failed")
+}
+
+func (h *WorkflowHandler) completeLoginFlow(
+	c *gin.Context,
+	ctx context.Context,
+	sessionID string,
+	userAgent string,
+) {
+
+	fmt.Printf(
+		"[SECURITY] login_flow_start session_id=%s user_agent=%q\n",
+		sessionID,
+		userAgent,
+	)
+
+	now := time.Now()
+
+	// Kill existing session
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    "",
+		Path:     constants.SessionCookiePath,
+		MaxAge:   -1,
+		HttpOnly: constants.SessionCookieHTTPOnly,
+		Secure:   constants.SessionCookieSecure,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	// Set new session
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    sessionID,
+		Path:     constants.SessionCookiePath,
+		MaxAge:   86400,
+		HttpOnly: constants.SessionCookieHTTPOnly,
+		Secure:   constants.SessionCookieSecure,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	// Headers
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+
+	if h.redisClient != nil {
+		store := session.NewRedisStore(h.redisClient)
+
+		sess, err := store.Get(ctx, sessionID)
+		if err != nil && err != redis.Nil {
+			fmt.Printf("[SECURITY] session_fetch_failed session_id=%s error=%v\n", sessionID, err)
+		}
+
+		if sess != nil {
+
+			// Only set absolute expiry if not already set
+			if sess.AbsoluteExpiresAt.IsZero() {
+				sess.AbsoluteExpiresAt = now.Add(24 * time.Hour)
+			}
+
+			sess.CreatedAt = now
+			sess.ExpiresAt = now.Add(30 * time.Minute)
+
+			sess.UserAgent = userAgent
+			sess.IP = c.ClientIP()
+
+			if err := store.Update(ctx, *sess); err != nil {
+				fmt.Printf("[SECURITY] session_update_failed session_id=%s error=%v\n", sessionID, err)
+			}
+		} else {
+			fmt.Printf("[SECURITY] session_not_found_on_login session_id=%s\n", sessionID)
+		}
+	}
+
+	fmt.Printf(
+		"[SECURITY] session_initialized session_id=%s user_agent=%q ip=%s\n",
+		sessionID,
+		userAgent,
+		c.ClientIP(),
+	)
+
+	// Redirect
+	c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
 }
