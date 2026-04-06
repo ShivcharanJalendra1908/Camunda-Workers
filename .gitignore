@@ -1,3 +1,5 @@
 deployments/docker/ollama/qwen-extractor.gguf
 deployments/docker/ollama/qwen-extractor.gguf
 deployments/docker/ollama/*.gguf
+/arms_cache/*
+/.vscode/*
