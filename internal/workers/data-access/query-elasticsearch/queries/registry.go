@@ -443,56 +443,117 @@ func IndustryBySlug(ctx context.Context, esClient *elasticsearch.Client, params 
 	return result, nil
 }
 
-// RecommendedFranchises - Get recommended franchises (similar)
+// // RecommendedFranchises - Get recommended franchises (similar)
+// func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+// 	industrySlug, _ := params["industrySlug"].(string)
+// 	currentFranchiseID, _ := params["franchiseId"].(string)
+
+// 	var query map[string]interface{}
+
+// 	if industrySlug != "" {
+// 		// Same industry, exclude current
+// 		boolQuery := map[string]interface{}{
+// 			"must": []map[string]interface{}{
+// 				{"match": map[string]interface{}{
+// 					"industry.slug": map[string]interface{}{
+// 						"query":    industrySlug,
+// 						"operator": "and",
+// 					},
+// 				}},
+// 			},
+// 		}
+
+// 		if currentFranchiseID != "" {
+// 			boolQuery["must_not"] = []map[string]interface{}{
+// 				{"term": map[string]interface{}{"franchise_id": currentFranchiseID}},
+// 			}
+// 		}
+
+// 		query = map[string]interface{}{
+// 			"query": map[string]interface{}{
+// 				"bool": boolQuery,
+// 			},
+// 			"size": 4,
+// 			"sort": []map[string]interface{}{
+// 				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+// 			},
+// 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
+// 		}
+// 	} else {
+// 		query = map[string]interface{}{
+// 			"query": map[string]interface{}{
+// 				"match_all": map[string]interface{}{},
+// 			},
+// 			"size": 4,
+// 			"sort": []map[string]interface{}{
+// 				{"rating": map[string]interface{}{"order": "desc"}},
+// 			},
+// 			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
+// 		}
+// 	}
+
+// 	return executeQuery(ctx, esClient, "franchise_listings", query)
+// }
 func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
-	industrySlug, _ := params["industrySlug"].(string)
-	currentFranchiseID, _ := params["franchiseId"].(string)
+    industrySlug, _ := params["industrySlug"].(string)
+    currentFranchiseID, _ := params["franchiseId"].(string)
 
-	var query map[string]interface{}
+    // Exclude current franchise — har case mein
+    mustNot := []map[string]interface{}{}
+    if currentFranchiseID != "" {
+        mustNot = append(mustNot, map[string]interface{}{
+            "term": map[string]interface{}{"franchise_id": currentFranchiseID},
+        })
+    }
 
-	if industrySlug != "" {
-		// Same industry, exclude current
-		boolQuery := map[string]interface{}{
-			"must": []map[string]interface{}{
-				{"match": map[string]interface{}{
-					"industry.slug": map[string]interface{}{
-						"query":    industrySlug,
-						"operator": "and",
-					},
-				}},
-			},
-		}
+    // CASE 1: Same industry ke franchises dhundo
+    if industrySlug != "" {
+        query := map[string]interface{}{
+            "query": map[string]interface{}{
+                "bool": map[string]interface{}{
+                    "must": []map[string]interface{}{
+                        {"term": map[string]interface{}{"industry.slug": industrySlug}}, // ← term, match nahi
+                    },
+                    "must_not": mustNot,
+                },
+            },
+            "size": 4,
+            "sort": []map[string]interface{}{
+                {"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+                {"total_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+            },
+            "_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
+        }
 
-		if currentFranchiseID != "" {
-			boolQuery["must_not"] = []map[string]interface{}{
-				{"term": map[string]interface{}{"franchise_id": currentFranchiseID}},
-			}
-		}
+        result, err := executeQuery(ctx, esClient, "franchise_listings", query)
+        if err != nil {
+            return nil, err
+        }
 
-		query = map[string]interface{}{
-			"query": map[string]interface{}{
-				"bool": boolQuery,
-			},
-			"size": 4,
-			"sort": []map[string]interface{}{
-				{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
-			},
-			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
-		}
-	} else {
-		query = map[string]interface{}{
-			"query": map[string]interface{}{
-				"match_all": map[string]interface{}{},
-			},
-			"size": 4,
-			"sort": []map[string]interface{}{
-				{"rating": map[string]interface{}{"order": "desc"}},
-			},
-			"_source": []string{"franchise_id", "name", "slug", "industry", "logo"}, // "logo_url"
-		}
-	}
+        // Same industry mein results mile — return karo
+        if result != nil && len(result.Data) > 0 {
+            return result, nil
+        }
 
-	return executeQuery(ctx, esClient, "franchise_listings", query)
+        // ← FALLBACK: Same industry mein koi nahi, global top-rated lo
+    }
+
+    // CASE 2: Global fallback — top outlets, current exclude
+    fallbackQuery := map[string]interface{}{
+        "query": map[string]interface{}{
+            "bool": map[string]interface{}{
+                "must_not": mustNot,
+            },
+        },
+        "size": 4,
+        "sort": []map[string]interface{}{
+            {"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+            {"total_outlets": map[string]interface{}{"order": "desc", "missing": "_last"}},
+        },
+        "_source": []string{"franchise_id", "name", "slug", "industry", "logo"},
+    }
+
+    return executeQuery(ctx, esClient, "franchise_listings", fallbackQuery)
 }
 
 // MarketInsights - Get market insights for industry
