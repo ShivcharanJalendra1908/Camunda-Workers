@@ -130,6 +130,7 @@ CREATE TABLE industries (
     slug VARCHAR(100) UNIQUE NOT NULL,
     icon_name VARCHAR(100),
     icon_url VARCHAR(255),
+    image_url VARCHAR(255),
     color_hex VARCHAR(7) NOT NULL,
     color_name VARCHAR(50),
     listing_title VARCHAR(200),
@@ -148,6 +149,7 @@ CREATE TABLE industries (
     CONSTRAINT chk_color_hex_format 
         CHECK (color_hex ~* '^#[0-9A-F]{6}$'),
     CHECK (icon_url IS NULL OR icon_url = '' OR icon_url ~* '^https?://' OR icon_url ~* '^/'),
+    CHECK (image_url IS NULL OR image_url = '' OR image_url ~* '^https?://' OR image_url ~* '^/'),
     CONSTRAINT chk_display_order_positive 
         CHECK (display_order >= 0)
 );
@@ -173,6 +175,7 @@ CREATE TABLE categories (
     slug VARCHAR(100) UNIQUE NOT NULL,
     icon_name VARCHAR(100),
     icon_url VARCHAR(255),
+    image_url VARCHAR(255),
     description TEXT,
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
@@ -186,6 +189,8 @@ CREATE TABLE categories (
     
     CONSTRAINT chk_icon_url 
         CHECK (icon_url IS NULL OR icon_url ~* '^https?://' OR icon_url ~* '^/'),
+    CONSTRAINT chk_image_url 
+        CHECK (image_url IS NULL OR image_url ~* '^https?://' OR image_url ~* '^/'),
     CONSTRAINT chk_display_order_positive 
         CHECK (display_order >= 0),
     
