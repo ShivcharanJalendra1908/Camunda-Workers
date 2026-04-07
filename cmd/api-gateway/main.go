@@ -27,10 +27,6 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load()
 
-	// FOR TESTING ONLY
-	cfg.Auth.Keycloak.URL = "http://localhost:8180"
-	cfg.Auth.Keycloak.PublicBaseURL = "http://localhost:8180"
-
 	if err != nil {
 		panic(fmt.Sprintf("Failed to load config: %v", err))
 	}
