@@ -188,183 +188,6 @@ func (m *SyncManager) syncHomeIndex(ctx context.Context) error {
 // ============================================================
 // INDEX 2: FRANCHISE LISTINGS
 // ============================================================
-// func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
-// 	// ✅ Fixed query - added f.logo_url
-// 	query := `
-//         SELECT DISTINCT ON (f.id)
-//             f.id,
-//             f.name,
-//             f.slug,
-//             f.founded_year,
-//             f.total_outlets,
-//             f.short_description,
-//             f.logo_url_circle,
-//             f.logo_url_square,
-//             COALESCE(fs.rating, 0) as rating,
-//             i.id as industry_id,
-//             i.name as industry_name,
-//             i.slug as industry_slug,
-//             i.color_hex as industry_color
-//         FROM franchises f
-//         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
-//         LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
-//         LEFT JOIN categories c ON fc.category_id = c.id
-//         LEFT JOIN industries i ON c.industry_id = i.id
-//         WHERE i.id IS NOT NULL
-//         ORDER BY f.id, fc.is_primary DESC NULLS LAST, fc.created_at ASC
-//     `
-
-// 	rows, err := m.db.QueryContext(ctx, query)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to query franchises: %w", err)
-// 	}
-// 	defer rows.Close()
-
-// 	count := 0
-// 	for rows.Next() {
-// 		var (
-// 			id, name, slug                         string
-// 			shortDescription                       sql.NullString
-// 			logoURLCircle, logoURLSquare           sql.NullString // ✅ Logo variable added
-// 			foundedYear                            sql.NullInt32
-// 			totalOutlets                           sql.NullInt32
-// 			rating                                 float64
-// 			industryID, industryName, industrySlug string
-// 			industryColor                          sql.NullString
-// 		)
-
-// 		// ✅ Fixed Scan - added &logoURL
-// 		if err := rows.Scan(
-// 			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription,
-// 			&logoURLCircle, &logoURLSquare, // ✅ Added logoURL here
-// 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
-// 		); err != nil {
-// 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
-// 			continue
-// 		}
-
-// 		// Get location (city)
-// 		var location string
-// 		m.db.QueryRowContext(ctx,
-// 			"SELECT city FROM franchise_cities WHERE franchise_id = $1 LIMIT 1",
-// 			id,
-// 		).Scan(&location)
-
-// 		// Get and clean tags
-// 		// tags := m.getCleanedTags(ctx, id)
-// 		tags := m.generateSearchTags(ctx, id, name, industryName)
-
-// 		// Get space data
-// 		var minSpace, maxSpace sql.NullInt32
-// 		m.db.QueryRowContext(ctx,
-// 			"SELECT space_min_sqft, space_max_sqft FROM franchise_operations WHERE franchise_id = $1",
-// 			id,
-// 		).Scan(&minSpace, &maxSpace)
-
-// 		// Add defaults if missing
-// 		if !minSpace.Valid || minSpace.Int32 == 0 {
-// 			minSpace.Int32 = 200
-// 			minSpace.Valid = true
-// 		}
-// 		if !maxSpace.Valid || maxSpace.Int32 == 0 {
-// 			maxSpace.Int32 = 1000
-// 			maxSpace.Valid = true
-// 		}
-
-// 		var minInv, maxInv sql.NullFloat64
-// 		m.db.QueryRowContext(ctx,
-// 			"SELECT initial_investment_min, initial_investment_max FROM franchise_investment_requirement WHERE franchise_id = $1",
-// 			id,
-// 		).Scan(&minInv, &maxInv)
-
-// 		// Get all categories for this franchise
-// 		categories := m.getCategories(ctx, id)
-
-// 		// Clean and truncate description
-// 		cleanDesc := cleanDescription(shortDescription.String)
-
-// 		// ✅ Fixed document - added logo_url field
-// 		doc := map[string]interface{}{
-// 			"franchise_id": id,
-// 			"name":         name,
-// 			"slug":         slug,
-// 			"description":  cleanDesc,
-// 			"logo": map[string]interface{}{
-// 				"circle": logoURLCircle.String,
-// 				"square": logoURLSquare.String,
-// 				"alt":    name,
-// 			},
-// 			"location":      location,
-// 			"tags":          tags,
-// 			"rating":        rating,
-// 			"total_outlets": totalOutlets.Int32,
-// 			"updated_at":    time.Now().Format(time.RFC3339),
-// 		}
-
-// 		// Add year if valid
-// 		if foundedYear.Valid {
-// 			doc["year_of_establishment"] = foundedYear.Int32
-// 		}
-
-// 		// Add space object
-// 		if minSpace.Valid || maxSpace.Valid {
-// 			doc["space"] = map[string]interface{}{
-// 				"minSpace":  fmt.Sprintf("%d", minSpace.Int32), // Convert to string
-// 				"maxSpace":  fmt.Sprintf("%d", maxSpace.Int32), // Convert to string
-// 				"spaceUnit": "sq ft",
-// 			}
-// 		}
-
-// 		// Store investment in both formats
-// 		if minInv.Valid || maxInv.Valid {
-// 			minLakhs := minInv.Float64 / 100000
-// 			maxLakhs := maxInv.Float64 / 100000
-
-// 			// For display (strings)
-// 			doc["investmentRange"] = map[string]interface{}{
-// 				"minInvestment":  fmt.Sprintf("%.0f", minLakhs),
-// 				"maxInvestment":  fmt.Sprintf("%.0f", maxLakhs),
-// 				"investmentUnit": "Lakhs",
-// 			}
-
-// 			// For filtering (numbers)
-// 			doc["investment"] = map[string]interface{}{
-// 				"min_investment": minLakhs,
-// 				"max_investment": maxLakhs,
-// 			}
-// 		}
-
-// 		// Add industry object with default color
-// 		color := industryColor.String
-// 		if color == "" {
-// 			color = "#FF6B6B"
-// 		}
-
-// 		doc["industry"] = map[string]interface{}{
-// 			"id":    industryID,
-// 			"name":  industryName,
-// 			"slug":  industrySlug,
-// 			"color": color,
-// 		}
-
-// 		// Add categories
-// 		doc["categories"] = categories
-
-// 		// Index to Elasticsearch
-// 		if err := m.indexDocument(ctx, ListingsIndex, id, doc); err != nil {
-// 			log.Printf("⚠️ Failed to index franchise %s: %v", id, err)
-// 			continue
-// 		}
-
-// 		count++
-// 		if count%10 == 0 {
-// 			log.Printf("   Indexed %d franchises...", count)
-// 		}
-// 	}
-
-//		log.Printf("   ✅ Total franchises indexed: %d", count)
-//		return nil
-//	}
 func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 	query := `
         SELECT DISTINCT ON (f.id)
@@ -381,6 +204,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             i.name as industry_name,
             i.slug as industry_slug,
             i.color_hex as industry_color
+			i.image_url as industry_image_url
         FROM franchises f
         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
         LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
@@ -407,12 +231,14 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			rating                                 float64
 			industryID, industryName, industrySlug string
 			industryColor                          sql.NullString
+			industryImageURL                       sql.NullString // ✅ NEW
 		)
 
 		if err := rows.Scan(
 			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription,
 			&logoURLCircle, &logoURLSquare,
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
+			&industryImageURL,
 		); err != nil {
 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
 			continue
@@ -521,10 +347,11 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			color = "#FF6B6B"
 		}
 		doc["industry"] = map[string]interface{}{
-			"id":    industryID,
-			"name":  industryName,
-			"slug":  industrySlug,
-			"color": color,
+			"id":        industryID,
+			"name":      industryName,
+			"slug":      industrySlug,
+			"color":     color,
+			"image_url": industryImageURL.String,
 		}
 
 		doc["categories"] = categories
@@ -667,7 +494,7 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 
 		// Get recommended franchises (top 6 by rating)
 		recQuery := `
-			SELECT f.id, f.name, i.name as industry_name
+			SELECT f.id, f.name, i.name as industry_name, i.image_url as industry_image_url
 			FROM franchises f
 			INNER JOIN franchise_categories fc ON f.id = fc.franchise_id
 			INNER JOIN categories c ON fc.category_id = c.id
@@ -683,11 +510,13 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 		if err == nil {
 			for recRows.Next() {
 				var fID, fName, indName string
-				if err := recRows.Scan(&fID, &fName, &indName); err == nil {
+				var indImageURL sql.NullString
+				if err := recRows.Scan(&fID, &fName, &indName, &indImageURL); err == nil {
 					recommended = append(recommended, map[string]interface{}{
-						"franchise_id":   fID,
-						"franchise_name": fName,
-						"industry":       indName,
+						"franchise_id":       fID,
+						"franchise_name":     fName,
+						"industry":           indName,
+						"industry_image_url": indImageURL.String, // ✅ NEW
 					})
 				}
 			}
@@ -865,7 +694,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 	// Sab active industries fetch karo
 	indRows, err := m.db.QueryContext(ctx, `
-		SELECT id, name, slug, color_hex, icon_url, display_order
+		SELECT id, name, slug, color_hex, icon_url, image_url, display_order
 		FROM industries
 		WHERE is_active = true
 		ORDER BY display_order
@@ -878,17 +707,17 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 	count := 0
 	for indRows.Next() {
 		var id, name, slug, colorHex string
-		var iconURL sql.NullString
+		var iconURL, imageURL sql.NullString
 		var displayOrder int
 
-		if err := indRows.Scan(&id, &name, &slug, &colorHex, &iconURL, &displayOrder); err != nil {
+		if err := indRows.Scan(&id, &name, &slug, &colorHex, &iconURL, &imageURL, &displayOrder); err != nil {
 			log.Printf("⚠️ Failed to scan industry: %v", err)
 			continue
 		}
 
 		// Categories fetch karo
 		catRows, err := m.db.QueryContext(ctx, `
-			SELECT id, name, slug, icon_url, display_order
+			SELECT id, name, slug, icon_url, , image_url display_order
             FROM categories
 			WHERE industry_id = $1 AND is_active = true
 			ORDER BY display_order
@@ -901,10 +730,10 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		var categories []map[string]interface{}
 		for catRows.Next() {
 			var catID, catName, catSlug string
-			var catIconURL sql.NullString
+			var catIconURL, catImageURL sql.NullString
 			var catOrder int
 
-			if err := catRows.Scan(&catID, &catName, &catSlug, &catIconURL, &catOrder); err != nil {
+			if err := catRows.Scan(&catID, &catName, &catSlug, &catIconURL, &catImageURL, &catOrder); err != nil {
 				continue
 			}
 
@@ -944,6 +773,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 				"category_slug":  catSlug,
 				"display_order":  catOrder,
 				"icon_url":       catIconURL.String,
+				"image_url":      catImageURL.String, // ✅ NEW
 				"sub_categories": subCategories,
 			})
 		}
@@ -965,6 +795,10 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		}
 		if iconURL.Valid {
 			doc["icon_url"] = iconURL.String
+		}
+
+		if imageURL.Valid {
+			doc["image_url"] = imageURL.String
 		}
 
 		if err := m.indexDocument(ctx, BrowseIndex, id, doc); err != nil {

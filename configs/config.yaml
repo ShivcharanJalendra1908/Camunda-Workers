@@ -174,11 +174,17 @@ integrations:
   
   # SMTP (Fallback/Development)
   smtp:
-    host: "mailhog"
-    port: 1025
-    username: ""
-    password: ""
-    use_tls: false
+    # host: "mailhog"
+    # port: 1025
+    # username: ""
+    # password: ""
+    # use_tls: false
+    # default_from: "noreply@lemici.com"
+    host: "email-smtp.us-east-1.amazonaws.com"
+    port: 587
+    username: "AKIASS3JXDPV5KM5MXAV"
+    password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
+    use_tls: true
     default_from: "noreply@lemici.com"
 
   # Email id for Enquiry 

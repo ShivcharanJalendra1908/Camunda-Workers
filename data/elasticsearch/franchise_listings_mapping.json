@@ -69,7 +69,8 @@
             "fields": { "keyword": { "type": "keyword" } }
           },
           "slug":  { "type": "keyword" },
-          "color": { "type": "keyword" }
+          "color": { "type": "keyword" },
+          "image_url": { "type": "keyword", "index": false }
         }
       },
       "categories": {

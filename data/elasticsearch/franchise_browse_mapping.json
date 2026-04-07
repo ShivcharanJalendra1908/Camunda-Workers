@@ -37,6 +37,10 @@
         "type": "keyword",
         "index": false
       },
+      "image_url": { 
+        "type": "keyword", 
+        "index": false 
+      },
       "categories": {
         "type": "nested",
         "properties": {
@@ -59,6 +63,10 @@
           "icon_url": {
             "type": "keyword",
             "index": false
+          },
+          "image_url": { 
+            "type": "keyword", 
+            "index": false 
           },
           "sub_categories": {
             "type": "nested",

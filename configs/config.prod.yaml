@@ -25,3 +25,16 @@ notifications:
     from_email: "noreply@franchisehub.com"
   aws:
     region: "us-east-1"
+
+integrations:
+  smtp:
+    host: "email-smtp.us-east-1.amazonaws.com"
+    port: 587
+    username: "AKIASS3JXDPV5KM5MXAV"
+    password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
+    use_tls: true
+    default_from: "noreply@lemici.com"
+
+internal:
+  enquiry_alert_email: "shivcharan.jalendra@lemici.com"
+  enquiry_alert_name: "Lemici Enquiry Team"

@@ -71,7 +71,11 @@
           },
           "industry": {
             "type": "keyword"
-          }
+          },
+          "industry_image_url": { 
+            "type": "keyword", 
+            "index": false 
+          } 
         }
       },
       "updated_at": {

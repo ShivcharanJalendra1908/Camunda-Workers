@@ -276,28 +276,6 @@ func (h *Handler) validateInput(input *Input) error {
 	return nil
 }
 
-// func (h *Handler) validateInput(input *Input) error {
-// 	if err := ozzo.Validate(input.PageType,
-// 		ozzo.Required.Error("pageType is required"),
-// 		ozzo.In("home", "listing", "detail", "search", "industries").Error("must be one of: home, listing, detail, search, industries"),
-// 		validation.SafeSQLString,
-// 	); err != nil {
-// 		return appErrs.NewValidationError("pageType", err.Error())
-// 	}
-
-// 	if input.Data != nil {
-// 		if err := h.validateDataDepth(input.Data, 0); err != nil {
-// 			return err
-// 		}
-
-// 		if err := h.validateDataSize(input.Data); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	return nil
-// }
-
 func (h *Handler) validateDataDepth(data map[string]interface{}, depth int) error {
 	if depth > 10 {
 		return appErrs.NewValidationError("data", "object nesting too deep (max 10 levels)")
@@ -569,26 +547,6 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 					"alt":    brandName,
 				}
 			}
-			// } else if logoURL, ok := listing["logo_url"].(string); ok {
-			// 	brandName := ""
-			// 	if b, ok := transformed["brand"].(string); ok {
-			// 		brandName = b
-			// 	}
-			// 	transformed["logo"] = map[string]interface{}{
-			// 		"url": logoURL,
-			// 		"alt": brandName,
-			// 	}
-			// } else {
-			// 	// Fallback empty logo
-			// 	brandName := ""
-			// 	if b, ok := transformed["brand"].(string); ok {
-			// 		brandName = b
-			// 	}
-			// 	transformed["logo"] = map[string]interface{}{
-			// 		"url": "",
-			// 		"alt": brandName,
-			// 	}
-			// }
 
 			transformedListings = append(transformedListings, transformed)
 		}
@@ -651,28 +609,6 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	pageSize := 6
 	totalCount := int64(0)
 
-	// heroDescription := "Explore top franchise opportunities in India"
-
-	// if len(industryInfo) > 0 {
-	// 	if desc, ok := industryInfo["listing_description"].(string); ok && desc != "" {
-	// 		heroDescription = desc
-	// 	} else if desc, ok := industryInfo["description"].(string); ok && desc != "" {
-	// 		heroDescription = desc
-	// 	} else if name, ok := industryInfo["name"].(string); ok && name != "" {
-	// 		heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
-	// 	} else if name, ok := industryInfo["industry_name"].(string); ok && name != "" {
-	// 		heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
-	// 	}
-	// }
-
-	// sections = append(sections, map[string]interface{}{
-	// 	"type":    "hero",
-	// 	"enabled": true,
-	// 	"data": map[string]interface{}{
-	// 		"description": heroDescription,
-	// 	},
-	// })
-	// REPLACE karo ye poora block:
 	heroTitle := "Franchise Opportunities in India"
 	heroDescription := "Explore top franchise opportunities in India"
 
@@ -772,6 +708,14 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				industryName = industry
 			}
 
+			// ✅ NEW — industry image_url extract karo
+			industryImageURL := ""
+			if industry, ok := rec["industry"].(map[string]interface{}); ok {
+				if imgURL, ok := industry["image_url"].(string); ok {
+					industryImageURL = imgURL
+				}
+			}
+
 			circle := ""
 			square := ""
 			if logo, ok := rec["logo"].(map[string]interface{}); ok {
@@ -784,10 +728,11 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			}
 
 			transformed := map[string]interface{}{
-				"id":       rec["id"],
-				"brand":    rec["brand"],
-				"industry": industryName, // ✅ String, not object
-				"slug":     rec["slug"],
+				"id":                 rec["id"],
+				"brand":              rec["brand"],
+				"industry":           industryName,     // ✅ String, not object
+				"industry_image_url": industryImageURL, // ✅ NEW
+				"slug":               rec["slug"],
 				"image": map[string]interface{}{
 					"circle": circle,
 					"square": square,
@@ -816,16 +761,6 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			})
 		}
 	}
-
-	// if p, ok := data["page"].(float64); ok {
-	// 	page = int(p)
-	// }
-	// if ps, ok := data["pageSize"].(float64); ok {
-	// 	pageSize = int(ps)
-	// }
-	// if tc, ok := data["totalCount"].(float64); ok {
-	// 	totalCount = int64(tc)
-	// }
 
 	switch v := data["page"].(type) {
 	case float64:
@@ -948,15 +883,6 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 		})
 	}
 
-	// if len(recommended) > 0 {
-	// 	sections = append(sections, map[string]interface{}{
-	// 		"type":    "recommended_franchises",
-	// 		"enabled": true,
-	// 		"data": map[string]interface{}{
-	// 			"items": recommended,
-	// 		},
-	// 	})
-	// }
 	// Add this transformation for recommended items
 
 	// LISTING PAGE - Line 669
@@ -979,26 +905,13 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 				industryName = industry
 			}
 
-			// logoURL := ""
-			// if logo, ok := rec["logo"].(map[string]interface{}); ok {
-			// 	if url, ok := logo["url"].(string); ok {
-			// 		logoURL = url
-			// 	}
-			// } else if url, ok := rec["logo_url"].(string); ok {
-			// 	logoURL = url
-			// }
-
-			// transformed := map[string]interface{}{
-			// 	"id":       rec["id"],
-			// 	"brand":    rec["brand"],
-			// 	"industry": industryName, // ✅ String, not object
-			// 	"slug":     rec["slug"],
-			// 	"image": map[string]interface{}{ // ✅ ADD THIS
-			// 		//"url": rec["logo_url"],
-			// 		"url": logoURL,
-			// 		"alt": rec["brand"],
-			// 	},
-			// }
+			// ✅ NEW — industry image_url extract karo
+			industryImageURL := ""
+			if industry, ok := rec["industry"].(map[string]interface{}); ok {
+				if imgURL, ok := industry["image_url"].(string); ok {
+					industryImageURL = imgURL
+				}
+			}
 
 			circle := ""
 			square := ""
@@ -1012,10 +925,11 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 			}
 
 			transformed := map[string]interface{}{
-				"id":       rec["id"],
-				"brand":    rec["brand"],
-				"industry": industryName, // ✅ String, not object
-				"slug":     rec["slug"],
+				"id":                 rec["id"],
+				"brand":              rec["brand"],
+				"industry":           industryName,     // ✅ String, not object
+				"industry_image_url": industryImageURL, // ✅ NEW
+				"slug":               rec["slug"],
 				"image": map[string]interface{}{
 					"circle": circle,
 					"square": square,
@@ -1102,7 +1016,8 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 				cleanedCategories = append(cleanedCategories, map[string]interface{}{
 					"category_name":  cat["category_name"],
 					"category_slug":  cat["category_slug"],
-					"icon_url":       cat["icon_url"], // ✅ AD
+					"icon_url":       cat["icon_url"],  // ✅ ADD
+					"image_url":      cat["image_url"], // ✅ NEW
 					"sub_categories": cleanedSubs,
 				})
 			}
@@ -1156,34 +1071,6 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[
 	}
 
 	// ✅ DEFENSIVE: Handle logo structure (logo object OR logo_url)
-	// if _, exists := result["logo"]; !exists {
-	// 	logoURL := ""
-
-	// 	// Try to get logo URL from various sources
-	// 	if url, ok := basicInfo["logo_url"].(string); ok {
-	// 		logoURL = url
-	// 	} else if logo, ok := basicInfo["logo"].(map[string]interface{}); ok {
-	// 		if url, ok := logo["url"].(string); ok {
-	// 			logoURL = url
-	// 		}
-	// 	}
-
-	// 	// Get name for alt text
-	// 	name := ""
-	// 	if n, ok := basicInfo["name"].(string); ok {
-	// 		name = n
-	// 	} else if b, ok := basicInfo["brand"].(string); ok {
-	// 		name = b
-	// 	}
-
-	// 	result["logo"] = map[string]interface{}{
-	// 		"url": logoURL,
-	// 		"alt": name,
-	// 	}
-	// }
-
-	// // Remove logo_url (use logo object instead)
-	// delete(result, "logo_url")
 
 	if logo, ok := result["logo"].(map[string]interface{}); ok {
 		// Already circle/square format — bas alt ensure karo
@@ -1247,79 +1134,6 @@ func (h *Handler) buildSocialMediaStructure(socialLinks []interface{}) map[strin
 	return result
 }
 
-// func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicInfo map[string]interface{}) map[string]interface{} {
-// 	result := map[string]interface{}{}
-
-// 	minInv := getFloatValue(investment, "initial_investment_min")
-// 	maxInv := getFloatValue(investment, "initial_investment_max")
-// 	if minInv > 0 || maxInv > 0 {
-// 		result["initial_investment"] = map[string]interface{}{
-// 			"min":  minInv,
-// 			"max":  maxInv,
-// 			"unit": "INR",
-// 		}
-// 	}
-
-// 	// ✅ DEFENSIVE: Check overview, then basicInfo for total_outlets
-// 	if units, ok := overview["total_outlets"].(float64); ok {
-// 		result["number_of_units"] = int(units)
-// 	} else if units, ok := basicInfo["total_outlets"].(float64); ok {
-// 		result["number_of_units"] = int(units)
-// 	} else if units, ok := basicInfo["no_of_outlets"].(float64); ok {
-// 		result["number_of_units"] = int(units)
-// 	}
-
-// 	minSpace := getFloatValue(overview, "space_min_sqft")
-// 	maxSpace := getFloatValue(overview, "space_max_sqft")
-// 	if minSpace > 0 || maxSpace > 0 {
-// 		result["space_requirement"] = map[string]interface{}{
-// 			"min":  minSpace,
-// 			"max":  maxSpace,
-// 			"unit": "sq. ft.",
-// 		}
-// 	}
-
-// 	if parentCompany, ok := overview["parent_company"].(string); ok && parentCompany != "" {
-// 		result["parent_company"] = parentCompany
-// 	}
-
-// 	if businessType, ok := overview["business_type"].(string); ok && businessType != "" {
-// 		result["business_type"] = businessType
-// 	}
-
-// 	if leader, ok := overview["leader_name"].(string); ok && leader != "" {
-// 		result["leadership"] = leader
-// 	}
-
-// 	if email, ok := overview["email"].(string); ok && email != "" {
-// 		result["email"] = email
-// 	}
-
-// 	fee := getFloatValue(overview, "franchise_fee")
-// 	if fee == 0 {
-// 		fee = getFloatValue(investment, "franchise_fee")
-// 	}
-// 	if fee > 0 {
-// 		result["franchise_fees"] = map[string]interface{}{
-// 			"min":   fee,
-// 			"max":   fee,
-// 			"unit":  "INR",
-// 			"notes": "",
-// 		}
-// 	}
-
-// 	if yearFounded, ok := overview["year_founded"].(float64); ok {
-// 		result["year_founded"] = int(yearFounded)
-// 	}
-
-// 	if hq, ok := overview["headquarters"].(string); ok && hq != "" {
-// 		result["headquarters"] = hq
-// 	} else if city, ok := overview["city"].(string); ok && city != "" {
-// 		result["headquarters"] = city
-// 	}
-
-//		return result
-//	}
 func (h *Handler) buildFranchisingOverviewStructure(overview, investment, basicInfo map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 
@@ -1507,51 +1321,6 @@ func (h *Handler) buildBusinessOverviewStructure(business, operations map[string
 	return result
 }
 
-// func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[string]interface{}) map[string]interface{} {
-// 	result := map[string]interface{}{}
-
-// 	minInv := getFloatValue(investment, "initial_investment_min")
-// 	maxInv := getFloatValue(investment, "initial_investment_max")
-// 	if minInv > 0 || maxInv > 0 {
-// 		result["initial_investment"] = map[string]interface{}{
-// 			"min":   minInv / 100000,
-// 			"max":   maxInv / 100000,
-// 			"unit":  "Lakhs",
-// 			"notes": "",
-// 		}
-// 	}
-
-// 	result["investment_breakdown"] = []string{
-// 		"Franchise Fee",
-// 		"Equipment & Fixtures",
-// 		"Initial Inventory",
-// 		"Marketing & Promotion",
-// 		"Working Capital",
-// 	}
-
-// 	fee := getFloatValue(investment, "franchise_fee")
-// 	if fee > 0 {
-// 		result["franchise_fee"] = map[string]interface{}{
-// 			"min":  fee / 100000,
-// 			"max":  fee / 100000,
-// 			"unit": "Lakhs",
-// 		}
-// 	}
-
-// 	result["required_property_location"] = []string{"Commercial", "High Street", "Mall"}
-
-// 	minSpace := getFloatValue(operations, "space_min_sqft")
-// 	maxSpace := getFloatValue(operations, "space_max_sqft")
-// 	if minSpace > 0 || maxSpace > 0 {
-// 		result["floor_area"] = map[string]interface{}{
-// 			"min":  minSpace,
-// 			"max":  maxSpace,
-// 			"unit": "sq. ft.",
-// 		}
-// 	}
-
-//		return result
-//	}
 func (h *Handler) buildInvestmentDetailsStructure(investment, operations map[string]interface{}) map[string]interface{} {
 	result := map[string]interface{}{}
 
