@@ -203,7 +203,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             i.id as industry_id,
             i.name as industry_name,
             i.slug as industry_slug,
-            i.color_hex as industry_color
+            i.color_hex as industry_color,
 			i.image_url as industry_image_url
         FROM franchises f
         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
@@ -717,7 +717,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 
 		// Categories fetch karo
 		catRows, err := m.db.QueryContext(ctx, `
-			SELECT id, name, slug, icon_url, , image_url display_order
+			SELECT id, name, slug, icon_url, image_url display_order
             FROM categories
 			WHERE industry_id = $1 AND is_active = true
 			ORDER BY display_order
