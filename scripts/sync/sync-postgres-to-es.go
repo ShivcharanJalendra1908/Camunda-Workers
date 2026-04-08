@@ -717,7 +717,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 
 		// Categories fetch karo
 		catRows, err := m.db.QueryContext(ctx, `
-			SELECT id, name, slug, icon_url, image_url display_order
+			SELECT id, name, slug, icon_url, image_url, display_order
             FROM categories
 			WHERE industry_id = $1 AND is_active = true
 			ORDER BY display_order
