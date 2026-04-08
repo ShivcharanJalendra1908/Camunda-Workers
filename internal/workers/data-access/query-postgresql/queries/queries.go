@@ -163,7 +163,7 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
 
-// CategoriesFeatured8 - Get 8 featured categories for listing page           -- 12 as per UI
+// CategoriesFeatured8 - Get 8 featured categories for listing page
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
@@ -182,7 +182,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE c.industry_id = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 12
+			LIMIT 8
 		`, industryID)
 	} else if hasSlug && industrySlug != "" {
 		rows, err = db.QueryContext(ctx, `
@@ -194,7 +194,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE i.slug = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 12
+			LIMIT 8
 		`, industrySlug)
 	} else {
 		rows, err = db.QueryContext(ctx, `
@@ -205,7 +205,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 12
+			LIMIT 8
 		`)
 	}
 
@@ -853,80 +853,6 @@ func CategoryQuestionsByIndustry(
 	return questions, len(questions), time.Since(start).Milliseconds(), nil
 }
 
-// func CategoryQuestionsByIndustry(
-// 	ctx context.Context,
-// 	db *sql.DB,
-// 	params map[string]interface{},
-// ) (interface{}, int, int64, error) {
-// 	start := time.Now()
-
-// 	var referenceID string
-
-// 	if v, ok := params["industryId"].(string); ok && v != "" {
-// 		referenceID = v
-// 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
-// 		err := db.QueryRowContext(ctx, `
-//             SELECT id FROM industries
-//             WHERE (
-//                 slug = $1
-//                 OR slug LIKE $1 || '%'
-//                 OR slug LIKE '%' || $1 || '%'
-//                 OR name ILIKE '%' || $1 || '%'
-//             )
-//             AND is_active = true
-//             ORDER BY
-//                 CASE WHEN slug = $1 THEN 1
-//                      WHEN slug LIKE $1 || '%' THEN 2
-//                      ELSE 3
-//                 END
-//             LIMIT 1`, v,
-// 		).Scan(&referenceID)
-// 		if err != nil {
-// 			// ✅ Not found ya empty - gracefully return empty
-// 			return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 		}
-// 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
-// 		referenceID = v
-// 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
-// 		err := db.QueryRowContext(ctx,
-// 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
-// 		).Scan(&referenceID)
-// 		if err != nil {
-// 			return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 		}
-// 	} else {
-// 		// ✅ FIX: ErrInvalidParams throw mat karo - empty return karo
-// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 	}
-// 	// ✅ Query with proper timeout
-// 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-// 	defer cancel()
-
-// 	rows, err := db.QueryContext(queryCtx, `
-//         SELECT question
-//         FROM category_questions
-//         WHERE reference_id = $1
-//         ORDER BY created_at
-//         LIMIT 8
-//     `, referenceID)
-
-// 	if err != nil {
-// 		// Return empty array on error (graceful degradation)
-// 		return []string{}, 0, time.Since(start).Milliseconds(), nil
-// 	}
-// 	defer rows.Close()
-
-// 	var questions []string
-// 	for rows.Next() {
-// 		var q string
-// 		if err := rows.Scan(&q); err == nil && q != "" {
-// 			questions = append(questions, q)
-// 		}
-// 	}
-
-// 	return questions, len(questions), time.Since(start).Milliseconds(), nil
-// }
-
 // FeaturedCategoriesByIndustry - Get featured categories for an industry (detail page)
 func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
@@ -941,7 +867,7 @@ func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[st
 		FROM categories c
 		WHERE c.industry_id = $1 AND c.is_active = true
 		ORDER BY c.display_order
-		LIMIT 8
+		LIMIT 12
 	`
 
 	rows, err := db.QueryContext(ctx, query, industryID)
