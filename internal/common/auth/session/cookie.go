@@ -19,17 +19,30 @@ type CookieOptions struct {
 }
 
 // normalize applies safe defaults without breaking callers
+// func (o CookieOptions) normalize() CookieOptions {
+// 	if o.Path == "" {
+// 		o.Path = "/"
+// 	}
+// 	// Enforce security (NOT optional)
+// 	o.HttpOnly = true
+// 	o.Secure = true
+// 	if o.SameSite == 0 {
+// 		// o.SameSite = http.SameSiteLaxMode
+// 		o.SameSite = http.SameSiteStrictMode
+// 	}
+// 	return o
+// }
+
+// --- TEST ONLY ---
 func (o CookieOptions) normalize() CookieOptions {
 	if o.Path == "" {
 		o.Path = "/"
 	}
-	// Enforce security (NOT optional)
 	o.HttpOnly = true
 	o.Secure = true
-	if o.SameSite == 0 {
-		// o.SameSite = http.SameSiteLaxMode
-		o.SameSite = http.SameSiteStrictMode
-	}
+	o.SameSite = http.SameSiteNoneMode
+	// IMPORTANT: do NOT set Domain for now
+	o.Domain = ""
 	return o
 }
 
@@ -77,12 +90,23 @@ func ClearCookie(
 func BuildSetCookieHeader(sessionID string, expiresAt time.Time, secure bool, sameSite string) string {
 	maxAge := int(time.Until(expiresAt).Seconds())
 
+	// cookie := &http.Cookie{
+	// 	Name:     "session_id",
+	// 	Value:    sessionID,
+	// 	Path:     "/",
+	// 	HttpOnly: true,
+	// 	Secure:   secure,
+	// 	MaxAge:   maxAge,
+	// }
+
+	// --- TEST ONLY ---
 	cookie := &http.Cookie{
 		Name:     "session_id",
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secure,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   maxAge,
 	}
 
