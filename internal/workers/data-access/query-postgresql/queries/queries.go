@@ -163,7 +163,7 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
 
-// // CategoriesFeatured8 - Get 8 featured categories for listing page
+// CategoriesFeatured8 - Get 8 featured categories for listing page           -- 12 as per UI
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
@@ -182,7 +182,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE c.industry_id = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 8
+			LIMIT 12
 		`, industryID)
 	} else if hasSlug && industrySlug != "" {
 		rows, err = db.QueryContext(ctx, `
@@ -194,7 +194,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE i.slug = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 8
+			LIMIT 12
 		`, industrySlug)
 	} else {
 		rows, err = db.QueryContext(ctx, `
@@ -205,7 +205,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			WHERE c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
-			LIMIT 8
+			LIMIT 12
 		`)
 	}
 
