@@ -27,6 +27,7 @@ type Input struct {
 	Filters      map[string]interface{} `json:"filters"`      // Filter criteria
 	FranchiseID  string                 `json:"franchiseId"`  // Can be UUID or slug
 	Category     string                 `json:"category"`     // Category filter
+	CategorySlug string                 `json:"categorySlug"` // ✅ ADDED: For category-specific queries
 	IndustrySlug string                 `json:"industrySlug"` // ✅ ADDED: For industry-specific queries
 	Pagination   Pagination             `json:"pagination"`
 
@@ -448,6 +449,7 @@ func (i *Input) Sanitize() {
 	i.QueryType = models.QueryType(strings.TrimSpace(string(i.QueryType)))
 	i.FranchiseID = strings.TrimSpace(i.FranchiseID)
 	i.Category = strings.TrimSpace(i.Category)
+	i.CategorySlug = strings.TrimSpace(i.CategorySlug)
 	i.IndustrySlug = strings.TrimSpace(i.IndustrySlug)
 
 	// Apply default timeout if not set

@@ -297,6 +297,16 @@ func (h *Handler) validateInput(input *Input) error {
 		}
 	}
 
+	// Validate CategorySlug
+	if input.CategorySlug != "" {
+		if err := ozzo.Validate(input.CategorySlug,
+			validation.ValidateStringLength(1, 100),
+			validation.SafeNoSQLString,
+		); err != nil {
+			return appErrs.NewValidationError("categorySlug", err.Error())
+		}
+	}
+
 	// Validate Filters
 	if len(input.Filters) > 0 {
 		if err := h.validateFilters(input.Filters); err != nil {
@@ -698,6 +708,10 @@ func (h *Handler) buildRegistryParams(input *Input) map[string]interface{} {
 	// ✅ ADD THIS - Extract from top-level Input fields
 	if input.IndustrySlug != "" && params["industrySlug"] == nil {
 		params["industrySlug"] = input.IndustrySlug
+	}
+
+	if input.CategorySlug != "" && params["categorySlug"] == nil {
+		params["categorySlug"] = input.CategorySlug
 	}
 
 	// ✅ CRITICAL: Extract slug from multiple possible sources
