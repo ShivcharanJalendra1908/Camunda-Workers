@@ -1518,7 +1518,7 @@
       "addReadTokenRoleOnCreate": false,
       "authenticateByDefault": false,
       "linkOnly": false,
-      "firstBrokerLoginFlowAlias": "first broker login",
+      "firstBrokerLoginFlowAlias": "Auto Link Flow",
       "config": {
         "hideOnLoginPage": "false",
         "acceptsPromptNoneForwardFromClient": "false",
