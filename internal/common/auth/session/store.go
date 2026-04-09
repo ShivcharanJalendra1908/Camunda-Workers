@@ -6,15 +6,15 @@ import (
 )
 
 type Session struct {
-	SessionID         string
-	UserID            string
-	CreatedAt         time.Time
-	ExpiresAt         time.Time
-	AbsoluteExpiresAt time.Time
-	Version           int
-	CSRFToken         string
-	UserAgent         string `json:"user_agent"`
-	IP                string `json:"ip"`
+	SessionID         string    `json:"session_id"`
+	UserID            string    `json:"user_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	ExpiresAt         time.Time `json:"expires_at"`
+	AbsoluteExpiresAt time.Time `json:"absolute_expires_at"`
+	Version           int       `json:"version"`
+	CSRFToken         string    `json:"csrf_token"`
+	UserAgent         string    `json:"user_agent"`
+	IP                string    `json:"ip"`
 }
 
 type Store interface {
