@@ -46,6 +46,7 @@
           <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then limit else pageSize" target="pageSize" />
           <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (page - 1) * limit else offset" target="offset" />
           <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then industrySlug else null" target="industrySlug" />
+          <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then categorySlug else null" target="categorySlug" />
           <zeebe:output source="=data" target="franchises" />
           <zeebe:output source="=total" target="totalCount" />
         </zeebe:ioMapping>

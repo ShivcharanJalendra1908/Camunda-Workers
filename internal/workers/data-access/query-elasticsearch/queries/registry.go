@@ -824,9 +824,92 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 }
 
 // FranchiseListing - Paginated franchise listing (Listing Page MAIN query)
+// func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
+
+// 	industrySlug, _ := params["industrySlug"].(string)
+// 	page := 1
+// 	if v, ok := params["page"].(float64); ok && v > 0 {
+// 		page = int(v)
+// 	} else if v, ok := params["page"].(int); ok && v > 0 {
+// 		page = v
+// 	}
+
+// 	pageSize := 0
+// 	if v, ok := params["pageSize"].(float64); ok && v > 0 {
+// 		pageSize = int(v)
+// 	} else if v, ok := params["pageSize"].(int); ok && v > 0 {
+// 		pageSize = v
+// 	} else if v, ok := params["limit"].(float64); ok && v > 0 {
+// 		pageSize = int(v)
+// 	} else if v, ok := params["limit"].(int); ok && v > 0 {
+// 		pageSize = v
+// 	}
+
+// 	from := 0
+// 	if v, ok := params["offset"].(float64); ok && v >= 0 {
+// 		from = int(v)
+// 	} else if v, ok := params["offset"].(int); ok && v >= 0 {
+// 		from = v
+// 	} else if pageSize > 0 {
+// 		from = (page - 1) * pageSize
+// 	}
+
+// 	query := map[string]interface{}{
+// 		"from":             from,
+// 		"size":             pageSize, // ← CHANGE 1: limit → pageSize
+// 		"track_total_hits": true,     // ← CHANGE 2: naya add karo
+// 		"sort": []map[string]interface{}{
+// 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
+// 			{"_score": map[string]interface{}{"order": "desc"}},
+// 		},
+// 	}
+
+// 	if industrySlug != "" {
+// 		query["query"] = map[string]interface{}{
+// 			"bool": map[string]interface{}{
+// 				"should": []interface{}{
+// 					map[string]interface{}{
+// 						"term": map[string]interface{}{
+// 							"industry.slug": industrySlug,
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"prefix": map[string]interface{}{
+// 							"industry.slug": industrySlug,
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"wildcard": map[string]interface{}{
+// 							"industry.slug": map[string]interface{}{
+// 								"value": "*" + industrySlug + "*",
+// 							},
+// 						},
+// 					},
+// 					map[string]interface{}{
+// 						"match": map[string]interface{}{
+// 							"industry.name": map[string]interface{}{
+// 								"query":     industrySlug,
+// 								"fuzziness": "AUTO",
+// 							},
+// 						},
+// 					},
+// 				},
+// 				"minimum_should_match": 1,
+// 			},
+// 		}
+// 	} else {
+// 		query["query"] = map[string]interface{}{
+// 			"match_all": map[string]interface{}{},
+// 		}
+// 	}
+
+//		return executeQuery(ctx, esClient, "franchise_listings", query)
+//	}
 func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 
 	industrySlug, _ := params["industrySlug"].(string)
+	categorySlug, _ := params["categorySlug"].(string) // ← NEW
+
 	page := 1
 	if v, ok := params["page"].(float64); ok && v > 0 {
 		page = int(v)
@@ -856,15 +939,28 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 
 	query := map[string]interface{}{
 		"from":             from,
-		"size":             pageSize, // ← CHANGE 1: limit → pageSize
-		"track_total_hits": true,     // ← CHANGE 2: naya add karo
+		"size":             pageSize,
+		"track_total_hits": true,
 		"sort": []map[string]interface{}{
 			{"rating": map[string]interface{}{"order": "desc", "missing": "_last"}},
 			{"_score": map[string]interface{}{"order": "desc"}},
 		},
 	}
 
-	if industrySlug != "" {
+	if categorySlug != "" {
+		// ✅ CASE 1: Category filter — nested query (mapping mein categories nested hai)
+		query["query"] = map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "categories",
+				"query": map[string]interface{}{
+					"term": map[string]interface{}{
+						"categories.slug": categorySlug,
+					},
+				},
+			},
+		}
+	} else if industrySlug != "" {
+		// ✅ CASE 2: Industry filter — existing logic
 		query["query"] = map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
@@ -898,6 +994,7 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 			},
 		}
 	} else {
+		// ✅ CASE 3: No filter
 		query["query"] = map[string]interface{}{
 			"match_all": map[string]interface{}{},
 		}

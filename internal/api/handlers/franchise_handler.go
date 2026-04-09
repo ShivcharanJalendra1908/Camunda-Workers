@@ -248,17 +248,17 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		"operation":      "listing_page",
 		"pageType":       "listing",
 		"industrySlug":   industrySlug,
+		"categorySlug":   categorySlug,
 		"page":           page,
-		//"limit":          limit,
-		"pageSize":  pageSize, // ← "limit" -> "pageSize"
-		"offset":    offset,
-		"userId":    c.GetString("userId"),
-		"lang":      c.GetHeader("X-Lang"),
-		"traceId":   c.GetString("traceId"),
-		"spanId":    c.GetString("spanId"),
-		"requestId": c.GetString("X-Request-ID"),
-		"userAgent": c.Request.UserAgent(),
-		"ipAddress": c.ClientIP(),
+		"pageSize":       pageSize, // ← "limit" -> "pageSize"     //"limit":          limit,
+		"offset":         offset,
+		"userId":         c.GetString("userId"),
+		"lang":           c.GetHeader("X-Lang"),
+		"traceId":        c.GetString("traceId"),
+		"spanId":         c.GetString("spanId"),
+		"requestId":      c.GetString("X-Request-ID"),
+		"userAgent":      c.Request.UserAgent(),
+		"ipAddress":      c.ClientIP(),
 	}
 
 	response, err := h.executeWorkflow(ctx, "franchise-listing-page", variables)

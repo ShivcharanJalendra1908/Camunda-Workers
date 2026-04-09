@@ -867,7 +867,7 @@ func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[st
 		FROM categories c
 		WHERE c.industry_id = $1 AND c.is_active = true
 		ORDER BY c.display_order
-		LIMIT 12
+		LIMIT 8
 	`
 
 	rows, err := db.QueryContext(ctx, query, industryID)
