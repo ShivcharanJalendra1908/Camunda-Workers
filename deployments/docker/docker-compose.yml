@@ -212,7 +212,8 @@ services:
       KC_HOSTNAME: us-dev-api.lemici.com  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
       KC_PROXY: edge
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_HOSTNAME_PROTOCOL: "https"
       KC_DB: postgres
       KC_DB_URL_HOST: postgres
       KC_DB_URL_PORT: 5432
