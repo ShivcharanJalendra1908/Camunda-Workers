@@ -13,6 +13,7 @@ import (
 	"camunda-workers/internal/api/middleware"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"
+	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
@@ -31,12 +32,13 @@ type WorkflowHandler struct {
 	logger       logger.Logger
 	validator    *validation.Validator
 	sanitizer    *validation.Sanitizer
-	redisStore   *idempotency.RedisStore   // ✅ NEW
-	keyGenerator *idempotency.KeyGenerator // ✅ NEW
-	redisClient  *redis.Client             // ← ADD THIS
+	redisStore   *idempotency.RedisStore
+	keyGenerator *idempotency.KeyGenerator
+	redisClient  *redis.Client
+	config       *config.Config
 }
 
-func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client) *WorkflowHandler {
+func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client, cfg *config.Config) *WorkflowHandler {
 	var redisStore *idempotency.RedisStore
 	if redisClient != nil {
 		redisStore = idempotency.NewRedisStore(redisClient)
@@ -50,6 +52,7 @@ func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClie
 		redisStore:   redisStore,
 		keyGenerator: idempotency.NewKeyGenerator(),
 		redisClient:  redisClient,
+		config:       cfg,
 	}
 }
 
@@ -1879,7 +1882,9 @@ func (h *WorkflowHandler) completeLoginFlow(
 		MaxAge:   -1,
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
-		SameSite: http.SameSiteStrictMode,
+		// SameSiteNoneMode is required for cross-domain cookie sending (e.g., CloudFront to API)
+		// This must be accompanied by Secure: true
+		SameSite: http.SameSiteNoneMode,
 	})
 
 	// Set new session
@@ -1890,7 +1895,9 @@ func (h *WorkflowHandler) completeLoginFlow(
 		MaxAge:   86400,
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
-		SameSite: http.SameSiteStrictMode,
+		// SameSiteNoneMode allows the cookie to be sent in cross-site requests, 
+		// which is necessary when the frontend (e.g. CloudFront) and backend are on different domains.
+		SameSite: http.SameSiteNoneMode,
 	})
 
 	// Headers
@@ -1935,5 +1942,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 	)
 
 	// Redirect
-	c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/home")
+	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
+	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
+	if targetURL == "" {
+		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
+	}
+	c.Redirect(http.StatusFound, targetURL)
 }

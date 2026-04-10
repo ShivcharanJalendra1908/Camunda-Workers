@@ -203,7 +203,8 @@ func main() {
 	workflowHandler := handlers.NewWorkflowHandler(
 		camundaClient,
 		log,
-		redisClient.GetClient())
+		redisClient.GetClient(),
+		cfg)
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination, postgresDB.DB)

@@ -723,11 +723,16 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 					if now.After(sess.AbsoluteExpiresAt) {
 						fmt.Printf("[SECURITY] session_expired type=absolute session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
 
-						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
-							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
-						}
-
-						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						// Clear cookie with SameSite=None for cross-domain support
+						http.SetCookie(c.Writer, &http.Cookie{
+							Name:     constants.SessionCookieName,
+							Value:    "",
+							Path:     constants.SessionCookiePath,
+							MaxAge:   -1,
+							HttpOnly: constants.SessionCookieHTTPOnly,
+							Secure:   constants.SessionCookieSecure,
+							SameSite: http.SameSiteNoneMode,
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (absolute)", nil)
 						c.Abort()
 						return
@@ -737,11 +742,16 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 					if now.After(sess.ExpiresAt) {
 						fmt.Printf("[SECURITY] session_expired type=idle session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
 
-						if err := redisClient.Del(ctx, "session:"+cookie).Err(); err != nil {
-							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
-						}
-
-						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						// Clear cookie with SameSite=None for cross-domain support
+						http.SetCookie(c.Writer, &http.Cookie{
+							Name:     constants.SessionCookieName,
+							Value:    "",
+							Path:     constants.SessionCookiePath,
+							MaxAge:   -1,
+							HttpOnly: constants.SessionCookieHTTPOnly,
+							Secure:   constants.SessionCookieSecure,
+							SameSite: http.SameSiteNoneMode,
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (idle)", nil)
 						c.Abort()
 						return
@@ -827,7 +837,16 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
 						}
 
-						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+						// Clear cookie with SameSite=None for cross-domain support
+						http.SetCookie(c.Writer, &http.Cookie{
+							Name:     constants.SessionCookieName,
+							Value:    "",
+							Path:     constants.SessionCookiePath,
+							MaxAge:   -1,
+							HttpOnly: constants.SessionCookieHTTPOnly,
+							Secure:   constants.SessionCookieSecure,
+							SameSite: http.SameSiteNoneMode,
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired", nil)
 						c.Abort()
 						return
@@ -850,8 +869,16 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 				}
 			}
 
-			// Session invalid/expired → delete cookie
-			c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
+			// Session invalid/expired → delete cookie with SameSite=None
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name:     constants.SessionCookieName,
+				Value:    "",
+				Path:     constants.SessionCookiePath,
+				MaxAge:   -1,
+				HttpOnly: constants.SessionCookieHTTPOnly,
+				Secure:   constants.SessionCookieSecure,
+				SameSite: http.SameSiteNoneMode,
+			})
 		}
 
 		// STEP 2: JWT Bearer fallback

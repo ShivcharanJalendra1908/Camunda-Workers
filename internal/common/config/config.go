@@ -223,6 +223,7 @@ type AuthConfig struct {
 		RedirectURL           string `mapstructure:"redirectUrl"`         // ✅ ADD
 		PublicBaseURL         string `mapstructure:"publicBaseUrl"`       // ✅ ADD
 		PostLogoutRedirectURI string `mapstructure:"post_logout_redirect_uri"`
+		PostLoginRedirectURI  string `mapstructure:"post_login_redirect_uri"`
 	} `mapstructure:"keycloak"`
 
 	OAuthProviders struct {
