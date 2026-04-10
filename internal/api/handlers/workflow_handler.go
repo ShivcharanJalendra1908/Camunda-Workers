@@ -1590,11 +1590,44 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 }
 
 func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode string) {
-	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
-	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
-	c.SetCookie("session_id", "", -1, "/", "", true, true)
-	c.Redirect(http.StatusFound,
-		"https://d3c34598mt7qdx.cloudfront.net/login?error="+errorCode)
+	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
+	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
+	// be cleared in cross-site context (CloudFront → API).
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "pkce_verifier",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    "",
+		Path:     constants.SessionCookiePath,
+		MaxAge:   -1,
+		HttpOnly: constants.SessionCookieHTTPOnly,
+		Secure:   constants.SessionCookieSecure,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
+	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	if targetURL == "" {
+		targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
+	}
+	c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 }
 
 func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
@@ -1636,9 +1669,36 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 
 	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
 
-	c.SetCookie("session_id", "", -1, "/", "", true, true)
-	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
-	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
+	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
+	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
+	// be cleared in cross-site context (CloudFront → API).
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    "",
+		Path:     constants.SessionCookiePath,
+		MaxAge:   -1,
+		HttpOnly: constants.SessionCookieHTTPOnly,
+		Secure:   constants.SessionCookieSecure,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "pkce_verifier",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
 	c.Status(http.StatusNoContent)
 }
 
@@ -1852,11 +1912,41 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 }
 
 func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
-	c.SetCookie("pkce_verifier", "", -1, "/", "", true, true)
-	c.SetCookie("oauth_state", "", -1, "/", "", true, true)
-	c.SetCookie("session_id", "", -1, "/", "", true, true)
-	// c.Redirect(http.StatusFound, "http://localhost:3000/login?error=auth_failed")
-	c.Redirect(http.StatusFound, "https://d3c34598mt7qdx.cloudfront.net/login?error=auth_failed")
+	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "pkce_verifier",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "oauth_state",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
+	})
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    "",
+		Path:     constants.SessionCookiePath,
+		MaxAge:   -1,
+		HttpOnly: constants.SessionCookieHTTPOnly,
+		Secure:   constants.SessionCookieSecure,
+		SameSite: http.SameSiteNoneMode,
+	})
+
+	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	if targetURL == "" {
+		targetURL = "https://d595hydlunw5u.cloudfront.net/login"
+	}
+	c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 }
 
 func (h *WorkflowHandler) completeLoginFlow(
@@ -1895,7 +1985,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 		MaxAge:   86400,
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
-		// SameSiteNoneMode allows the cookie to be sent in cross-site requests, 
+		// SameSiteNoneMode allows the cookie to be sent in cross-site requests,
 		// which is necessary when the frontend (e.g. CloudFront) and backend are on different domains.
 		SameSite: http.SameSiteNoneMode,
 	})
