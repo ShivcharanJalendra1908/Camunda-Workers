@@ -147,6 +147,14 @@
           },
           "slug": {
             "type": "keyword"
+          },
+          "icon_url": {
+            "type": "keyword",
+            "index": false
+          },
+          "image_url": {
+            "type": "keyword",
+            "index": false
           }
         }
       },

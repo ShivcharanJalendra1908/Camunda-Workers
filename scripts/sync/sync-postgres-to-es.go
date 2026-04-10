@@ -909,7 +909,7 @@ func cleanDescription(desc string) string {
 
 func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []map[string]interface{} {
 	query := `
-        SELECT c.id, c.name, c.slug
+        SELECT c.id, c.name, c.slug, c.icon_url, c.image_url
         FROM franchise_categories fc
         INNER JOIN categories c ON fc.category_id = c.id
         WHERE fc.franchise_id = $1 AND c.is_active = true
@@ -925,13 +925,16 @@ func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []m
 	var categories []map[string]interface{}
 	for rows.Next() {
 		var id, name, slug string
-		if err := rows.Scan(&id, &name, &slug); err != nil {
+		var iconURL, imageURL sql.NullString
+		if err := rows.Scan(&id, &name, &slug, &iconURL, &imageURL); err != nil {
 			continue
 		}
 		categories = append(categories, map[string]interface{}{
-			"id":   id,
-			"name": name,
-			"slug": slug,
+			"id":        id,
+			"name":      name,
+			"slug":      slug,
+			"icon_url":  iconURL.String,
+			"image_url": imageURL.String,
 		})
 	}
 
