@@ -909,6 +909,7 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 
 	industrySlug, _ := params["industrySlug"].(string)
 	categorySlug, _ := params["categorySlug"].(string) // ← NEW
+	subCategorySlug, _ := params["subCategorySlug"].(string)
 
 	page := 1
 	if v, ok := params["page"].(float64); ok && v > 0 {
@@ -947,8 +948,20 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 		},
 	}
 
-	if categorySlug != "" {
-		// ✅ CASE 1: Category filter — nested query (mapping mein categories nested hai)
+	if subCategorySlug != "" {
+		// ✅ CASE 1: SubCategory filter — nested query
+		query["query"] = map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "sub_categories",
+				"query": map[string]interface{}{
+					"term": map[string]interface{}{
+						"sub_categories.slug": subCategorySlug,
+					},
+				},
+			},
+		}
+	} else if categorySlug != "" {
+		// ✅ CASE 2: Category filter — nested query
 		query["query"] = map[string]interface{}{
 			"nested": map[string]interface{}{
 				"path": "categories",
@@ -960,44 +973,21 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 			},
 		}
 	} else if industrySlug != "" {
-		// ✅ CASE 2: Industry filter — existing logic
+		// ✅ CASE 3: Industry filter — existing logic unchanged
 		query["query"] = map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.slug": industrySlug,
-						},
-					},
-					map[string]interface{}{
-						"prefix": map[string]interface{}{
-							"industry.slug": industrySlug,
-						},
-					},
-					map[string]interface{}{
-						"wildcard": map[string]interface{}{
-							"industry.slug": map[string]interface{}{
-								"value": "*" + industrySlug + "*",
-							},
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query":     industrySlug,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
+					map[string]interface{}{"term": map[string]interface{}{"industry.slug": industrySlug}},
+					map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": industrySlug}},
+					map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": map[string]interface{}{"value": "*" + industrySlug + "*"}}},
+					map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": industrySlug, "fuzziness": "AUTO"}}},
 				},
 				"minimum_should_match": 1,
 			},
 		}
 	} else {
-		// ✅ CASE 3: No filter
-		query["query"] = map[string]interface{}{
-			"match_all": map[string]interface{}{},
-		}
+		// ✅ CASE 4: No filter
+		query["query"] = map[string]interface{}{"match_all": map[string]interface{}{}}
 	}
 
 	return executeQuery(ctx, esClient, "franchise_listings", query)
@@ -1296,6 +1286,19 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 					},
 				},
 				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	if subCat, ok := filters["subCategory"].(string); ok && subCat != "" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "sub_categories",
+				"query": map[string]interface{}{
+					"term": map[string]interface{}{
+						"sub_categories.slug": subCat,
+					},
+				},
 			},
 		})
 	}

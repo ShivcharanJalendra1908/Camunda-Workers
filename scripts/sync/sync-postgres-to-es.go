@@ -283,6 +283,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		// Categories
 		categories := m.getCategories(ctx, id)
 
+		subCategories := m.getSubCategories(ctx, id)
+
 		// Clean description
 		cleanDesc := cleanDescription(shortDescription.String)
 
@@ -355,6 +357,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		doc["categories"] = categories
+
+		doc["sub_categories"] = subCategories
 
 		if err := m.indexDocument(ctx, ListingsIndex, id, doc); err != nil {
 			log.Printf("⚠️ Failed to index franchise %s: %v", id, err)
@@ -447,7 +451,7 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 
 		// Get categories for this industry
 		categoriesQuery := `
-			SELECT id, name, slug
+			SELECT id, name, slug, icon_url, image_url
 			FROM categories
 			WHERE industry_id = $1 AND is_active = true
 			ORDER BY display_order
@@ -461,13 +465,16 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 		var categories []map[string]interface{}
 		for catRows.Next() {
 			var catID, catName, catSlug string
-			if err := catRows.Scan(&catID, &catName, &catSlug); err != nil {
+			var catIconURL, catImageURL sql.NullString
+			if err := catRows.Scan(&catID, &catName, &catSlug, &catIconURL, &catImageURL); err != nil {
 				continue
 			}
 			categories = append(categories, map[string]interface{}{
 				"category_id":   catID,
 				"category_name": catName,
 				"category_slug": catSlug,
+				"icon_url":      catIconURL.String,
+				"image_url":     catImageURL.String,
 			})
 		}
 		catRows.Close()
@@ -902,12 +909,12 @@ func cleanDescription(desc string) string {
 
 func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []map[string]interface{} {
 	query := `
-		SELECT c.id, c.name, c.slug
-		FROM franchise_categories fc
-		INNER JOIN categories c ON fc.category_id = c.id
-		WHERE fc.franchise_id = $1 AND c.is_active = true
-		ORDER BY fc.is_primary DESC, c.display_order
-	`
+        SELECT c.id, c.name, c.slug
+        FROM franchise_categories fc
+        INNER JOIN categories c ON fc.category_id = c.id
+        WHERE fc.franchise_id = $1 AND c.is_active = true
+        ORDER BY fc.is_primary DESC, c.display_order
+    `
 
 	rows, err := m.db.QueryContext(ctx, query, franchiseID)
 	if err != nil {
@@ -933,6 +940,44 @@ func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []m
 	}
 
 	return categories
+}
+
+func (m *SyncManager) getSubCategories(ctx context.Context, franchiseID string) []map[string]interface{} {
+	query := `
+        SELECT sc.id, sc.name, sc.slug, sc.category_id
+        FROM franchise_categories fc
+        INNER JOIN sub_categories sc ON fc.sub_category_id = sc.id
+        WHERE fc.franchise_id = $1
+          AND fc.sub_category_id IS NOT NULL
+          AND sc.is_active = true
+        ORDER BY fc.is_primary DESC, sc.display_order
+    `
+
+	rows, err := m.db.QueryContext(ctx, query, franchiseID)
+	if err != nil {
+		return []map[string]interface{}{}
+	}
+	defer rows.Close()
+
+	var subCategories []map[string]interface{}
+	for rows.Next() {
+		var id, name, slug, categoryID string
+		if err := rows.Scan(&id, &name, &slug, &categoryID); err != nil {
+			continue
+		}
+		subCategories = append(subCategories, map[string]interface{}{
+			"id":          id,
+			"name":        name,
+			"slug":        slug,
+			"category_id": categoryID,
+		})
+	}
+
+	if subCategories == nil {
+		return []map[string]interface{}{}
+	}
+
+	return subCategories
 }
 
 func (m *SyncManager) indexDocument(ctx context.Context, index, docID string, doc map[string]interface{}) error {

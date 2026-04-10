@@ -180,9 +180,9 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
 	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
-	// industrySlug := c.Query("industry")
-	// page := 1
-	// limit := 12
+	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
+	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // ← NEW
+
 	page := 1
 	pageSize := h.paginationCfg.DefaultPageSize
 
@@ -191,11 +191,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 			page = pageNum
 		}
 	}
-	// if l := c.Query("limit"); l != "" {
-	// 	if limitNum, err := strconv.Atoi(l); err == nil && limitNum > 0 && limitNum <= 50 {
-	// 		limit = limitNum
-	// 	}
-	// }
+
 	if ps := c.Query("page_size"); ps != "" {
 		if psNum, err := strconv.Atoi(ps); err == nil && psNum > 0 {
 			if psNum > h.paginationCfg.MaxPageSize {
@@ -207,20 +203,12 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 
 	offset := (page - 1) * pageSize
 
-	// If search query exists, use search workflow
 	if searchQuery != "" {
-		_ = models.FranchiseSearchFilters{
-			Query: searchQuery,
-			Page:  page,
-			Limit: pageSize,
-			// Limit:    limit,
-			Category: industrySlug,
-		}
 		h.SearchFranchises(c)
 		return
 	}
 
-	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
+	// Resolve industrySlug from categorySlug if missing
 	if industrySlug == "" && categorySlug != "" {
 		var resolved string
 		err := h.db.QueryRowContext(ctx,
@@ -233,32 +221,86 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		}
 	}
 
-	// // Industry slug required for listing page
-	// if industrySlug == "" {
-	// 	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
+	// Resolve industrySlug + categorySlug from subCategorySlug if both missing  ← NEW
+	if subCategorySlug != "" {
+		if industrySlug == "" {
+			var resolvedIndustry string
+			err := h.db.QueryRowContext(ctx,
+				`SELECT i.slug FROM industries i
+                 JOIN categories c ON c.industry_id = i.id
+                 JOIN sub_categories sc ON sc.category_id = c.id
+                 WHERE sc.slug = $1 LIMIT 1`, subCategorySlug,
+			).Scan(&resolvedIndustry)
+			if err == nil && resolvedIndustry != "" {
+				industrySlug = resolvedIndustry
+			}
+		}
+		if categorySlug == "" {
+			var resolvedCategory string
+			err := h.db.QueryRowContext(ctx,
+				`SELECT c.slug FROM categories c
+                 JOIN sub_categories sc ON sc.category_id = c.id
+                 WHERE sc.slug = $1 LIMIT 1`, subCategorySlug,
+			).Scan(&resolvedCategory)
+			if err == nil && resolvedCategory != "" {
+				categorySlug = resolvedCategory
+			}
+		}
+	}
+
+	// // If search query exists, use search workflow
+	// if searchQuery != "" {
+	// 	_ = models.FranchiseSearchFilters{
+	// 		Query: searchQuery,
+	// 		Page:  page,
+	// 		Limit: pageSize,
+	// 		// Limit:    limit,
+	// 		Category: industrySlug,
+	// 	}
+	// 	h.SearchFranchises(c)
 	// 	return
 	// }
+
+	// categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
+	// if industrySlug == "" && categorySlug != "" {
+	// 	var resolved string
+	// 	err := h.db.QueryRowContext(ctx,
+	// 		`SELECT i.slug FROM industries i
+	//          JOIN categories c ON c.industry_id = i.id
+	//          WHERE c.slug = $1 LIMIT 1`, categorySlug,
+	// 	).Scan(&resolved)
+	// 	if err == nil && resolved != "" {
+	// 		industrySlug = resolved
+	// 	}
+	// }
+
+	// // // Industry slug required for listing page
+	// // if industrySlug == "" {
+	// // 	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
+	// // 	return
+	// // }
 
 	correlationKey := fmt.Sprintf("listing_%s_%d",
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
 	variables := map[string]interface{}{
-		"correlationKey": correlationKey,
-		"operation":      "listing_page",
-		"pageType":       "listing",
-		"industrySlug":   industrySlug,
-		"categorySlug":   categorySlug,
-		"page":           page,
-		"pageSize":       pageSize, // ← "limit" -> "pageSize"     //"limit":          limit,
-		"offset":         offset,
-		"userId":         c.GetString("userId"),
-		"lang":           c.GetHeader("X-Lang"),
-		"traceId":        c.GetString("traceId"),
-		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
-		"userAgent":      c.Request.UserAgent(),
-		"ipAddress":      c.ClientIP(),
+		"correlationKey":  correlationKey,
+		"operation":       "listing_page",
+		"pageType":        "listing",
+		"industrySlug":    industrySlug,
+		"categorySlug":    categorySlug,
+		"subCategorySlug": subCategorySlug,
+		"page":            page,
+		"pageSize":        pageSize, // ← "limit" -> "pageSize"     //"limit":          limit,
+		"offset":          offset,
+		"userId":          c.GetString("userId"),
+		"lang":            c.GetHeader("X-Lang"),
+		"traceId":         c.GetString("traceId"),
+		"spanId":          c.GetString("spanId"),
+		"requestId":       c.GetString("X-Request-ID"),
+		"userAgent":       c.Request.UserAgent(),
+		"ipAddress":       c.ClientIP(),
 	}
 
 	response, err := h.executeWorkflow(ctx, "franchise-listing-page", variables)

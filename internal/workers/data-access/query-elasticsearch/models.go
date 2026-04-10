@@ -27,8 +27,9 @@ type Input struct {
 	Filters      map[string]interface{} `json:"filters"`      // Filter criteria
 	FranchiseID  string                 `json:"franchiseId"`  // Can be UUID or slug
 	Category     string                 `json:"category"`     // Category filter
-	CategorySlug string                 `json:"categorySlug"` // ✅ ADDED: For category-specific queries
-	IndustrySlug string                 `json:"industrySlug"` // ✅ ADDED: For industry-specific queries
+	CategorySlug    string                 `json:"categorySlug"`    // ✅ ADDED: For category-specific queries
+	SubCategorySlug string                 `json:"subCategorySlug"` // ✅ ADDED: For sub-category-specific queries
+	IndustrySlug    string                 `json:"industrySlug"`    // ✅ ADDED: For industry-specific queries
 	Pagination   Pagination             `json:"pagination"`
 
 	Page     int `json:"page,omitempty"`
@@ -98,6 +99,16 @@ func (i *Input) Validate() error {
 		// Category validation
 		ozzo.Field(&i.Category,
 			ozzo.Length(0, 100).Error("category must be ≤100 characters"),
+		),
+
+		// CategorySlug validation
+		ozzo.Field(&i.CategorySlug,
+			ozzo.Length(0, 100).Error("categorySlug must be ≤100 characters"),
+		),
+
+		// SubCategorySlug validation
+		ozzo.Field(&i.SubCategorySlug,
+			ozzo.Length(0, 100).Error("subCategorySlug must be ≤100 characters"),
 		),
 
 		// IndustrySlug validation
@@ -450,6 +461,7 @@ func (i *Input) Sanitize() {
 	i.FranchiseID = strings.TrimSpace(i.FranchiseID)
 	i.Category = strings.TrimSpace(i.Category)
 	i.CategorySlug = strings.TrimSpace(i.CategorySlug)
+	i.SubCategorySlug = strings.TrimSpace(i.SubCategorySlug)
 	i.IndustrySlug = strings.TrimSpace(i.IndustrySlug)
 
 	// Apply default timeout if not set

@@ -226,6 +226,17 @@ func (h *Handler) sanitizeInput(input *Input) {
 	if input.Category != "" {
 		input.Category = strings.TrimSpace(input.Category)
 	}
+	if input.CategorySlug != "" {
+		input.CategorySlug = strings.TrimSpace(input.CategorySlug)
+	}
+	if input.SubCategorySlug != "" {
+		input.SubCategorySlug = strings.TrimSpace(input.SubCategorySlug)
+	}
+	if input.Params != nil {
+		if subCat, ok := input.Params["subCategorySlug"].(string); ok {
+			input.Params["subCategorySlug"] = strings.TrimSpace(subCat)
+		}
+	}
 	if input.Page > 0 && input.Pagination.Page == 0 {
 		input.Pagination.Page = input.Page
 	}
@@ -304,6 +315,16 @@ func (h *Handler) validateInput(input *Input) error {
 			validation.SafeNoSQLString,
 		); err != nil {
 			return appErrs.NewValidationError("categorySlug", err.Error())
+		}
+	}
+
+	// Validate SubCategorySlug
+	if input.SubCategorySlug != "" {
+		if err := ozzo.Validate(input.SubCategorySlug,
+			validation.ValidateStringLength(1, 100),
+			validation.SafeNoSQLString,
+		); err != nil {
+			return appErrs.NewValidationError("subCategorySlug", err.Error())
 		}
 	}
 
@@ -712,6 +733,10 @@ func (h *Handler) buildRegistryParams(input *Input) map[string]interface{} {
 
 	if input.CategorySlug != "" && params["categorySlug"] == nil {
 		params["categorySlug"] = input.CategorySlug
+	}
+
+	if input.SubCategorySlug != "" && params["subCategorySlug"] == nil {
+		params["subCategorySlug"] = input.SubCategorySlug
 	}
 
 	// ✅ CRITICAL: Extract slug from multiple possible sources
