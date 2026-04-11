@@ -248,38 +248,6 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		}
 	}
 
-	// // If search query exists, use search workflow
-	// if searchQuery != "" {
-	// 	_ = models.FranchiseSearchFilters{
-	// 		Query: searchQuery,
-	// 		Page:  page,
-	// 		Limit: pageSize,
-	// 		// Limit:    limit,
-	// 		Category: industrySlug,
-	// 	}
-	// 	h.SearchFranchises(c)
-	// 	return
-	// }
-
-	// categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
-	// if industrySlug == "" && categorySlug != "" {
-	// 	var resolved string
-	// 	err := h.db.QueryRowContext(ctx,
-	// 		`SELECT i.slug FROM industries i
-	//          JOIN categories c ON c.industry_id = i.id
-	//          WHERE c.slug = $1 LIMIT 1`, categorySlug,
-	// 	).Scan(&resolved)
-	// 	if err == nil && resolved != "" {
-	// 		industrySlug = resolved
-	// 	}
-	// }
-
-	// // // Industry slug required for listing page
-	// // if industrySlug == "" {
-	// // 	h.validationError(c, "Either search query (q) or industry slug (industry) is required")
-	// // 	return
-	// // }
-
 	correlationKey := fmt.Sprintf("listing_%s_%d",
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
@@ -639,42 +607,6 @@ func (h *FranchiseHandler) GetIndustryBySlug(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
-
-// Use this with postgres :
-// func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
-// 	ctx := c.Request.Context()
-
-// 	correlationKey := fmt.Sprintf("industries_%s_%d",
-// 		uuid.New().String()[:8],
-// 		time.Now().UnixNano())
-
-// 	variables := map[string]interface{}{
-// 		"correlationKey": correlationKey,
-// 		"operation":      "get_industries",
-// 		// Query level: "industries" / "categories" / "sub-categories"
-// 		"level":      c.Query("level"),
-// 		"industryId": c.Query("industry_id"),
-// 		"categoryId": c.Query("category_id"),
-// 		"search":     c.Query("search"),
-// 		"withCounts": c.Query("withCounts") == "true",
-// 		"activeOnly": c.Query("activeOnly") != "false",
-// 		"lang":       c.GetHeader("X-Lang"),
-// 		"userId":     c.GetString("userId"),
-// 		"traceId":    c.GetString("traceId"),
-// 		"spanId":     c.GetString("spanId"),
-// 		"requestId":  c.GetString("X-Request-ID"),
-// 		"userAgent":  c.Request.UserAgent(),
-// 		"ipAddress":  c.ClientIP(),
-// 	}
-
-// 	response, err := h.executeWorkflow(ctx, "franchise-industry-browse", variables)
-// 	if err != nil {
-// 		h.internalError(c, "Failed to fetch industries", err)
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, response)
-// }
 
 func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 	ctx := c.Request.Context()

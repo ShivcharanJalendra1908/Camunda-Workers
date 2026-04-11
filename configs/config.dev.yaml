@@ -11,12 +11,6 @@ camunda:
     audience: "zeebe-api"
 
 auth:
-  # keycloak:
-  #   issuer: "http://localhost:8081/realms/auth-service"
-  #   clientId: "frontend-app"
-  #   redirectUrl: "http://localhost:3000/callback"
-  #   publicBaseUrl: "http://localhost:8081"
-  #   post_logout_redirect_uri: "http://localhost:3000/login" 
   keycloak:
     url: "https://us-dev-api.lemici.com"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     realm: "camunda-platform"
@@ -60,9 +54,9 @@ apis:
     engine_id: "dev-engine-id"
 
 smtp:
-  host: "localhost"        # For development with MailHog
-  port: 1025               # MailHog default port
-  username: "test"         # Not needed for MailHog
-  password: "test"         # Not needed for MailHog
-  from: "noreply@franchisehub.dev"
-  use_tls: false           # Disable TLS for local development
+  host: "email-smtp.us-east-1.amazonaws.com"
+  port: 587
+  username: "AKIASS3JXDPV5KM5MXAV"
+  password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
+  use_tls: true
+  default_from: "noreply@lemici.com"
