@@ -583,18 +583,6 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			},
 			"size": 1,
 		}
-		// } else if hasSlug && industrySlug != "" {
-		// 	query = map[string]interface{}{
-		// 		"query": map[string]interface{}{
-		// 			"match": map[string]interface{}{
-		// 				"industry_slug": map[string]interface{}{
-		// 					"query":    industrySlug,
-		// 					"operator": "and",
-		// 				},
-		// 			},
-		// 		},
-		// 		"size": 1,
-		// 	}
 	} else if hasSlug && industrySlug != "" {
 		slugPrefix := strings.Split(industrySlug, "-")[0]
 
@@ -622,22 +610,46 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 		// No valid industry identifier - generic fallback with intent detection
 		searchQuery, _ := params["searchQuery"].(string)
 		intentTag := detectESIntentTag(searchQuery)
+		// query = map[string]interface{}{
+		// 	"query": map[string]interface{}{
+		// 		"bool": map[string]interface{}{
+		// 			"must": []interface{}{
+		// 				map[string]interface{}{
+		// 					"term": map[string]interface{}{
+		// 						"industry_id": "00000000-0000-0000-0000-000000000000",
+		// 					},
+		// 				},
+		// 				map[string]interface{}{
+		// 					"term": map[string]interface{}{
+		// 						"intent_tag": intentTag,
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// 	"size": 1,
+		// }
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"must": []interface{}{
-						map[string]interface{}{
-							"term": map[string]interface{}{
-								"industry_id": "00000000-0000-0000-0000-000000000000",
-							},
-						},
-						map[string]interface{}{
-							"term": map[string]interface{}{
-								"intent_tag": intentTag,
-							},
-						},
+						map[string]interface{}{"term": map[string]interface{}{
+							"industry_id": "00000000-0000-0000-0000-000000000000",
+						}},
 					},
+					"should": []interface{}{
+						map[string]interface{}{"term": map[string]interface{}{
+							"intent_tag": intentTag, // preferred (boosted)
+						}},
+						map[string]interface{}{"term": map[string]interface{}{
+							"intent_tag": "general", // guaranteed fallback
+						}},
+					},
+					"minimum_should_match": 1,
 				},
+			},
+			"sort": []interface{}{
+				map[string]interface{}{"_score": map[string]interface{}{"order": "desc"}},
 			},
 			"size": 1,
 		}
@@ -769,22 +781,6 @@ func getStringOrDefault(data map[string]interface{}, key string, defaultVal stri
 }
 
 // SearchWithFilters - Advanced search with filters
-// func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
-// 	filters, _ := params["filters"].(map[string]interface{})
-// 	page, _ := params["page"].(int)
-// 	limit, _ := params["limit"].(int)
-
-// 	if page <= 0 {
-// 		page = 1
-// 	}
-// 	if limit <= 0 {
-// 		limit = 12
-// 	}
-// 	if limit > 100 {
-// 		limit = 100
-// 	}
-
-// from := (page - 1) * limit
 func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	filters, _ := params["filters"].(map[string]interface{})
 

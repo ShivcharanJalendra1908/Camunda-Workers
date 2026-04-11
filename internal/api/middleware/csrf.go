@@ -39,7 +39,8 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 		// If not found → generate and store
 		if csrfToken == "" {
 			csrfToken = uuid.New().String()
-			if err := redisClient.Set(ctx, key, csrfToken, time.Hour).Err(); err != nil {
+			// if err := redisClient.Set(ctx, key, csrfToken, time.Hour).Err(); err != nil {
+			if err := redisClient.Set(ctx, key, csrfToken, 24*time.Hour).Err(); err != nil {
 				c.Next()
 				return
 			}

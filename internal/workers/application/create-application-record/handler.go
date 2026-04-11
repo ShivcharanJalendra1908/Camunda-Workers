@@ -140,10 +140,36 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	_, spanIdempotency := otel.Tracer("worker-manager").Start(ctx, "create-application-record.checkIdempotency")
 
 	// First check if operation already processed
+	// result, err := h.idempotencyChecker.Check(ctx, idempotencyKey)
+	// if err != nil && err != idempotency.ErrKeyExpired {
+	// 	span.RecordError(err)
+	// 	span.SetAttributes(attribute.Bool("error", true))
+	// 	h.logger.Error("Idempotency check failed", map[string]interface{}{
+	// 		"error":   err.Error(),
+	// 		"traceId": traceID,
+	// 	})
+	// 	h.failJob(ctx, client, job, "IDEMPOTENCY_CHECK_FAILED", err.Error(), 3)
+	// 	spanIdempotency.End()
+	// 	return
+	// }
+
 	result, err := h.idempotencyChecker.Check(ctx, idempotencyKey)
-	if err != nil && err != idempotency.ErrKeyExpired {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("error", true))
+	if err == idempotency.ErrDuplicateRequest {
+		// Pehle successfully complete hua tha — cached return karo
+		cachedOutput := &Output{
+			ApplicationID:     getStringFromMap(result.Response, "applicationId"),
+			ApplicationStatus: getStringFromMap(result.Response, "applicationStatus"),
+			CreatedAt:         getStringFromMap(result.Response, "createdAt"),
+		}
+		h.completeJob(ctx, client, job, cachedOutput)
+		spanIdempotency.End()
+		return
+	} else if err == idempotency.ErrProcessing {
+		// Koi aur process kar raha hai — Camunda retry karega
+		spanIdempotency.End()
+		return
+	} else if err != nil && err != idempotency.ErrKeyExpired {
+		// Actual DB error
 		h.logger.Error("Idempotency check failed", map[string]interface{}{
 			"error":   err.Error(),
 			"traceId": traceID,
@@ -241,11 +267,16 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 }
 
 // ===== IDEMPOTENCY KEY GENERATION =====
+//
+//	func (h *Handler) generateIdempotencyKey(input *Input) string {
+//		// Use combination of seekerId + franchiseId + current hour
+//		// This prevents duplicate applications within same hour
+//		currentHour := time.Now().UTC().Format("2006-01-02T15")
+//		return fmt.Sprintf("app:%s:%s:%s", input.SeekerID, input.FranchiseID, currentHour)
+//	}
 func (h *Handler) generateIdempotencyKey(input *Input) string {
-	// Use combination of seekerId + franchiseId + current hour
-	// This prevents duplicate applications within same hour
-	currentHour := time.Now().UTC().Format("2006-01-02T15")
-	return fmt.Sprintf("app:%s:%s:%s", input.SeekerID, input.FranchiseID, currentHour)
+	currentDate := time.Now().UTC().Format("2006-01-02")
+	return fmt.Sprintf("app:%s:%s:%s", input.SeekerID, input.FranchiseID, currentDate)
 }
 
 // ===== CRITICAL VALIDATION FUNCTION (GAP #1 FIX) =====

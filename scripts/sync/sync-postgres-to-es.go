@@ -623,6 +623,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 	// ✅ Join with industries to only sync active industries
 	query := `
 		SELECT 
+		    imi.id,   
 			imi.industry_id,
 			imi.industry_slug,
 			imi.intent_tag,
@@ -632,10 +633,13 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 			imi.market_trend_description,
 			imi.updated_at
 		FROM industry_market_insights imi
-		INNER JOIN industries i ON imi.industry_id = i.id
-		WHERE i.is_active = true
-		ORDER BY imi.updated_at DESC
-	`
+		LEFT JOIN industries i ON imi.industry_id = i.id  -- ← INNER → LEFT
+        WHERE i.is_active = true OR imi.industry_id = '00000000-0000-0000-0000-000000000000'
+    `
+	// 	INNER JOIN industries i ON imi.industry_id = i.id
+	// 	WHERE i.is_active = true
+	// 	ORDER BY imi.updated_at DESC
+	// `
 
 	rows, err := m.db.QueryContext(ctx, query)
 	if err != nil {
@@ -646,6 +650,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 	count := 0
 	for rows.Next() {
 		var (
+			rowID                  string
 			industryID             string
 			industrySlug           string
 			intentTag              string
@@ -657,6 +662,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		)
 
 		if err := rows.Scan(
+			&rowID,
 			&industryID,
 			&industrySlug,
 			&intentTag,
@@ -683,7 +689,9 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		}
 
 		// Use industry_id as document ID for easy updates
-		if err := m.indexDocument(ctx, IndustryInsightsIndex, industryID, doc); err != nil {
+		if err := m.indexDocument(ctx, IndustryInsightsIndex, rowID, doc); // ← industryID → rowID
+		// m.indexDocument(ctx, IndustryInsightsIndex, industryID, doc);
+		err != nil {
 			log.Printf("⚠️ Failed to index industry insight %s: %v", industryID, err)
 			continue
 		}
