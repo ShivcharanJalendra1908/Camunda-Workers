@@ -53,10 +53,11 @@ apis:
     api_key: "dev-api-key"
     engine_id: "dev-engine-id"
 
-smtp:
-  host: "email-smtp.us-east-1.amazonaws.com"
-  port: 587
-  username: "AKIASS3JXDPV5KM5MXAV"
-  password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
-  use_tls: true
-  default_from: "noreply@lemici.com"
+integrations:
+  smtp:
+    host: "email-smtp.us-east-1.amazonaws.com"
+    port: 587
+    username: "AKIASS3JXDPV5KM5MXAV"
+    password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
+    use_tls: true
+    default_from: "noreply@lemici.com"
