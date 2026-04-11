@@ -24,7 +24,7 @@ func DefaultConfig() *Config {
 		Timeout:       30 * time.Second,
 		SMTPPort:      587,
 		UseTLS:        true,
-		DefaultFrom:   "noreply@example.com",
+		DefaultFrom:   "noreply@lemici.com",
 	}
 }
 

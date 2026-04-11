@@ -57,7 +57,7 @@ integrations:
   smtp:
     host: "email-smtp.us-east-1.amazonaws.com"
     port: 587
-    username: "AKIASS3JXDPV5KM5MXAV"
-    password: "BDRIBvKIYD/LWgYq2agdZZpLmAtgCQEFfhv5capmbF9w"
+    username: "AKIASS3JXDPVWDZXP5P7"
+    password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
     use_tls: true
     default_from: "noreply@lemici.com"
