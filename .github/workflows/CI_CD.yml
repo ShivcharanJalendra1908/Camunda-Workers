@@ -41,13 +41,13 @@ jobs:
        
       - name: Build Gateway image
         run: |
-          docker build -t backend-gateway:${{ github.sha }} \
+          docker build -t backend-gateway-dev:${{ github.sha }} \
             -f deployments/docker/Dockerfile.gateway \
             .
 
       - name: Build Worker image
         run: |
-          docker build -t backend-worker:${{ github.sha }} \
+          docker build -t backend-worker-dev:${{ github.sha }} \
             -f deployments/docker/Dockerfile.worker \
             .
 
@@ -96,13 +96,16 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST_DEV1 }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY_DEV }}
+          key: ${{ secrets.EC2_SSH_KEY_DEV }} 
           script: |
             cd ~/Workflow-and-Workers/deployments/docker
 
             echo "Logging into ECR..."
-            aws ecr get-login-password --region us-east-1 \
-              | docker login --username AWS --password-stdin 177925987307.dkr.ecr.us-east-1.amazonaws.com
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION_DEV }}.amazonaws.com"
+
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION_DEV }} \
+            | docker login --username AWS --password-stdin $ECR_URL
 
             docker compose down
             echo "Pulling latest images..."
