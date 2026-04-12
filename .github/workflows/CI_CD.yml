@@ -3,11 +3,7 @@ name: Backend + Camunda CI Pipeline
 on:
   push:
     branches:
-      - backend-ci-test
-      - mvp
-  pull_request:
-    branches:
-      - mvp
+      - prod
       
 permissions:
  contents: read
@@ -60,7 +56,7 @@ jobs:
         if: github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV1 }}
           aws-region: ${{ secrets.AWS_REGION_DEV }}
 
       - name: Login to Amazon ECR
@@ -74,31 +70,31 @@ jobs:
           ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION_DEV }}.amazonaws.com"
 
           # Tag with SHA
-          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:${{ github.sha }}
-          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:${{ github.sha }}
+          docker tag backend-gateway-dev:${{ github.sha }} $ECR_URL/backend-gateway-dev:${{ github.sha }}
+          docker tag backend-worker-dev:${{ github.sha }} $ECR_URL/backend-worker-dev:${{ github.sha }}
 
           # Tag with latest
-          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:latest
-          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:latest
+          docker tag backend-gateway-dev:${{ github.sha }} $ECR_URL/backend-gateway-dev:latest
+          docker tag backend-worker-dev:${{ github.sha }} $ECR_URL/backend-worker-dev:latest
 
           echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
 
       - name: Push images to ECR
         if: github.event_name == 'push'
         run: |
-          docker push $ECR_URL/backend-gateway:${{ github.sha }}
-          docker push $ECR_URL/backend-worker:${{ github.sha }}
+          docker push $ECR_URL/backend-gateway-dev:${{ github.sha }}
+          docker push $ECR_URL/backend-worker-dev:${{ github.sha }}
 
-          docker push $ECR_URL/backend-gateway:latest
-          docker push $ECR_URL/backend-worker:latest
+          docker push $ECR_URL/backend-gateway-dev:latest
+          docker push $ECR_URL/backend-worker-dev:latest
 
 
 
       - name: Deploy to EC2 
-        if: github.ref == 'refs/heads/mvp'
+        if: github.ref == 'refs/heads/prod'
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.EC2_HOST_DEV }}
+          host: ${{ secrets.EC2_HOST_DEV1 }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY_DEV }}
           script: |
