@@ -21,6 +21,7 @@ api:
       - "http://localhost:5173"
       - "https://d3c34598mt7qdx.cloudfront.net"
       - "https://lemici.com"
+      - "htps://d3r20osyd7sq76.cloudfront.net"
     allowMethods:
       - "GET"
       - "POST"
