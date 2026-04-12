@@ -7,20 +7,20 @@ camunda:
     enabled: true
     client_id: "worker-client" 
     client_secret: "worker-secret"
-    token_url: "https://us-dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
+    token_url: "https://dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     audience: "zeebe-api"
 
 auth:
   keycloak:
-    url: "https://us-dev-api.lemici.com"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
+    url: "https://dev-api.lemici.com"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     realm: "camunda-platform"
-    issuer: "https://us-dev-api.lemici.com/realms/camunda-platform"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
+    issuer: "https://dev-api.lemici.com/realms/camunda-platform"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     clientId: "lemici-frontend"
     # redirectUrl: "http://localhost:3000/callback"
-    redirectUrl: "https://d595hydlunw5u.cloudfront.net/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
-    publicBaseUrl: "https://us-dev-api.lemici.com"    # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
+    redirectUrl: "https://d3r20osyd7sq76.cloudfront.net/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
+    publicBaseUrl: "https://dev-api.lemici.com"    # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     # post_logout_redirect_uri: "http://localhost:3000/login"
-    post_logout_redirect_uri: "https://d595hydlunw5u.cloudfront.net/login"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
+    post_logout_redirect_uri: "https://d3r20osyd7sq76.cloudfront.net/login"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
     
   session:
     secure: false  # Allow HTTP in dev
