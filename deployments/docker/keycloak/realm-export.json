@@ -695,10 +695,12 @@
         "https://d3r20osyd7sq76.cloudfront.net/*",
         "https://d595hydlunw5u.cloudfront.net/*",
         "http://localhost:3000/*",
-        "https://d3c34598mt7qdx.cloudfront.net/*"
+        "https://d3c34598mt7qdx.cloudfront.net/*",
+        "https://www.lemici.com/*"
       ],
       "webOrigins": [
         "https://d3r20osyd7sq76.cloudfront.net",
+        "https://www.lemici.com",
         "https://d3c34598mt7qdx.cloudfront.net",
         "http://localhost:3000/",
         "https://d595hydlunw5u.cloudfront.net"
@@ -717,7 +719,7 @@
         "oidc.ciba.grant.enabled": "false",
         "backchannel.logout.session.required": "true",
         "login_theme": "lemici",
-        "post.logout.redirect.uris": "https://d3c34598mt7qdx.cloudfront.net/*##https://d595hydlunw5u.cloudfront.net/*##http://localhost:3000/*##https://d3r20osyd7sq76.cloudfront.net/*",
+        "post.logout.redirect.uris": "https://d3c34598mt7qdx.cloudfront.net/*##https://d595hydlunw5u.cloudfront.net/*##http://localhost:3000/*##https://d3r20osyd7sq76.cloudfront.net/*##https://www.lemici.com/*",
         "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false"

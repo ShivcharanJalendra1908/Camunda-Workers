@@ -192,14 +192,17 @@ func main() {
 
 	// 10. Error Handler MUST BE LAST! (catches all errors)
 	router.Use(middleware.ErrorHandler(log))
-	// ============================================================================
 
+	// ============================================================================
 	// Public routes (no authentication required)
+	// ============================================================================
 	router.GET("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.GET("/metrics", metricsHandler())
 
-	// Initialize handlers
+	// ============================================================================
+	// Initialize handlers		
+	// ============================================================================
 	workflowHandler := handlers.NewWorkflowHandler(
 		camundaClient,
 		log,
@@ -208,6 +211,8 @@ func main() {
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination, postgresDB.DB)
+
+	userHandler := handlers.NewUserHandler(redisClient.GetClient(), log)
 
 	router.GET("/debug/response-handler", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -299,7 +304,8 @@ func main() {
 			userGroup.DELETE("/account", workflowHandler.StartAccountDeletion)
 
 			// Temporary placeholders
-			userGroup.GET("/profile", placeholderHandler("GET /user/profile"))
+			userGroup.GET("/profile", userHandler.GetProfile)
+            userGroup.GET("/session/validate", userHandler.ValidateSession)
 			userGroup.GET("/preferences", placeholderHandler("GET /user/preferences"))
 		}
 
