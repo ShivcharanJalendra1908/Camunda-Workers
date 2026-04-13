@@ -179,9 +179,8 @@ func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
 					break
 				}
 			}
-			if !allowed && len(corsConfig.AllowOrigins) > 0 {
-				c.Header("Access-Control-Allow-Origin", corsConfig.AllowOrigins[0])
-			}
+			// Only set Access-Control-Allow-Origin if the origin is explicitly allowed
+			// This prevents browsers from seeing mismatched origins
 		}
 
 		if len(corsConfig.AllowMethods) > 0 {
