@@ -171,11 +171,9 @@ func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
 		origin := c.Request.Header.Get("Origin")
 
 		if len(corsConfig.AllowOrigins) > 0 {
-			allowed := false
 			for _, allowedOrigin := range corsConfig.AllowOrigins {
 				if allowedOrigin == "*" || allowedOrigin == origin {
 					c.Header("Access-Control-Allow-Origin", allowedOrigin)
-					allowed = true
 					break
 				}
 			}
