@@ -81,17 +81,6 @@ auth:
     httpOnly: true
     sameSite: "Lax"
 
-  # OAuth Providers
-  oauth_providers:
-    google:
-      client_id: "mock-google-client-id.apps.googleusercontent.com"
-      client_secret: "mock_google_client_secret_dev123456"
-      redirect_uri: "https://d3c34598mt7qdx.cloudfront.net/auth/callback/google"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
-    linkedin:
-      client_id: "mock_linkedin_client_id_dev78901234"
-      client_secret: "mock_linkedin_client_secret_dev567890"
-      redirect_uri: "https://d3c34598mt7qdx.cloudfront.net/auth/callback/linkedin"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
-
 # ============================================================================
 # CAMUNDA/ZEEBE CONFIGURATION
 # ============================================================================

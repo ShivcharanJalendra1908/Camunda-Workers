@@ -685,24 +685,65 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		return &ExtractedParameters{}
 	}
 
-	params := h.paramExtractor.ParseWithFallback(response)
+	// CHANGED: ParseWithFallback → ParseWithContext (original query pass karo)
+	params := h.paramExtractor.ParseWithContext(response, input.Query)
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{
 		"industry": params.Industry,
 		"category": params.Category,
-		"location_city": func() string {
+		"location": func() string {
 			if params.Location != nil {
 				return params.Location.City
 			}
 			return ""
 		}(),
+		"state": func() string {
+			if params.Location != nil {
+				return params.Location.State
+			}
+			return ""
+		}(),
 		"has_investment": params.Investment != nil,
-		"has_space":      params.Space != nil,
 		"has_roi":        params.ROI != nil,
 	})
 
 	return params
 }
+
+// func (h *Handler) extractParametersWithFallback(ctx context.Context, input *SearchInput) *ExtractedParameters {
+// 	if input.Query == "*" || strings.TrimSpace(input.Query) == "" {
+// 		return &ExtractedParameters{}
+// 	}
+
+// 	prompt := h.paramExtractor.BuildPrompt(input.Query)
+
+// 	response, err := h.llmService.Extract(ctx, prompt)
+// 	if err != nil {
+// 		h.logger.Warn("LLM failed, using fallback", map[string]interface{}{
+// 			"error": err.Error(),
+// 			"query": input.Query,
+// 		})
+// 		return &ExtractedParameters{}
+// 	}
+
+// 	params := h.paramExtractor.ParseWithFallback(response)
+
+// 	h.logger.Info("Parameters extracted", map[string]interface{}{
+// 		"industry": params.Industry,
+// 		"category": params.Category,
+// 		"location_city": func() string {
+// 			if params.Location != nil {
+// 				return params.Location.City
+// 			}
+// 			return ""
+// 		}(),
+// 		"has_investment": params.Investment != nil,
+// 		"has_space":      params.Space != nil,
+// 		"has_roi":        params.ROI != nil,
+// 	})
+
+// 	return params
+// }
 
 func (h *Handler) executeSearch(ctx context.Context, query map[string]interface{}) (*SearchResults, error) {
 	searchCtx, cancel := context.WithTimeout(ctx, 3*time.Second)

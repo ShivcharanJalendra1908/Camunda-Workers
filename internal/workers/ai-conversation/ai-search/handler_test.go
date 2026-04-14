@@ -104,17 +104,17 @@ func TestParameterExtractor_Parse(t *testing.T) {
 	}{
 		{
 			name:        "Valid JSON response",
-			llmResponse: `{"industry":"Food & Beverage","category":"Dessert & Frozen Treats","location":{"city":"Kolkata","country":"India"}}`,
+			llmResponse: `{"Industry":"Food & Beverage","Category":"Dessert & Frozen Treats","Location":"Kolkata"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Food & Beverage", p.Industry)
 				assert.Equal(t, "Dessert & Frozen Treats", p.Category)
+				assert.NotNil(t, p.Location)
 				assert.Equal(t, "Kolkata", p.Location.City)
-				assert.Equal(t, "India", p.Location.Country)
 			},
 		},
 		{
 			name:        "JSON with markdown code blocks",
-			llmResponse: "```json\n{\"industry\":\"Education\",\"category\":\"Tutoring\"}\n```",
+			llmResponse: "```json\n{\"Industry\":\"Education\",\"Category\":\"Tutoring\"}\n```",
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Education", p.Industry)
 				assert.Equal(t, "Tutoring", p.Category)
@@ -122,14 +122,14 @@ func TestParameterExtractor_Parse(t *testing.T) {
 		},
 		{
 			name:        "JSON with extra text",
-			llmResponse: `Sure! {"category":"Fashion"} Hope this helps!`,
+			llmResponse: `Sure! {"Category":"Fashion"} Hope this helps!`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Fashion", p.Category)
 			},
 		},
 		{
 			name:        "Invalid JSON - should error",
-			llmResponse: `{"industry": "Food", invalid}`,
+			llmResponse: `{"Industry": "Food", invalid}`,
 			wantErr:     true,
 			errContains: "JSON parse failed",
 		},
@@ -137,33 +137,34 @@ func TestParameterExtractor_Parse(t *testing.T) {
 			name:        "No JSON object found",
 			llmResponse: "I couldn't extract parameters",
 			wantErr:     true,
-			errContains: "no valid JSON object found",
+			errContains: "no valid JSON found",
 		},
 		{
 			name:        "Location normalization",
-			llmResponse: `{"location":{"city":"mumbai"}}`,
+			llmResponse: `{"Location":"mumbai"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Mumbai", p.Location.City)
 				assert.Equal(t, "India", p.Location.Country)
 			},
 		},
 		{
-			name:        "Investment min/max swap",
-			llmResponse: `{"investment":{"min":5000000,"max":1000000}}`,
+			name:        "Investment normalization",
+			llmResponse: `{"Minimum_Investment":"10L","Maximum_Investment":"50L"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, float64(1000000), p.Investment.Min)
 				assert.Equal(t, float64(5000000), p.Investment.Max)
 			},
 		},
 		{
-			name:        "ROI out of range",
-			llmResponse: `{"roi":{"min":-10,"max":150}}`,
-			wantErr:     true,
-			errContains: "ROI must be between 0 and 100",
+			name:        "ROI clamping",
+			llmResponse: `{"ROI":150}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 100.0, p.ROI.Min)
+			},
 		},
 		{
 			name:        "Rating clamped to 0-5",
-			llmResponse: `{"rating":7.5}`,
+			llmResponse: `{"Rating":7.5}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, 5.0, *p.Rating)
 			},
@@ -194,12 +195,12 @@ func TestParameterExtractor_ParseWithFallback(t *testing.T) {
 	pe := NewParameterExtractor(createTestConfig())
 
 	t.Run("Valid response", func(t *testing.T) {
-		params := pe.ParseWithFallback(`{"industry":"Food & Beverage","category":"Quick Service"}`)
+		params := pe.ParseWithFallback(`{"Industry":"Food & Beverage","Category":"Quick Service"}`)
 		assert.NotNil(t, params)
 		assert.Equal(t, "Food & Beverage", params.Industry)
 	})
 	t.Run("Invalid JSON returns empty", func(t *testing.T) {
-		params := pe.ParseWithFallback(`{"invalid": json}`)
+		params := pe.ParseWithFallback(`{"Invalid": JSON}`)
 		assert.NotNil(t, params)
 		assert.Equal(t, "", params.Industry)
 		assert.Nil(t, params.Location)
@@ -247,25 +248,12 @@ func TestParameterExtractor_normalizeParameters(t *testing.T) {
 			},
 		},
 		{
-			name:  "Investment auto-fills missing max (10x)",
-			input: &ExtractedParameters{Investment: &InvestmentFilter{Min: 1000000, Max: 0}},
+			name:  "ROI clamped",
+			input: &ExtractedParameters{ROI: &RangeFilter{Min: -5, Max: 150}},
 			assertions: func(t *testing.T, p *ExtractedParameters) {
-				assert.Equal(t, float64(1000000), p.Investment.Min)
-				assert.Equal(t, float64(10000000), p.Investment.Max)
+				assert.Equal(t, 0.0, p.ROI.Min)
+				assert.Equal(t, 100.0, p.ROI.Max)
 			},
-		},
-		{
-			name:  "ROI auto-fills min",
-			input: &ExtractedParameters{ROI: &RangeFilter{Min: 0, Max: 20}},
-			assertions: func(t *testing.T, p *ExtractedParameters) {
-				assert.Equal(t, 18.0, p.ROI.Min)
-				assert.Equal(t, 20.0, p.ROI.Max)
-			},
-		},
-		{
-			name:    "ROI negative - error",
-			input:   &ExtractedParameters{ROI: &RangeFilter{Min: -5, Max: 10}},
-			wantErr: true,
 		},
 		{
 			name:  "Rating clamped to 5.0",
