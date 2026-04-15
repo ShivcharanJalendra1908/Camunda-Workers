@@ -206,10 +206,14 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		// Generate idempotency key: notification_type + recipient + date
 		_ = time.Now().Format("2006-01-02")
 		idempotencyKey := h.keyGenerator.GenerateNotificationKeySimple("email", input.To)
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			idempotencyKey = fmt.Sprintf("%s_%s", idempotencyKey, rid)
+		}
 
 		h.logger.Debug("Checking email idempotency", map[string]interface{}{
 			"idempotencyKey": idempotencyKey,
 			"to":             input.To,
+			"requestId":      jobVars["requestId"],
 			"traceId":        traceID,
 		})
 

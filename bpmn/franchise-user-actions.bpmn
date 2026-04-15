@@ -48,6 +48,7 @@
           <zeebe:input source="=teamEmail" target="to" />
           <zeebe:input source="=&#34;New Message from &#34; + contactName" target="subject" />
           <zeebe:input source="=&#34;Name: &#34; + contactName + &#34;\nEmail: &#34; + contactEmail + &#34;\nCompany: &#34; + contactCompany + &#34;\nPhone: &#34; + contactPhone + &#34;\n\nMessage:\n&#34; + contactMessage" target="body" />
+          <zeebe:input source="=requestId" target="requestId" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_Contact_To_EmailTeam</incoming>
@@ -60,6 +61,7 @@
           <zeebe:input source="=contactEmail" target="to" />
           <zeebe:input source="=&#34;Thank you for contacting Lemici&#34;" target="subject" />
           <zeebe:input source="=&#34;Hi &#34; + contactName + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
+          <zeebe:input source="=requestId" target="requestId" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_EmailTeam_To_EmailUser</incoming>
