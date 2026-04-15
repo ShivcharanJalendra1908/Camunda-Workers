@@ -281,7 +281,7 @@
         <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={success: success, message: message, data: {bookmarkId: bookmarkId, isBookmarked: isBookmarked, bookmarks: bookmarks, ratingId: ratingId, rating: if submittedRating != null then submittedRating else userRating, userRating: userRating, userReview: userReview, hasRated: hasRated, ratings: ratings, avgRating: avgRating, shareId: shareId, totalCount: totalCount}}" target="response" />
+          <zeebe:input source="={success: success, message: message, data: {contactId: contactId, bookmarkId: bookmarkId, isBookmarked: isBookmarked, bookmarks: bookmarks, ratingId: ratingId, rating: if submittedRating != null then submittedRating else userRating, userRating: userRating, userReview: userReview, hasRated: hasRated, ratings: ratings, avgRating: avgRating, shareId: shareId, totalCount: totalCount}}" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToSendResponse</incoming>

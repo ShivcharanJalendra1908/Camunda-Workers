@@ -715,6 +715,7 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	input.Company = h.sanitizeInput(input.Company)
 	input.Phone = h.sanitizeInput(input.Phone)
 
+	reqID := uuid.New().String()
 	variables := map[string]interface{}{
 		"action":         "contact_us",
 		"contactName":    input.Name,
@@ -723,7 +724,8 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 		"contactCompany": input.Company,
 		"contactPhone":   input.Phone,
 		"ipAddress":      c.ClientIP(),
-		"requestId":      uuid.New().String(),
+		"requestId":      reqID,
+		"correlationKey": reqID,
 		"teamEmail":      h.config.Integrations.Internal.EnquiryAlertEmail,
 		"teamName":       h.config.Integrations.Internal.EnquiryAlertName,
 	}
