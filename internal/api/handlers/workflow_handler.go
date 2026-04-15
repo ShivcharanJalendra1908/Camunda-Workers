@@ -677,6 +677,62 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 }
 
 // ============================================================================
+// CONTACT US WORKFLOW
+// ============================================================================
+
+func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
+	var input struct {
+		Name    string `json:"name" binding:"required"`
+		Email   string `json:"email" binding:"required,email"`
+		Message string `json:"message" binding:"required"`
+		Company string `json:"company"`
+		Phone   string `json:"phone"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate inputs
+	if err := h.validateString(input.Name, 2, 100); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid name: " + err.Error()})
+		return
+	}
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+	if err := h.validateString(input.Message, 10, 5000); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid message: " + err.Error()})
+		return
+	}
+
+	// Sanitize inputs
+	input.Name = h.sanitizeInput(input.Name)
+	input.Email = h.sanitizeInput(input.Email)
+	input.Message = h.sanitizeInput(input.Message)
+	input.Company = h.sanitizeInput(input.Company)
+	input.Phone = h.sanitizeInput(input.Phone)
+
+	variables := map[string]interface{}{
+		"action":         "contact_us",
+		"contactName":    input.Name,
+		"contactEmail":   input.Email,
+		"contactMessage": input.Message,
+		"contactCompany": input.Company,
+		"contactPhone":   input.Phone,
+		"ipAddress":      c.ClientIP(),
+		"requestId":      uuid.New().String(),
+		"teamEmail":      h.config.Integrations.Internal.EnquiryAlertEmail,
+		"teamName":       h.config.Integrations.Internal.EnquiryAlertName,
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "franchise-user-actions", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================================
 // APPLICATION WORKFLOWS
 // ============================================================================
 

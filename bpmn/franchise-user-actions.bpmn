@@ -2,8 +2,13 @@
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
   <process id="franchise-user-actions" name="Franchise User Actions" isExecutable="true">
     <startEvent id="StartEvent_UserAction" name="User Action Request">
-      <outgoing>Flow_ToValidateUser</outgoing>
+      <outgoing>Flow_ToAuthGateway</outgoing>
     </startEvent>
+    <exclusiveGateway id="Gateway_AuthCheck" name="Auth Required?">
+      <incoming>Flow_ToAuthGateway</incoming>
+      <outgoing>Flow_ToValidateUser</outgoing>
+      <outgoing>Flow_ToContactUs</outgoing>
+    </exclusiveGateway>
     <serviceTask id="Task_ValidateSubscription" name="Validate User&#10;Subscription">
       <extensionElements>
         <zeebe:taskDefinition type="validate-subscription" retries="2" />
@@ -16,6 +21,49 @@
       </extensionElements>
       <incoming>Flow_ToValidateUser</incoming>
       <outgoing>Flow_ToActionGateway</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_SaveContactMessage" name="Save Contact Message">
+      <extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;SAVE_CONTACT_MESSAGE&#34;" target="operation_type" />
+          <zeebe:input source="=contactName" target="contactName" />
+          <zeebe:input source="=contactEmail" target="contactEmail" />
+          <zeebe:input source="=contactMessage" target="contactMessage" />
+          <zeebe:input source="=contactCompany" target="contactCompany" />
+          <zeebe:input source="=contactPhone" target="contactPhone" />
+          <zeebe:input source="=ipAddress" target="ipAddress" />
+          <zeebe:output source="=id" target="contactId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_ToContactUs</incoming>
+      <outgoing>Flow_Contact_To_EmailTeam</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_EmailTeam" name="Notify Lemici Team">
+      <extensionElements>
+        <zeebe:taskDefinition type="email-send" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=teamEmail" target="to" />
+          <zeebe:input source="=&#34;New Message from &#34; + contactName" target="subject" />
+          <zeebe:input source="=&#34;Name: &#34; + contactName + &#34;\nEmail: &#34; + contactEmail + &#34;\nCompany: &#34; + contactCompany + &#34;\nPhone: &#34; + contactPhone + &#34;\n\nMessage:\n&#34; + contactMessage" target="body" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_Contact_To_EmailTeam</incoming>
+      <outgoing>Flow_EmailTeam_To_EmailUser</outgoing>
+    </serviceTask>
+    <serviceTask id="Task_EmailUser" name="Auto-Reply to User">
+      <extensionElements>
+        <zeebe:taskDefinition type="email-send" retries="2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=contactEmail" target="to" />
+          <zeebe:input source="=&#34;Thank you for contacting Lemici&#34;" target="subject" />
+          <zeebe:input source="=&#34;Hi &#34; + contactName + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>Flow_EmailTeam_To_EmailUser</incoming>
+      <outgoing>Flow_Contact_ToResponse</outgoing>
     </serviceTask>
     <boundaryEvent id="BoundaryError_ValidateSubscription" name="Subscription&#10;Error" attachedToRef="Task_ValidateSubscription">
       <outgoing>Flow_SubscriptionError_To_HandleError</outgoing>
@@ -225,6 +273,7 @@
       <incoming>Flow_GetFranchiseRatings_ToResponse</incoming>
       <incoming>Flow_DeleteRating_ToResponse</incoming>
       <incoming>Flow_Share_ToResponse</incoming>
+      <incoming>Flow_Contact_ToResponse</incoming>
       <outgoing>Flow_ToSendResponse</outgoing>
     </exclusiveGateway>
     <serviceTask id="Task_SendResponse" name="Send API Response">
@@ -264,7 +313,16 @@
       <incoming>Flow_Error_ToEnd</incoming>
       <errorEventDefinition id="ErrorDef_End" errorRef="Error_ActionFailed" />
     </endEvent>
-    <sequenceFlow id="Flow_ToValidateUser" sourceRef="StartEvent_UserAction" targetRef="Task_ValidateSubscription" />
+    <sequenceFlow id="Flow_ToAuthGateway" sourceRef="StartEvent_UserAction" targetRef="Gateway_AuthCheck" />
+    <sequenceFlow id="Flow_ToContactUs" name="Contact Us" sourceRef="Gateway_AuthCheck" targetRef="Task_SaveContactMessage">
+      <conditionExpression xsi:type="tFormalExpression">=action = "contact_us"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_ToValidateUser" name="Auth Required" sourceRef="Gateway_AuthCheck" targetRef="Task_ValidateSubscription">
+      <conditionExpression xsi:type="tFormalExpression">=action != "contact_us"</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_Contact_To_EmailTeam" sourceRef="Task_SaveContactMessage" targetRef="Task_EmailTeam" />
+    <sequenceFlow id="Flow_EmailTeam_To_EmailUser" sourceRef="Task_EmailTeam" targetRef="Task_EmailUser" />
+    <sequenceFlow id="Flow_Contact_ToResponse" sourceRef="Task_EmailUser" targetRef="Gateway_MergeBeforeResponse" />
     <sequenceFlow id="Flow_ToActionGateway" sourceRef="Task_ValidateSubscription" targetRef="Gateway_ActionRouter" />
     <sequenceFlow id="Flow_ToBookmarkGateway" sourceRef="Gateway_ActionRouter" targetRef="Gateway_BookmarkType">
       <conditionExpression xsi:type="tFormalExpression">
@@ -335,273 +393,317 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-user-actions">
       <bpmndi:BPMNShape id="Shape_Gateway_ActionRouter" bpmnElement="Gateway_ActionRouter" isMarkerVisible="true">
-        <dc:Bounds x="415" y="395" width="50" height="50" />
+        <dc:Bounds x="515" y="445" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="475" y="413" width="68" height="14" />
+          <dc:Bounds x="575" y="463" width="68" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Gateway_BookmarkType" bpmnElement="Gateway_BookmarkType" isMarkerVisible="true">
-        <dc:Bounds x="545" y="235" width="50" height="50" />
+        <dc:Bounds x="645" y="285" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="585" y="233" width="70" height="14" />
+          <dc:Bounds x="685" y="283" width="70" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Gateway_RatingType" bpmnElement="Gateway_RatingType" isMarkerVisible="true">
-        <dc:Bounds x="545" y="595" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="543" y="571" width="53" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_RemoveBookmark" bpmnElement="Task_RemoveBookmark">
-        <dc:Bounds x="660" y="240" width="120" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_GetBookmarks" bpmnElement="Task_GetBookmarks">
-        <dc:Bounds x="660" y="330" width="120" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_CheckBookmark" bpmnElement="Task_CheckBookmark">
-        <dc:Bounds x="660" y="420" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_AddBookmark" bpmnElement="Task_AddBookmark">
-        <dc:Bounds x="660" y="150" width="120" height="80" />
+        <dc:Bounds x="760" y="200" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_GetFranchiseRatings" bpmnElement="Task_GetFranchiseRatings">
-        <dc:Bounds x="660" y="840" width="120" height="80" />
+      <bpmndi:BPMNShape id="Shape_RemoveBookmark" bpmnElement="Task_RemoveBookmark">
+        <dc:Bounds x="760" y="290" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_GetUserRating" bpmnElement="Task_GetUserRating">
-        <dc:Bounds x="660" y="750" width="120" height="80" />
+      <bpmndi:BPMNShape id="Shape_GetBookmarks" bpmnElement="Task_GetBookmarks">
+        <dc:Bounds x="760" y="380" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_UpdateRating" bpmnElement="Task_UpdateRating">
-        <dc:Bounds x="660" y="660" width="120" height="80" />
+      <bpmndi:BPMNShape id="Shape_CheckBookmark" bpmnElement="Task_CheckBookmark">
+        <dc:Bounds x="760" y="470" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_SubmitRating" bpmnElement="Task_SubmitRating">
-        <dc:Bounds x="660" y="570" width="120" height="80" />
+        <dc:Bounds x="760" y="620" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_UpdateRating" bpmnElement="Task_UpdateRating">
+        <dc:Bounds x="760" y="710" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_GetUserRating" bpmnElement="Task_GetUserRating">
+        <dc:Bounds x="760" y="800" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_GetFranchiseRatings" bpmnElement="Task_GetFranchiseRatings">
+        <dc:Bounds x="760" y="890" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_DeleteRating" bpmnElement="Task_DeleteRating">
-        <dc:Bounds x="660" y="932" width="120" height="80" />
+        <dc:Bounds x="760" y="982" width="120" height="80" />
         <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_ShareFranchise" bpmnElement="Task_ShareFranchise">
-        <dc:Bounds x="660" y="1040" width="120" height="80" />
+        <dc:Bounds x="760" y="1090" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Gateway_MergeBeforeResponse" bpmnElement="Gateway_MergeBeforeResponse" isMarkerVisible="true">
-        <dc:Bounds x="855" y="585" width="50" height="50" />
+        <dc:Bounds x="955" y="635" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="815" y="593" width="30" height="14" />
+          <dc:Bounds x="915" y="643" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_SendResponse" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="990" y="570" width="120" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_EndEvent_Success" bpmnElement="EndEvent_Success">
-        <dc:Bounds x="1152" y="592" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1145" y="635" width="50" height="27" />
-        </bpmndi:BPMNLabel>
+        <dc:Bounds x="1090" y="620" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Gateway_ErrorMerge" bpmnElement="Gateway_ErrorMerge" isMarkerVisible="true">
-        <dc:Bounds x="915" y="1165" width="50" height="50" />
+        <dc:Bounds x="1015" y="1215" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="925" y="1225" width="30" height="27" />
+          <dc:Bounds x="1025" y="1275" width="30" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_HandleError" bpmnElement="Task_HandleError">
-        <dc:Bounds x="1020" y="1150" width="120" height="80" />
+        <dc:Bounds x="1120" y="1200" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_EndEvent_Success" bpmnElement="EndEvent_Success">
+        <dc:Bounds x="1252" y="642" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1245" y="685" width="50" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_EndEvent_Error" bpmnElement="EndEvent_Error">
-        <dc:Bounds x="1202" y="1172" width="36" height="36" />
+        <dc:Bounds x="1302" y="1222" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1204" y="1134.5" width="31" height="27" />
+          <dc:Bounds x="1304" y="1185" width="31" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="Task_ValidateSubscription">
-        <dc:Bounds x="260" y="380" width="120" height="80" />
+        <dc:Bounds x="370" y="430" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_AuthCheck_di" bpmnElement="Gateway_AuthCheck" isMarkerVisible="true">
+        <dc:Bounds x="245" y="445" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="233" y="502" width="75" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_StartEvent" bpmnElement="StartEvent_UserAction">
-        <dc:Bounds x="182" y="402" width="36" height="36" />
+        <dc:Bounds x="162" y="452" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="173" y="445" width="56" height="27" />
+          <dc:Bounds x="152" y="495" width="56" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_BoundaryError_AddBookmark" bpmnElement="BoundaryError_AddBookmark">
-        <dc:Bounds x="702" y="132" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="696" y="77.5" width="47" height="27" />
-        </bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Shape_Task_SaveContactMessage_di" bpmnElement="Task_SaveContactMessage">
+        <dc:Bounds x="210" y="310" width="120" height="80" />
+        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_BoundaryError_SubmitRating" bpmnElement="BoundaryError_SubmitRating">
-        <dc:Bounds x="702" y="552" width="36" height="36" />
+      <bpmndi:BPMNShape id="Shape_Task_EmailTeam_di" bpmnElement="Task_EmailTeam">
+        <dc:Bounds x="210" y="190" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_EmailUser_di" bpmnElement="Task_EmailUser">
+        <dc:Bounds x="370" y="80" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_RatingType" bpmnElement="Gateway_RatingType" isMarkerVisible="true">
+        <dc:Bounds x="645" y="635" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="685" y="526.5" width="30" height="27" />
+          <dc:Bounds x="643" y="611" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_BoundaryError_Share" bpmnElement="BoundaryError_Share">
-        <dc:Bounds x="702" y="1102" width="36" height="36" />
+        <dc:Bounds x="802" y="1152" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="725" y="1138" width="29" height="27" />
+          <dc:Bounds x="825" y="1188" width="29" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_SubmitRating" bpmnElement="BoundaryError_SubmitRating">
+        <dc:Bounds x="802" y="602" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="785" y="577" width="30" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_BoundaryError_AddBookmark" bpmnElement="BoundaryError_AddBookmark">
+        <dc:Bounds x="802" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="766" y="156" width="47" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_BoundaryError_ValidateSubscription" bpmnElement="BoundaryError_ValidateSubscription">
-        <dc:Bounds x="302" y="442" width="36" height="36" />
+        <dc:Bounds x="412" y="492" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="330" y="485" width="60" height="27" />
+          <dc:Bounds x="440" y="535" width="60" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToAuthGateway_di" bpmnElement="Flow_ToAuthGateway">
+        <di:waypoint x="198" y="470" />
+        <di:waypoint x="245" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_ToContactUs_di" bpmnElement="Flow_ToContactUs">
+        <di:waypoint x="270" y="445" />
+        <di:waypoint x="270" y="390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="198" y="403.00000000000006" width="53" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToValidateUser" bpmnElement="Flow_ToValidateUser">
-        <di:waypoint x="218" y="420" />
-        <di:waypoint x="260" y="420" />
+        <di:waypoint x="295" y="470" />
+        <di:waypoint x="370" y="470" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="299" y="445" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Contact_To_EmailTeam_di" bpmnElement="Flow_Contact_To_EmailTeam">
+        <di:waypoint x="270" y="310" />
+        <di:waypoint x="270" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_EmailTeam_To_EmailUser_di" bpmnElement="Flow_EmailTeam_To_EmailUser">
+        <di:waypoint x="270" y="190" />
+        <di:waypoint x="270" y="120" />
+        <di:waypoint x="370" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Contact_ToResponse_di" bpmnElement="Flow_Contact_ToResponse">
+        <di:waypoint x="490" y="120" />
+        <di:waypoint x="980" y="120" />
+        <di:waypoint x="980" y="635" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToActionGateway" bpmnElement="Flow_ToActionGateway">
-        <di:waypoint x="380" y="420" />
-        <di:waypoint x="415" y="420" />
+        <di:waypoint x="490" y="470" />
+        <di:waypoint x="515" y="470" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToBookmarkGateway" bpmnElement="Flow_ToBookmarkGateway">
-        <di:waypoint x="440" y="395" />
-        <di:waypoint x="440" y="260" />
-        <di:waypoint x="545" y="260" />
+        <di:waypoint x="540" y="445" />
+        <di:waypoint x="540" y="310" />
+        <di:waypoint x="645" y="310" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToRatingGateway" bpmnElement="Flow_ToRatingGateway">
-        <di:waypoint x="440" y="445" />
-        <di:waypoint x="440" y="620" />
-        <di:waypoint x="545" y="620" />
+        <di:waypoint x="540" y="495" />
+        <di:waypoint x="540" y="660" />
+        <di:waypoint x="645" y="660" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToShare" bpmnElement="Flow_ToShare">
-        <di:waypoint x="440" y="445" />
-        <di:waypoint x="440" y="1080" />
-        <di:waypoint x="660" y="1080" />
+        <di:waypoint x="540" y="495" />
+        <di:waypoint x="540" y="1130" />
+        <di:waypoint x="760" y="1130" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToAddBookmark" bpmnElement="Flow_ToAddBookmark">
-        <di:waypoint x="570" y="235" />
-        <di:waypoint x="570" y="190" />
-        <di:waypoint x="660" y="190" />
+        <di:waypoint x="670" y="285" />
+        <di:waypoint x="670" y="240" />
+        <di:waypoint x="760" y="240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToRemoveBookmark" bpmnElement="Flow_ToRemoveBookmark">
-        <di:waypoint x="595" y="260" />
-        <di:waypoint x="628" y="260" />
-        <di:waypoint x="628" y="313" />
-        <di:waypoint x="661" y="313" />
+        <di:waypoint x="695" y="310" />
+        <di:waypoint x="728" y="310" />
+        <di:waypoint x="728" y="363" />
+        <di:waypoint x="761" y="363" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToGetBookmarks" bpmnElement="Flow_ToGetBookmarks">
-        <di:waypoint x="570" y="285" />
-        <di:waypoint x="570" y="370" />
-        <di:waypoint x="660" y="370" />
+        <di:waypoint x="670" y="335" />
+        <di:waypoint x="670" y="420" />
+        <di:waypoint x="760" y="420" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToCheckBookmark" bpmnElement="Flow_ToCheckBookmark">
-        <di:waypoint x="570" y="285" />
-        <di:waypoint x="570" y="460" />
-        <di:waypoint x="660" y="460" />
+        <di:waypoint x="670" y="335" />
+        <di:waypoint x="670" y="510" />
+        <di:waypoint x="760" y="510" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToSubmitRating" bpmnElement="Flow_ToSubmitRating">
-        <di:waypoint x="595" y="620" />
-        <di:waypoint x="628" y="620" />
-        <di:waypoint x="628" y="610" />
-        <di:waypoint x="660" y="610" />
+        <di:waypoint x="695" y="660" />
+        <di:waypoint x="760" y="660" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToUpdateRating" bpmnElement="Flow_ToUpdateRating">
-        <di:waypoint x="570" y="645" />
-        <di:waypoint x="570" y="700" />
-        <di:waypoint x="660" y="700" />
+        <di:waypoint x="670" y="685" />
+        <di:waypoint x="670" y="750" />
+        <di:waypoint x="760" y="750" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToGetUserRating" bpmnElement="Flow_ToGetUserRating">
-        <di:waypoint x="570" y="645" />
-        <di:waypoint x="570" y="790" />
-        <di:waypoint x="660" y="790" />
+        <di:waypoint x="670" y="685" />
+        <di:waypoint x="670" y="840" />
+        <di:waypoint x="760" y="840" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToGetFranchiseRatings" bpmnElement="Flow_ToGetFranchiseRatings">
-        <di:waypoint x="570" y="645" />
-        <di:waypoint x="570" y="880" />
-        <di:waypoint x="660" y="880" />
+        <di:waypoint x="670" y="685" />
+        <di:waypoint x="670" y="930" />
+        <di:waypoint x="760" y="930" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToDeleteRating" bpmnElement="Flow_ToDeleteRating">
-        <di:waypoint x="570" y="645" />
-        <di:waypoint x="570" y="972" />
-        <di:waypoint x="660" y="972" />
+        <di:waypoint x="670" y="685" />
+        <di:waypoint x="670" y="1022" />
+        <di:waypoint x="760" y="1022" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_AddBookmark_ToResponse" bpmnElement="Flow_AddBookmark_ToResponse">
-        <di:waypoint x="780" y="190" />
-        <di:waypoint x="880" y="190" />
-        <di:waypoint x="880" y="585" />
+        <di:waypoint x="880" y="240" />
+        <di:waypoint x="980" y="240" />
+        <di:waypoint x="980" y="635" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_RemoveBookmark_ToResponse" bpmnElement="Flow_RemoveBookmark_ToResponse">
-        <di:waypoint x="780" y="280" />
-        <di:waypoint x="880" y="280" />
-        <di:waypoint x="880" y="585" />
+        <di:waypoint x="880" y="330" />
+        <di:waypoint x="980" y="330" />
+        <di:waypoint x="980" y="635" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_GetBookmarks_ToResponse" bpmnElement="Flow_GetBookmarks_ToResponse">
-        <di:waypoint x="780" y="370" />
-        <di:waypoint x="880" y="370" />
-        <di:waypoint x="880" y="585" />
+        <di:waypoint x="880" y="420" />
+        <di:waypoint x="980" y="420" />
+        <di:waypoint x="980" y="635" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_CheckBookmark_ToResponse" bpmnElement="Flow_CheckBookmark_ToResponse">
-        <di:waypoint x="780" y="460" />
-        <di:waypoint x="880" y="460" />
-        <di:waypoint x="880" y="585" />
+        <di:waypoint x="880" y="510" />
+        <di:waypoint x="980" y="510" />
+        <di:waypoint x="980" y="635" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_SubmitRating_ToResponse" bpmnElement="Flow_SubmitRating_ToResponse">
-        <di:waypoint x="780" y="610" />
-        <di:waypoint x="855" y="610" />
+        <di:waypoint x="880" y="660" />
+        <di:waypoint x="955" y="660" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_UpdateRating_ToResponse" bpmnElement="Flow_UpdateRating_ToResponse">
-        <di:waypoint x="780" y="700" />
-        <di:waypoint x="880" y="700" />
-        <di:waypoint x="880" y="635" />
+        <di:waypoint x="880" y="750" />
+        <di:waypoint x="980" y="750" />
+        <di:waypoint x="980" y="685" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_GetUserRating_ToResponse" bpmnElement="Flow_GetUserRating_ToResponse">
-        <di:waypoint x="780" y="790" />
-        <di:waypoint x="880" y="790" />
-        <di:waypoint x="880" y="635" />
+        <di:waypoint x="880" y="840" />
+        <di:waypoint x="980" y="840" />
+        <di:waypoint x="980" y="685" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_GetFranchiseRatings_ToResponse" bpmnElement="Flow_GetFranchiseRatings_ToResponse">
-        <di:waypoint x="780" y="880" />
-        <di:waypoint x="880" y="880" />
-        <di:waypoint x="880" y="635" />
+        <di:waypoint x="880" y="930" />
+        <di:waypoint x="980" y="930" />
+        <di:waypoint x="980" y="685" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_DeleteRating_ToResponse" bpmnElement="Flow_DeleteRating_ToResponse">
-        <di:waypoint x="780" y="972" />
-        <di:waypoint x="880" y="972" />
-        <di:waypoint x="880" y="635" />
+        <di:waypoint x="880" y="1022" />
+        <di:waypoint x="980" y="1022" />
+        <di:waypoint x="980" y="685" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Share_ToResponse" bpmnElement="Flow_Share_ToResponse">
-        <di:waypoint x="780" y="1080" />
-        <di:waypoint x="880" y="1080" />
-        <di:waypoint x="880" y="635" />
+        <di:waypoint x="880" y="1130" />
+        <di:waypoint x="980" y="1130" />
+        <di:waypoint x="980" y="685" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToSendResponse" bpmnElement="Flow_ToSendResponse">
-        <di:waypoint x="905" y="610" />
-        <di:waypoint x="990" y="610" />
+        <di:waypoint x="1005" y="660" />
+        <di:waypoint x="1090" y="660" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToEnd" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="1110" y="610" />
-        <di:waypoint x="1152" y="610" />
+        <di:waypoint x="1210" y="660" />
+        <di:waypoint x="1252" y="660" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_SubscriptionError" bpmnElement="Flow_SubscriptionError_To_HandleError">
-        <di:waypoint x="320" y="478" />
-        <di:waypoint x="320" y="1190" />
-        <di:waypoint x="915" y="1190" />
+        <di:waypoint x="430" y="528" />
+        <di:waypoint x="430" y="1240" />
+        <di:waypoint x="1015" y="1240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_BookmarkError" bpmnElement="Flow_BookmarkError_To_HandleError">
-        <di:waypoint x="720" y="130" />
-        <di:waypoint x="720" y="110" />
-        <di:waypoint x="940" y="110" />
-        <di:waypoint x="940" y="1165" />
+        <di:waypoint x="820" y="180" />
+        <di:waypoint x="820" y="160" />
+        <di:waypoint x="1040" y="160" />
+        <di:waypoint x="1040" y="1215" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_RatingError" bpmnElement="Flow_RatingError_To_HandleError">
-        <di:waypoint x="720" y="552" />
-        <di:waypoint x="720" y="532" />
-        <di:waypoint x="940" y="532" />
-        <di:waypoint x="940" y="1165" />
+        <di:waypoint x="820" y="602" />
+        <di:waypoint x="820" y="582" />
+        <di:waypoint x="1040" y="582" />
+        <di:waypoint x="1040" y="1215" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ShareError" bpmnElement="Flow_ShareError_To_HandleError">
-        <di:waypoint x="720" y="1138" />
-        <di:waypoint x="720" y="1190" />
-        <di:waypoint x="915" y="1190" />
+        <di:waypoint x="820" y="1188" />
+        <di:waypoint x="820" y="1240" />
+        <di:waypoint x="1015" y="1240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_ToHandleError" bpmnElement="Flow_ToHandleError">
-        <di:waypoint x="965" y="1190" />
-        <di:waypoint x="1020" y="1190" />
+        <di:waypoint x="1065" y="1240" />
+        <di:waypoint x="1120" y="1240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Error_ToEnd" bpmnElement="Flow_Error_ToEnd">
-        <di:waypoint x="1140" y="1190" />
-        <di:waypoint x="1202" y="1190" />
+        <di:waypoint x="1240" y="1240" />
+        <di:waypoint x="1302" y="1240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

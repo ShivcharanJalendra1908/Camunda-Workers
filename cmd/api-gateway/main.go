@@ -267,10 +267,12 @@ func main() {
 			franchiseGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
 		}
 
-		// // ========================================================================
-		// // ENQUIRY ROUTES
-		// // ========================================================================
-		// publicAPI.POST("/enquiries", placeholderHandler("POST /enquiries"))
+		// ========================================================================
+		// CONTACT US ROUTE
+		// ========================================================================
+		publicAPI.POST("/contact",
+			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 5),
+			workflowHandler.StartContactUs)
 	}
 
 	// ============================================================================

@@ -912,6 +912,29 @@ CREATE INDEX idx_franchise_shares_shared_at ON franchise_shares(shared_at);
 
 COMMENT ON TABLE franchise_shares IS
     'Tracks when users share a franchise. user_id nullable for anonymous shares. Increments franchise_stats.share_count.';
+
+-- ============================================================
+-- CONTACT US
+-- ============================================================
+ 
+CREATE TABLE IF NOT EXISTS contact_messages (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(255)  NOT NULL,
+    email       VARCHAR(255)  NOT NULL,
+    company     VARCHAR(255),
+    phone       VARCHAR(20),
+    message     TEXT          NOT NULL,
+    ip_address  VARCHAR(45),                        -- IPv4 / IPv6
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+ 
+-- Index for admin queries (list messages newest-first)
+CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at
+    ON contact_messages (created_at DESC);
+ 
+-- Index for rate-limit lookups per IP
+CREATE INDEX IF NOT EXISTS idx_contact_messages_ip_created
+    ON contact_messages (ip_address, created_at DESC);
 -- ============================================================
 -- END OF COMPLETE SCHEMA
 -- ============================================================
