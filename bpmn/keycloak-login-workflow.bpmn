@@ -69,7 +69,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId}" target="response" />
+          <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId, &quot;keycloakUserId&quot;: keycloakUserId}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SessionToSendResponse</bpmn:incoming>
