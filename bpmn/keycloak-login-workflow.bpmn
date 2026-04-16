@@ -57,8 +57,11 @@
           <zeebe:input source="=&#34;create&#34;" target="action" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=email" target="email" />
+          <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
           <zeebe:input source="=86400" target="expiresIn" />
           <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:output source="=cookieHeader" target="cookieHeader" />
+          <zeebe:output source="=sessionId" target="sessionId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToSession</bpmn:incoming>
@@ -69,6 +72,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=cookieHeader" target="cookieHeader" />
           <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId, &quot;keycloakUserId&quot;: keycloakUserId}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

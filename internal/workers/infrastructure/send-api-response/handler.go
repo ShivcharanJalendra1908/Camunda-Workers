@@ -47,12 +47,6 @@ func init() {
 }
 
 func NewHandler(config *Config, log logger.Logger, deps *registry.Dependencies) *Handler {
-	if config == nil {
-		config = &Config{
-			Timeout: 30 * time.Second,
-		}
-	}
-
 	return &Handler{
 		logger:       log.WithFields(map[string]interface{}{"taskType": TaskType}),
 		errorHandler: errors.NewErrorHandler(log),
@@ -199,9 +193,18 @@ func (h *Handler) ExecuteWorker(ctx context.Context, input *Input) (*Output, err
 		return output, nil
 	}
 
-	// ✅ Publish to Redis
-	channel := fmt.Sprintf("workflow:response:%s", input.CorrelationKey)
-	payload, err := json.Marshal(input.Response)
+	// ✅ Publish to Redis — include cookieHeader so API gateway can set Set-Cookie header
+	type redisPayload struct {
+		Response     map[string]interface{} `json:"response"`
+		CookieHeader string                 `json:"cookieHeader,omitempty"`
+	}
+
+	publishPayload := redisPayload{
+		Response:     input.Response,
+		CookieHeader: input.CookieHeader,
+	}
+
+	payload, err := json.Marshal(publishPayload)
 	if err != nil {
 		h.logger.Error("Failed to marshal response", map[string]interface{}{
 			"error":          err.Error(),
@@ -211,6 +214,8 @@ func (h *Handler) ExecuteWorker(ctx context.Context, input *Input) (*Output, err
 	}
 
 	redisClient := h.deps.RedisClient.GetClient()
+
+	channel := fmt.Sprintf("workflow:response:%s", input.CorrelationKey)
 
 	// Publish to channel
 	if err := redisClient.Publish(ctx, channel, payload).Err(); err != nil {

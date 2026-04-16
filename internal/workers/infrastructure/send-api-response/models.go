@@ -8,6 +8,7 @@ package send_api_response
 type Input struct {
 	CorrelationKey string                 `json:"correlationKey"` // Unique ID to match with waiting API request
 	Response       map[string]interface{} `json:"response"`       // Final response to send to client
+	CookieHeader   string                 `json:"cookieHeader,omitempty"` // Set-Cookie header value (login/logout)
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 

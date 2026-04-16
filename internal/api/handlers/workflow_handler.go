@@ -1614,10 +1614,24 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 
 	select {
 	case msg := <-pubsub.Channel():
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+		// Parse new payload format: {"response": {...}, "cookieHeader": "..."}
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
 			h.redirectToLoginWithError(c, "invalid_response")
 			return
+		}
+		response := envelope.Response
+		if response == nil {
+			h.redirectToLoginWithError(c, "empty_response")
+			return
+		}
+
+		// Set session cookie from workflow if present
+		if envelope.CookieHeader != "" {
+			c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
 		}
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
@@ -1632,13 +1646,19 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
-			var response map[string]interface{}
-			if json.Unmarshal([]byte(cached), &response) == nil {
-				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-					h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
+			var envelope struct {
+				Response     map[string]interface{} `json:"response"`
+				CookieHeader string                 `json:"cookieHeader"`
+			}
+			if json.Unmarshal([]byte(cached), &envelope) == nil && envelope.Response != nil {
+				if envelope.CookieHeader != "" {
+					c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+				}
+				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
+					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
 					return
 				}
-				c.JSON(http.StatusOK, response)
+				c.JSON(http.StatusOK, envelope.Response)
 				return
 			}
 		}
@@ -1734,39 +1754,87 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 		variables["metadata"] = input.Metadata
 	}
 
+	correlationKey := uuid.New().String()
+	variables["correlationKey"] = correlationKey
+
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
+	defer pubsub.Close()
+
+	// Confirm subscription before starting workflow
+	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer confirmCancel()
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
+		// Subscription failed — still clear local cookie and respond
+		h.logger.Warn("Redis subscription failed for logout", map[string]interface{}{"error": err.Error()})
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+			MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
+			SameSite: http.SameSiteNoneMode,
+		})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
+		return
+	}
+
 	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
 
-	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
-	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
-	// be cleared in cross-site context (CloudFront → API).
+	// Wait for workflow response to get logoutUrl and cookieHeader
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil {
+			// Set clear-cookie header from workflow (AUTH_SESSION_ID cleared)
+			if envelope.CookieHeader != "" {
+				c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+			}
+			// Also clear local session cookie
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+				MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
+				SameSite: http.SameSiteNoneMode,
+			})
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name: "pkce_verifier", Value: "", Path: "/",
+				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+			})
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name: "oauth_state", Value: "", Path: "/",
+				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+			})
+			// Return response with logoutUrl so frontend can redirect browser to Keycloak
+			if envelope.Response != nil {
+				c.JSON(http.StatusOK, envelope.Response)
+			} else {
+				c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out successfully"})
+			}
+			return
+		}
+
+	case <-time.After(15 * time.Second):
+		h.logger.Warn("Logout workflow timeout", map[string]interface{}{"correlationKey": correlationKey})
+
+	case <-c.Request.Context().Done():
+		h.logger.Warn("Logout request cancelled", map[string]interface{}{"correlationKey": correlationKey})
+	}
+
+	// Fallback — clear cookies and respond without logoutUrl
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
+		Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+		MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "pkce_verifier",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		Name: "pkce_verifier", Value: "", Path: "/",
+		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 	})
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		Name: "oauth_state", Value: "", Path: "/",
+		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 	})
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 }
 
 // ============================================================================

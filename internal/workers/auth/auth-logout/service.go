@@ -93,13 +93,17 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
 	}
 
-	// Step 4: Build Keycloak browser logout URL
+	// Step 4: Build Keycloak browser logout URL (frontend MUST redirect the browser here to clear SSO cookies)
 	logoutURL := fmt.Sprintf(
 		"%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
 		s.config.Issuer,
 		s.config.PostLogoutRedirectURI,
 		s.config.ClientID,
 	)
+	// Keycloak 17+ requires id_token_hint for redirect to work correctly
+	if input.IDToken != "" {
+		logoutURL += "&id_token_hint=" + input.IDToken
+	}
 
 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
 		"userId":              input.UserID,
