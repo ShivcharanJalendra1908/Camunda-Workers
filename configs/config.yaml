@@ -469,7 +469,7 @@ workers:
     cookieName: "session_id"
     secure: true
     httpOnly: true
-    sameSite: "Lax"
+    sameSite: "None"
     
   validate-enquiry-data:
     enabled: true

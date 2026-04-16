@@ -1679,11 +1679,18 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		SameSite: http.SameSiteNoneMode,
 	})
 
-	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
-	// Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
+	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// // Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
+	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	// if targetURL == "" {
+	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
+	// }
+	// c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
+		h.logger.Error("login_redirect_uri not configured in config", nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
+		return
 	}
 	c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 }
@@ -1999,10 +2006,17 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		SameSite: http.SameSiteNoneMode,
 	})
 
-	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	// if targetURL == "" {
+	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login"
+	// }
+	// c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/login"
+		h.logger.Error("login_redirect_uri not configured in config", nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
+		return
 	}
 	c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 }
@@ -2089,11 +2103,32 @@ func (h *WorkflowHandler) completeLoginFlow(
 		c.ClientIP(),
 	)
 
-	// Redirect
-	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
-	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
-	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
+	// 	// Redirect
+	// 	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
+	// 	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
+	// 	if targetURL == "" {
+	// 		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
+	// 	}
+	// 	c.Redirect(http.StatusFound, targetURL)
+	// }
+
+	// Fetch session data for response
+	userID := ""
+	email := ""
+	if h.redisClient != nil {
+		sess2, err := session.NewRedisStore(h.redisClient).Get(ctx, sessionID)
+		if err == nil && sess2 != nil {
+			userID = sess2.UserID
+			// email bhi session mein store hota hai toh:
+			// email = sess2.Email  // agar Session struct mein Email field hai
+		}
 	}
-	c.Redirect(http.StatusFound, targetURL)
+
+	// JSON response — no hardcoded URLs
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"sessionId": sessionID,
+		"userId":    userID,
+		"email":     email,
+	})
 }
