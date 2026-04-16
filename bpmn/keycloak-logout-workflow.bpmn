@@ -11,6 +11,9 @@
           <zeebe:input source="=&#34;get&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
           <zeebe:input source="=userId" target="userId" />
+          <zeebe:output source="=sessionSuccess" target="sessionSuccess" />
+          <zeebe:output source="=keycloakUserId" target="keycloakUserId" />
+          <zeebe:output source="=sessionMessage" target="sessionMessage" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToGetSession</bpmn:incoming>
