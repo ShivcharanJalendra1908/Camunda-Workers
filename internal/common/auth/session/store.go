@@ -13,6 +13,7 @@ type Session struct {
 	AbsoluteExpiresAt time.Time `json:"absolute_expires_at"`
 	Version           int       `json:"version"`
 	CSRFToken         string    `json:"csrf_token"`
+	KeycloakUserID    string    `json:"keycloak_user_id"`
 	UserAgent         string    `json:"user_agent"`
 	IP                string    `json:"ip"`
 }

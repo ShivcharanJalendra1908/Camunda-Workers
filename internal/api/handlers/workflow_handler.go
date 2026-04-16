@@ -477,12 +477,13 @@ func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
 
 func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 	var input struct {
-		UserID    string                 `json:"userId"`
-		Token     string                 `json:"token"`
-		LogoutAll bool                   `json:"logoutAll"`
-		DeviceID  string                 `json:"deviceId"`
-		Reason    string                 `json:"reason"`
-		Metadata  map[string]interface{} `json:"metadata"`
+		UserID         string                 `json:"userId"`
+		KeycloakUserID string                 `json:"keycloakUserId"`
+		Token          string                 `json:"token"`
+		LogoutAll      bool                   `json:"logoutAll"`
+		DeviceID       string                 `json:"deviceId"`
+		Reason         string                 `json:"reason"`
+		Metadata       map[string]interface{} `json:"metadata"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -496,14 +497,15 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 	}
 
 	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"token":        input.Token,
-		"sessionId":    claims.SessionID,
-		"logoutAll":    input.LogoutAll,
-		"deviceId":     input.DeviceID,
-		"reason":       input.Reason,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"userId":         getOrDefault(input.UserID, claims.UserID),
+		"keycloakUserId": input.KeycloakUserID,
+		"token":          input.Token,
+		"sessionId":      claims.SessionID,
+		"logoutAll":      input.LogoutAll,
+		"deviceId":       input.DeviceID,
+		"reason":         input.Reason,
+		"sourceSystem":   claims.SourceSystem,
+		"requestId":      uuid.New().String(),
 	}
 
 	if input.Metadata != nil {

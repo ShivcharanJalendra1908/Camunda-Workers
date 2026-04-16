@@ -8,8 +8,9 @@ import (
 type Input struct {
 	Action    string                 `json:"action"` // "create", "get", "delete"
 	SessionID string                 `json:"sessionId,omitempty"`
-	UserID    string                 `json:"userId,omitempty"`
-	Email     string                 `json:"email,omitempty"`
+	UserID         string                 `json:"userId,omitempty"`
+	KeycloakUserID string                 `json:"keycloakUserId,omitempty"`
+	Email          string                 `json:"email,omitempty"`
 	ExpiresIn int                    `json:"expiresIn,omitempty"` // seconds
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -24,6 +25,9 @@ func (i *Input) Sanitize() {
 	if i.UserID != "" {
 		i.UserID = validation.SanitizeString(i.UserID)
 	}
+	if i.KeycloakUserID != "" {
+		i.KeycloakUserID = validation.SanitizeString(i.KeycloakUserID)
+	}
 	if i.Email != "" {
 		i.Email = validation.SanitizeString(i.Email)
 	}
@@ -31,9 +35,10 @@ func (i *Input) Sanitize() {
 
 type Output struct {
 	Success      bool      `json:"success"`
-	SessionID    string    `json:"sessionId,omitempty"`
-	UserID       string    `json:"userId,omitempty"`
-	Email        string    `json:"email,omitempty"`
+	SessionID      string    `json:"sessionId,omitempty"`
+	UserID         string    `json:"userId,omitempty"`
+	KeycloakUserID string    `json:"keycloakUserId,omitempty"`
+	Email          string    `json:"email,omitempty"`
 	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
 	CookieHeader string    `json:"cookieHeader,omitempty"`
 	Message      string    `json:"message,omitempty"`

@@ -336,7 +336,7 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		variables["email"] = output.Email
 		variables["emailVerified"] = output.EmailVerified
 		variables["isNewUser"] = output.IsNewUser
-		variables["keycloakUserId"] = output.KeucloakUserID
+		variables["keycloakUserId"] = output.KeycloakUserID
 		variables["authenticatedAt"] = output.AuthenticatedAt.Format(time.RFC3339)
 	}
 
