@@ -1619,7 +1619,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		}
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-			h.completeLoginFlow(c, ctx, sessionID, userAgent)
+			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
 			return
 		}
 
@@ -1633,7 +1633,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			var response map[string]interface{}
 			if json.Unmarshal([]byte(cached), &response) == nil {
 				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-					h.completeLoginFlow(c, ctx, sessionID, userAgent)
+					h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
 					return
 				}
 				c.JSON(http.StatusOK, response)
@@ -2026,6 +2026,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 	ctx context.Context,
 	sessionID string,
 	userAgent string,
+	workflowResponse map[string]interface{},
 ) {
 
 	fmt.Printf(
@@ -2112,23 +2113,36 @@ func (h *WorkflowHandler) completeLoginFlow(
 	// 	c.Redirect(http.StatusFound, targetURL)
 	// }
 
-	// Fetch session data for response
+	// Last part — ab response se directly lo:
 	userID := ""
-	email := ""
-	if h.redisClient != nil {
+	var email interface{}
+	var keycloakUserId interface{}
+
+	// Pehle workflow response se try karo (most reliable)
+	if v, ok := workflowResponse["userId"].(string); ok {
+		userID = v
+	}
+	if v, ok := workflowResponse["email"].(string); ok && v != "" {
+		email = v
+	}
+	if v, ok := workflowResponse["keycloakUserId"].(string); ok && v != "" {
+		keycloakUserId = v
+	}
+
+	// Fallback: session se try karo
+	if userID == "" && h.redisClient != nil {
 		sess2, err := session.NewRedisStore(h.redisClient).Get(ctx, sessionID)
 		if err == nil && sess2 != nil {
 			userID = sess2.UserID
-			// email bhi session mein store hota hai toh:
-			// email = sess2.Email  // agar Session struct mein Email field hai
 		}
 	}
 
 	// JSON response — no hardcoded URLs
 	c.JSON(http.StatusOK, gin.H{
-		"success":   true,
-		"sessionId": sessionID,
-		"userId":    userID,
-		"email":     email,
+		"success":        true,
+		"sessionId":      sessionID,
+		"userId":         userID,
+		"email":          email,
+		"keycloakUserId": keycloakUserId,
 	})
 }
