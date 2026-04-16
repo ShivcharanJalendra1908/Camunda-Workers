@@ -54,6 +54,7 @@ func createValidConfig() *Config {
 		RedisPort:     6379,
 		RedisPassword: "",
 		RedisDB:       0,
+		CookieName:    "AUTH_SESSION_ID",
 	}
 }
 
@@ -366,6 +367,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       0,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: true,
 			errMsg:  "timeout",
@@ -378,6 +380,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       -5 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: true,
 			errMsg:  "timeout",
@@ -390,6 +393,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: true,
 			errMsg:  "maxJobsActive",
@@ -401,6 +405,8 @@ func TestConfig_Validate(t *testing.T) {
 				MaxJobsActive: 5,
 				Timeout:       10 * time.Second,
 				RedisPort:     6379,
+				CookieName:    "AUTH_SESSION_ID",
+				// RedisHost intentionally empty
 			},
 			wantErr: true,
 			errMsg:  "redisHost",
@@ -413,6 +419,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     0,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: true,
 			errMsg:  "redisPort",
@@ -425,10 +432,12 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     65536,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: true,
 			errMsg:  "redisPort",
 		},
+
 		{
 			name: "valid config with auth",
 			config: &Config{
@@ -439,6 +448,7 @@ func TestConfig_Validate(t *testing.T) {
 				RedisPort:     6380,
 				RedisPassword: "supersecret",
 				RedisDB:       2,
+				CookieName:    "AUTH_SESSION_ID",
 			},
 			wantErr: false,
 		},

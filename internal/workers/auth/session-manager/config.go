@@ -33,19 +33,33 @@ func DefaultConfig() *Config {
 		RedisPort:     6379,
 		RedisDB:       0,
 		DefaultTTL:    24 * time.Hour,
-		CookieName:    "session_id",
+		CookieName:    "AUTH_SESSION_ID",
 		Secure:        true,
 		HttpOnly:      true,
-		SameSite:      "Lax",
+		SameSite:      "None",
 	}
 }
 
 func (c *Config) Validate() error {
+	if c.Timeout <= 0 {
+		return fmt.Errorf("timeout must be positive")
+	}
+
+	if c.MaxJobsActive <= 0 {
+		return fmt.Errorf("maxJobsActive must be positive")
+	}
+
 	if c.RedisHost == "" {
-		return fmt.Errorf("redis host is required")
+		return fmt.Errorf("redisHost is required")
 	}
+
+	if c.RedisPort < 1 || c.RedisPort > 65535 {
+		return fmt.Errorf("redisPort must be between 1 and 65535")
+	}
+
 	if c.CookieName == "" {
-		return fmt.Errorf("cookie name is required")
+		return fmt.Errorf("cookieName is required")
 	}
+
 	return nil
 }

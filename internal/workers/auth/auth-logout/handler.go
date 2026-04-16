@@ -280,6 +280,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.Metadata = metadata
 	}
 
+	if err := ValidateInput(input); err != nil {
+		return nil, err
+	}
+
 	return input, nil
 }
 

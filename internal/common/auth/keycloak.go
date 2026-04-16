@@ -603,6 +603,60 @@ func (k *KeycloakClient) RevokeAllUserSessions(ctx context.Context, userID strin
 	return nil
 }
 
+// DeleteSession terminates a specific user session by its ID.
+// This requires admin privileges and uses the Admin API.
+func (k *KeycloakClient) DeleteSession(ctx context.Context, sessionID string) error {
+	if err := k.getAccessToken(ctx); err != nil {
+		return &errors.StandardError{
+			Code:      "KEYCLOAK_AUTH_ERROR",
+			Message:   "Failed to authenticate with Keycloak",
+			Details:   err.Error(),
+			Retryable: true,
+			Timestamp: time.Now(),
+		}
+	}
+
+	k.mu.RLock()
+	token := k.accessToken
+	k.mu.RUnlock()
+
+	// DELETE /admin/realms/{realm}/sessions/{session}
+	logoutURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s", k.baseURL, k.realm, sessionID)
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", logoutURL, nil)
+	if err != nil {
+		return &errors.StandardError{
+			Code:      "HTTP_REQUEST_ERROR",
+			Message:   "Failed to create delete session request",
+			Details:   err.Error(),
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := k.doRequest(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &errors.StandardError{
+			Code:      "KEYCLOAK_SESSION_DELETE_FAILED",
+			Message:   "Failed to delete session",
+			Details:   string(body),
+			Retryable: k.isTransientHTTPError(resp.StatusCode),
+			Timestamp: time.Now(),
+		}
+	}
+
+	return nil
+}
+
+
 // GetUserSessions retrieves all active sessions for a user.
 func (k *KeycloakClient) GetUserSessions(ctx context.Context, userID string) ([]UserSession, error) {
 	if err := k.getAccessToken(ctx); err != nil {

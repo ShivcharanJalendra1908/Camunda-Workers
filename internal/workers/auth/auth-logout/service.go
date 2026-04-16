@@ -54,21 +54,29 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	var tokenRevoked bool
 
 	// Step 1: Keycloak server-side session revoke
-	if s.keycloak != nil && input.KeycloakUserID != "" {
-		err := s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
+	if s.keycloak != nil {
+		var err error
+		if input.LogoutAll && input.KeycloakUserID != "" {
+			err = s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
+			s.logger.Info("Keycloak global logout initiated", map[string]interface{}{"keycloakUserId": input.KeycloakUserID})
+		} else if input.SessionID != "" {
+			err = s.keycloak.DeleteSession(ctx, input.SessionID)
+			s.logger.Info("Keycloak targeted session deletion initiated", map[string]interface{}{"sessionId": input.SessionID})
+		}
+
 		if err != nil {
 			s.logger.Warn("Keycloak session revoke failed", map[string]interface{}{
-				"error":          err.Error(),
-				"keycloakUserId": input.KeycloakUserID,
+				"error":     err.Error(),
+				"sessionId": input.SessionID,
+				"userId":    input.KeycloakUserID,
 			})
-		} else {
+		} else if (input.LogoutAll && input.KeycloakUserID != "") || input.SessionID != "" {
 			tokenRevoked = true
 			sessionsInvalidated = 1
-			s.logger.Info("Keycloak session revoked successfully", map[string]interface{}{
-				"keycloakUserId": input.KeycloakUserID,
-			})
+			s.logger.Info("Keycloak session(s) revoked successfully", nil)
 		}
 	}
+
 
 	// Step 2: Redis local session cleanup
 	if s.redisClient != nil {
