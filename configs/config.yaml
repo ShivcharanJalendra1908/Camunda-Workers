@@ -70,8 +70,8 @@ auth:
     publicBaseUrl: "https://us-dev-api.lemici.com"   # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     redirectUrl: "https://d595hydlunw5u.cloudfront.net/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN  CHANGES
     post_login_redirect_uri: "https://d595hydlunw5u.cloudfront.net/"
-    login_redirect_uri: "https://d595hydlunw5u.cloudfront.net/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
-    post_logout_redirect_uri: "https://d595hydlunw5u.cloudfront.net/login"  # ⚠️ CHANGE THIS WHEN DOMAIN  CHANGES
+    login_redirect_uri: "https://d595hydlunw5u.cloudfront.net/"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
+    post_logout_redirect_uri: "https://d595hydlunw5u.cloudfront.net/"  # ⚠️ CHANGE THIS WHEN DOMAIN  CHANGES
   
   # Session Configuration
   session:

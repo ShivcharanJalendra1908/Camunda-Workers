@@ -497,12 +497,19 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 		claims = &middleware.Claims{}
 	}
 
+	// Generate correlation key and subscribe before starting workflow
+	correlationKey := uuid.New().String()
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
+	defer pubsub.Close()
+
 	variables := map[string]interface{}{
 		"userId":         getOrDefault(input.UserID, claims.UserID),
 		"keycloakUserId": input.KeycloakUserID,
 		"token":          input.Token,
 		"idToken":        input.IDToken,
 		"sessionId":      claims.SessionID,
+		"correlationKey": correlationKey, // Pass correlation key
 		"logoutAll":      input.LogoutAll,
 		"deviceId":       input.DeviceID,
 		"reason":         input.Reason,
@@ -514,8 +521,34 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 		variables["metadata"] = input.Metadata
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "user-logout-workflow", variables)
-	c.JSON(http.StatusOK, response)
+	// Start workflow
+	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
+
+	// Wait for response
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse workflow response"})
+			return
+		}
+
+		// Clear cookie if header provided
+		if envelope.CookieHeader != "" {
+			c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+		}
+
+		c.JSON(http.StatusOK, envelope.Response)
+
+	case <-time.After(15 * time.Second):
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "logout workflow timed out"})
+
+	case <-c.Request.Context().Done():
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
+	}
 }
 
 // ============================================================================
