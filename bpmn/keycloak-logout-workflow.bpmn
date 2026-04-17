@@ -13,6 +13,7 @@
           <zeebe:input source="=userId" target="userId" />
           <zeebe:output source="=sessionSuccess" target="sessionSuccess" />
           <zeebe:output source="=keycloakUserId" target="keycloakUserId" />
+          <zeebe:output source="=idToken" target="idToken" />
           <zeebe:output source="=sessionMessage" target="sessionMessage" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -63,7 +64,7 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
-          <zeebe:input source="=requestId" target="correlationKey" />
+          <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=cookieHeader" target="cookieHeader" />
           <zeebe:input source="={&#34;success&#34;: true, &#34;message&#34;: &#34;Logged out successfully&#34;, &#34;logoutUrl&#34;: logoutUrl}" target="response" />
         </zeebe:ioMapping>

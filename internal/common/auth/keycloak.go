@@ -59,6 +59,7 @@ type User struct {
 // TokenResponse holds the response from Keycloak's token endpoint.
 type TokenResponse struct {
 	AccessToken      string `json:"access_token"`
+	IDToken          string `json:"id_token"`
 	ExpiresIn        int    `json:"expires_in"`
 	RefreshExpiresIn int    `json:"refresh_expires_in"`
 	TokenType        string `json:"token_type"`

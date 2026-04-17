@@ -44,7 +44,10 @@
           <zeebe:input source="=code" target="code" />
           <zeebe:input source="=state" target="state" />
           <zeebe:input source="=&#34;keycloak&#34;" target="provider" />
-          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:output source="=userId" target="userId" />
+          <zeebe:output source="=email" target="email" />
+          <zeebe:output source="=keycloakUserId" target="keycloakUserId" />
+          <zeebe:output source="=idToken" target="idToken" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToCallback</bpmn:incoming>
@@ -58,6 +61,7 @@
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=email" target="email" />
           <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
+          <zeebe:input source="=idToken" target="idToken" />
           <zeebe:input source="=86400" target="expiresIn" />
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:output source="=cookieHeader" target="cookieHeader" />

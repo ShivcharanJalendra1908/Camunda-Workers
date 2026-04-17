@@ -1635,7 +1635,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		}
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
+			h.completeLoginFlow(c, ctx, sessionID, userAgent)
 			return
 		}
 
@@ -1655,7 +1655,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 					c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
 				}
 				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
-					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
+					h.completeLoginFlow(c, ctx, sessionID, userAgent)
 					return
 				}
 				c.JSON(http.StatusOK, envelope.Response)
@@ -2096,7 +2096,6 @@ func (h *WorkflowHandler) completeLoginFlow(
 	ctx context.Context,
 	sessionID string,
 	userAgent string,
-	workflowResponse map[string]interface{},
 ) {
 
 	fmt.Printf(
@@ -2174,45 +2173,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 		c.ClientIP(),
 	)
 
-	// 	// Redirect
-	// 	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
-	// 	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
-	// 	if targetURL == "" {
-	// 		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
-	// 	}
-	// 	c.Redirect(http.StatusFound, targetURL)
-	// }
-
-	// Last part — ab response se directly lo:
-	userID := ""
-	var email interface{}
-	var keycloakUserId interface{}
-
-	// Pehle workflow response se try karo (most reliable)
-	if v, ok := workflowResponse["userId"].(string); ok {
-		userID = v
+	// Redirect
+	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
+	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
+	if targetURL == "" {
+		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
 	}
-	if v, ok := workflowResponse["email"].(string); ok && v != "" {
-		email = v
-	}
-	if v, ok := workflowResponse["keycloakUserId"].(string); ok && v != "" {
-		keycloakUserId = v
-	}
-
-	// Fallback: session se try karo
-	if userID == "" && h.redisClient != nil {
-		sess2, err := session.NewRedisStore(h.redisClient).Get(ctx, sessionID)
-		if err == nil && sess2 != nil {
-			userID = sess2.UserID
-		}
-	}
-
-	// JSON response — no hardcoded URLs
-	c.JSON(http.StatusOK, gin.H{
-		"success":        true,
-		"sessionId":      sessionID,
-		"userId":         userID,
-		"email":          email,
-		"keycloakUserId": keycloakUserId,
-	})
+	c.Redirect(http.StatusFound, targetURL)
 }

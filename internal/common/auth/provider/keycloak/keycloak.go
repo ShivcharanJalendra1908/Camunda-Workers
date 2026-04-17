@@ -125,5 +125,6 @@ func (p *Provider) ExchangeCode(
 		ProviderUserID: claims.Subject,
 		Email:          claims.Email,
 		EmailVerified:  claims.EmailVerified,
+		IDToken:        rawIDToken,
 	}, nil
 }

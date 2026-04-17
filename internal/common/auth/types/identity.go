@@ -7,4 +7,5 @@ type Identity struct {
 	ProviderUserID string // provider-scoped unique user identifier (sub)
 	Email          string // verified email returned by provider
 	EmailVerified  bool   // whether provider asserts email ownership
+	IDToken        string // raw id_token for OIDC logout hint
 }

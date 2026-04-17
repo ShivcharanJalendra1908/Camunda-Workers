@@ -14,6 +14,7 @@ type Session struct {
 	Version           int       `json:"version"`
 	CSRFToken         string    `json:"csrf_token"`
 	KeycloakUserID    string    `json:"keycloak_user_id"`
+	IDToken           string    `json:"id_token"`
 	UserAgent         string    `json:"user_agent"`
 	IP                string    `json:"ip"`
 }
