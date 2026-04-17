@@ -2173,11 +2173,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 		c.ClientIP(),
 	)
 
-	// Redirect
-	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
-	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
-	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
-	}
-	c.Redirect(http.StatusFound, targetURL)
+	// API should return JSON so the AJAX fetch client handles the redirect
+	c.JSON(http.StatusOK, gin.H{
+		"success":        true,
+		"sessionId":      sessionID,
+		"message":        "Login complete",
+	})
 }
