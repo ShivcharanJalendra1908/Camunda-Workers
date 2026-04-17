@@ -22,6 +22,12 @@ func GetInputSchema() validation.JSONSchema {
 			"userId": {
 				Type: "string",
 			},
+			"keycloakUserId": {
+				Type: "string",
+			},
+			"idToken": {
+				Type: "string",
+			},
 			"email": {
 				Type: "string",
 			},

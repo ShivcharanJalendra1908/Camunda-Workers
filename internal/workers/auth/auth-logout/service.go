@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"camunda-workers/internal/common/auth"
@@ -94,16 +95,16 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 
 	// Step 4: Build Keycloak browser logout URL (frontend MUST redirect the browser here to clear SSO cookies)
-	logoutURL := fmt.Sprintf(
-		"%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
-		s.config.Issuer,
-		s.config.PostLogoutRedirectURI,
-		s.config.ClientID,
-	)
+	params := url.Values{}
+	params.Add("post_logout_redirect_uri", s.config.PostLogoutRedirectURI)
+	params.Add("client_id", s.config.ClientID)
+	
 	// Keycloak 17+ requires id_token_hint for redirect to work correctly
 	if input.IDToken != "" {
-		logoutURL += "&id_token_hint=" + input.IDToken
+		params.Add("id_token_hint", input.IDToken)
 	}
+
+	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?%s", s.config.Issuer, params.Encode())
 
 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
 		"userId":              input.UserID,

@@ -1635,7 +1635,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		}
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-			h.completeLoginFlow(c, ctx, sessionID, userAgent)
+			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
 			return
 		}
 
@@ -1655,7 +1655,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 					c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
 				}
 				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
-					h.completeLoginFlow(c, ctx, sessionID, userAgent)
+					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
 					return
 				}
 				c.JSON(http.StatusOK, envelope.Response)
@@ -2096,6 +2096,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 	ctx context.Context,
 	sessionID string,
 	userAgent string,
+	responsePayload map[string]interface{},
 ) {
 
 	fmt.Printf(
@@ -2173,10 +2174,19 @@ func (h *WorkflowHandler) completeLoginFlow(
 		c.ClientIP(),
 	)
 
-	// API should return JSON so the AJAX fetch client handles the redirect
-	c.JSON(http.StatusOK, gin.H{
+	// Compile final response map
+	result := gin.H{
 		"success":        true,
 		"sessionId":      sessionID,
 		"message":        "Login complete",
-	})
+	}
+
+	for k, v := range responsePayload {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	// API should return JSON so the AJAX fetch client handles the redirect
+	c.JSON(http.StatusOK, result)
 }
