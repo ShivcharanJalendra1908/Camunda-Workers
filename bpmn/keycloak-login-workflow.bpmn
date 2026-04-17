@@ -27,7 +27,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={&quot;success&quot;: true, &quot;authorizationUrl&quot;: authorizationUrl, &quot;state&quot;: state}" target="response" />
+          <zeebe:input source="={&#34;success&#34;: true, &#34;authorizationUrl&#34;: authorizationUrl, &#34;state&#34;: state}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_InitiateToSendResponse</bpmn:incoming>
@@ -77,7 +77,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=cookieHeader" target="cookieHeader" />
-          <zeebe:input source="={&quot;success&quot;: true, &quot;userId&quot;: userId, &quot;email&quot;: email, &quot;sessionId&quot;: sessionId, &quot;keycloakUserId&quot;: keycloakUserId, &quot;idToken&quot;: idToken}" target="response" />
+          <zeebe:input source="={&#34;success&#34;: true, &#34;userId&#34;: userId, &#34;email&#34;: email, &#34;sessionId&#34;: sessionId, &#34;keycloakUserId&#34;: keycloakUserId, &#34;idToken&#34;: idToken}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SessionToSendResponse</bpmn:incoming>
@@ -96,46 +96,81 @@
     <bpmn:sequenceFlow id="Flow_ToSession" sourceRef="Task_HandleCallback" targetRef="Task_CreateSession" />
     <bpmn:sequenceFlow id="Flow_SessionToSendResponse" sourceRef="Task_CreateSession" targetRef="Task_SendCallbackResponse" />
     <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendCallbackResponse" targetRef="EndEvent_LoginSuccess" />
+    <bpmn:boundaryEvent id="Event_CatchInvalidState" name="Session Expired" attachedToRef="Task_HandleCallback">
+      <bpmn:outgoing>Flow_ToInvalidStateResponse</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_InvalidState" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_SendInvalidStateResponse" name="Send Session Expired Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&#34;success&#34;: false, &#34;error&#34;: &#34;SESSION_EXPIRED&#34;, &#34;redirectUrl&#34;: &#34;https://d595hydlunw5u.cloudfront.net/&#34;, &#34;message&#34;: &#34;Your session has expired. Redirecting you to the home page...&#34;}" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToInvalidStateResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEndInvalidState</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ToInvalidStateResponse" sourceRef="Event_CatchInvalidState" targetRef="Task_SendInvalidStateResponse" />
+    <bpmn:endEvent id="EndEvent_InvalidStateHandled" name="Session Expired Handled">
+      <bpmn:incoming>Flow_ToEndInvalidState</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToEndInvalidState" sourceRef="Task_SendInvalidStateResponse" targetRef="EndEvent_InvalidStateHandled" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="keycloak-login-workflow">
-      <bpmndi:BPMNShape id="Gateway_RouteAction_di" bpmnElement="Gateway_RouteAction" isMarkerVisible="true">
-        <dc:Bounds x="255" y="155" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="307.5" y="173" width="63" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_HandleCallback_di" bpmnElement="Task_HandleCallback">
-        <dc:Bounds x="360" y="210" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_CreateSession_di" bpmnElement="Task_CreateSession">
-        <dc:Bounds x="508" y="210" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendCallbackResponse_di" bpmnElement="Task_SendCallbackResponse">
-        <dc:Bounds x="660" y="210" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_Login_di" bpmnElement="StartEvent_Login">
         <dc:Bounds x="182" y="162" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="166" y="205" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_InitiateOAuth_di" bpmnElement="Task_InitiateOAuth">
-        <dc:Bounds x="360" y="70" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendInitiateResponse_di" bpmnElement="Task_SendInitiateResponse">
-        <dc:Bounds x="508" y="70" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_InitiateSuccess_di" bpmnElement="EndEvent_InitiateSuccess">
-        <dc:Bounds x="662" y="92" width="36" height="36" />
+      <bpmndi:BPMNShape id="Gateway_RouteAction_di" bpmnElement="Gateway_RouteAction" isMarkerVisible="true">
+        <dc:Bounds x="255" y="155" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="640" y="68" width="80" height="14" />
+          <dc:Bounds x="307.5" y="173" width="63" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
-        <dc:Bounds x="802" y="232" width="36" height="36" />
+      <bpmndi:BPMNShape id="Task_InitiateOAuth_di" bpmnElement="Task_InitiateOAuth">
+        <dc:Bounds x="360" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HandleCallback_di" bpmnElement="Task_HandleCallback">
+        <dc:Bounds x="360" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendInitiateResponse_di" bpmnElement="Task_SendInitiateResponse">
+        <dc:Bounds x="508" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_InitiateSuccess_di" bpmnElement="EndEvent_InitiateSuccess">
+        <dc:Bounds x="662" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="784" y="275" width="73" height="14" />
+          <dc:Bounds x="640" y="78" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreateSession_di" bpmnElement="Task_CreateSession">
+        <dc:Bounds x="508" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendCallbackResponse_di" bpmnElement="Task_SendCallbackResponse">
+        <dc:Bounds x="660" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_LoginSuccess_di" bpmnElement="EndEvent_LoginSuccess">
+        <dc:Bounds x="812" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="794" y="265" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendInvalidStateResponse_di" bpmnElement="Task_SendInvalidStateResponse">
+        <dc:Bounds x="360" y="330" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_InvalidStateHandled_di" bpmnElement="EndEvent_InvalidStateHandled">
+        <dc:Bounds x="522" y="352" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="502" y="395" width="78" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_CatchInvalidState_di" bpmnElement="Event_CatchInvalidState">
+        <dc:Bounds x="392" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="421" y="303" width="78" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_ToRouteAction_di" bpmnElement="Flow_ToRouteAction">
@@ -144,45 +179,53 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToInitiate_di" bpmnElement="Flow_ToInitiate">
         <di:waypoint x="280" y="155" />
-        <di:waypoint x="280" y="110" />
-        <di:waypoint x="360" y="110" />
+        <di:waypoint x="280" y="120" />
+        <di:waypoint x="360" y="120" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="309" y="93" width="30" height="14" />
+          <dc:Bounds x="309" y="103" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_InitiateToSendResponse_di" bpmnElement="Flow_InitiateToSendResponse">
-        <di:waypoint x="460" y="110" />
-        <di:waypoint x="508" y="110" />
+        <di:waypoint x="460" y="120" />
+        <di:waypoint x="508" y="120" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="392" y="162" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_FromInitiate_di" bpmnElement="Flow_FromInitiate">
-        <di:waypoint x="608" y="110" />
-        <di:waypoint x="662" y="110" />
+        <di:waypoint x="608" y="120" />
+        <di:waypoint x="662" y="120" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToCallback_di" bpmnElement="Flow_ToCallback">
         <di:waypoint x="280" y="205" />
-        <di:waypoint x="280" y="250" />
-        <di:waypoint x="360" y="250" />
+        <di:waypoint x="280" y="240" />
+        <di:waypoint x="360" y="240" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="304" y="232" width="39" height="14" />
+          <dc:Bounds x="304" y="222" width="39" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToSession_di" bpmnElement="Flow_ToSession">
-        <di:waypoint x="460" y="250" />
-        <di:waypoint x="508" y="250" />
+        <di:waypoint x="460" y="240" />
+        <di:waypoint x="508" y="240" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SessionToSendResponse_di" bpmnElement="Flow_SessionToSendResponse">
-        <di:waypoint x="608" y="250" />
-        <di:waypoint x="660" y="250" />
+        <di:waypoint x="608" y="240" />
+        <di:waypoint x="660" y="240" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="632" y="322" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="760" y="250" />
-        <di:waypoint x="802" y="250" />
+        <di:waypoint x="760" y="240" />
+        <di:waypoint x="812" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToInvalidStateResponse_di" bpmnElement="Flow_ToInvalidStateResponse">
+        <di:waypoint x="410" y="298" />
+        <di:waypoint x="410" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToEndInvalidState_di" bpmnElement="Flow_ToEndInvalidState">
+        <di:waypoint x="460" y="370" />
+        <di:waypoint x="522" y="370" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
