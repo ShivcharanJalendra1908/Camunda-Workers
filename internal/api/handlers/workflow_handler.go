@@ -480,6 +480,7 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 		UserID         string                 `json:"userId"`
 		KeycloakUserID string                 `json:"keycloakUserId"`
 		Token          string                 `json:"token"`
+		IDToken        string                 `json:"idToken"`
 		LogoutAll      bool                   `json:"logoutAll"`
 		DeviceID       string                 `json:"deviceId"`
 		Reason         string                 `json:"reason"`
@@ -500,6 +501,7 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 		"userId":         getOrDefault(input.UserID, claims.UserID),
 		"keycloakUserId": input.KeycloakUserID,
 		"token":          input.Token,
+		"idToken":        input.IDToken,
 		"sessionId":      claims.SessionID,
 		"logoutAll":      input.LogoutAll,
 		"deviceId":       input.DeviceID,
