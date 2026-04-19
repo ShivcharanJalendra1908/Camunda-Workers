@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.2.0">
   <bpmn:process id="keycloak-login-workflow" name="Keycloak Login Workflow" isExecutable="true">
+    <bpmn:error id="Error_InvalidState" name="INVALID_STATE" errorCode="INVALID_STATE" />
     <bpmn:startEvent id="StartEvent_Login" name="Login Request">
       <bpmn:outgoing>Flow_ToRouteAction</bpmn:outgoing>
     </bpmn:startEvent>
@@ -98,7 +99,7 @@
     <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendCallbackResponse" targetRef="EndEvent_LoginSuccess" />
     <bpmn:boundaryEvent id="Event_CatchInvalidState" name="Session Expired" attachedToRef="Task_HandleCallback">
       <bpmn:outgoing>Flow_ToInvalidStateResponse</bpmn:outgoing>
-      <bpmn:errorEventDefinition id="ErrorEventDefinition_InvalidState" />
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_InvalidState" errorRef="Error_InvalidState" />
     </bpmn:boundaryEvent>
     <bpmn:serviceTask id="Task_SendInvalidStateResponse" name="Send Session Expired Response">
       <bpmn:extensionElements>
