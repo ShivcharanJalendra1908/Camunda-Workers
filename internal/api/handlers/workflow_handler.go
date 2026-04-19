@@ -2143,28 +2143,39 @@ func (h *WorkflowHandler) completeLoginFlow(
 	now := time.Now()
 
 	// Kill existing session
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		// SameSiteNoneMode is required for cross-domain cookie sending (e.g., CloudFront to API)
-		// This must be accompanied by Secure: true
-		SameSite: http.SameSiteNoneMode,
-	})
+	// http.SetCookie(c.Writer, &http.Cookie{
+	// 	Name:     constants.SessionCookieName,
+	// 	Value:    "",
+	// 	Path:     constants.SessionCookiePath,
+	// 	MaxAge:   -1,
+	// 	HttpOnly: constants.SessionCookieHTTPOnly,
+	// 	Secure:   constants.SessionCookieSecure,
+	// 	// SameSiteNoneMode is required for cross-domain cookie sending (e.g., CloudFront to API)
+	// 	// This must be accompanied by Secure: true
+	// 	SameSite: http.SameSiteNoneMode,
+	// })
 
 	// Set new session
+	// http.SetCookie(c.Writer, &http.Cookie{
+	// 	Name:     constants.SessionCookieName,
+	// 	Value:    sessionID,
+	// 	Path:     constants.SessionCookiePath,
+	// 	MaxAge:   86400,
+	// 	HttpOnly: constants.SessionCookieHTTPOnly,
+	// 	Secure:   constants.SessionCookieSecure,
+	// 	// SameSiteNoneMode allows the cookie to be sent in cross-site requests,
+	// 	// which is necessary when the frontend (e.g. CloudFront) and backend are on different domains.
+	// 	SameSite: http.SameSiteNoneMode,
+	// })
+
+	// Set new session (ONLY cookie operation)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
-		Path:     constants.SessionCookiePath,
+		Path:     "/",
 		MaxAge:   86400,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		// SameSiteNoneMode allows the cookie to be sent in cross-site requests,
-		// which is necessary when the frontend (e.g. CloudFront) and backend are on different domains.
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	})
 
@@ -2211,9 +2222,9 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	// Compile final response map
 	result := gin.H{
-		"success":        true,
-		"sessionId":      sessionID,
-		"message":        "Login complete",
+		"success":   true,
+		"sessionId": sessionID,
+		"message":   "Login complete",
 	}
 
 	for k, v := range responsePayload {
