@@ -1664,10 +1664,10 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			return
 		}
 
-		// Set session cookie from workflow if present
-		if envelope.CookieHeader != "" {
-			c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-		}
+		// cookie fix: redundant Set-Cookie header with completeLoginFlow
+		// if envelope.CookieHeader != "" {
+		// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+		// }
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
 			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
@@ -1686,9 +1686,10 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				CookieHeader string                 `json:"cookieHeader"`
 			}
 			if json.Unmarshal([]byte(cached), &envelope) == nil && envelope.Response != nil {
-				if envelope.CookieHeader != "" {
-					c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-				}
+				// cookie fix: redundant with completeLoginFlow
+				// if envelope.CookieHeader != "" {
+				// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+				// }
 				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
 					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
 					return
@@ -1821,10 +1822,10 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 			CookieHeader string                 `json:"cookieHeader"`
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil {
-			// Set clear-cookie header from workflow (AUTH_SESSION_ID cleared)
-			if envelope.CookieHeader != "" {
-				c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-			}
+			// cookie fix: redundant clear-cookie header
+			// if envelope.CookieHeader != "" {
+			// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+			// }
 			// Also clear local session cookie
 			http.SetCookie(c.Writer, &http.Cookie{
 				Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
