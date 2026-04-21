@@ -2158,7 +2158,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	// Step 2: set new cookie
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "session_id",
+		Name:     constants.SessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
 		MaxAge:   86400,

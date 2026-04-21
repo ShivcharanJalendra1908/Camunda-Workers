@@ -33,10 +33,11 @@ func DefaultConfig() *Config {
 		RedisPort:     6379,
 		RedisDB:       0,
 		DefaultTTL:    24 * time.Hour,
-		CookieName:    "session_id",
-		Secure:        true,
-		HttpOnly:      true,
-		SameSite:      "None",
+		// CookieName:    "session_id",
+		CookieName: "AUTH_SESSION_ID",
+		Secure:     true,
+		HttpOnly:   true,
+		SameSite:   "None",
 	}
 }
 
