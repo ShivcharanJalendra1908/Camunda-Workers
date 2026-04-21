@@ -470,6 +470,14 @@ func overrideEmptyConfig(cfg *Config) {
 			}
 		}
 	}
+
+	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
+		origins := strings.Split(val, ",")
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
+		}
+		cfg.API.CORS.AllowOrigins = origins
+	}
 }
 
 // LoadFromFile loads configuration from a specific file path

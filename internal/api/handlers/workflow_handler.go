@@ -2106,6 +2106,7 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		Name:     constants.SessionCookieName,
 		Value:    "",
 		Path:     constants.SessionCookiePath,
+		Domain:   ".lemici.com",
 		MaxAge:   -1,
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
@@ -2160,7 +2161,8 @@ func (h *WorkflowHandler) completeLoginFlow(
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
-		Path:     "/",
+		Path:     constants.SessionCookiePath,
+		Domain:   ".lemici.com",
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,

@@ -327,6 +327,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_healthy
+    volumes:
+      - ../../configs:/app/configs:ro
     networks:
       - camunda-network
     healthcheck:
