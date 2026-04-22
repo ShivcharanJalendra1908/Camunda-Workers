@@ -216,7 +216,7 @@ func (s *Service) buildSetCookieHeader(sessionID string, expiresAt time.Time) st
 		cookie.SameSite = http.SameSiteLaxMode
 	}
 
-	return cookie.String() + "; Partitioned"
+	return cookie.String()
 }
 
 func (s *Service) buildClearCookieHeader() string {
@@ -238,7 +238,7 @@ func (s *Service) buildClearCookieHeader() string {
 		cookie.SameSite = http.SameSiteLaxMode
 	}
 
-	return cookie.String() + "; Partitioned"
+	return cookie.String()
 }
 
 func (s *Service) TestConnection(ctx context.Context) error {

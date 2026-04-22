@@ -724,7 +724,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 						fmt.Printf("[SECURITY] session_expired type=absolute session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
 
 						// Clear cookie with SameSite=None for cross-domain support
-						cookie := &http.Cookie{
+						http.SetCookie(c.Writer, &http.Cookie{
 							Name:     constants.SessionCookieName,
 							Value:    "",
 							Path:     constants.SessionCookiePath,
@@ -732,8 +732,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							HttpOnly: constants.SessionCookieHTTPOnly,
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
-						}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (absolute)", nil)
 						c.Abort()
 						return
@@ -743,10 +742,8 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 					if now.After(sess.ExpiresAt) {
 						fmt.Printf("[SECURITY] session_expired type=idle session_id=%s user_id=%s\n", sess.SessionID, sess.UserID)
 
-												// Clear cookie with SameSite=None for cross-domain support
-						cookie := &http.Cookie{
-
-
+						// Clear cookie with SameSite=None for cross-domain support
+						http.SetCookie(c.Writer, &http.Cookie{
 							Name:     constants.SessionCookieName,
 							Value:    "",
 							Path:     constants.SessionCookiePath,
@@ -754,9 +751,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							HttpOnly: constants.SessionCookieHTTPOnly,
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
-												}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
-
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (idle)", nil)
 						c.Abort()
 						return
@@ -817,16 +812,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
 						}
 
-						cookie := &http.Cookie{
-							Name:     constants.SessionCookieName,
-							Value:    "",
-							Path:     constants.SessionCookiePath,
-							MaxAge:   -1,
-							HttpOnly: constants.SessionCookieHTTPOnly,
-							Secure:   constants.SessionCookieSecure,
-							SameSite: http.SameSiteNoneMode,
-						}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						c.SetCookie(constants.SessionCookieName, "", -1, constants.SessionCookiePath, "", constants.SessionCookieSecure, constants.SessionCookieHTTPOnly)
 
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session risk detected", nil)
 						c.Abort()
@@ -851,10 +837,8 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							fmt.Printf("[SECURITY] session_delete_failed session_id=%s error=%v\n", sess.SessionID, err)
 						}
 
-												// Clear cookie with SameSite=None for cross-domain support
-						cookie := &http.Cookie{
-
-
+						// Clear cookie with SameSite=None for cross-domain support
+						http.SetCookie(c.Writer, &http.Cookie{
 							Name:     constants.SessionCookieName,
 							Value:    "",
 							Path:     constants.SessionCookiePath,
@@ -862,9 +846,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							HttpOnly: constants.SessionCookieHTTPOnly,
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
-												}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
-
+						})
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired", nil)
 						c.Abort()
 						return
@@ -888,7 +870,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 			}
 
 			// Session invalid/expired → delete cookie with SameSite=None
-			cookie := &http.Cookie{
+			http.SetCookie(c.Writer, &http.Cookie{
 				Name:     constants.SessionCookieName,
 				Value:    "",
 				Path:     constants.SessionCookiePath,
@@ -896,8 +878,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 				HttpOnly: constants.SessionCookieHTTPOnly,
 				Secure:   constants.SessionCookieSecure,
 				SameSite: http.SameSiteNoneMode,
-			}
-			c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+			})
 		}
 
 		// STEP 2: JWT Bearer fallback
