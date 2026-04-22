@@ -2178,16 +2178,23 @@ func (h *WorkflowHandler) completeLoginFlow(
 	// 	Secure:   true,
 	// 	SameSite: http.SameSiteNoneMode,
 	// })
+	fmt.Printf("[DEBUG] Setting cookie: name=%s value=%s domain=%s samesite=None\n",
+		constants.SessionCookieName, sessionID, "empty")
+
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
-		Path:     constants.SessionCookiePath,
+		Path:     "/",
 		Domain:   "",
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	})
+
+	// Verify header set hua
+	fmt.Printf("[DEBUG] Response headers after SetCookie: %v\n",
+		c.Writer.Header().Get("Set-Cookie"))
 
 	// Headers
 	c.Header("Cache-Control", "no-store")
