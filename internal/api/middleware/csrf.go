@@ -48,16 +48,26 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 
 		// Attach token to response header
 		c.Header("X-CSRF-Token", csrfToken)
-		c.SetSameSite(http.SameSiteStrictMode)
-		c.SetCookie(
-			"csrf_token",
-			csrfToken,
-			3600,
-			"/",
-			"",
-			false,
-			true,
-		)
+		// c.SetSameSite(http.SameSiteStrictMode)
+		// c.SetCookie(
+		// 	"csrf_token",
+		// 	csrfToken,
+		// 	3600,
+		// 	"/",
+		// 	"",
+		// 	false,
+		// 	true,
+		// )
+
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     "csrf_token",
+			Value:    csrfToken,
+			Path:     "/",
+			MaxAge:   86400,
+			HttpOnly: false,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		})
 
 		c.Next()
 	}
