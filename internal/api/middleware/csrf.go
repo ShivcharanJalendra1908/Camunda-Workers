@@ -59,7 +59,7 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 		// 	true,
 		// )
 
-		http.SetCookie(c.Writer, &http.Cookie{
+		cookie := &http.Cookie{
 			Name:     "csrf_token",
 			Value:    csrfToken,
 			Path:     "/",
@@ -67,7 +67,8 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 			HttpOnly: false,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
-		})
+		}
+		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 
 		c.Next()
 	}
