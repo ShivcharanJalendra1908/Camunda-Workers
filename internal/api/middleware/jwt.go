@@ -733,7 +733,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
 						}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						http.SetCookie(c.Writer, cookie)
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (absolute)", nil)
 						c.Abort()
 						return
@@ -755,7 +755,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
 												}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						http.SetCookie(c.Writer, cookie)
 
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired (idle)", nil)
 						c.Abort()
@@ -826,7 +826,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
 						}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						http.SetCookie(c.Writer, cookie)
 
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session risk detected", nil)
 						c.Abort()
@@ -863,7 +863,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 							Secure:   constants.SessionCookieSecure,
 							SameSite: http.SameSiteNoneMode,
 												}
-						c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+						http.SetCookie(c.Writer, cookie)
 
 						respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_EXPIRED", "session expired", nil)
 						c.Abort()
@@ -897,7 +897,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 				Secure:   constants.SessionCookieSecure,
 				SameSite: http.SameSiteNoneMode,
 			}
-			c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+			http.SetCookie(c.Writer, cookie)
 		}
 
 		// STEP 2: JWT Bearer fallback
