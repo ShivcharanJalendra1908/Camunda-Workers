@@ -1718,7 +1718,7 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie1)
 
 	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
@@ -1729,7 +1729,7 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie2)
 
 	cookie3 := &http.Cookie{
 		Name:     constants.SessionCookieName,
@@ -1740,7 +1740,7 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie3)
 
 	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
 	// // Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
@@ -1813,7 +1813,7 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 			MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 			SameSite: http.SameSiteNoneMode,
 		}
-		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+		http.SetCookie(c.Writer, cookie)
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 		return
 	}
@@ -1838,19 +1838,19 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 				MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 				SameSite: http.SameSiteNoneMode,
 			}
-			c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+			http.SetCookie(c.Writer, cookie1)
 
 			cookie2 := &http.Cookie{
 				Name: "pkce_verifier", Value: "", Path: "/",
 				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 			}
-			c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+			http.SetCookie(c.Writer, cookie2)
 
 			cookie3 := &http.Cookie{
 				Name: "oauth_state", Value: "", Path: "/",
 				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 			}
-			c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
+			http.SetCookie(c.Writer, cookie3)
 			// Return response with logoutUrl so frontend can redirect browser to Keycloak
 			if envelope.Response != nil {
 				c.JSON(http.StatusOK, envelope.Response)
@@ -1873,19 +1873,19 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 		MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie1)
 
 	cookie2 := &http.Cookie{
 		Name: "pkce_verifier", Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie2)
 
 	cookie3 := &http.Cookie{
 		Name: "oauth_state", Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie3)
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 }
 
@@ -2109,7 +2109,7 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie1)
 	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
@@ -2119,7 +2119,7 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie2)
 	// http.SetCookie(c.Writer, &http.Cookie{
 	// 	Name:     constants.SessionCookieName,
 	// 	Value:    "",
@@ -2140,7 +2140,7 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie3)
 
 	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
 	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
@@ -2184,7 +2184,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
 		}
-		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+		http.SetCookie(c.Writer, cookie)
 	}
 
 	// Step 2: set new cookie
@@ -2211,7 +2211,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
 	}
-	c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+	http.SetCookie(c.Writer, cookie)
 
 	// Verify header set hua
 	fmt.Printf("[DEBUG] Response headers after SetCookie: %v\n",

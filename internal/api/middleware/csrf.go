@@ -68,7 +68,7 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
 		}
-		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
+		http.SetCookie(c.Writer, cookie)
 
 		c.Next()
 	}
