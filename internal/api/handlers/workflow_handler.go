@@ -1709,7 +1709,7 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
 	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
 	// be cleared in cross-site context (CloudFront → API).
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie1 := &http.Cookie{
 		Name:     "pkce_verifier",
 		Value:    "",
 		Path:     "/",
@@ -1717,8 +1717,10 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+
+	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
 		Path:     "/",
@@ -1726,8 +1728,10 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+
+	cookie3 := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    "",
 		Path:     constants.SessionCookiePath,
@@ -1735,7 +1739,8 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
 
 	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
 	// // Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
@@ -1803,11 +1808,12 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
 		// Subscription failed — still clear local cookie and respond
 		h.logger.Warn("Redis subscription failed for logout", map[string]interface{}{"error": err.Error()})
-		http.SetCookie(c.Writer, &http.Cookie{
+		cookie := &http.Cookie{
 			Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
 			MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 			SameSite: http.SameSiteNoneMode,
-		})
+		}
+		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 		return
 	}
@@ -1827,19 +1833,24 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 			// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
 			// }
 			// Also clear local session cookie
-			http.SetCookie(c.Writer, &http.Cookie{
+			cookie1 := &http.Cookie{
 				Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
 				MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 				SameSite: http.SameSiteNoneMode,
-			})
-			http.SetCookie(c.Writer, &http.Cookie{
+			}
+			c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+
+			cookie2 := &http.Cookie{
 				Name: "pkce_verifier", Value: "", Path: "/",
 				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-			})
-			http.SetCookie(c.Writer, &http.Cookie{
+			}
+			c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+
+			cookie3 := &http.Cookie{
 				Name: "oauth_state", Value: "", Path: "/",
 				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-			})
+			}
+			c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
 			// Return response with logoutUrl so frontend can redirect browser to Keycloak
 			if envelope.Response != nil {
 				c.JSON(http.StatusOK, envelope.Response)
@@ -1857,19 +1868,24 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 	}
 
 	// Fallback — clear cookies and respond without logoutUrl
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie1 := &http.Cookie{
 		Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
 		MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+
+	cookie2 := &http.Cookie{
 		Name: "pkce_verifier", Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
+
+	cookie3 := &http.Cookie{
 		Name: "oauth_state", Value: "", Path: "/",
 		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-	})
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 }
 
@@ -2084,7 +2100,7 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 
 func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie1 := &http.Cookie{
 		Name:     "pkce_verifier",
 		Value:    "",
 		Path:     "/",
@@ -2092,8 +2108,9 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie1.String()+"; Partitioned")
+	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
 		Path:     "/",
@@ -2101,7 +2118,8 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie2.String()+"; Partitioned")
 	// http.SetCookie(c.Writer, &http.Cookie{
 	// 	Name:     constants.SessionCookieName,
 	// 	Value:    "",
@@ -2112,7 +2130,7 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 	// 	Secure:   constants.SessionCookieSecure,
 	// 	SameSite: http.SameSiteNoneMode,
 	// })
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie3 := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    "",
 		Path:     constants.SessionCookiePath,
@@ -2121,7 +2139,8 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie3.String()+"; Partitioned")
 
 	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
 	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
@@ -2156,7 +2175,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	// Step 1: clear old cookies
 	for _, name := range []string{"AUTH_SESSION_ID", "session_id"} {
-		http.SetCookie(c.Writer, &http.Cookie{
+		cookie := &http.Cookie{
 			Name:     name,
 			Value:    "",
 			Path:     "/",
@@ -2164,7 +2183,8 @@ func (h *WorkflowHandler) completeLoginFlow(
 			HttpOnly: true,
 			Secure:   true,
 			SameSite: http.SameSiteNoneMode,
-		})
+		}
+		c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 	}
 
 	// Step 2: set new cookie
@@ -2181,7 +2201,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 	fmt.Printf("[DEBUG] Setting cookie: name=%s value=%s domain=%s samesite=None\n",
 		constants.SessionCookieName, sessionID, "empty")
 
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
@@ -2190,7 +2210,8 @@ func (h *WorkflowHandler) completeLoginFlow(
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	c.Writer.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 
 	// Verify header set hua
 	fmt.Printf("[DEBUG] Response headers after SetCookie: %v\n",

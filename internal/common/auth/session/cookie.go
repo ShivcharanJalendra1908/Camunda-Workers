@@ -55,7 +55,7 @@ func SetCookie(
 ) {
 	opts = opts.normalize()
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    sessionID,
 		Path:     opts.Path,
@@ -64,7 +64,8 @@ func SetCookie(
 		HttpOnly: opts.HttpOnly,
 		Secure:   opts.Secure,
 		SameSite: opts.SameSite,
-	})
+	}
+	w.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 }
 
 // ClearCookie removes the session cookie from the client.
@@ -74,7 +75,7 @@ func ClearCookie(
 ) {
 	opts = opts.normalize()
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    "",
 		Path:     opts.Path,
@@ -83,7 +84,8 @@ func ClearCookie(
 		HttpOnly: opts.HttpOnly,
 		Secure:   opts.Secure,
 		SameSite: opts.SameSite,
-	})
+	}
+	w.Header().Add("Set-Cookie", cookie.String()+"; Partitioned")
 }
 
 // BuildSetCookieHeader creates a Set-Cookie header string
@@ -128,7 +130,7 @@ func BuildSetCookieHeader(sessionID string, expiresAt time.Time, secure bool, sa
 		MaxAge:   maxAge,
 	}
 
-	return cookie.String()
+	return cookie.String() + "; Partitioned"
 }
 
 // BuildClearCookieHeader creates a cookie deletion header
@@ -161,5 +163,5 @@ func BuildClearCookieHeader(secure bool, sameSite string) string {
 		MaxAge:   -1,
 	}
 
-	return cookie.String()
+	return cookie.String() + "; Partitioned"
 }
