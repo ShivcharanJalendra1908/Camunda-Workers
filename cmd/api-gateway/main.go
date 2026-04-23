@@ -201,7 +201,7 @@ func main() {
 	router.GET("/metrics", metricsHandler())
 
 	// ============================================================================
-	// Initialize handlers		
+	// Initialize handlers
 	// ============================================================================
 	workflowHandler := handlers.NewWorkflowHandler(
 		camundaClient,
@@ -233,6 +233,9 @@ func main() {
 		{
 			// ✅ KEYCLOAK UNIFIED LOGIN (Email/Password + Google + LinkedIn)
 			authGroup.POST("/login", workflowHandler.StartKeycloakLogin)
+
+			// ✅ NEW: Keycloak callback (backend-handled)
+			authGroup.GET("/callback", workflowHandler.HandleKeycloakCallback)
 
 			// ✅ KEYCLOAK LOGOUT
 			authGroup.POST("/logout", workflowHandler.StartKeycloakLogout)
@@ -307,7 +310,7 @@ func main() {
 
 			// Temporary placeholders
 			userGroup.GET("/profile", userHandler.GetProfile)
-            userGroup.GET("/session/validate", userHandler.ValidateSession)
+			userGroup.GET("/session/validate", userHandler.ValidateSession)
 			userGroup.GET("/preferences", placeholderHandler("GET /user/preferences"))
 		}
 

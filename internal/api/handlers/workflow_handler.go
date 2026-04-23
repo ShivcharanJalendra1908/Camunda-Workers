@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -2272,5 +2273,35 @@ func (h *WorkflowHandler) completeLoginFlow(
 	}
 
 	// API should return JSON so the AJAX fetch client handles the redirect
+	// c.JSON(http.StatusOK, result)
+
+	isCallback := c.Query("code") != ""
+
+	if isCallback {
+		redirectURL := "https://d595hydlunw5u.cloudfront.net/dashboard"
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
 	c.JSON(http.StatusOK, result)
+
+}
+
+func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
+
+	code := c.Query("code")
+	state := c.Query("state")
+
+	if code == "" || state == "" {
+		h.redirectToLoginWithError(c, "missing_code_or_state")
+		return
+	}
+
+	// Reuse existing flow by simulating JSON input
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	body := fmt.Sprintf(`{"code":"%s","state":"%s","provider":"keycloak"}`, code, state)
+	c.Request.Body = io.NopCloser(strings.NewReader(body))
+
+	h.StartKeycloakLogin(c)
 }
