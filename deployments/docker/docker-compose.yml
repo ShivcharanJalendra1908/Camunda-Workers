@@ -14,9 +14,9 @@ volumes:
 
 services:
 
-  # ============================================================================
-  # CAMUNDA 8 - MOVED TO TOP FOR PRIORITY
-  # ============================================================================
+# ============================================================================
+# CAMUNDA 8
+# ============================================================================
 
   zeebe:
     image: camunda/zeebe:8.3.9
@@ -66,9 +66,9 @@ services:
       start_period: 180s
     restart: on-failure:5
 
-  # ============================================================================
-  # INFRASTRUCTURE
-  # ============================================================================
+# ============================================================================
+# INFRASTRUCTURE
+# ============================================================================
 
   postgres:
     image: postgres:15-alpine
@@ -91,7 +91,6 @@ services:
       - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
       - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
       - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
-      #- ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
       - camunda-network
@@ -180,7 +179,6 @@ services:
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_PREFIX: zeebe
       SPRING_PROFILES_ACTIVE: dev
-
       CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: "false"
       CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
       CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
@@ -229,7 +227,6 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
-      - /home/ubuntu/Workflow-and-Workers/keycloak-theme/lemici:/opt/keycloak/themes/lemici
 
     depends_on:
       postgres:
@@ -294,22 +291,22 @@ services:
       - ./ollama/Modelfile:/models/Modelfile
       - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
 
-  # ============================================================================
-  # APPLICATION
-  # ============================================================================
+# ============================================================================
+# API GATEWAY (HTTP Handler)
+# ============================================================================
 
   api-gateway:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-dev:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.gateway
     container_name: api-gateway
-    ports:
-      - "8080:8080"
-      - "9090:9090"
+    # ports:
+    #   - "8080:8080"
     environment:
       APP_NAME: api-gateway
       APP_ENVIRONMENT: development
       API_PORT: 8080
       ZEEBE_ADDRESS: zeebe:26500
-      ZEEBE_CLIENT_REQUEST_TIMEOUT: 45s
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: franchises
@@ -319,11 +316,7 @@ services:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
       KEYCLOAK_REALM: camunda-platform
-      KEYCLOAK_CLIENT_ID: worker-client
-      KEYCLOAK_CLIENT_SECRET: AxgPPsstY5YDst15rDvfz64KsslQUorz
-      KEYCLOAK_ADMIN_CLIENT_ID: worker-client
-      KEYCLOAK_ADMIN_CLIENT_SECRET: AxgPPsstY5YDst15rDvfz64KsslQUorz
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_SERVICE_NAME: api-gateway
@@ -350,10 +343,18 @@ services:
       retries: 3
       start_period: 60s
     restart: on-failure:3
+    
+# ============================================================================
+# WORKERS 
+# ============================================================================
 
   camunda-workers:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-dev:latest
+    build: 
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.worker
     container_name: camunda-workers
+    # ports:
+      # - "8080:8080"
     environment:
       APP_NAME: camunda-workers
       APP_ENVIRONMENT: development
@@ -397,7 +398,6 @@ services:
       jaeger:
         condition: service_healthy
       keycloak:
-        # ✅ ADD THIS
         condition: service_healthy
     volumes:
       - ../../configs:/app/configs:ro
@@ -437,3 +437,40 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+# ============================================================================
+# KONG API GATEWAY (ONLY GATEWAY)
+# ============================================================================
+
+  kong:
+    image: kong:3.6
+    container_name: kong
+    command: sh -c "kong start"
+    restart: unless-stopped
+    networks:
+      - camunda-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../configs/kong/kong.yaml:/kong/declarative/kong.yml:ro
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_REAL_IP_RECURSIVE: "on"
+      KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction"
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

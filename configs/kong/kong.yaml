@@ -1,0 +1,254 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: api-gateway
+    url: http://api-gateway:8080
+    tags: ["franchise", "camunda"]
+    routes:
+      # ========================================================================
+      # API v1 Routes 
+      # ========================================================================
+      - name: api-v1-routes
+        paths:
+          - /api/v1
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+
+      # ========================================================================
+      # Auth Routes 
+      # ========================================================================
+      - name: auth-routes
+        paths:
+          - /api/v1/auth
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+
+      # ========================================================================
+      # Admin Routes 
+      # ========================================================================
+      - name: admin-routes
+        paths:
+          - /api/admin
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+
+      # ========================================================================
+      # Health & Metrics Routes
+      # ========================================================================
+      - name: health-routes
+        paths:
+          - /health
+          - /metrics
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - HEAD
+
+      # ========================================================================
+      # Public Franchise Routes (No Auth)
+      # ========================================================================
+      - name: public-franchise-routes
+        paths:
+          - /franchises
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+
+      # ========================================================================
+      # User Routes (Protected)
+      # ========================================================================
+      - name: user-routes
+        paths:
+          - /user
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+
+      # ========================================================================
+      # Application Routes
+      # ========================================================================
+      - name: application-routes
+        paths:
+          - /applications
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+
+      # ========================================================================
+      # CRM & Email Routes
+      # ========================================================================
+      - name: crm-email-routes
+        paths:
+          - /crm
+          - /email
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+          - PUT
+
+      # ========================================================================
+      # AI Routes
+      # ========================================================================
+      - name: ai-routes
+        paths:
+          - /ai
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+
+      # ========================================================================
+      # Social & Error Routes
+      # ========================================================================
+      - name: social-error-routes
+        paths:
+          - /social
+          - /error
+        strip_path: false
+        preserve_host: false
+        protocols:
+          - http
+        methods:
+          - GET
+          - POST
+
+    # ==========================================================================
+    # PLUGINS 
+    # ==========================================================================
+    plugins:
+      - name: correlation-id
+        config:
+          header_name: X-Request-ID
+          generator: uuid
+          echo_downstream: true
+
+      - name: rate-limiting
+        config:
+          minute: 6000
+          hour: 360000
+          policy: local
+          limit_by: ip
+          fault_tolerant: true
+        enabled: true
+        
+      - name: file-log
+        config:
+          path: /dev/stdout
+          reopen: true
+        enabled: true
+
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+        enabled: true
+
+      - name: response-transformer
+        config:
+          add:
+            headers:
+              - "X-Frame-Options: DENY"
+              - "X-Content-Type-Options: nosniff"
+              - "Referrer-Policy: no-referrer"
+              - "X-Powered-By: Kong/3.6"
+        enabled: true
+
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:5173"
+            - "https://lemici.com"
+            - "https://www.lemici.com"
+            - "https://api.lemici.com"
+            - "https://d3c34598mt7qdx.cloudfront.net"
+            - "https://d595hydlunw5u.cloudfront.net"
+          methods:
+            - "GET"
+            - "POST"
+            - "PUT"
+            - "PATCH"
+            - "DELETE"
+            - "OPTIONS"
+          headers:
+            - "Origin"
+            - "Content-Type"
+            - "Accept"
+            - "Authorization"
+            - "X-Request-ID"
+          exposed_headers:
+            - "X-Request-ID"
+            - "X-RateLimit-Limit"
+            - "X-RateLimit-Remaining"
+          credentials: true
+          max_age: 86400
+          preflight_continue: true
+        enabled: true
+
+# ============================================================================
+# GATEWAY HEALTH ROUTE 
+# ============================================================================
+routes:
+  - name: gateway-health
+    paths:
+      - /gateway/health
+    strip_path: false
+    preserve_host: false
+    protocols:
+      - http
+    methods:
+      - GET
+    plugins:
+      - name: request-termination
+        config:
+          status_code: 200
+          message: '{"status":"ok"}'
