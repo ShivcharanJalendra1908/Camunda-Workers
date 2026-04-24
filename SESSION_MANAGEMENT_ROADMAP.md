@@ -1,4 +1,406 @@
-# Session Management & User Status - Implementation Roadmap
+# Middleware Session Implementation - Production Readiness Analysis
+
+**Date:** April 24, 2026
+**Focus:** Current middleware session handling and production readiness
+
+---
+
+## 1. Current Implementation Analysis
+
+### 1.1 SessionOrJWTAuth (middleware/jwt.go:692)
+
+**What It Does:**
+
+```go
+func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin.HandlerFunc
+```
+
+**Current Flow:**
+1. Read `AUTH_SESSION_ID` cookie
+2. Get session from Redis: `session:{sessionId}`
+3. Validate absolute expiry (24h from creation)
+4. Validate idle expiry (30min sliding window)
+5. Risk-based validation (UserAgent + IP mismatch)
+6. Update session with new expiry
+7. Attach to context
+
+### 1.2 What's Working ✅
+
+| Feature | Implementation | Location |
+|---------|---------------|----------|
+| Session cookie reading | `c.Cookie(constants.SessionCookieName)` | Line 699 |
+| Session retrieval | `redisClient.Get("session:"+cookie)` | Line 702 |
+| Absolute expiry check | `now.After(sess.AbsoluteExpiresAt)` | Line 723 |
+| Idle expiry check | `now.After(sess.ExpiresAt)` | Line 743 |
+| UserAgent validation | `normalizeUserAgent()` | Line 776-787 |
+| IP validation | `sameIPSubnet()` | Line 790-795 |
+| Risk scoring | Risk ≥ 3 blocks session | Line 815 |
+| Session refresh | Updates TTL on access | Line 837-875 |
+| Context attachment | `c.Set("userId", sess.UserID)` | Line 879 |
+| Cookie clearing on expiry | Uses `http.SameSiteNoneMode` | Line 727 |
+
+### 1.3 What's Missing ❌
+
+| Feature | Priority | Impact |
+|---------|----------|--------|
+| User status check (DB) | 🔴 CRITICAL | Suspended users can still use session |
+| CSRF validation | 🟡 MEDIUM | API requests not protected |
+| Login attempt audit | 🟡 MEDIUM | No audit trail |
+| Max session limit | 🟡 MEDIUM | Unlimited sessions per user |
+| Specific error codes | 🟡 MEDIUM | Generic errors |
+| Server-side session listing | 🟡 MEDIUM | Can't list user's sessions |
+
+### 1.4 Security Gap: No User Status Check
+
+**Current Code:** Line 707-879
+```go
+if err == nil {
+    var sess session.Session
+    if err := json.Unmarshal([]byte(val), &sess); err != nil {
+        // ... error handling
+    } else {
+        // ❌ MISSING: No user status check here!
+        now := time.Now()
+        // ... rest of validation
+        c.Set("userId", sess.UserID)
+        c.Set("sessionId", sess.SessionID)
+    }
+}
+```
+
+**What Should Happen:**
+```go
+// After session validation, BEFORE context attachment:
+// 1. Fetch user from DB
+user, err := userRepo.FindByID(sess.UserID)
+if err != nil {
+    return err // USER_NOT_FOUND
+}
+
+// 2. Check user status
+switch user.Status {
+case "suspended":
+    return ErrUserSuspended
+case "inactive":
+    return ErrUserInactive
+case "pending":
+    return ErrUserPending
+case "active":
+    // Continue
+}
+```
+
+---
+
+## 2. Session Data Flow
+
+### 2.1 Session Creation (session-manager/service.go)
+
+**Location:** `internal/workers/auth/session-manager/service.go:59-130`
+
+```go
+func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, error) {
+    // 1. Generate session ID
+    sessionID, err := session.GenerateID()  // UUID
+    
+    // 2. Generate CSRF token
+    csrfToken, err := generateCSRFToken()   // 32 bytes random
+    
+    // 3. Create session struct
+    sess := session.Session{
+        SessionID:         sessionID,
+        UserID:             input.UserID,
+        KeycloakUserID:     input.KeycloakUserID,
+        IDToken:            input.IDToken,
+        CreatedAt:          now,
+        AbsoluteExpiresAt:  now.Add(24*time.Hour),
+        ExpiresAt:          now.Add(30*time.Minute),
+        Version:            1,
+        CSRFToken:          csrfToken,
+    }
+    
+    // 4. Store in Redis (via RedisStore)
+    if err := s.sessionStore.Create(ctx, sess); err != nil {
+        return nil, err
+    }
+    
+    // 5. Build cookie header
+    cookieHeader := s.buildSetCookieHeader(sessionID, expiresAt)
+}
+```
+
+### 2.2 Redis Session Storage (redis_store.go)
+
+**Location:** `internal/common/auth/session/redis_store.go:30-58`
+
+```go
+func (r *RedisStore) Create(ctx context.Context, s Session) error {
+    // 1. Validate inputs
+    if s.SessionID == "" || s.UserID == "" {
+        return fmt.Errorf("session: missing session_id or user_id")
+    }
+    
+    // 2. Calculate TTL
+    ttl := time.Until(s.ExpiresAt)
+    if ttl <= 0 {
+        return fmt.Errorf("session: expires_at must be in the future")
+    }
+    
+    // 3. Marshal session data
+    data, err := json.Marshal(s)
+    if err != nil {
+        return fmt.Errorf("session: failed to marshal: %w", err)
+    }
+    
+    // 4. Pipeline: SET session + SADD to user index
+    pipe := r.client.TxPipeline()
+    pipe.Set(ctx, r.key(s.SessionID), data, ttl)
+    pipe.SAdd(ctx, r.userKey(s.UserID), s.SessionID)
+    
+    log.Printf("[SESSION_CREATE] sid=%s user_id=%s expires_at=%s",
+        s.SessionID, s.UserID, s.ExpiresAt.UTC())
+    
+    // 5. Execute
+    _, err = pipe.Exec(ctx)
+    return err
+}
+```
+
+### 2.3 Session Deletion (redis_store.go:77-99)
+
+```go
+func (r *RedisStore) Delete(ctx context.Context, sessionID string) error {
+    // 1. Fetch session to get user_id
+    s, err := r.Get(ctx, sessionID)
+    if err != nil {
+        return err
+    }
+    if s == nil {
+        return nil // idempotent
+    }
+    
+    // 2. Pipeline: DEL session + SREM from user index
+    pipe := r.client.TxPipeline()
+    pipe.Del(ctx, r.key(sessionID))
+    pipe.SRem(ctx, r.userKey(s.UserID), sessionID)
+    
+    _, err = pipe.Exec(ctx)
+    return err
+}
+```
+
+---
+
+## 3. Session Model
+
+### 3.1 Session Struct (session/store.go)
+
+```go
+type Session struct {
+    SessionID          string    `json:"session_id"`
+    UserID            string    `json:"user_id"`
+    CreatedAt         time.Time `json:"created_at"`
+    ExpiresAt         time.Time `json:"expires_at"`         // Idle expiry (30min)
+    AbsoluteExpiresAt time.Time `json:"absolute_expires_at"` // Hard limit (24h)
+    Version           int       `json:"version"`            // For session rotation
+    CSRFToken         string    `json:"csrf_token"`        // For API protection
+    KeycloakUserID   string    `json:"keycloak_user_id"`
+    IDToken          string    `json:"id_token"`          // OIDC token
+    UserAgent        string    `json:"user_agent"`
+    IP               string    `json:"ip"`
+}
+```
+
+---
+
+## 4. Middleware Risk Validation
+
+### 4.1 UserAgent Validation (middleware/jwt.go:776-788)
+
+```go
+// --- UserAgent check ---
+if sess.UserAgent != "" && currentUA != "" {
+    storedUA = normalizeUserAgent(sess.UserAgent)
+    currentUAParsed = normalizeUserAgent(currentUA)
+    
+    if storedUA != "unknown" && currentUAParsed != "unknown" && storedUA != currentUAParsed {
+        uaMismatch = true
+        riskScore += 2
+    }
+    
+    if isUnknownUA(currentUAParsed) {
+        riskScore += 1
+    }
+}
+```
+
+### 4.2 IP Validation (middleware/jwt.go:790-796)
+
+```go
+// --- IP check ---
+if sess.IP != "" && currentIP != "" {
+    if !sameIPSubnet(sess.IP, currentIP) {
+        ipMismatch = true
+        riskScore += 1
+    }
+}
+```
+
+### 4.3 Risk Decision (middleware/jwt.go:815)
+
+```go
+// --- Decision ---
+if riskScore >= 3 {
+    // Delete session, return 401
+    respondWithError(c, http.StatusUnauthorized, "AUTH_SESSION_INVALID", "session risk detected", nil)
+    c.Abort()
+    return
+}
+```
+
+---
+
+## 5. Redis Keys Structure
+
+### Current Keys:
+
+| Key | Type | TTL | Purpose |
+|-----|------|-----|---------|
+| `session:{sessionId}` | String (JSON) | 24h | Session data |
+| `user_sessions:{userId}` | SET | None | User's session IDs |
+
+### Required New Keys:
+
+| Key | Type | TTL | Purpose |
+|-----|------|-----|---------|
+| `session_meta:{sessionId}` | String (JSON) | 24h | Session metadata |
+| `login_audit:{userId}` | LIST | 30 days | Login attempts |
+
+---
+
+## 6. Cookie Configuration
+
+### Current Cookie Settings (constants.go)
+
+```go
+const (
+    SessionCookieName     = "AUTH_SESSION_ID"
+    SessionCookiePath     = "/"
+    SessionCookieSecure   = true
+    SessionCookieHTTPOnly = true
+)
+```
+
+### Cookie Set in completeLoginFlow:
+
+```go
+cookie := &http.Cookie{
+    Name:     constants.SessionCookieName,
+    Value:    sessionID,
+    Path:     "/",
+    Domain:   "",
+    MaxAge:   86400,  // 24 hours
+    HttpOnly: true,
+    Secure:   true,
+    SameSite: http.SameSiteNoneMode,  // Required for cross-origin
+}
+```
+
+---
+
+## 7. Production Readiness Checklist
+
+### ✅ Working / Tested
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Session creation | ✅ | Generated with UUID + CSRF |
+| Session retrieval | ✅ | JSON unmarshal |
+| Absolute expiry | ✅ | 24h hard limit |
+| Idle expiry | ✅ | 30min sliding window |
+| Risk validation | ✅ | UserAgent + IP mismatch |
+| Session refresh | ✅ | TTL updated on access |
+| Cookie security | ✅ | HttpOnly, Secure, SameSite=None |
+| Redis TTL | ✅ | Auto-expiring |
+
+### ❌ Missing / Needs Work
+
+| Feature | Priority | Status |
+|---------|----------|--------|
+| User status check | 🔴 HIGH | ❌ NOT IMPLEMENTED |
+| CSRF token validation | 🟡 MEDIUM | ❌ NOT VALIDATED IN MIDDLEWARE |
+| Login audit | 🟡 MEDIUM | ❌ NOT TRACKED |
+| Max session limit | 🟡 MEDIUM | ❌ NOT ENFORCED |
+| Session listing API | 🟡 MEDIUM | ❌ NOT AVAILABLE |
+
+---
+
+## 8. Error Handling Gaps
+
+### Current Errors:
+
+| Error Code | When Triggered |
+|------------|---------------|
+| AUTH_SESSION_EXPIRED | Absolute/Idle timeout |
+| AUTH_SESSION_INVALID | Risk score ≥ 3 |
+| AUTH_REQUIRED | No cookie and no JWT |
+| AUTH_INVALID_TOKEN | JWT validation fails |
+
+### Missing Errors:
+
+| Error Code | When Should Trigger |
+|------------|---------------------|
+| USER_SUSPENDED | User status = suspended |
+| USER_INACTIVE | User status = inactive |
+| USER_PENDING | User status = pending |
+| USER_NOT_FOUND | User ID not in DB |
+| SESSION_NOT_FOUND | Cookie but no session in Redis |
+
+---
+
+## 9. Implementation Priority
+
+### Phase 1 (Immediate - Production Risk)
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Add user status check in middleware | 🔴 4 hours |
+| Add error codes for user status | 🟡 2 hours |
+| Add tests for user status blocking | 🟡 3 hours |
+
+### Phase 2 (Short Term)
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Add CSRF validation in middleware | 🟡 4 hours |
+| Add login audit trail | 🟡 6 hours |
+| Add max session enforcement | 🟡 4 hours |
+
+### Phase 3 (Medium Term)
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Add session listing API | 🟡 4 hours |
+| Admin session Kill | 🟡 4 hours |
+| Load testing | 🟡 8 hours |
+
+---
+
+## 10. Summary
+
+| Metric | Current | Required | Gap |
+|--------|---------|----------|-----|
+| Session validation | ✅ Complete | ✅ Complete | - |
+| User status validation | ❌ Missing | ✅ Required | 🔴 HIGH |
+| Risk-based validation | ✅ Complete | ✅ Complete | - |
+| Session rotation | ✅ Complete | ✅ Complete | - |
+| Cookie security | ✅ Complete | ✅ Complete | - |
+| Audit logging | ❌ Missing | ✅ Required | 🟡 MEDIUM |
+| Max sessions | ❌ Missing | ✅ Required | 🟡 MEDIUM |
+
+---
+
+*End of Middleware Analysis*
 
 **Last Updated:** April 24, 2026
 **Status:** READY FOR IMPLEMENTATION
