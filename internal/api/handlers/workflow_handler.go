@@ -2166,12 +2166,6 @@ func (h *WorkflowHandler) completeLoginFlow(
 	responsePayload map[string]interface{},
 ) {
 
-	fmt.Printf(
-		"[SECURITY] login_flow_start session_id=%s user_agent=%q\n",
-		sessionID,
-		userAgent,
-	)
-
 	now := time.Now()
 
 	// Step 1: clear old cookies
@@ -2189,18 +2183,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 	}
 
 	// Step 2: set new cookie
-	// http.SetCookie(c.Writer, &http.Cookie{
-	// 	Name:     constants.SessionCookieName,
-	// 	Value:    sessionID,
-	// 	Path:     constants.SessionCookiePath,
-	// 	Domain:   ".lemici.com",
-	// 	MaxAge:   86400,
-	// 	HttpOnly: true,
-	// 	Secure:   true,
-	// 	SameSite: http.SameSiteNoneMode,
-	// })
-	fmt.Printf("[DEBUG] Setting cookie: name=%s value=%s domain=%s samesite=None\n",
-		constants.SessionCookieName, sessionID, "empty")
+	h.logger.Info("Setting session cookie", map[string]interface{}{
+		"sessionId": sessionID,
+		"name":      constants.SessionCookieName,
+		"maxAge":    86400,
+	})
 
 	cookie := &http.Cookie{
 		Name:     constants.SessionCookieName,
@@ -2210,13 +2197,9 @@ func (h *WorkflowHandler) completeLoginFlow(
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+	 SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(c.Writer, cookie)
-
-	// Verify header set hua
-	fmt.Printf("[DEBUG] Response headers after SetCookie: %v\n",
-		c.Writer.Header().Get("Set-Cookie"))
 
 	// Headers
 	c.Header("Cache-Control", "no-store")
@@ -2228,7 +2211,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 		sess, err := store.Get(ctx, sessionID)
 		if err != nil && err != redis.Nil {
-			fmt.Printf("[SECURITY] session_fetch_failed session_id=%s error=%v\n", sessionID, err)
+			h.logger.Error("Failed to fetch session during login", map[string]interface{}{
+				"sessionId": sessionID,
+				"error":    err.Error(),
+			})
 		}
 
 		if sess != nil {
@@ -2245,19 +2231,23 @@ func (h *WorkflowHandler) completeLoginFlow(
 			sess.IP = c.ClientIP()
 
 			if err := store.Update(ctx, *sess); err != nil {
-				fmt.Printf("[SECURITY] session_update_failed session_id=%s error=%v\n", sessionID, err)
+				h.logger.Error("Failed to update session during login", map[string]interface{}{
+					"sessionId": sessionID,
+					"error":    err.Error(),
+				})
 			}
 		} else {
-			fmt.Printf("[SECURITY] session_not_found_on_login session_id=%s\n", sessionID)
+			h.logger.Warn("Session not found during login flow", map[string]interface{}{
+				"sessionId": sessionID,
+			})
 		}
 	}
 
-	fmt.Printf(
-		"[SECURITY] session_initialized session_id=%s user_agent=%q ip=%s\n",
-		sessionID,
-		userAgent,
-		c.ClientIP(),
-	)
+	h.logger.Info("Session initialized for user", map[string]interface{}{
+		"sessionId": sessionID,
+		"userAgent": userAgent,
+		"ip":       c.ClientIP(),
+	})
 
 	// Compile final response map
 	result := gin.H{
@@ -2279,6 +2269,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	if isCallback {
 		redirectURL := "https://d595hydlunw5u.cloudfront.net/dashboard"
+		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
+			"sessionId":    sessionID,
+			"redirectUrl": redirectURL,
+		})
 		c.Redirect(http.StatusFound, redirectURL)
 		return
 	}
@@ -2292,7 +2286,19 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
 
+	h.logger.Info("OAuth callback received", map[string]interface{}{
+		"requestId": c.GetString("requestId"),
+		"traceId":  c.GetString("traceId"),
+		"hasCode":  code != "",
+		"hasState": state != "",
+	})
+
 	if code == "" || state == "" {
+		h.logger.Warn("OAuth callback missing required parameters", map[string]interface{}{
+			"requestId": c.GetString("requestId"),
+			"hasCode":   code != "",
+			"hasState":  state != "",
+		})
 		h.redirectToLoginWithError(c, "missing_code_or_state")
 		return
 	}
