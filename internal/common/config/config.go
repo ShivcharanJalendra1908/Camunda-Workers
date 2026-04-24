@@ -225,6 +225,7 @@ type AuthConfig struct {
 		PostLogoutRedirectURI string `mapstructure:"post_logout_redirect_uri"` // After logout
 		PostLoginRedirectURI  string `mapstructure:"post_login_redirect_uri"`  // After successful login
 		LoginRedirectURI      string `mapstructure:"login_redirect_uri"`       // Error redirects to login page
+		CallbackRedirectURI  string `mapstructure:"callback_redirect_uri"`      // Redirect after OAuth callback
 	} `mapstructure:"keycloak"`
 
 	OAuthProviders struct {

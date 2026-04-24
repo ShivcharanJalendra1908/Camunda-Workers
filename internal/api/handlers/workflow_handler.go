@@ -2268,7 +2268,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 	isCallback := c.Query("code") != ""
 
 	if isCallback {
-		redirectURL := "https://d595hydlunw5u.cloudfront.net/dashboard"
+		redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
+		if redirectURL == "" {
+			redirectURL = "https://d595hydlunw5u.cloudfront.net/dashboard"
+		}
 		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
 			"sessionId":    sessionID,
 			"redirectUrl": redirectURL,
