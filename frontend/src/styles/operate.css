@@ -1,0 +1,465 @@
+/* styles/operate.css */
+/* Camunda Operate-style dark theme */
+
+:root {
+  --op-bg:          #0f1117;
+  --op-surface:     #1a1d27;
+  --op-surface-2:   #22263a;
+  --op-border:      #2e3348;
+  --op-text:        #e2e5f0;
+  --op-text-muted:  #7c85a2;
+  --op-blue:        #4d9ef7;
+  --op-blue-bg:     #1a2e4a;
+  --op-green:       #3ecf8e;
+  --op-green-bg:    #0d2e20;
+  --op-red:         #f5645a;
+  --op-red-bg:      #3a1515;
+  --op-gray:        #4a5068;
+  --op-gray-bg:     #1e2130;
+  --op-sidebar-w:   220px;
+  --op-radius:      6px;
+  --op-font:        'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-family: var(--op-font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.operate-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.operate-sidebar {
+  width: var(--op-sidebar-w);
+  background: var(--op-surface);
+  border-right: 1px solid var(--op-border);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+}
+
+.operate-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--op-border);
+  color: var(--op-text);
+}
+
+.operate-sidebar-logo {
+  font-size: 20px;
+}
+
+.operate-nav-link {
+  display: block;
+  padding: 11px 16px;
+  color: var(--op-text-muted);
+  text-decoration: none;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+}
+
+.operate-nav-link:hover {
+  color: var(--op-text);
+  background: var(--op-surface-2);
+}
+
+.operate-nav-link--active {
+  color: var(--op-blue);
+  border-left-color: var(--op-blue);
+  background: var(--op-blue-bg);
+}
+
+.operate-main {
+  margin-left: var(--op-sidebar-w);
+  flex: 1;
+  padding: 28px 32px;
+  min-height: 100vh;
+}
+
+/* ── Page ────────────────────────────────────────────────────────────────── */
+
+.operate-page {
+  max-width: 1200px;
+}
+
+.operate-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.operate-page-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.operate-subtitle {
+  color: var(--op-text-muted);
+  font-weight: 400;
+  font-size: 16px;
+}
+
+.operate-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.operate-back {
+  background: none;
+  border: none;
+  color: var(--op-text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.operate-back:hover { color: var(--op-text); }
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+
+.operate-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.operate-filters select,
+.operate-filters input {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  color: var(--op-text);
+  padding: 7px 12px;
+  border-radius: var(--op-radius);
+  font-size: 13px;
+  outline: none;
+}
+
+.operate-filters select:focus,
+.operate-filters input:focus {
+  border-color: var(--op-blue);
+}
+
+/* ── Table ───────────────────────────────────────────────────────────────── */
+
+.operate-table-wrapper {
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius);
+  overflow: hidden;
+}
+
+.operate-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.operate-table th {
+  background: var(--op-surface);
+  color: var(--op-text-muted);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--op-border);
+}
+
+.operate-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--op-border);
+  vertical-align: middle;
+}
+
+.operate-table tr:last-child td {
+  border-bottom: none;
+}
+
+.operate-table tbody tr {
+  background: var(--op-bg);
+  transition: background 0.1s;
+}
+
+.operate-table tbody tr:hover {
+  background: var(--op-surface-2);
+}
+
+.operate-row--clickable {
+  cursor: pointer;
+}
+
+.operate-process-id {
+  display: block;
+  font-weight: 500;
+  color: var(--op-text);
+}
+
+.operate-resource-name {
+  display: block;
+  font-size: 12px;
+  color: var(--op-text-muted);
+}
+
+.operate-error-msg {
+  color: var(--op-red);
+  font-size: 13px;
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.operate-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.operate-badge--blue   { background: var(--op-blue-bg);  color: var(--op-blue);  }
+.operate-badge--green  { background: var(--op-green-bg); color: var(--op-green); }
+.operate-badge--red    { background: var(--op-red-bg);   color: var(--op-red);   }
+.operate-badge--gray   { background: var(--op-gray-bg);  color: var(--op-text-muted); }
+.operate-badge--sm     { padding: 1px 5px; font-size: 11px; margin-left: 6px; }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.operate-btn {
+  background: var(--op-surface-2);
+  border: 1px solid var(--op-border);
+  color: var(--op-text);
+  padding: 7px 14px;
+  border-radius: var(--op-radius);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.operate-btn:hover {
+  background: var(--op-surface);
+  border-color: var(--op-blue);
+  color: var(--op-blue);
+}
+
+.operate-btn--sm {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.operate-btn--danger {
+  border-color: var(--op-red);
+  color: var(--op-red);
+  background: var(--op-red-bg);
+}
+
+.operate-btn--danger:hover {
+  background: var(--op-red);
+  color: #fff;
+}
+
+.operate-btn--success {
+  border-color: var(--op-green);
+  color: var(--op-green);
+  background: var(--op-green-bg);
+}
+
+.operate-btn--success:hover {
+  background: var(--op-green);
+  color: #000;
+}
+
+.operate-link {
+  background: none;
+  border: none;
+  color: var(--op-blue);
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* ── Meta Row ────────────────────────────────────────────────────────────── */
+
+.operate-meta-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  border-radius: var(--op-radius);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.operate-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.operate-meta-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--op-text-muted);
+}
+
+.operate-meta-value {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.operate-meta-value--danger { color: var(--op-red); }
+
+/* ── Tabs ────────────────────────────────────────────────────────────────── */
+
+.operate-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--op-border);
+  margin-bottom: 20px;
+}
+
+.operate-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--op-text-muted);
+  padding: 10px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-bottom: -1px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.operate-tab:hover { color: var(--op-text); }
+
+.operate-tab--active {
+  color: var(--op-blue);
+  border-bottom-color: var(--op-blue);
+}
+
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+
+.operate-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  color: var(--op-text-muted);
+  font-size: 13px;
+}
+
+.operate-pagination button {
+  background: var(--op-surface);
+  border: 1px solid var(--op-border);
+  color: var(--op-text);
+  padding: 6px 12px;
+  border-radius: var(--op-radius);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.operate-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+
+.operate-toast {
+  background: var(--op-surface-2);
+  border: 1px solid var(--op-green);
+  color: var(--op-green);
+  padding: 10px 16px;
+  border-radius: var(--op-radius);
+  margin-bottom: 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* ── States ──────────────────────────────────────────────────────────────── */
+
+.operate-loading {
+  color: var(--op-text-muted);
+  padding: 40px 0;
+  text-align: center;
+}
+
+.operate-error {
+  color: var(--op-red);
+  padding: 40px 0;
+  text-align: center;
+}
+
+.operate-empty {
+  color: var(--op-text-muted);
+  padding: 24px 0;
+  text-align: center;
+}
+
+.operate-empty--large {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 80px 0;
+  font-size: 15px;
+}
+
+.operate-empty--large span {
+  font-size: 40px;
+  color: var(--op-green);
+}
+
+/* ── Code ────────────────────────────────────────────────────────────────── */
+
+code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  background: var(--op-surface-2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--op-blue);
+}
+
+.operate-value {
+  color: var(--op-green);
+  max-width: 300px;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}

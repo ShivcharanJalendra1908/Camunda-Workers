@@ -1,0 +1,47 @@
+# deployments/docker/Dockerfile.operate
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first (better layer caching)
+COPY frontend/package*.json ./
+RUN npm ci --frozen-lockfile
+
+# Copy source and build
+COPY frontend/ .
+
+# VITE_API_URL is injected at build time via ARG
+# In ECR/ECS this comes from your build pipeline
+ARG VITE_API_URL=https://us-dev-api.lemici.com
+ENV VITE_API_URL=$VITE_API_URL
+
+RUN npm run build
+
+# ── Stage 2: Serve ────────────────────────────────────────────────────────────
+FROM nginx:1.25-alpine
+
+# Remove default nginx config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy our nginx config
+COPY deployments/docker/nginx.operate.conf /etc/nginx/conf.d/default.conf
+
+# Copy built React app
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Non-root user for security
+RUN addgroup -g 1001 -S nginx-app && \
+    adduser -S -D -H -u 1001 -h /var/cache/nginx -s /sbin/nologin -G nginx-app -g nginx-app nginx-app && \
+    chown -R nginx-app:nginx-app /usr/share/nginx/html && \
+    chown -R nginx-app:nginx-app /var/cache/nginx && \
+    chown -R nginx-app:nginx-app /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown nginx-app:nginx-app /var/run/nginx.pid
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost/health || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]

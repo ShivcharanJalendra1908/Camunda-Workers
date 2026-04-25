@@ -1,0 +1,40 @@
+{
+    "mappings": {
+        "properties": {
+            "processInstanceKey": {
+                "type": "long"
+            },
+            "processDefinitionKey": {
+                "type": "long"
+            },
+            "bpmnProcessId": {
+                "type": "keyword"
+            },
+            "version": {
+                "type": "integer"
+            },
+            "state": {
+                "type": "keyword"
+            },
+            "hasIncident": {
+                "type": "boolean"
+            },
+            "startTime": {
+                "type": "date"
+            },
+            "endTime": {
+                "type": "date"
+            },
+            "parentInstanceKey": {
+                "type": "long"
+            },
+            "tenantId": {
+                "type": "keyword"
+            }
+        }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+    }
+}

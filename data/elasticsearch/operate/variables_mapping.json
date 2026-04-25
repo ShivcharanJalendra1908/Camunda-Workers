@@ -1,0 +1,36 @@
+{
+    "mappings": {
+        "properties": {
+            "variableKey": {
+                "type": "long"
+            },
+            "processInstanceKey": {
+                "type": "long"
+            },
+            "scopeKey": {
+                "type": "long"
+            },
+            "name": {
+                "type": "keyword"
+            },
+            "value": {
+                "type": "text",
+                "fields": {
+                    "raw": {
+                        "type": "keyword"
+                    }
+                }
+            },
+            "truncated": {
+                "type": "boolean"
+            },
+            "tenantId": {
+                "type": "keyword"
+            }
+        }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+    }
+}

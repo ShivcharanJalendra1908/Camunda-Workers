@@ -1,0 +1,46 @@
+{
+    "mappings": {
+        "properties": {
+            "jobKey": {
+                "type": "long"
+            },
+            "processInstanceKey": {
+                "type": "long"
+            },
+            "processDefinitionKey": {
+                "type": "long"
+            },
+            "bpmnProcessId": {
+                "type": "keyword"
+            },
+            "elementId": {
+                "type": "keyword"
+            },
+            "jobType": {
+                "type": "keyword"
+            },
+            "state": {
+                "type": "keyword"
+            },
+            "retries": {
+                "type": "integer"
+            },
+            "worker": {
+                "type": "keyword"
+            },
+            "deadline": {
+                "type": "date"
+            },
+            "errorMessage": {
+                "type": "text"
+            },
+            "errorCode": {
+                "type": "keyword"
+            }
+        }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+    }
+}

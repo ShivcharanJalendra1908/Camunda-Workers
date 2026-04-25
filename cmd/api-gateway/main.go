@@ -19,6 +19,10 @@ import (
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
 
+	operateactions "camunda-workers/internal/workers/operate/actions"
+	operatequeries "camunda-workers/internal/workers/operate/queries"
+	operatews "camunda-workers/internal/workers/operate/ws"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -214,6 +218,27 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), log)
 
+	// ============================================================================
+	// Operate Live-Monitoring (WebSocket + Queries + Actions)
+	// ============================================================================
+	// Context for Operate background tasks (Poller)
+	operateCtx, operateCancel := context.WithCancel(context.Background())
+	defer operateCancel()
+
+	// 1. WebSocket hub (must start before handler registration)
+	wsHub := operatews.NewHub()
+
+	// 2. ES poller — polls every 3 seconds, broadcasts to WS clients
+	poller := operatews.NewPoller(esClient.Client, wsHub, 3*time.Second)
+	go poller.Run(operateCtx)
+
+	// 3. Services
+	operateQuerySvc := operatequeries.NewOperateQueryService(esClient.Client)
+	operateActionSvc := operateactions.NewOperateActionService(camundaClient.GetClient())
+
+	// 4. Handler
+	operateHandler := handlers.NewOperateHandler(operateQuerySvc, operateActionSvc, wsHub)
+
 	router.GET("/debug/response-handler", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"connected":         franchiseHandler != nil,
@@ -395,6 +420,15 @@ func main() {
 		// ERROR HANDLING WORKFLOW
 		// ========================================================================
 		protectedAPI.POST("/error/handle", workflowHandler.StartErrorHandling)
+	}
+
+
+	// ============================================================================
+	// OPERATE LIVE-MONITORING ROUTES
+	// ============================================================================
+	operateGroup := router.Group("/operate")
+	{
+		operateHandler.RegisterRoutes(operateGroup)
 	}
 
 	// ============================================================================

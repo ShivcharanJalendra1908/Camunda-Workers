@@ -1,0 +1,28 @@
+{
+    "mappings": {
+        "properties": {
+            "processDefinitionKey": {
+                "type": "long"
+            },
+            "bpmnProcessId": {
+                "type": "keyword"
+            },
+            "version": {
+                "type": "integer"
+            },
+            "resourceName": {
+                "type": "keyword"
+            },
+            "deployedAt": {
+                "type": "date"
+            },
+            "tenantId": {
+                "type": "keyword"
+            }
+        }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+    }
+}
