@@ -27,6 +27,7 @@ api:
       - "https://d3c34598mt7qdx.cloudfront.net"
       - "https://lemici.com"
       - "https://d595hydlunw5u.cloudfront.net"
+      - "http://34.224.27.158:3005"
     allowMethods:
       - "GET"
       - "POST"

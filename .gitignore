@@ -4,4 +4,4 @@ deployments/docker/ollama/*.gguf
 /arms_cache/*
 /.vscode/*
 /docs/kintesh_plan/*
-/local-testing/*
+/local-testing/**.swp

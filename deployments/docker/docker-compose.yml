@@ -181,7 +181,7 @@ services:
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
       SPRING_PROFILES_ACTIVE: dev
 
-      CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: false
+      CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: "false"
       CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
       CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
       CAMUNDA_OPERATE_ELASTICSEARCH_REQUESTTIMEOUT: 10000
@@ -416,7 +416,7 @@ services:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/operate-ui:latest
     container_name: operate-ui
     ports:
-      - "3001:80"
+      - "3005:80"
     depends_on:
       api-gateway:
         condition: service_healthy
