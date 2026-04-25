@@ -17,7 +17,7 @@ auth:
     issuer: "https://us-dev-api.lemici.com/realms/camunda-platform"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     clientId: "lemici-frontend"
     # redirectUrl: "http://localhost:3000/callback"
-    redirectUrl: "https://d595hydlunw5u.cloudfront.net/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
+    redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
     publicBaseUrl: "https://us-dev-api.lemici.com"    # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     # post_logout_redirect_uri: "http://localhost:3000/login"
     post_logout_redirect_uri: "https://d595hydlunw5u.cloudfront.net/"  # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES
