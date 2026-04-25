@@ -413,18 +413,16 @@ services:
       - camunda-network
 
   operate-ui:
-    build:
-      context: ../../frontend
-      dockerfile: ../deployments/docker/Dockerfile.operate
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/operate-ui:latest
     container_name: operate-ui
     ports:
-      - "3000:80"
+      - "3001:80"
     depends_on:
       api-gateway:
         condition: service_healthy
     networks:
       - camunda-network
-    restart: unless-stopped
+    restart: on-failure:3
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
       interval: 30s
