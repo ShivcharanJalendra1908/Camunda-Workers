@@ -33,10 +33,12 @@ func NewOperateHandler(
 func (h *OperateHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	// Deployed processes
 	rg.GET("/processes", h.ListProcesses)
+	rg.GET("/processes/:key/xml", h.GetProcessXML)
 
 	// Process instances
 	rg.GET("/instances", h.ListInstances)
 	rg.GET("/instances/:key", h.GetInstance)
+	rg.GET("/instances/:key/element-instances", h.GetElementInstances)
 	rg.POST("/instances/:key/cancel", h.CancelInstance)
 	rg.POST("/instances/:key/modify", h.ModifyInstance)
 
@@ -83,6 +85,24 @@ func (h *OperateHandler) ListProcesses(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"items": processes, "totalCount": len(processes)})
+}
+
+// GetProcessXML GET /operate/processes/:key/xml
+// Returns raw BPMN XML for rendering in bpmn-js viewer
+func (h *OperateHandler) GetProcessXML(c *gin.Context) {
+	key, err := parseKey(c, "key")
+	if err != nil {
+		return
+	}
+
+	xml, err := h.q.GetProcessXML(c.Request.Context(), key)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("Content-Type", "application/xml")
+	c.String(http.StatusOK, xml)
 }
 
 // ── Process Instances ─────────────────────────────────────────────────────────
@@ -150,6 +170,22 @@ func (h *OperateHandler) ModifyInstance(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "instance modified"})
+}
+
+// GetElementInstances GET /operate/instances/:key/element-instances
+// Returns all active/completed element instances for token overlay
+func (h *OperateHandler) GetElementInstances(c *gin.Context) {
+	key, err := parseKey(c, "key")
+	if err != nil {
+		return
+	}
+
+	elements, err := h.q.GetElementInstances(c.Request.Context(), key)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": elements})
 }
 
 // ── Variables ─────────────────────────────────────────────────────────────────

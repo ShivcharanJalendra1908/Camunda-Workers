@@ -3,6 +3,7 @@ package queries
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -170,7 +171,9 @@ func (s *OperateQueryService) CountInstancesByProcess(
 		body, _ := json.Marshal(q)
 		res, e := s.es.Count(s.es.Count.WithContext(ctx), s.es.Count.WithIndex(IndexProcessInstances), s.es.Count.WithBody(bytes.NewReader(body)))
 		if e == nil {
-			var cr struct{ Count int64 `json:"count"` }
+			var cr struct {
+				Count int64 `json:"count"`
+			}
 			json.NewDecoder(res.Body).Decode(&cr)
 			res.Body.Close()
 			active += cr.Count
@@ -191,7 +194,9 @@ func (s *OperateQueryService) CountInstancesByProcess(
 	body, _ := json.Marshal(cq)
 	res, e := s.es.Count(s.es.Count.WithContext(ctx), s.es.Count.WithIndex(IndexProcessInstances), s.es.Count.WithBody(bytes.NewReader(body)))
 	if e == nil {
-		var cr struct{ Count int64 `json:"count"` }
+		var cr struct {
+			Count int64 `json:"count"`
+		}
 		json.NewDecoder(res.Body).Decode(&cr)
 		res.Body.Close()
 		completed = cr.Count
@@ -210,7 +215,9 @@ func (s *OperateQueryService) CountInstancesByProcess(
 	body, _ = json.Marshal(iq)
 	res, e = s.es.Count(s.es.Count.WithContext(ctx), s.es.Count.WithIndex(IndexIncidents), s.es.Count.WithBody(bytes.NewReader(body)))
 	if e == nil {
-		var cr struct{ Count int64 `json:"count"` }
+		var cr struct {
+			Count int64 `json:"count"`
+		}
 		json.NewDecoder(res.Body).Decode(&cr)
 		res.Body.Close()
 		withIncident = cr.Count
@@ -253,7 +260,9 @@ func (s *OperateQueryService) ListDeployedProcesses(ctx context.Context) ([]mode
 				Buckets []struct {
 					Latest struct {
 						Hits struct {
-							Hits []struct{ Source json.RawMessage `json:"_source"` } `json:"hits"`
+							Hits []struct {
+								Source json.RawMessage `json:"_source"`
+							} `json:"hits"`
 						} `json:"hits"`
 					} `json:"latest"`
 				} `json:"buckets"`
@@ -549,7 +558,209 @@ func intentToIncidentState(intent string) models.IncidentState {
 
 type esHitsResponse struct {
 	Hits struct {
-		Total struct{ Value int64 `json:"value"` } `json:"total"`
-		Hits  []struct{ Source json.RawMessage `json:"_source"` } `json:"hits"`
+		Total struct {
+			Value int64 `json:"value"`
+		} `json:"total"`
+		Hits []struct {
+			Source json.RawMessage `json:"_source"`
+		} `json:"hits"`
 	} `json:"hits"`
+}
+
+// ADD THESE METHODS to internal/workers/operate/queries/queries.go
+
+// ElementInstance represents a BPMN element's execution state
+// Used for token overlay on BPMN diagram
+type ElementInstance struct {
+	ElementID   string `json:"elementId"`
+	ElementType string `json:"elementType"`
+	State       string `json:"state"` // ACTIVE, COMPLETED, TERMINATED, INCIDENT
+	InstanceKey int64  `json:"instanceKey"`
+}
+
+// GetProcessXML fetches the raw BPMN XML from Zeebe exporter records.
+// Zeebe stores it in zeebe-record_process_* as value.resource (base64 encoded).
+func (s *OperateQueryService) GetProcessXML(
+	ctx context.Context,
+	processDefinitionKey int64,
+) (string, error) {
+	query := map[string]interface{}{
+		"size": 1,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []map[string]interface{}{
+					{"term": map[string]interface{}{"value.processDefinitionKey": processDefinitionKey}},
+					{"term": map[string]interface{}{"valueType": "PROCESS"}},
+				},
+			},
+		},
+		"sort": []map[string]interface{}{
+			{"timestamp": map[string]interface{}{"order": "desc"}},
+		},
+	}
+
+	body, _ := json.Marshal(query)
+	res, err := s.es.Search(
+		s.es.Search.WithContext(ctx),
+		s.es.Search.WithIndex(IndexDeployments),
+		s.es.Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return "", fmt.Errorf("get process xml: %w", err)
+	}
+	defer res.Body.Close()
+
+	var esResp esHitsResponse
+	if err := json.NewDecoder(res.Body).Decode(&esResp); err != nil {
+		return "", err
+	}
+	if len(esResp.Hits.Hits) == 0 {
+		return "", fmt.Errorf("process definition %d not found", processDefinitionKey)
+	}
+
+	// Zeebe stores resource as base64 in value.resource
+	var rec struct {
+		Value struct {
+			Resource     string `json:"resource"` // base64 encoded BPMN XML
+			ResourceName string `json:"resourceName"`
+		} `json:"value"`
+	}
+	if err := json.Unmarshal(esResp.Hits.Hits[0].Source, &rec); err != nil {
+		return "", err
+	}
+
+	// Decode base64 BPMN XML
+	xmlBytes, err := base64.StdEncoding.DecodeString(rec.Value.Resource)
+	if err != nil {
+		// Maybe it's already plain XML
+		return rec.Value.Resource, nil
+	}
+	return string(xmlBytes), nil
+}
+
+// GetElementInstances returns all element execution records for a process instance.
+// Used to draw token overlays on BPMN diagram.
+func (s *OperateQueryService) GetElementInstances(
+	ctx context.Context,
+	instanceKey int64,
+) ([]ElementInstance, error) {
+	query := map[string]interface{}{
+		"size": 500,
+		"query": map[string]interface{}{
+			"term": map[string]interface{}{
+				"value.processInstanceKey": instanceKey,
+			},
+		},
+		"sort": []map[string]interface{}{
+			{"timestamp": map[string]interface{}{"order": "asc"}},
+		},
+	}
+
+	body, _ := json.Marshal(query)
+	res, err := s.es.Search(
+		s.es.Search.WithContext(ctx),
+		s.es.Search.WithIndex(IndexProcessInstances),
+		s.es.Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get element instances: %w", err)
+	}
+	defer res.Body.Close()
+
+	var esResp esHitsResponse
+	if err := json.NewDecoder(res.Body).Decode(&esResp); err != nil {
+		return nil, err
+	}
+
+	// Track latest state per elementId
+	elementStates := map[string]*ElementInstance{}
+
+	for _, hit := range esResp.Hits.Hits {
+		var rec struct {
+			Key    int64  `json:"key"`
+			Intent string `json:"intent"`
+			Value  struct {
+				ElementID       string `json:"elementId"`
+				BpmnElementType string `json:"bpmnElementType"`
+			} `json:"value"`
+		}
+		if err := json.Unmarshal(hit.Source, &rec); err != nil {
+			continue
+		}
+
+		state := intentToElementState(rec.Intent)
+		elementStates[rec.Value.ElementID] = &ElementInstance{
+			ElementID:   rec.Value.ElementID,
+			ElementType: rec.Value.BpmnElementType,
+			State:       state,
+			InstanceKey: rec.Key,
+		}
+	}
+
+	// Also check incidents for this instance
+	incidentElements := s.getIncidentElementIDs(ctx, instanceKey)
+	for _, elemID := range incidentElements {
+		if el, ok := elementStates[elemID]; ok {
+			el.State = "INCIDENT"
+		}
+	}
+
+	result := make([]ElementInstance, 0, len(elementStates))
+	for _, el := range elementStates {
+		result = append(result, *el)
+	}
+	return result, nil
+}
+
+func (s *OperateQueryService) getIncidentElementIDs(ctx context.Context, instanceKey int64) []string {
+	query := map[string]interface{}{
+		"size": 50,
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": []map[string]interface{}{
+					{"term": map[string]interface{}{"value.processInstanceKey": instanceKey}},
+					{"term": map[string]interface{}{"intent": "CREATED"}},
+				},
+			},
+		},
+	}
+	body, _ := json.Marshal(query)
+	res, err := s.es.Search(
+		s.es.Search.WithContext(ctx),
+		s.es.Search.WithIndex(IndexIncidents),
+		s.es.Search.WithBody(bytes.NewReader(body)),
+	)
+	if err != nil {
+		return nil
+	}
+	defer res.Body.Close()
+
+	var esResp esHitsResponse
+	json.NewDecoder(res.Body).Decode(&esResp)
+
+	ids := make([]string, 0)
+	for _, hit := range esResp.Hits.Hits {
+		var rec struct {
+			Value struct {
+				ElementID string `json:"elementId"`
+			} `json:"value"`
+		}
+		if err := json.Unmarshal(hit.Source, &rec); err == nil {
+			ids = append(ids, rec.Value.ElementID)
+		}
+	}
+	return ids
+}
+
+func intentToElementState(intent string) string {
+	switch intent {
+	case "ELEMENT_COMPLETED":
+		return "COMPLETED"
+	case "ELEMENT_TERMINATED":
+		return "TERMINATED"
+	case "ELEMENT_ACTIVATING", "ELEMENT_ACTIVATED":
+		return "ACTIVE"
+	default:
+		return "COMPLETED"
+	}
 }

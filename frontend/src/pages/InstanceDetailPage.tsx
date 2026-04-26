@@ -1,5 +1,7 @@
-// pages/InstanceDetailPage.tsx
-import { useEffect, useState } from 'react'
+// frontend/src/pages/InstanceDetailPage.tsx
+// REPLACE existing file with this — adds BPMN diagram tab
+
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   getInstance, listVariables, listJobs,
@@ -8,19 +10,24 @@ import {
 import { useOperateWS } from '../hooks/useOperateWS'
 import type { ProcessInstance, Variable, Job, Incident } from '../types/operate'
 
-type Tab = 'variables' | 'jobs' | 'incidents'
+// Lazy load bpmn-js (large library)
+const BpmnViewer = lazy(() => import('../components/BpmnViewer'))
+
+type Tab = 'diagram' | 'variables' | 'jobs' | 'incidents'
+
+const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 export default function InstanceDetailPage() {
   const { key } = useParams<{ key: string }>()
   const instanceKey = Number(key)
   const navigate = useNavigate()
 
-  const [instance,  setInstance]  = useState<ProcessInstance | null>(null)
+  const [instance, setInstance] = useState<ProcessInstance | null>(null)
   const [variables, setVariables] = useState<Variable[]>([])
-  const [jobs,      setJobs]      = useState<Job[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
-  const [tab,       setTab]       = useState<Tab>('variables')
-  const [loading,   setLoading]   = useState(true)
+  const [tab, setTab] = useState<Tab>('diagram')
+  const [loading, setLoading] = useState(true)
   const [actionMsg, setActionMsg] = useState<string | null>(null)
 
   useEffect(() => {
@@ -37,11 +44,10 @@ export default function InstanceDetailPage() {
     }).finally(() => setLoading(false))
   }, [instanceKey])
 
-  // Refresh incidents on WS event
   useOperateWS({
-    INCIDENT_CREATED:  () => listInstanceIncidents(instanceKey).then(r => setIncidents(r.items)),
+    INCIDENT_CREATED: () => listInstanceIncidents(instanceKey).then(r => setIncidents(r.items)),
     INCIDENT_RESOLVED: () => listInstanceIncidents(instanceKey).then(r => setIncidents(r.items)),
-    INSTANCE_UPDATED:  () => getInstance(instanceKey).then(setInstance),
+    INSTANCE_UPDATED: () => getInstance(instanceKey).then(setInstance),
   })
 
   const handleCancel = async () => {
@@ -65,7 +71,7 @@ export default function InstanceDetailPage() {
     setActionMsg(`Retries updated to ${n}.`)
   }
 
-  if (loading)   return <div className="operate-loading">Loading instance...</div>
+  if (loading) return <div className="operate-loading">Loading instance...</div>
   if (!instance) return <div className="operate-error">Instance not found.</div>
 
   return (
@@ -95,15 +101,15 @@ export default function InstanceDetailPage() {
 
       {/* Meta */}
       <div className="operate-meta-row">
-        <MetaItem label="Started"    value={new Date(instance.startTime).toLocaleString()} />
-        <MetaItem label="Version"    value={`v${instance.version}`} />
+        <MetaItem label="Started" value={new Date(instance.startTime).toLocaleString()} />
+        <MetaItem label="Version" value={`v${instance.version}`} />
         {instance.endTime && <MetaItem label="Ended" value={new Date(instance.endTime).toLocaleString()} />}
-        <MetaItem label="Incidents"  value={String(incidents.length)} danger={incidents.length > 0} />
+        <MetaItem label="Incidents" value={String(incidents.length)} danger={incidents.length > 0} />
       </div>
 
       {/* Tabs */}
       <div className="operate-tabs">
-        {(['variables', 'jobs', 'incidents'] as Tab[]).map(t => (
+        {(['diagram', 'variables', 'jobs', 'incidents'] as Tab[]).map(t => (
           <button
             key={t}
             className={`operate-tab ${tab === t ? 'operate-tab--active' : ''}`}
@@ -118,15 +124,21 @@ export default function InstanceDetailPage() {
       </div>
 
       {/* Tab content */}
-      {tab === 'variables' && (
-        <VariablesTab variables={variables} />
+      {tab === 'diagram' && (
+        <div style={{ height: '500px', border: '1px solid var(--op-border)', borderRadius: 6, overflow: 'hidden' }}>
+          <Suspense fallback={<div className="operate-loading">Loading diagram...</div>}>
+            <BpmnViewer
+              processDefinitionKey={instance.processDefinitionKey}
+              processInstanceKey={instanceKey}
+              apiBase={API_BASE}
+            />
+          </Suspense>
+        </div>
       )}
-      {tab === 'jobs' && (
-        <JobsTab jobs={jobs} onRetries={handleRetries} />
-      )}
-      {tab === 'incidents' && (
-        <IncidentsTab incidents={incidents} onResolve={handleResolve} />
-      )}
+
+      {tab === 'variables' && <VariablesTab variables={variables} />}
+      {tab === 'jobs' && <JobsTab jobs={jobs} onRetries={handleRetries} />}
+      {tab === 'incidents' && <IncidentsTab incidents={incidents} onResolve={handleResolve} />}
     </div>
   )
 }
@@ -170,14 +182,12 @@ function JobsTab({ jobs, onRetries }: { jobs: Job[]; onRetries: (key: number) =>
           <tr key={j.jobKey}>
             <td>{j.elementId}</td>
             <td><code>{j.jobType}</code></td>
-            <td><JobStateTag state={j.state} /></td>
+            <td><span className={`operate-badge operate-badge--${j.state === 'FAILED' ? 'red' : j.state === 'COMPLETED' ? 'green' : 'blue'}`}>{j.state}</span></td>
             <td>{j.retries}</td>
             <td className="operate-error-msg">{j.errorMessage}</td>
             <td>
               {j.state === 'FAILED' && (
-                <button className="operate-btn operate-btn--sm" onClick={() => onRetries(j.jobKey)}>
-                  Set retries
-                </button>
+                <button className="operate-btn operate-btn--sm" onClick={() => onRetries(j.jobKey)}>Set retries</button>
               )}
             </td>
           </tr>
@@ -213,10 +223,5 @@ function IncidentsTab({ incidents, onResolve }: { incidents: Incident[]; onResol
 
 function StateTag({ state }: { state: string }) {
   const map: Record<string, string> = { ACTIVE: 'blue', COMPLETED: 'green', CANCELED: 'gray' }
-  return <span className={`operate-badge operate-badge--${map[state] ?? 'gray'}`}>{state}</span>
-}
-
-function JobStateTag({ state }: { state: string }) {
-  const map: Record<string, string> = { FAILED: 'red', COMPLETED: 'green', ACTIVATED: 'blue', ACTIVATABLE: 'gray' }
   return <span className={`operate-badge operate-badge--${map[state] ?? 'gray'}`}>{state}</span>
 }
