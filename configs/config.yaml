@@ -81,7 +81,7 @@ auth:
     cookieName: "session_id"
     secure: true
     httpOnly: true
-    sameSite: "Lax"
+    sameSite: "None"
 
 # ============================================================================
 # CAMUNDA/ZEEBE CONFIGURATION
