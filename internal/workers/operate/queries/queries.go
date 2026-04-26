@@ -58,10 +58,18 @@ func (s *OperateQueryService) ListProcessInstances(
 			"bool": map[string]interface{}{"must": must},
 		},
 		"sort": []map[string]interface{}{
+			{"value.processInstanceKey": map[string]interface{}{"order": "desc"}},
 			{"timestamp": map[string]interface{}{"order": "desc"}},
 		},
 		"collapse": map[string]interface{}{
 			"field": "value.processInstanceKey",
+			"inner_hits": map[string]interface{}{
+				"name": "latest",
+				"size": 1,
+				"sort": []map[string]interface{}{
+					{"timestamp": map[string]interface{}{"order": "desc"}},
+				},
+			},
 		},
 	}
 
@@ -84,7 +92,16 @@ func (s *OperateQueryService) ListProcessInstances(
 
 	items := make([]models.ProcessInstance, 0, len(esResp.Hits.Hits))
 	for _, hit := range esResp.Hits.Hits {
+		// Use inner_hits latest record for correct state
 		var rec zeebeProcessInstanceRecord
+		if hit.InnerHits != nil {
+			if latest, ok := hit.InnerHits["latest"]; ok && len(latest.Hits.Hits) > 0 {
+				if err := json.Unmarshal(latest.Hits.Hits[0].Source, &rec); err == nil {
+					items = append(items, rec.toModel())
+					continue
+				}
+			}
+		}
 		if err := json.Unmarshal(hit.Source, &rec); err == nil {
 			items = append(items, rec.toModel())
 		}
@@ -561,6 +578,15 @@ type esHitsResponse struct {
 		Total struct {
 			Value int64 `json:"value"`
 		} `json:"total"`
+		Hits []struct {
+			Source    json.RawMessage        `json:"_source"`
+			InnerHits map[string]esInnerHits `json:"inner_hits"`
+		} `json:"hits"`
+	} `json:"hits"`
+}
+
+type esInnerHits struct {
+	Hits struct {
 		Hits []struct {
 			Source json.RawMessage `json:"_source"`
 		} `json:"hits"`
