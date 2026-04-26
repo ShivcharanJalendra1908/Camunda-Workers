@@ -61,14 +61,14 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
                 }
 
                 // Create new viewer
-                const viewer = new BpmnJS({ container: containerRef.current })
+                const viewer = new BpmnJS({ container: containerRef.current as HTMLElement })
                 viewerRef.current = viewer
 
                 // Import XML
                 await viewer.importXML(xml)
 
                 // Fit to canvas
-                const canvas = viewer.get('canvas')
+                const canvas = viewer.get('canvas') as any
                 canvas.zoom('fit-viewport', 'auto')
 
                 setLoading(false)
@@ -103,7 +103,6 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
         if (!viewerRef.current || elements.length === 0) return
 
         try {
-            const canvas = viewerRef.current.get('canvas')
             const elementRegistry = viewerRef.current.get('elementRegistry')
             const modeling = viewerRef.current.get('modeling')
 
