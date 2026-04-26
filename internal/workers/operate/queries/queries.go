@@ -47,7 +47,9 @@ func (s *OperateQueryService) ListProcessInstances(
 		// Only take terminal or active intents — ignore intermediate ones
 		{"terms": map[string]interface{}{"intent": []string{
 			"ELEMENT_ACTIVATING",
+			"ELEMENT_COMPLETING",
 			"ELEMENT_COMPLETED",
+			"ELEMENT_TERMINATING",
 			"ELEMENT_TERMINATED",
 		}}},
 	}
@@ -80,6 +82,7 @@ func (s *OperateQueryService) ListProcessInstances(
 							"size": 1,
 							"sort": []map[string]interface{}{
 								{"timestamp": map[string]interface{}{"order": "desc"}},
+								{"position": map[string]interface{}{"order": "desc"}},
 							},
 						},
 					},
@@ -187,6 +190,7 @@ func (s *OperateQueryService) GetProcessInstance(
 		},
 		"sort": []map[string]interface{}{
 			{"timestamp": map[string]interface{}{"order": "desc"}},
+			{"position": map[string]interface{}{"order": "desc"}},
 		},
 	}
 	body, _ := json.Marshal(query)
@@ -558,6 +562,7 @@ type zeebeProcessInstanceRecord struct {
 	Key       int64  `json:"key"`
 	Intent    string `json:"intent"`
 	Timestamp int64  `json:"timestamp"`
+	Position  int64  `json:"position"`
 	Value     struct {
 		ProcessInstanceKey   int64  `json:"processInstanceKey"`
 		ProcessDefinitionKey int64  `json:"processDefinitionKey"`
@@ -582,7 +587,8 @@ func (r *zeebeProcessInstanceRecord) toModel() models.ProcessInstance {
 	if r.Value.ParentInstanceKey > 0 {
 		pi.ParentInstanceKey = &r.Value.ParentInstanceKey
 	}
-	if r.Intent == "ELEMENT_COMPLETED" || r.Intent == "ELEMENT_TERMINATED" {
+	if r.Intent == "ELEMENT_COMPLETED" || r.Intent == "ELEMENT_COMPLETING" ||
+		r.Intent == "ELEMENT_TERMINATED" || r.Intent == "ELEMENT_TERMINATING" {
 		pi.EndTime = &ts
 	}
 	return pi
@@ -590,9 +596,9 @@ func (r *zeebeProcessInstanceRecord) toModel() models.ProcessInstance {
 
 func intentToInstanceState(intent string) models.ProcessInstanceState {
 	switch intent {
-	case "ELEMENT_COMPLETED":
+	case "ELEMENT_COMPLETED", "ELEMENT_COMPLETING":
 		return models.ProcessInstanceCompleted
-	case "ELEMENT_TERMINATED":
+	case "ELEMENT_TERMINATED", "ELEMENT_TERMINATING":
 		return models.ProcessInstanceCanceled
 	default:
 		return models.ProcessInstanceActive
