@@ -24,7 +24,7 @@ auth:
     
   session:
     secure: false  # Allow HTTP in dev
-    sameSite: "Lax"
+    sameSite: "None"
 
 logging:
   level: debug
