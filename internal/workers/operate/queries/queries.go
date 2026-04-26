@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	IndexProcessInstances = "zeebe-record_process-instance_*"
-	IndexJobs             = "zeebe-record_job_*"
-	IndexIncidents        = "zeebe-record_incident_*"
-	IndexVariables        = "zeebe-record_variable_*"
-	IndexDeployments      = "zeebe-record_process_*"
+	IndexProcessInstances = "zeebe*process-instance_*"
+	IndexJobs             = "zeebe*job_*"
+	IndexIncidents        = "zeebe*incident_*"
+	IndexVariables        = "zeebe*variable_*"
+	IndexDeployments      = "zeebe*process_*"
 )
 
 type OperateQueryService struct {
