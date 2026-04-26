@@ -44,82 +44,128 @@ func (s *OperateQueryService) ListProcessInstances(
 
 	must := []map[string]interface{}{
 		{"term": map[string]interface{}{"value.bpmnElementType": "PROCESS"}},
+		// Only take terminal or active intents — ignore intermediate ones
+		{"terms": map[string]interface{}{"intent": []string{
+			"ELEMENT_ACTIVATING",
+			"ELEMENT_COMPLETED",
+			"ELEMENT_TERMINATED",
+		}}},
 	}
+
 	if filter.BpmnProcessID != "" {
 		must = append(must, map[string]interface{}{
 			"term": map[string]interface{}{"value.bpmnProcessId": filter.BpmnProcessID},
 		})
 	}
 
-	query := map[string]interface{}{
-		"size": size,
-		"from": (page - 1) * size,
+	// Step 1: Get unique instanceKeys with their latest intent via aggregation
+	aggQuery := map[string]interface{}{
+		"size": 0,
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{"must": must},
 		},
-		"sort": []map[string]interface{}{
-			{"value.processInstanceKey": map[string]interface{}{"order": "desc"}},
-			{"timestamp": map[string]interface{}{"order": "desc"}},
-		},
-		"collapse": map[string]interface{}{
-			"field": "value.processInstanceKey",
-			"inner_hits": map[string]interface{}{
-				"name": "latest",
-				"size": 1,
-				"sort": []map[string]interface{}{
-					{"timestamp": map[string]interface{}{"order": "desc"}},
+		"aggs": map[string]interface{}{
+			"unique_instances": map[string]interface{}{
+				"terms": map[string]interface{}{
+					"field": "value.processInstanceKey",
+					"size":  10000,
+					"order": map[string]interface{}{"max_ts": "desc"},
+				},
+				"aggs": map[string]interface{}{
+					"max_ts": map[string]interface{}{
+						"max": map[string]interface{}{"field": "timestamp"},
+					},
+					"latest": map[string]interface{}{
+						"top_hits": map[string]interface{}{
+							"size": 1,
+							"sort": []map[string]interface{}{
+								{"timestamp": map[string]interface{}{"order": "desc"}},
+							},
+						},
+					},
+				},
+			},
+			"total_count": map[string]interface{}{
+				"cardinality": map[string]interface{}{
+					"field": "value.processInstanceKey",
 				},
 			},
 		},
 	}
 
-	body, _ := json.Marshal(query)
+	body, _ := json.Marshal(aggQuery)
 	res, err := s.es.Search(
 		s.es.Search.WithContext(ctx),
 		s.es.Search.WithIndex(IndexProcessInstances),
 		s.es.Search.WithBody(bytes.NewReader(body)),
-		s.es.Search.WithTrackTotalHits(true),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("es search process instances: %w", err)
+		return nil, fmt.Errorf("es agg process instances: %w", err)
 	}
 	defer res.Body.Close()
 
-	var esResp esHitsResponse
-	if err := json.NewDecoder(res.Body).Decode(&esResp); err != nil {
-		return nil, fmt.Errorf("decode process instances: %w", err)
+	var aggResp struct {
+		Aggregations struct {
+			UniqueInstances struct {
+				Buckets []struct {
+					Key    int64 `json:"key"`
+					Latest struct {
+						Hits struct {
+							Hits []struct {
+								Source json.RawMessage `json:"_source"`
+							} `json:"hits"`
+						} `json:"hits"`
+					} `json:"latest"`
+				} `json:"buckets"`
+			} `json:"unique_instances"`
+			TotalCount struct {
+				Value int64 `json:"value"`
+			} `json:"total_count"`
+		} `json:"aggregations"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&aggResp); err != nil {
+		return nil, fmt.Errorf("decode agg response: %w", err)
 	}
 
-	items := make([]models.ProcessInstance, 0, len(esResp.Hits.Hits))
-	for _, hit := range esResp.Hits.Hits {
-		// Use inner_hits latest record for correct state
+	// Build all items with correct state
+	allItems := make([]models.ProcessInstance, 0)
+	for _, bucket := range aggResp.Aggregations.UniqueInstances.Buckets {
+		if len(bucket.Latest.Hits.Hits) == 0 {
+			continue
+		}
 		var rec zeebeProcessInstanceRecord
-		if hit.InnerHits != nil {
-			if latest, ok := hit.InnerHits["latest"]; ok && len(latest.Hits.Hits) > 0 {
-				if err := json.Unmarshal(latest.Hits.Hits[0].Source, &rec); err == nil {
-					items = append(items, rec.toModel())
-					continue
-				}
-			}
-		}
-		if err := json.Unmarshal(hit.Source, &rec); err == nil {
-			items = append(items, rec.toModel())
+		if err := json.Unmarshal(bucket.Latest.Hits.Hits[0].Source, &rec); err == nil {
+			allItems = append(allItems, rec.toModel())
 		}
 	}
 
+	// Filter by state if needed
 	if filter.State != "" {
-		filtered := items[:0]
-		for _, item := range items {
+		filtered := make([]models.ProcessInstance, 0)
+		for _, item := range allItems {
 			if item.State == filter.State {
 				filtered = append(filtered, item)
 			}
 		}
-		items = filtered
+		allItems = filtered
+	}
+
+	// Manual pagination
+	total := int64(len(allItems))
+	from := (page - 1) * size
+	if from >= len(allItems) {
+		allItems = []models.ProcessInstance{}
+	} else {
+		end := from + size
+		if end > len(allItems) {
+			end = len(allItems)
+		}
+		allItems = allItems[from:end]
 	}
 
 	return &models.ProcessInstanceListResponse{
-		Items:      items,
-		TotalCount: esResp.Hits.Total.Value,
+		Items:      allItems,
+		TotalCount: total,
 		Page:       page,
 		PageSize:   size,
 	}, nil
