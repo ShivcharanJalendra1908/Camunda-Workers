@@ -1,9 +1,15 @@
 deployments/docker/ollama/*.gguf
 /arms_cache/*
 /.vscode/*
+<<<<<<< HEAD
 /docs/kintesh_plan/*
 /local-testing/**.swp
 /kintesh-local
 node_modules/
 frontend/node_modules/
 .env
+
+/.kilo
+/.opencode-context
+/.qoder
+/.idea
