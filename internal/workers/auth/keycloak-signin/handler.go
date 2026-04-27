@@ -74,10 +74,12 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 	retryDelay := 3 * time.Second
 
 	loggerInstance.Info("Initializing Keycloak provider", map[string]interface{}{
-		"issuer":     workerConfig.Issuer,
-		"clientId":   workerConfig.ClientID,
-		"maxRetries": maxRetries,
-		"retryDelay": retryDelay.String(),
+		"issuer":        workerConfig.Issuer,
+		"clientId":      workerConfig.ClientID,
+		"redirectURL":   workerConfig.RedirectURL,
+		"publicBaseURL": workerConfig.PublicBaseURL,
+		"maxRetries":    maxRetries,
+		"retryDelay":    retryDelay.String(),
 	})
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
@@ -108,7 +110,6 @@ func NewHandler(opts HandlerOptions) (*Handler, error) {
 			return nil, fmt.Errorf("failed to initialize keycloak provider after %d attempts: %w", maxRetries, err)
 		}
 	}
-
 
 	dbResolver := resolver.NewDBResolver(postgresClient)
 

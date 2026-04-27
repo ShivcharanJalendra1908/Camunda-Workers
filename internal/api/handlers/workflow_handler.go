@@ -2197,7 +2197,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,
-	 SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(c.Writer, cookie)
 
@@ -2213,7 +2213,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 		if err != nil && err != redis.Nil {
 			h.logger.Error("Failed to fetch session during login", map[string]interface{}{
 				"sessionId": sessionID,
-				"error":    err.Error(),
+				"error":     err.Error(),
 			})
 		}
 
@@ -2233,7 +2233,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 			if err := store.Update(ctx, *sess); err != nil {
 				h.logger.Error("Failed to update session during login", map[string]interface{}{
 					"sessionId": sessionID,
-					"error":    err.Error(),
+					"error":     err.Error(),
 				})
 			}
 		} else {
@@ -2246,7 +2246,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 	h.logger.Info("Session initialized for user", map[string]interface{}{
 		"sessionId": sessionID,
 		"userAgent": userAgent,
-		"ip":       c.ClientIP(),
+		"ip":        c.ClientIP(),
 	})
 
 	// Compile final response map
@@ -2262,18 +2262,19 @@ func (h *WorkflowHandler) completeLoginFlow(
 		}
 	}
 
-	// API should return JSON so the AJAX fetch client handles the redirect
-	// c.JSON(http.StatusOK, result)
+	// ============================================================================
+	// Callback Handling - 302 Redirect to Frontend
+	// ============================================================================
 
 	isCallback := c.Query("code") != ""
 
 	if isCallback {
 		redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
 		if redirectURL == "" {
-			redirectURL = "https://d595hydlunw5u.cloudfront.net/dashboard"
+			redirectURL = "https://d595hydlunw5u.cloudfront.net/"
 		}
 		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
-			"sessionId":    sessionID,
+			"sessionId":   sessionID,
 			"redirectUrl": redirectURL,
 		})
 		c.Redirect(http.StatusFound, redirectURL)
@@ -2291,9 +2292,9 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 	h.logger.Info("OAuth callback received", map[string]interface{}{
 		"requestId": c.GetString("requestId"),
-		"traceId":  c.GetString("traceId"),
-		"hasCode":  code != "",
-		"hasState": state != "",
+		"traceId":   c.GetString("traceId"),
+		"hasCode":   code != "",
+		"hasState":  state != "",
 	})
 
 	if code == "" || state == "" {

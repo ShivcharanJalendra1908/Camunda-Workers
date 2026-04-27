@@ -401,6 +401,17 @@ func overrideEmptyConfig(cfg *Config) {
 		cfg.Auth.Keycloak.PublicBaseURL = val
 	}
 
+	// RedirectURL for OAuth callback
+	if cfg.Auth.Keycloak.RedirectURL == "" {
+		if val := os.Getenv("KEYCLOAK_REDIRECT_URL"); val != "" {
+			cfg.Auth.Keycloak.RedirectURL = val
+		}
+	}
+	// Always override RedirectURL from env if set (not just when empty)
+	if val := os.Getenv("KEYCLOAK_REDIRECT_URL"); val != "" {
+		cfg.Auth.Keycloak.RedirectURL = val
+	}
+
 	// ============================================================================
 	// EXTERNAL INTEGRATIONS
 	// ============================================================================
