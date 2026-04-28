@@ -1,15 +1,25 @@
-deployments/docker/ollama/*.gguf
-/arms_cache/*
-/.vscode/*
-<<<<<<< HEAD
+# Local dev / personal
 /docs/kintesh_plan/*
-/local-testing/**.swp
 /kintesh-local
+/local-testing/*.swp
+
+# Editors / IDE
+.vscode/
+.idea/
+
+# Node
 node_modules/
 frontend/node_modules/
-.env
 
-/.kilo
-/.opencode-context
-/.qoder
-/.idea
+# Env
+.env
+.env.*
+
+# Local tooling
+.kilo/
+.opencode-context/
+.qoder/
+
+# Ollama / models
+deployments/docker/ollama/*.gguf
+/arms_cache/
