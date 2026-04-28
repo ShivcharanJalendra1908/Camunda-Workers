@@ -218,7 +218,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), log)
 
-	authHandler := handlers.NewAuthHandler(redisClient.GetClient(), log)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)
@@ -259,10 +259,10 @@ func main() {
 	oauthGroup := publicAPI.Group("/oauth")
 	{
 		// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
-		oauthGroup.POST("/logout", authHandler.OAuthLogout)
+		oauthGroup.POST("/logout", oauthHandler.OAuthLogout)
 
 		// ✅ LOGOUT ALL DEVICES (OAuth)
-		oauthGroup.POST("/logout-all", authHandler.LogoutAll)
+		oauthGroup.POST("/logout-all", oauthHandler.LogoutAll)
 	}
 
 		// ========================================================================
