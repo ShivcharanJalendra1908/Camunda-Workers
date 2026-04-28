@@ -253,14 +253,17 @@ func main() {
 	// ============================================================================
 	publicAPI := router.Group("/api/v1/")
 	{
-		// ========================================================================
-		// OAUTH/OIDC ROUTES - Direct OAuth flow (for future migration from Camunda)
-		// ========================================================================
-		oauthGroup := publicAPI.Group("/oauth")
-		{
-			// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
-			oauthGroup.POST("/logout", authHandler.OAuthLogout)
-		}
+	// ========================================================================
+	// OAUTH/OIDC ROUTES - Direct OAuth flow (for future migration from Camunda)
+	// ========================================================================
+	oauthGroup := publicAPI.Group("/oauth")
+	{
+		// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
+		oauthGroup.POST("/logout", authHandler.OAuthLogout)
+
+		// ✅ LOGOUT ALL DEVICES (OAuth)
+		oauthGroup.POST("/logout-all", authHandler.LogoutAll)
+	}
 
 		// ========================================================================
 		// AUTHENTICATION ROUTES - Workflow-based (Workers handle Keycloak/DB)
