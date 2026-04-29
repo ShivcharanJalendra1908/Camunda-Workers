@@ -85,6 +85,25 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 		}
 	}
 
+	// Join Network & List Franchise specific validation (Mandatory Fields)
+	if variables.FormType == "join_network" || variables.FormType == "list_franchise" {
+		mandatoryFields := map[string]string{
+			"firstName":      "First name is required",
+			"lastName":       "Last name is required",
+			"preferredState": "Preferred state is required",
+			"budget":         "Budget is required",
+			"applicantType":  "Applicant type is required",
+		}
+
+		for field, msg := range mandatoryFields {
+			val, _ := variables.FormData[field].(string)
+			if val == "" {
+				isValid = false
+				validationErrors[field] = msg
+			}
+		}
+	}
+
 	response := ValidationResponse{
 		IsValid:          isValid,
 		ValidationErrors: validationErrors,

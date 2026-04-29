@@ -14,7 +14,8 @@ import (
 
 const (
 	// anonInquiryLimit is the maximum number of inquiries allowed for non-logged-in users.
-	anonInquiryLimit = 3
+	// anonInquiryLimit = 3
+	anonInquiryLimit = 50
 
 	// anonInquiryWindowTTL is the sliding window duration for the inquiry counter.
 	// Counter resets after this period from the first inquiry.
