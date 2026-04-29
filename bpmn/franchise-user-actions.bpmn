@@ -7,7 +7,6 @@
     <exclusiveGateway id="Gateway_AuthCheck" name="Auth Required?">
       <incoming>Flow_ToAuthGateway</incoming>
       <outgoing>Flow_ToValidateUser</outgoing>
-      <outgoing>Flow_ToContactUs</outgoing>
       <outgoing>Flow_ToGetFranchiseRatings</outgoing>
     </exclusiveGateway>
     <serviceTask id="Task_ValidateSubscription" name="Validate User&#10;Subscription">
@@ -23,51 +22,7 @@
       <incoming>Flow_ToValidateUser</incoming>
       <outgoing>Flow_ToActionGateway</outgoing>
     </serviceTask>
-    <serviceTask id="Task_SaveContactMessage" name="Save Contact Message">
-      <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;SAVE_CONTACT_MESSAGE&#34;" target="operation_type" />
-          <zeebe:input source="=contactName" target="contactName" />
-          <zeebe:input source="=contactEmail" target="contactEmail" />
-          <zeebe:input source="=contactMessage" target="contactMessage" />
-          <zeebe:input source="=contactCompany" target="contactCompany" />
-          <zeebe:input source="=contactPhone" target="contactPhone" />
-          <zeebe:input source="=ipAddress" target="ipAddress" />
-          <zeebe:output source="=id" target="contactId" />
-          <zeebe:output source="=success" target="success" />
-          <zeebe:output source="=message" target="message" />
-        </zeebe:ioMapping>
-      </extensionElements>
-      <incoming>Flow_ToContactUs</incoming>
-      <outgoing>Flow_Contact_To_EmailTeam</outgoing>
-    </serviceTask>
-    <serviceTask id="Task_EmailTeam" name="Notify Lemici Team">
-      <extensionElements>
-        <zeebe:taskDefinition type="email-send" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=teamEmail" target="to" />
-          <zeebe:input source="=&#34;New Message from &#34; + contactName" target="subject" />
-          <zeebe:input source="=&#34;Name: &#34; + contactName + &#34;\nEmail: &#34; + contactEmail + &#34;\nCompany: &#34; + contactCompany + &#34;\nPhone: &#34; + contactPhone + &#34;\n\nMessage:\n&#34; + contactMessage" target="body" />
-          <zeebe:input source="=requestId" target="requestId" />
-        </zeebe:ioMapping>
-      </extensionElements>
-      <incoming>Flow_Contact_To_EmailTeam</incoming>
-      <outgoing>Flow_EmailTeam_To_EmailUser</outgoing>
-    </serviceTask>
-    <serviceTask id="Task_EmailUser" name="Auto-Reply to User">
-      <extensionElements>
-        <zeebe:taskDefinition type="email-send" retries="2" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=contactEmail" target="to" />
-          <zeebe:input source="=&#34;Thank you for contacting Lemici&#34;" target="subject" />
-          <zeebe:input source="=&#34;Hi &#34; + contactName + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
-          <zeebe:input source="=requestId" target="requestId" />
-        </zeebe:ioMapping>
-      </extensionElements>
-      <incoming>Flow_EmailTeam_To_EmailUser</incoming>
-      <outgoing>Flow_Contact_ToResponse</outgoing>
-    </serviceTask>
+
     <boundaryEvent id="BoundaryError_ValidateSubscription" name="Subscription&#10;Error" attachedToRef="Task_ValidateSubscription">
       <outgoing>Flow_SubscriptionError_To_HandleError</outgoing>
       <errorEventDefinition id="ErrorDef_Subscription" />
@@ -315,15 +270,11 @@
       <errorEventDefinition id="ErrorDef_End" errorRef="Error_ActionFailed" />
     </endEvent>
     <sequenceFlow id="Flow_ToAuthGateway" sourceRef="StartEvent_UserAction" targetRef="Gateway_AuthCheck" />
-    <sequenceFlow id="Flow_ToContactUs" name="Contact Us" sourceRef="Gateway_AuthCheck" targetRef="Task_SaveContactMessage">
-      <conditionExpression xsi:type="tFormalExpression">=action = "contact_us"</conditionExpression>
-    </sequenceFlow>
+
     <sequenceFlow id="Flow_ToValidateUser" name="Auth Required" sourceRef="Gateway_AuthCheck" targetRef="Task_ValidateSubscription">
-      <conditionExpression xsi:type="tFormalExpression">=action != "contact_us" and action != "get_franchise_ratings"</conditionExpression>
+      <conditionExpression xsi:type="tFormalExpression">=action != "get_franchise_ratings"</conditionExpression>
     </sequenceFlow>
-    <sequenceFlow id="Flow_Contact_To_EmailTeam" sourceRef="Task_SaveContactMessage" targetRef="Task_EmailTeam" />
-    <sequenceFlow id="Flow_EmailTeam_To_EmailUser" sourceRef="Task_EmailTeam" targetRef="Task_EmailUser" />
-    <sequenceFlow id="Flow_Contact_ToResponse" sourceRef="Task_EmailUser" targetRef="Gateway_MergeBeforeResponse" />
+
     <sequenceFlow id="Flow_ToActionGateway" sourceRef="Task_ValidateSubscription" targetRef="Gateway_ActionRouter" />
     <sequenceFlow id="Flow_ToBookmarkGateway" sourceRef="Gateway_ActionRouter" targetRef="Gateway_BookmarkType">
       <conditionExpression xsi:type="tFormalExpression">
@@ -401,18 +352,7 @@
       <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="Task_ValidateSubscription">
         <dc:Bounds x="430" y="430" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_SaveContactMessage_di" bpmnElement="Task_SaveContactMessage">
-        <dc:Bounds x="270" y="310" width="120" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_EmailTeam_di" bpmnElement="Task_EmailTeam">
-        <dc:Bounds x="270" y="190" width="120" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_EmailUser_di" bpmnElement="Task_EmailUser">
-        <dc:Bounds x="430" y="80" width="120" height="80" />
-        <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="Shape_Gateway_ActionRouter" bpmnElement="Gateway_ActionRouter" isMarkerVisible="true">
         <dc:Bounds x="575" y="445" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -526,13 +466,7 @@
         <di:waypoint x="198" y="470" />
         <di:waypoint x="305" y="470" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_ToContactUs_di" bpmnElement="Flow_ToContactUs">
-        <di:waypoint x="330" y="445" />
-        <di:waypoint x="330" y="390" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="258" y="403" width="53" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
+
       <bpmndi:BPMNEdge id="Edge_ToValidateUser" bpmnElement="Flow_ToValidateUser">
         <di:waypoint x="355" y="470" />
         <di:waypoint x="430" y="470" />
@@ -540,20 +474,7 @@
           <dc:Bounds x="359" y="445" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Contact_To_EmailTeam_di" bpmnElement="Flow_Contact_To_EmailTeam">
-        <di:waypoint x="330" y="310" />
-        <di:waypoint x="330" y="270" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_EmailTeam_To_EmailUser_di" bpmnElement="Flow_EmailTeam_To_EmailUser">
-        <di:waypoint x="330" y="190" />
-        <di:waypoint x="330" y="120" />
-        <di:waypoint x="430" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Contact_ToResponse_di" bpmnElement="Flow_Contact_ToResponse">
-        <di:waypoint x="550" y="120" />
-        <di:waypoint x="1040" y="120" />
-        <di:waypoint x="1040" y="635" />
-      </bpmndi:BPMNEdge>
+
       <bpmndi:BPMNEdge id="Edge_ToActionGateway" bpmnElement="Flow_ToActionGateway">
         <di:waypoint x="550" y="470" />
         <di:waypoint x="575" y="470" />
