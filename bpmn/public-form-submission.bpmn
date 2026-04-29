@@ -69,6 +69,10 @@
       <incoming>flow-gw-to-autoreply</incoming>
       <outgoing>flow-autoreply-to-success</outgoing>
     </serviceTask>
+    <boundaryEvent id="boundary-user-email-error" attachedToRef="task-email-user-autoreply">
+      <outgoing>flow-user-email-error-to-success</outgoing>
+      <errorEventDefinition id="err-def-user-email" errorRef="error-email-failed" />
+    </boundaryEvent>
     <serviceTask id="task-success-response" name="Build Success Response">
       <extensionElements>
         <zeebe:taskDefinition type="build-response" />
@@ -80,6 +84,7 @@
       </extensionElements>
       <incoming>flow-gw-to-success</incoming>
       <incoming>flow-autoreply-to-success</incoming>
+      <incoming>flow-user-email-error-to-success</incoming>
       <outgoing>flow-success-to-send</outgoing>
     </serviceTask>
     <serviceTask id="task-send-success" name="Send Response">
@@ -141,6 +146,7 @@
       <conditionExpression xsi:type="tFormalExpression">= formType != "contact_us"</conditionExpression>
     </sequenceFlow>
     <sequenceFlow id="flow-autoreply-to-success" sourceRef="task-email-user-autoreply" targetRef="task-success-response" />
+    <sequenceFlow id="flow-user-email-error-to-success" sourceRef="boundary-user-email-error" targetRef="task-success-response" />
     <sequenceFlow id="flow-success-to-send" sourceRef="task-success-response" targetRef="task-send-success" />
     <sequenceFlow id="flow-send-to-end" sourceRef="task-send-success" targetRef="end-success" />
     <sequenceFlow id="flow-422-to-send" sourceRef="task-422-build" targetRef="task-422-send" />
@@ -154,6 +160,9 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="128" y="188" width="85" height="40" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-validate-form_di" bpmnElement="task-validate-form">
+        <dc:Bounds x="250" y="130" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="gw-valid_di" bpmnElement="gw-valid" isMarkerVisible="true">
         <dc:Bounds x="395" y="145" width="50" height="50" />
@@ -172,6 +181,9 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="780" y="195" width="60" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-email-user-autoreply_di" bpmnElement="task-email-user-autoreply">
+        <dc:Bounds x="890" y="230" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-success-response_di" bpmnElement="task-success-response">
         <dc:Bounds x="1010" y="130" width="100" height="80" />
@@ -197,14 +209,11 @@
           <dc:Bounds x="644" y="318" width="73" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task-email-user-autoreply_di" bpmnElement="task-email-user-autoreply">
-        <dc:Bounds x="890" y="230" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="task-validate-form_di" bpmnElement="task-validate-form">
-        <dc:Bounds x="250" y="130" width="100" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="boundary-email-error_di" bpmnElement="boundary-email-error">
         <dc:Bounds x="692" y="112" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="boundary-user-email-error_di" bpmnElement="boundary-user-email-error">
+        <dc:Bounds x="922" y="212" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="flow-start-to-validate_di" bpmnElement="flow-start-to-validate">
         <di:waypoint x="188" y="170" />
@@ -261,6 +270,11 @@
         <di:waypoint x="990" y="270" />
         <di:waypoint x="1060" y="270" />
         <di:waypoint x="1060" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-user-email-error-to-success_di" bpmnElement="flow-user-email-error-to-success">
+        <di:waypoint x="940" y="212" />
+        <di:waypoint x="940" y="170" />
+        <di:waypoint x="1010" y="170" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-success-to-send_di" bpmnElement="flow-success-to-send">
         <di:waypoint x="1110" y="170" />
