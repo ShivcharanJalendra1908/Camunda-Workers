@@ -42,18 +42,17 @@
           <zeebe:input source="=&#34;[New Form Submission] &#34; + formType" target="subject" />
           <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New &#34; + formType + &#34; Submission&#60;/h2&#62;&#60;p&#62;A new form was submitted.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Name:&#60;/b&#62; &#34; + (if formData.firstName != null then formData.firstName else &#34;&#34;) + &#34; &#34; + (if formData.lastName != null then formData.lastName else &#34;&#34;) + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Email:&#60;/b&#62; &#34; + (if formData.email != null then formData.email else formData.emailAddress) + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Phone:&#60;/b&#62; &#34; + formData.phone + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Submission ID:&#60;/b&#62; &#34; + submissionId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=requestId" target="requestId" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-save-to-email</incoming>
       <outgoing>flow-email-to-gw-autoreply</outgoing>
     </serviceTask>
     <boundaryEvent id="boundary-email-error" attachedToRef="task-email-admin">
-      <outgoing>flow-email-error-to-gw-autoreply</outgoing>
       <errorEventDefinition id="err-def-email" errorRef="error-email-failed" />
     </boundaryEvent>
     <exclusiveGateway id="gw-check-autoreply" name="Auto-Reply?">
       <incoming>flow-email-to-gw-autoreply</incoming>
-      <incoming>flow-email-error-to-gw-autoreply</incoming>
       <outgoing>flow-gw-to-autoreply</outgoing>
       <outgoing>flow-gw-to-success</outgoing>
     </exclusiveGateway>
@@ -63,6 +62,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=if formData.email != null then formData.email else formData.emailAddress" target="to" />
           <zeebe:input source="=&#34;Thank you for contacting Lemici&#34;" target="subject" />
+          <zeebe:input source="=requestId" target="requestId" />
           <zeebe:input source="=&#34;Hi &#34; + (if formData.firstName != null then formData.firstName else (if formData.name != null then formData.name else &#34;there&#34;)) + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -114,6 +114,19 @@
       <incoming>flow-valid-no</incoming>
       <outgoing>flow-422-to-send</outgoing>
     </serviceTask>
+    <serviceTask id="task-email-error-build" name="Build Email Error Response">
+      <extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=500" target="statusCode" />
+          <zeebe:input source="=&#34;Form saved but admin notification failed.&#34;" target="message" />
+          <zeebe:input source="={success: false, error: &#34;EMAIL_NOT_SENT&#34;, submissionId: submissionId}" target="data" />
+        </zeebe:ioMapping>
+      </extensionElements>
+      <incoming>flow-admin-email-error</incoming>
+      <outgoing>flow-email-error-to-send</outgoing>
+    </serviceTask>
     <serviceTask id="task-422-send" name="Send 422 Response">
       <extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
@@ -123,6 +136,7 @@
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-422-to-send</incoming>
+      <incoming>flow-email-error-to-send</incoming>
       <outgoing>flow-422-end</outgoing>
     </serviceTask>
     <endEvent id="end-422" name="Validation Error Sent">
@@ -138,7 +152,8 @@
     </sequenceFlow>
     <sequenceFlow id="flow-save-to-email" sourceRef="task-save-form" targetRef="task-email-admin" />
     <sequenceFlow id="flow-email-to-gw-autoreply" sourceRef="task-email-admin" targetRef="gw-check-autoreply" />
-    <sequenceFlow id="flow-email-error-to-gw-autoreply" sourceRef="boundary-email-error" targetRef="gw-check-autoreply" />
+    <sequenceFlow id="flow-admin-email-error" sourceRef="boundary-email-error" targetRef="task-email-error-build" />
+    <sequenceFlow id="flow-email-error-to-send" sourceRef="task-email-error-build" targetRef="task-422-send" />
     <sequenceFlow id="flow-gw-to-autoreply" name="contact_us" sourceRef="gw-check-autoreply" targetRef="task-email-user-autoreply">
       <conditionExpression xsi:type="tFormalExpression">= formType = "contact_us"</conditionExpression>
     </sequenceFlow>
@@ -198,22 +213,25 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-422-build_di" bpmnElement="task-422-build">
-        <dc:Bounds x="370" y="260" width="100" height="80" />
+        <dc:Bounds x="370" y="350" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="task-email-error-build_di" bpmnElement="task-email-error-build">
+        <dc:Bounds x="500" y="240" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="task-422-send_di" bpmnElement="task-422-send">
-        <dc:Bounds x="520" y="260" width="100" height="80" />
+        <dc:Bounds x="500" y="350" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="end-422_di" bpmnElement="end-422">
-        <dc:Bounds x="662" y="282" width="36" height="36" />
+        <dc:Bounds x="662" y="372" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="644" y="318" width="73" height="27" />
+          <dc:Bounds x="643" y="334.5" width="73" height="27" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="boundary-email-error_di" bpmnElement="boundary-email-error">
-        <dc:Bounds x="692" y="112" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="boundary-user-email-error_di" bpmnElement="boundary-user-email-error">
         <dc:Bounds x="922" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="boundary-email-error_di" bpmnElement="boundary-email-error">
+        <dc:Bounds x="682" y="192" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="flow-start-to-validate_di" bpmnElement="flow-start-to-validate">
         <di:waypoint x="188" y="170" />
@@ -232,9 +250,9 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-valid-no_di" bpmnElement="flow-valid-no">
         <di:waypoint x="420" y="195" />
-        <di:waypoint x="420" y="260" />
+        <di:waypoint x="420" y="350" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="425" y="201" width="30" height="14" />
+          <dc:Bounds x="425" y="219" width="30" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-save-to-email_di" bpmnElement="flow-save-to-email">
@@ -245,11 +263,14 @@
         <di:waypoint x="750" y="170" />
         <di:waypoint x="785" y="170" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="flow-email-error-to-gw-autoreply_di" bpmnElement="flow-email-error-to-gw-autoreply">
-        <di:waypoint x="710" y="112" />
-        <di:waypoint x="710" y="80" />
-        <di:waypoint x="810" y="80" />
-        <di:waypoint x="810" y="145" />
+      <bpmndi:BPMNEdge id="flow-admin-email-error_di" bpmnElement="flow-admin-email-error">
+        <di:waypoint x="700" y="228" />
+        <di:waypoint x="700" y="280" />
+        <di:waypoint x="600" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow-email-error-to-send_di" bpmnElement="flow-email-error-to-send">
+        <di:waypoint x="550" y="320" />
+        <di:waypoint x="550" y="350" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-gw-to-autoreply_di" bpmnElement="flow-gw-to-autoreply">
         <di:waypoint x="810" y="195" />
@@ -285,12 +306,12 @@
         <di:waypoint x="1312" y="170" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-422-to-send_di" bpmnElement="flow-422-to-send">
-        <di:waypoint x="470" y="300" />
-        <di:waypoint x="520" y="300" />
+        <di:waypoint x="470" y="390" />
+        <di:waypoint x="500" y="390" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow-422-end_di" bpmnElement="flow-422-end">
-        <di:waypoint x="620" y="300" />
-        <di:waypoint x="662" y="300" />
+        <di:waypoint x="600" y="390" />
+        <di:waypoint x="662" y="390" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

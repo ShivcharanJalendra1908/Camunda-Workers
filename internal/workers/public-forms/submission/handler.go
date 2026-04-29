@@ -90,9 +90,15 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 		ValidationErrors: validationErrors,
 	}
 
-	_, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromObject(response)
+	cmd, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromObject(response)
 	if err != nil {
-		w.logger.Error("Failed to complete validation job", map[string]interface{}{"error": err.Error()})
+		w.logger.Error("Failed to build completion command", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	_, err = cmd.Send(context.Background())
+	if err != nil {
+		w.logger.Error("Failed to send completion command", map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -149,9 +155,15 @@ func (w *PublicFormWorker) HandleSaveForm(client worker.JobClient, job entities.
 		SubmissionID: submissionID,
 	}
 
-	_, err = client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromObject(response)
+	cmd, err := client.NewCompleteJobCommand().JobKey(job.GetKey()).VariablesFromObject(response)
 	if err != nil {
-		w.logger.Error("Failed to complete save job", map[string]interface{}{"error": err.Error()})
+		w.logger.Error("Failed to build save completion command", map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	_, err = cmd.Send(context.Background())
+	if err != nil {
+		w.logger.Error("Failed to send save completion command", map[string]interface{}{"error": err.Error()})
 	} else {
 		w.logger.Info("Form saved successfully", map[string]interface{}{"submissionId": submissionID})
 	}
