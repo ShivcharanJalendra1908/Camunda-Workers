@@ -69,6 +69,7 @@ import (
 	sessionmanager "camunda-workers/internal/workers/auth/session-manager"
 	es "camunda-workers/internal/workers/communication/email-send"
 	cuc "camunda-workers/internal/workers/crm/crm-user-create"
+	pf "camunda-workers/internal/workers/data-access/public-forms"
 )
 
 // retryWithBackoff attempts to execute a function with exponential backoff
@@ -723,8 +724,28 @@ func main() {
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
 
+	// Public Forms Worker
+	pfConfig := pf.DefaultConfig()
+	pfHandler := pf.NewPublicFormWorker(log, pg, pfConfig)
+	
+	// Register Validation Task
+	zeebeClient.NewJobWorker().
+		JobType("validate-public-form").
+		Handler(pfHandler.HandleValidateForm).
+		MaxJobsActive(10).
+		Name("validate-public-form-worker").
+		Open()
+
+	// Register Save Task
+	zeebeClient.NewJobWorker().
+		JobType("save-public-form").
+		Handler(pfHandler.HandleSaveForm).
+		MaxJobsActive(10).
+		Name("save-public-form-worker").
+		Open()
+
 	zapLog.Info("All workers registered successfully",
-		zap.Int("totalWorkers", 29))
+		zap.Int("totalWorkers", 31))
 
 	// ============================================================================
 	// START IDEMPOTENCY CLEANUP JOB

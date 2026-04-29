@@ -935,6 +935,24 @@ CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at
 -- Index for rate-limit lookups per IP
 CREATE INDEX IF NOT EXISTS idx_contact_messages_ip_created
     ON contact_messages (ip_address, created_at DESC);
+
+-- ============================================================
+-- PUBLIC FORM SUBMISSIONS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public_form_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_type VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    form_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(50) DEFAULT 'new',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_public_form_submissions_type ON public_form_submissions(form_type);
+CREATE INDEX idx_public_form_submissions_email ON public_form_submissions(email);
+CREATE INDEX idx_public_form_submissions_created_at ON public_form_submissions(created_at DESC);
+
 -- ============================================================
 -- END OF COMPLETE SCHEMA
 -- ============================================================

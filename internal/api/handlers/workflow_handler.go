@@ -754,23 +754,57 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	input.Phone = h.sanitizeInput(input.Phone)
 
 	reqID := uuid.New().String()
-	variables := map[string]interface{}{
-		"action":         "contact_us",
-		"contactName":    input.Name,
-		"contactEmail":   input.Email,
-		"contactMessage": input.Message,
-		"contactCompany": input.Company,
-		"contactPhone":   input.Phone,
-		"ipAddress":      c.ClientIP(),
-		"requestId":      reqID,
-		"correlationKey": reqID,
-		"teamEmail":      h.config.Integrations.Internal.EnquiryAlertEmail,
-		"teamName":       h.config.Integrations.Internal.EnquiryAlertName,
+	
+	// Format payload exactly as public forms expects it
+	formData := map[string]interface{}{
+		"name":    input.Name,
+		"email":   input.Email,
+		"message": input.Message,
+		"company": input.Company,
+		"phone":   input.Phone,
+		"ip":      c.ClientIP(),
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "franchise-user-actions", variables)
+	variables := map[string]interface{}{
+		"formType":       "contact_us",
+		"formData":       formData,
+		"requestId":      reqID,
+		"correlationKey": reqID,
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
 	c.JSON(http.StatusOK, response)
 }
+
+// ============================================================================
+// PUBLIC FORM SUBMISSION WORKFLOW
+// ============================================================================
+
+func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
+	formType := c.Param("formType")
+	if formType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Form type is required"})
+		return
+	}
+
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload: " + err.Error()})
+		return
+	}
+
+	reqID := uuid.New().String()
+	variables := map[string]interface{}{
+		"formType":       formType,
+		"formData":       payload,
+		"requestId":      reqID,
+		"correlationKey": reqID,
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
+	c.JSON(http.StatusOK, response)
+}
+
 
 // ============================================================================
 // APPLICATION WORKFLOWS

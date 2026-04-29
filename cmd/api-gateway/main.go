@@ -301,6 +301,13 @@ func main() {
 		publicAPI.POST("/contact",
 			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 5),
 			workflowHandler.StartContactUs)
+
+		// ========================================================================
+		// PUBLIC GENERIC FORMS (e.g., Buyer/Franchisor Registrations)
+		// ========================================================================
+		publicAPI.POST("/forms/:formType/submit",
+			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 5),
+			workflowHandler.StartFormSubmission)
 	}
 
 	// ============================================================================

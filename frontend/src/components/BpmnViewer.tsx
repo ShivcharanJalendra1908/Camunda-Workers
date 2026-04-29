@@ -104,31 +104,21 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
 
         try {
             const elementRegistry = viewerRef.current.get('elementRegistry')
-            const modeling = viewerRef.current.get('modeling')
+            const canvas = viewerRef.current.get('canvas')
+            const overlays = viewerRef.current.get('overlays')
+
+            // Clear old overlays
+            overlays.clear()
 
             elements.forEach(({ elementId, state }) => {
                 const element = elementRegistry.get(elementId)
                 if (!element) return
 
-                const colors = STATE_COLORS[state]
-                if (colors) {
-                    modeling.setColor(element, {
-                        fill: colors.fill,
-                        stroke: colors.stroke,
-                    })
-                }
-            })
+                // 1. Colorizing elements with Canvas markers
+                canvas.addMarker(elementId, `state-${state}`)
 
-            // Add token badges for ACTIVE elements
-            const overlays = viewerRef.current.get('overlays')
-            overlays.clear()
-
-            elements
-                .filter(el => el.state === 'ACTIVE' || el.state === 'INCIDENT')
-                .forEach(({ elementId, state }) => {
-                    const element = elementRegistry.get(elementId)
-                    if (!element) return
-
+                // 2. Add Token Badges for ACTIVE or INCIDENT
+                if (state === 'ACTIVE' || state === 'INCIDENT') {
                     const isIncident = state === 'INCIDENT'
                     overlays.add(elementId, {
                         position: { top: -18, right: -8 },
@@ -146,11 +136,12 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
                 font-weight: bold;
                 box-shadow: 0 1px 4px rgba(0,0,0,0.3);
               ">
-                ${isIncident ? '!' : '●'}
+                ${isIncident ? '!' : '1'}
               </div>
             `,
                     })
-                })
+                }
+            })
         } catch (e) {
             console.warn('Could not apply token overlay:', e)
         }
@@ -219,6 +210,23 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
             <style>{`
         .bjs-container { height: 100% !important; }
         .djs-palette { display: none !important; }
+        
+        .state-COMPLETED .djs-visual > :nth-child(1) {
+            fill: #c8e6c9 !important;
+            stroke: #388e3c !important;
+        }
+        .state-ACTIVE .djs-visual > :nth-child(1) {
+            fill: #a9d4f5 !important;
+            stroke: #1b85cc !important;
+        }
+        .state-TERMINATED .djs-visual > :nth-child(1) {
+            fill: #e0e0e0 !important;
+            stroke: #9e9e9e !important;
+        }
+        .state-INCIDENT .djs-visual > :nth-child(1) {
+            fill: #ffcdd2 !important;
+            stroke: #c62828 !important;
+        }
       `}</style>
         </div>
     )
