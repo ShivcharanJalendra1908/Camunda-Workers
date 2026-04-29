@@ -773,6 +773,8 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 		"formData":       formData,
 		"requestId":      reqID,
 		"correlationKey": reqID,
+		"adminEmail":     h.config.Integrations.Internal.EnquiryAlertEmail,
+		"adminName":      h.config.Integrations.Internal.EnquiryAlertName,
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
@@ -802,6 +804,8 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 		"formData":       payload,
 		"requestId":      reqID,
 		"correlationKey": reqID,
+		"adminEmail":     h.config.Integrations.Internal.EnquiryAlertEmail,
+		"adminName":      h.config.Integrations.Internal.EnquiryAlertName,
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
