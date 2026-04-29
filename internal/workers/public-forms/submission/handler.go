@@ -51,12 +51,16 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 		email = e
 	} else if ea, ok := variables.FormData["emailAddress"].(string); ok {
 		email = ea
+	} else if ce, ok := variables.FormData["contactEmail"].(string); ok {
+		email = ce
 	}
 
 	if p, ok := variables.FormData["phone"].(string); ok {
 		phone = p
 	} else if pn, ok := variables.FormData["phoneNumber"].(string); ok {
 		phone = pn
+	} else if cp, ok := variables.FormData["contactPhone"].(string); ok {
+		phone = cp
 	}
 
 	if m, ok := variables.FormData["message"].(string); ok {
