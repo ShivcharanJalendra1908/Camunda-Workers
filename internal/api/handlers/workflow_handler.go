@@ -720,11 +720,12 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 
 func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	var input struct {
-		Name    string `json:"name" binding:"required"`
-		Email   string `json:"email" binding:"required,email"`
-		Message string `json:"message" binding:"required"`
-		Company string `json:"company"`
-		Phone   string `json:"phone"`
+		FirstName string `json:"firstName" binding:"required"`
+		LastName  string `json:"lastName"`
+		Email     string `json:"email" binding:"required,email"`
+		Message   string `json:"message" binding:"required"`
+		Company   string `json:"company"`
+		Phone     string `json:"phone"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -733,8 +734,8 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	}
 
 	// Validate inputs
-	if err := h.validateString(input.Name, 2, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid name: " + err.Error()})
+	if err := h.validateString(input.FirstName, 1, 50); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
 		return
 	}
 	if err := h.validateEmail(input.Email); err != nil {
@@ -747,7 +748,8 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	}
 
 	// Sanitize inputs
-	input.Name = h.sanitizeInput(input.Name)
+	input.FirstName = h.sanitizeInput(input.FirstName)
+	input.LastName = h.sanitizeInput(input.LastName)
 	input.Email = h.sanitizeInput(input.Email)
 	input.Message = h.sanitizeInput(input.Message)
 	input.Company = h.sanitizeInput(input.Company)
@@ -757,12 +759,13 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	
 	// Format payload exactly as public forms expects it
 	formData := map[string]interface{}{
-		"name":    input.Name,
-		"email":   input.Email,
-		"message": input.Message,
-		"company": input.Company,
-		"phone":   input.Phone,
-		"ip":      c.ClientIP(),
+		"firstName": input.FirstName,
+		"lastName":  input.LastName,
+		"email":     input.Email,
+		"message":   input.Message,
+		"company":   input.Company,
+		"phone":     input.Phone,
+		"ip":        c.ClientIP(),
 	}
 
 	variables := map[string]interface{}{

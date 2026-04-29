@@ -40,7 +40,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;shivcharan.jalendra@lemici.com&#34;" target="to" />
           <zeebe:input source="=&#34;[New Form Submission] &#34; + formType" target="subject" />
-          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New &#34; + formType + &#34; Submission&#60;/h2&#62;&#60;p&#62;A new form was submitted.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Email:&#60;/b&#62; &#34; + (if formData.email != null then formData.email else formData.emailAddress) + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Phone:&#60;/b&#62; &#34; + formData.phone + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Submission ID:&#60;/b&#62; &#34; + submissionId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
+          <zeebe:input source="=&#34;&#60;html&#62;&#60;body style=&#39;font-family:Arial,sans-serif&#39;&#62;&#60;h2&#62;New &#34; + formType + &#34; Submission&#60;/h2&#62;&#60;p&#62;A new form was submitted.&#60;/p&#62;&#60;p&#62;&#60;b&#62;Name:&#60;/b&#62; &#34; + (if formData.firstName != null then formData.firstName else &#34;&#34;) + &#34; &#34; + (if formData.lastName != null then formData.lastName else &#34;&#34;) + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Email:&#60;/b&#62; &#34; + (if formData.email != null then formData.email else formData.emailAddress) + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Phone:&#60;/b&#62; &#34; + formData.phone + &#34;&#60;/p&#62;&#60;p&#62;&#60;b&#62;Submission ID:&#60;/b&#62; &#34; + submissionId + &#34;&#60;/p&#62;&#60;/body&#62;&#60;/html&#62;&#34;" target="body" />
           <zeebe:input source="=true" target="isHtml" />
         </zeebe:ioMapping>
       </extensionElements>
@@ -63,7 +63,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=if formData.email != null then formData.email else formData.emailAddress" target="to" />
           <zeebe:input source="=&#34;Thank you for contacting Lemici&#34;" target="subject" />
-          <zeebe:input source="=&#34;Hi &#34; + (if formData.name != null then formData.name else &#34;there&#34;) + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
+          <zeebe:input source="=&#34;Hi &#34; + (if formData.firstName != null then formData.firstName else (if formData.name != null then formData.name else &#34;there&#34;)) + &#34;,\n\nThank you for reaching out to us. We have received your message and our team will get back to you shortly.\n\nBest regards,\nTeam Lemici&#34;" target="body" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-gw-to-autoreply</incoming>
