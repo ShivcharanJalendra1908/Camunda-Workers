@@ -49,6 +49,7 @@
       <outgoing>flow-email-to-gw-autoreply</outgoing>
     </serviceTask>
     <boundaryEvent id="boundary-email-error" attachedToRef="task-email-admin">
+      <outgoing>flow-admin-email-error</outgoing>
       <errorEventDefinition id="err-def-email" errorRef="error-email-failed" />
     </boundaryEvent>
     <exclusiveGateway id="gw-check-autoreply" name="Auto-Reply?">
