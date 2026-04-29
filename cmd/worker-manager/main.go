@@ -69,7 +69,7 @@ import (
 	sessionmanager "camunda-workers/internal/workers/auth/session-manager"
 	es "camunda-workers/internal/workers/communication/email-send"
 	cuc "camunda-workers/internal/workers/crm/crm-user-create"
-	pf "camunda-workers/internal/workers/data-access/public-forms"
+	pf "camunda-workers/internal/workers/public-forms/submission"
 )
 
 // retryWithBackoff attempts to execute a function with exponential backoff

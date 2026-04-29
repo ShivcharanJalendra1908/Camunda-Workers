@@ -1,4 +1,4 @@
-package publicforms
+package submission
 
 import (
 	"context"
