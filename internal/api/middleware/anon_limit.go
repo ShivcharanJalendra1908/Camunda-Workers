@@ -14,8 +14,7 @@ import (
 
 const (
 	// anonInquiryLimit is the maximum number of inquiries allowed for non-logged-in users.
-	// anonInquiryLimit = 3
-	anonInquiryLimit = 50
+	anonInquiryLimit = 3
 
 	// anonInquiryWindowTTL is the sliding window duration for the inquiry counter.
 	// Counter resets after this period from the first inquiry.
@@ -96,8 +95,8 @@ func AnonymousInquiryLimiter(redisClient *redis.Client, limit int) gin.HandlerFu
 				"error":   "INQUIRY_LIMIT_REACHED",
 				"message": "You have used all 3 free enquiries. Please sign in to continue.",
 				"details": gin.H{
-					"inquiriesUsed":  countAfterRaw,
-					"inquiryLimit":   limit,
+					"inquiriesUsed":   countAfterRaw,
+					"inquiryLimit":    limit,
 					"resetsInMinutes": int(ttlDur.Minutes()),
 				},
 			})

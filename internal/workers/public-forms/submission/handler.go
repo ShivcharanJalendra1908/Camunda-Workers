@@ -85,19 +85,47 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 		}
 	}
 
-	// Join Network & List Franchise specific validation (Mandatory Fields)
-	if variables.FormType == "join_network" || variables.FormType == "list_franchise" {
+	// Join Network (Buyer) specific validation
+	if variables.FormType == "join_network" {
 		mandatoryFields := map[string]string{
-			"firstName":      "First name is required",
-			"lastName":       "Last name is required",
-			"preferredState": "Preferred state is required",
-			"budget":         "Budget is required",
-			"applicantType":  "Applicant type is required",
+			"firstName":           "First Name is required",
+			"lastName":            "Last Name is required",
+			"emailAddress":        "Email Address is required",
+			"phoneNumber":         "Phone Number is required",
+			"preferredLocations":  "Preferred Location(s) is required",
+			"industryInterests":   "Industry Interests are required",
+			"minBudget":           "Minimum Budget is required",
+			"maxBudget":           "Maximum Budget is required",
+			"businessExperience":  "Business Experience is required",
+			"franchiseExperience": "Franchise Experience is required",
 		}
 
 		for field, msg := range mandatoryFields {
-			val, _ := variables.FormData[field].(string)
-			if val == "" {
+			if val, ok := variables.FormData[field]; !ok || val == nil || val == "" {
+				isValid = false
+				validationErrors[field] = msg
+			}
+		}
+	}
+
+	// List Your Franchise (Franchisor) specific validation
+	if variables.FormType == "list_franchise" {
+		mandatoryFields := map[string]string{
+			"brandName":           "Brand Name is required",
+			"companyLegalName":    "Company Legal Name is required",
+			"industryCategory":    "Industry Category is required",
+			"initialInvestment":   "Initial Investment is required",
+			"franchiseFee":        "Franchise Fee is required",
+			"expectedROI":         "Expected ROI is required",
+			"citiesOfOperation":   "Cities of Operation is required",
+			"supportProvided":     "Support & Training Provided is required",
+			"contactPersonName":   "Contact Person Name is required",
+			"contactEmail":        "Contact Email is required",
+			"contactPhone":        "Contact Phone is required",
+		}
+
+		for field, msg := range mandatoryFields {
+			if val, ok := variables.FormData[field]; !ok || val == nil || val == "" {
 				isValid = false
 				validationErrors[field] = msg
 			}
