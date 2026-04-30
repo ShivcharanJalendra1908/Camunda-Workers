@@ -111,6 +111,7 @@
           <zeebe:input source="=422" target="statusCode" />
           <zeebe:input source="=&#34;Validation failed. Please check your details.&#34;" target="message" />
           <zeebe:input source="=validationErrors" target="errors" />
+          <zeebe:input source="={success: false}" target="data" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-valid-no</incoming>
