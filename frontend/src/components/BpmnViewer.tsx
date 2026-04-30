@@ -17,13 +17,7 @@ interface Props {
     apiBase?: string
 }
 
-// State colors matching Camunda Operate
-const STATE_COLORS = {
-    ACTIVE: { fill: '#a9d4f5', stroke: '#1b85cc' },  // blue
-    COMPLETED: { fill: '#c8e6c9', stroke: '#388e3c' },  // green
-    TERMINATED: { fill: '#e0e0e0', stroke: '#9e9e9e' },  // gray
-    INCIDENT: { fill: '#ffcdd2', stroke: '#c62828' },  // red
-}
+
 
 export default function BpmnViewer({ processDefinitionKey, processInstanceKey, apiBase = '' }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
