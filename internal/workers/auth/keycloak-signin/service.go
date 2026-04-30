@@ -191,7 +191,8 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 		Email:           identity.Email,
 		EmailVerified:   identity.EmailVerified,
 		IsNewUser:       isNewUser,
-		KeucloakUserID:  identity.ProviderUserID,
+		KeycloakUserID:  identity.ProviderUserID,
+		IDToken:         identity.IDToken,
 		AuthenticatedAt: time.Now(),
 	}, nil
 }

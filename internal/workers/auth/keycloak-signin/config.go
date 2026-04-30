@@ -37,7 +37,7 @@ func DefaultConfig() *Config {
 		ClientID: "lemici-frontend",
 		// RedirectURL: "http://localhost:3000/callback",
 		// RedirectURL: "https://d3c34598mt7qdx.cloudfront.net/callback",
-		RedirectURL: "https://d595hydlunw5u.cloudfront.net/*",
+		RedirectURL: "https://us-dev-api.lemici.com/api/v1/auth/callback",
 		// PublicBaseURL: "http://localhost:8180",
 		PublicBaseURL: "",
 		RedisHost:     "redis",

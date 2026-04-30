@@ -1,0 +1,46 @@
+{
+    "mappings": {
+        "properties": {
+            "incidentKey": {
+                "type": "long"
+            },
+            "processInstanceKey": {
+                "type": "long"
+            },
+            "processDefinitionKey": {
+                "type": "long"
+            },
+            "bpmnProcessId": {
+                "type": "keyword"
+            },
+            "elementId": {
+                "type": "keyword"
+            },
+            "elementInstanceKey": {
+                "type": "long"
+            },
+            "jobKey": {
+                "type": "long"
+            },
+            "errorType": {
+                "type": "keyword"
+            },
+            "errorMessage": {
+                "type": "text"
+            },
+            "state": {
+                "type": "keyword"
+            },
+            "createdAt": {
+                "type": "date"
+            },
+            "resolvedAt": {
+                "type": "date"
+            }
+        }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1
+    }
+}

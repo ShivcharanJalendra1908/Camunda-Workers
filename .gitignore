@@ -1,6 +1,26 @@
-deployments/docker/ollama/qwen-extractor.gguf
-deployments/docker/ollama/qwen-extractor.gguf
-deployments/docker/ollama/*.gguf
-/arms_cache/*
-/.vscode/*
+# Local dev / personal
 /docs/kintesh_plan/*
+/kintesh-local
+/local-testing/*.swp
+
+# Editors / IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Env
+.env
+.env.*
+
+# Local tooling
+.kilo/
+.opencode-context/
+.qoder/
+
+# Ollama / models
+deployments/docker/ollama/*.gguf
+/arms_cache/api-gateway
+api-gateway*

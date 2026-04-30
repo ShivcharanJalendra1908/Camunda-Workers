@@ -3,7 +3,7 @@
   "realm": "camunda-platform",
   "displayName": "",
   "displayNameHtml": "",
-  "notBefore": 0,
+  "notBefore": 1776422431,
   "revokeRefreshToken": false,
   "refreshTokenMaxReuse": 0,
   "accessTokenLifespan": 3600,
@@ -693,9 +693,9 @@
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
         "https://d3r20osyd7sq76.cloudfront.net/*",
-        "https://d595hydlunw5u.cloudfront.net/*",
         "http://localhost:3000/*",
         "https://d3c34598mt7qdx.cloudfront.net/*",
+        "https://us-dev-api.lemici.com/api/v1/auth/callback",
         "https://www.lemici.com/*"
       ],
       "webOrigins": [
@@ -716,13 +716,20 @@
       "frontchannelLogout": true,
       "protocol": "openid-connect",
       "attributes": {
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
         "login_theme": "lemici",
         "post.logout.redirect.uris": "https://d3c34598mt7qdx.cloudfront.net/*##https://d595hydlunw5u.cloudfront.net/*##http://localhost:3000/*##https://d3r20osyd7sq76.cloudfront.net/*##https://www.lemici.com/*",
-        "display.on.consent.screen": "false",
         "oauth2.device.authorization.grant.enabled": "false",
-        "backchannel.logout.revoke.offline.tokens": "false"
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "use.refresh.tokens": "true",
+        "oidc.ciba.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
+        "client_credentials.use_refresh_token": "false",
+        "acr.loa.map": "{}",
+        "require.pushed.authorization.requests": "false",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "display.on.consent.screen": "false",
+        "pkce.code.challenge.method": "S256",
+        "token.response.type.bearer.lower-case": "false"
       },
       "authenticationFlowBindingOverrides": {},
       "fullScopeAllowed": true,
@@ -1498,7 +1505,20 @@
     "microprofile-jwt"
   ],
   "browserSecurityHeaders": {},
-  "smtpServer": {},
+  "smtpServer": {
+    "replyToDisplayName": "LeMiCi Team",
+    "starttls": "true",
+    "auth": "true",
+    "envelopeFrom": "",
+    "ssl": "false",
+    "password": "**********",
+    "port": "587",
+    "host": "email-smtp.us-east-1.amazonaws.com",
+    "replyTo": "shivcharan.jalendra@lemici.com",
+    "from": "noreply@lemici.com",
+    "fromDisplayName": "LeMiCi Support",
+    "user": "AKIASS3JXDPVWDZXP5P7"
+  },
   "loginTheme": "lemici",
   "accountTheme": "keycloak.v2",
   "adminTheme": "keycloak.v2",
@@ -1711,7 +1731,7 @@
         {
           "authenticator": "idp-email-verification",
           "authenticatorFlow": false,
-          "requirement": "ALTERNATIVE",
+          "requirement": "REQUIRED",
           "priority": 10,
           "autheticatorFlow": false,
           "userSetupAllowed": false
@@ -1945,7 +1965,7 @@
         {
           "authenticator": "idp-confirm-link",
           "authenticatorFlow": false,
-          "requirement": "DISABLED",
+          "requirement": "REQUIRED",
           "priority": 10,
           "autheticatorFlow": false,
           "userSetupAllowed": false
@@ -2031,7 +2051,7 @@
         },
         {
           "authenticatorFlow": true,
-          "requirement": "ALTERNATIVE",
+          "requirement": "REQUIRED",
           "priority": 20,
           "autheticatorFlow": true,
           "flowAlias": "Handle Existing Account",

@@ -114,6 +114,7 @@ func (h *Handler) validateBaseInput(input *BaseInput) error {
 			"DELETE_USER_RATING",
 			"SHARE_FRANCHISE",
 			"GET_USER_SHARES",
+			"SAVE_CONTACT_MESSAGE",
 		}),
 	); err != nil {
 		return appErrs.NewValidationError("operationType", err.Error())
@@ -536,6 +537,8 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		result, err = h.handleShareFranchise(ctxExec, sanitizedVariables)
 	case "GET_USER_SHARES":
 		result, err = h.handleGetUserShares(ctxExec, sanitizedVariables)
+	case "SAVE_CONTACT_MESSAGE":
+		result, err = h.saveContactMessage(ctxExec, sanitizedVariables)
 
 	default:
 		span.SetAttributes(attribute.String("error.operation_type", baseInput.OperationType))
@@ -2420,18 +2423,17 @@ func (h *Handler) HandleAddToFavorites(ctx context.Context, userID, franchiseID 
 	}, nil
 }
 
- 
 // ============================================================
 // BOOKMARK HANDLERS
 // ============================================================
- 
+
 // handleAddBookmark — adds franchise to user bookmarks (user_favorites table)
 func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*BookmarkOutput, error) {
 	var input BookmarkInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2440,16 +2442,16 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 	if err != nil {
 		return nil, err
 	}
- 
+
 	// Idempotency key generate karo
 	idempotencyKey := h.keyGenerator.GenerateFavoriteKey(input.UserID, input.FranchiseID)
- 
+
 	// Check if already bookmarked
 	exists, existingID, checkErr := h.idempotencyChecker.CheckFavoriteExists(ctx, input.UserID, input.FranchiseID)
 	if checkErr != nil {
 		h.logger.Error("Failed to check existing bookmark", map[string]interface{}{"error": checkErr.Error()})
 	}
- 
+
 	if exists {
 		return &BookmarkOutput{
 			ID:           existingID,
@@ -2460,18 +2462,18 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 			Message:      "Already bookmarked",
 		}, nil
 	}
- 
+
 	// Mark as processing
 	_ = h.idempotencyChecker.MarkProcessing(ctx, idempotencyKey, "add-bookmark", 1*time.Hour)
- 
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin transaction: %v", ErrDatabaseError, err)
 	}
 	defer tx.Rollback()
- 
+
 	bookmarkID := uuid.New().String()
- 
+
 	// INSERT with ON CONFLICT DO NOTHING — idempotent
 	var returnedID string
 	insertErr := tx.QueryRowContext(ctx, `
@@ -2481,7 +2483,7 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 		RETURNING id`,
 		bookmarkID, userID, franchiseID, time.Now(),
 	).Scan(&returnedID)
- 
+
 	if insertErr == sql.ErrNoRows {
 		// Concurrent insert — fetch existing
 		var existID string
@@ -2498,23 +2500,23 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 		_ = h.idempotencyChecker.MarkFailed(ctx, idempotencyKey)
 		return nil, fmt.Errorf("%w: insert bookmark: %v", ErrDatabaseError, insertErr)
 	}
- 
+
 	// Update franchise_stats.save_count +1
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats SET save_count = save_count + 1, updated_at = $1
 		WHERE franchise_id = $2`,
 		time.Now(), franchiseID,
 	)
- 
+
 	if err := tx.Commit(); err != nil {
 		_ = h.idempotencyChecker.MarkFailed(ctx, idempotencyKey)
 		return nil, fmt.Errorf("%w: commit: %v", ErrDatabaseError, err)
 	}
- 
+
 	_ = h.idempotencyChecker.MarkCompleted(ctx, idempotencyKey, map[string]interface{}{
 		"bookmarkId": bookmarkID,
 	})
- 
+
 	return &BookmarkOutput{
 		ID:           bookmarkID,
 		UserID:       input.UserID,
@@ -2524,14 +2526,14 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 		Message:      "Bookmark added successfully",
 	}, nil
 }
- 
+
 // handleRemoveBookmark — removes franchise from user bookmarks
 func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*BookmarkOutput, error) {
 	var input BookmarkInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2540,13 +2542,13 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	if err != nil {
 		return nil, err
 	}
- 
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin transaction: %v", ErrDatabaseError, err)
 	}
 	defer tx.Rollback()
- 
+
 	result, err := tx.ExecContext(ctx, `
 		DELETE FROM user_favorites WHERE user_id = $1 AND franchise_id = $2`,
 		userID, franchiseID,
@@ -2554,9 +2556,9 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	if err != nil {
 		return nil, fmt.Errorf("%w: delete bookmark: %v", ErrDatabaseError, err)
 	}
- 
+
 	rowsAffected, _ := result.RowsAffected()
- 
+
 	// Decrement save_count only if actually deleted
 	if rowsAffected > 0 {
 		_, _ = tx.ExecContext(ctx, `
@@ -2566,11 +2568,11 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 			time.Now(), franchiseID,
 		)
 	}
- 
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("%w: commit: %v", ErrDatabaseError, err)
 	}
- 
+
 	return &BookmarkOutput{
 		UserID:       input.UserID,
 		FranchiseID:  input.FranchiseID,
@@ -2579,19 +2581,19 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 		Message:      "Bookmark removed successfully",
 	}, nil
 }
- 
+
 // handleGetUserBookmarks — get all bookmarked franchises for a user
 func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) (*GetBookmarksOutput, error) {
 	var input GetBookmarksInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
 	}
- 
+
 	// Defaults
 	if input.Page <= 0 {
 		input.Page = 1
@@ -2600,13 +2602,13 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 		input.Limit = 20
 	}
 	offset := (input.Page - 1) * input.Limit
- 
+
 	// Total count
 	var totalCount int
 	_ = h.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM user_favorites WHERE user_id = $1`, userID,
 	).Scan(&totalCount)
- 
+
 	// Fetch bookmarks with franchise info
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT
@@ -2628,7 +2630,7 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 		return nil, fmt.Errorf("%w: query bookmarks: %v", ErrDatabaseError, err)
 	}
 	defer rows.Close()
- 
+
 	var bookmarks []BookmarkedFranchise
 	for rows.Next() {
 		var b BookmarkedFranchise
@@ -2640,7 +2642,7 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 		}
 		bookmarks = append(bookmarks, b)
 	}
- 
+
 	return &GetBookmarksOutput{
 		Bookmarks:  bookmarks,
 		TotalCount: totalCount,
@@ -2650,14 +2652,14 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 		Message:    fmt.Sprintf("Found %d bookmarks", totalCount),
 	}, nil
 }
- 
+
 // handleCheckBookmark — check if user has bookmarked a franchise
 func (h *Handler) handleCheckBookmark(ctx context.Context, variables string) (*CheckBookmarkOutput, error) {
 	var input CheckBookmarkInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2666,43 +2668,43 @@ func (h *Handler) handleCheckBookmark(ctx context.Context, variables string) (*C
 	if err != nil {
 		return nil, err
 	}
- 
+
 	var bookmarkID string
 	queryErr := h.db.QueryRowContext(ctx, `
 		SELECT id FROM user_favorites WHERE user_id = $1 AND franchise_id = $2`,
 		userID, franchiseID,
 	).Scan(&bookmarkID)
- 
+
 	if queryErr == sql.ErrNoRows {
 		return &CheckBookmarkOutput{IsBookmarked: false, Success: true}, nil
 	}
 	if queryErr != nil {
 		return nil, fmt.Errorf("%w: check bookmark: %v", ErrDatabaseError, queryErr)
 	}
- 
+
 	return &CheckBookmarkOutput{
 		IsBookmarked: true,
 		BookmarkID:   bookmarkID,
 		Success:      true,
 	}, nil
 }
- 
+
 // ============================================================
 // RATING HANDLERS
 // ============================================================
- 
+
 // handleSubmitUserRating — submit or upsert a user rating
 func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) (*RatingOutput, error) {
 	var input SubmitRatingInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	// Validate input
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrValidationError, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2711,23 +2713,23 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
- 
+
 	// Sanitize review text
 	sanitizedReview := h.sanitizer.SanitizeString(input.Review)
 	if err := h.validateString("review", sanitizedReview, 0, 2000); err != nil {
 		return nil, err
 	}
- 
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin transaction: %v", ErrDatabaseError, err)
 	}
 	defer tx.Rollback()
- 
+
 	ratingID := uuid.New().String()
 	now := time.Now()
 	isNew := false
- 
+
 	// UPSERT — ON CONFLICT update existing rating
 	var returnedID string
 	var createdAt time.Time
@@ -2742,14 +2744,14 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 		RETURNING id, created_at`,
 		ratingID, userID, franchiseID, input.Rating, sanitizedReview, now, now,
 	).Scan(&returnedID, &createdAt)
- 
+
 	if err != nil {
 		return nil, fmt.Errorf("%w: upsert rating: %v", ErrDatabaseError, err)
 	}
- 
+
 	// returnedID == ratingID means newly inserted
 	isNew = (returnedID == ratingID)
- 
+
 	// Recalculate avg rating in franchise_stats
 	_, err = tx.ExecContext(ctx, `
 		UPDATE franchise_stats fs
@@ -2767,16 +2769,16 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 		})
 		// Non-fatal — continue
 	}
- 
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("%w: commit: %v", ErrDatabaseError, err)
 	}
- 
+
 	msg := "Rating updated successfully"
 	if isNew {
 		msg = "Rating submitted successfully"
 	}
- 
+
 	return &RatingOutput{
 		ID:          returnedID,
 		UserID:      input.UserID,
@@ -2789,14 +2791,14 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 		CreatedAt:   createdAt,
 	}, nil
 }
- 
+
 // handleUpdateUserRating — partial update of existing rating
 func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) (*RatingOutput, error) {
 	var input UpdateRatingInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2805,11 +2807,11 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
- 
+
 	query := "UPDATE user_ratings SET updated_at = $1"
 	args := []interface{}{time.Now()}
 	argPos := 2
- 
+
 	if input.Rating != nil {
 		if *input.Rating < 1.0 || *input.Rating > 5.0 {
 			return nil, fmt.Errorf("%w: rating must be between 1.0 and 5.0", ErrValidationError)
@@ -2818,7 +2820,7 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 		args = append(args, *input.Rating)
 		argPos++
 	}
- 
+
 	if input.Review != nil {
 		sanitized := h.sanitizer.SanitizeString(*input.Review)
 		if len(sanitized) > 2000 {
@@ -2828,11 +2830,11 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 		args = append(args, sanitized)
 		argPos++
 	}
- 
+
 	query += fmt.Sprintf(" WHERE user_id = $%d AND franchise_id = $%d RETURNING id, rating, review",
 		argPos, argPos+1)
 	args = append(args, userID, franchiseID)
- 
+
 	var retID string
 	var retRating float64
 	var retReview sql.NullString
@@ -2843,7 +2845,7 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: update rating: %v", ErrDatabaseError, err)
 	}
- 
+
 	// Recalculate stats
 	_, _ = h.db.ExecContext(ctx, `
 		UPDATE franchise_stats
@@ -2852,26 +2854,26 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 		WHERE franchise_id = $1`,
 		franchiseID, time.Now(),
 	)
- 
+
 	review := ""
 	if retReview.Valid {
 		review = retReview.String
 	}
- 
+
 	return &RatingOutput{
 		ID: retID, UserID: input.UserID, FranchiseID: input.FranchiseID,
 		Rating: retRating, Review: review, IsNew: false,
 		Success: true, Message: "Rating updated successfully",
 	}, nil
 }
- 
+
 // handleGetUserRating — get a specific user's rating for a franchise
 func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*GetUserRatingOutput, error) {
 	var input GetUserRatingInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2880,31 +2882,31 @@ func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*G
 	if err != nil {
 		return nil, err
 	}
- 
+
 	var ratingID string
 	var rating float64
 	var review sql.NullString
 	var updatedAt time.Time
- 
+
 	err = h.db.QueryRowContext(ctx, `
 		SELECT id, rating, review, updated_at
 		FROM user_ratings
 		WHERE user_id = $1 AND franchise_id = $2`,
 		userID, franchiseID,
 	).Scan(&ratingID, &rating, &review, &updatedAt)
- 
+
 	if err == sql.ErrNoRows {
 		return &GetUserRatingOutput{HasRated: false, Success: true, Message: "No rating found"}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: get user rating: %v", ErrDatabaseError, err)
 	}
- 
+
 	reviewStr := ""
 	if review.Valid {
 		reviewStr = review.String
 	}
- 
+
 	return &GetUserRatingOutput{
 		HasRated:  true,
 		Rating:    rating,
@@ -2915,19 +2917,19 @@ func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*G
 		Message:   "Rating found",
 	}, nil
 }
- 
+
 // handleGetFranchiseRatings — get all ratings for a franchise (paginated)
 func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables string) (*GetFranchiseRatingsOutput, error) {
 	var input GetFranchiseRatingsInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
 	if err != nil {
 		return nil, err
 	}
- 
+
 	if input.Page <= 0 {
 		input.Page = 1
 	}
@@ -2935,7 +2937,7 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 		input.Limit = 10
 	}
 	offset := (input.Page - 1) * input.Limit
- 
+
 	// Count + avg
 	var totalCount int
 	var avgRating sql.NullFloat64
@@ -2943,7 +2945,7 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 		SELECT COUNT(*), AVG(rating) FROM user_ratings WHERE franchise_id = $1`,
 		franchiseID,
 	).Scan(&totalCount, &avgRating)
- 
+
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT id, user_id, rating, COALESCE(review, ''), created_at
 		FROM user_ratings
@@ -2956,7 +2958,7 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 		return nil, fmt.Errorf("%w: get franchise ratings: %v", ErrDatabaseError, err)
 	}
 	defer rows.Close()
- 
+
 	var ratings []RatingItem
 	for rows.Next() {
 		var r RatingItem
@@ -2965,12 +2967,12 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 		}
 		ratings = append(ratings, r)
 	}
- 
+
 	avg := 0.0
 	if avgRating.Valid {
 		avg = avgRating.Float64
 	}
- 
+
 	return &GetFranchiseRatingsOutput{
 		Ratings:    ratings,
 		TotalCount: totalCount,
@@ -2981,14 +2983,14 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 		Message:    fmt.Sprintf("Found %d ratings", totalCount),
 	}, nil
 }
- 
+
 // handleDeleteUserRating — user apni rating delete kar sakta hai
 func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) (*BaseOutput, error) {
 	var input GetUserRatingInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
@@ -2997,13 +2999,13 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
- 
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin tx: %v", ErrDatabaseError, err)
 	}
 	defer tx.Rollback()
- 
+
 	result, err := tx.ExecContext(ctx, `
 		DELETE FROM user_ratings WHERE user_id = $1 AND franchise_id = $2`,
 		userID, franchiseID,
@@ -3011,12 +3013,12 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: delete rating: %v", ErrDatabaseError, err)
 	}
- 
+
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		return nil, fmt.Errorf("%w: rating not found", ErrFranchiseNotFound)
 	}
- 
+
 	// Recalculate stats
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats
@@ -3026,34 +3028,34 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 		WHERE franchise_id = $1`,
 		franchiseID, time.Now(),
 	)
- 
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("%w: commit: %v", ErrDatabaseError, err)
 	}
- 
+
 	return &BaseOutput{Success: true, Message: "Rating deleted successfully"}, nil
 }
- 
+
 // ============================================================
 // SHARE HANDLERS
 // ============================================================
- 
+
 // handleShareFranchise — records a share event + increments share_count
 func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*ShareOutput, error) {
 	var input ShareFranchiseInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrValidationError, err)
 	}
- 
+
 	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
 	if err != nil {
 		return nil, err
 	}
- 
+
 	// userID optional — nil if anonymous
 	var userIDPtr interface{}
 	if input.UserID != "" {
@@ -3063,21 +3065,21 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 		}
 		userIDPtr = uid
 	}
- 
+
 	// Sanitize platform
 	platform := h.sanitizer.SanitizeString(input.SharePlatform)
 	if platform == "" {
 		platform = "copy_link"
 	}
- 
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin tx: %v", ErrDatabaseError, err)
 	}
 	defer tx.Rollback()
- 
+
 	shareID := uuid.New().String()
- 
+
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO franchise_shares (id, user_id, franchise_id, share_platform, ip_address, shared_at)
 		VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -3088,7 +3090,7 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 	if err != nil {
 		return nil, fmt.Errorf("%w: insert share: %v", ErrDatabaseError, err)
 	}
- 
+
 	// Increment share_count in franchise_stats
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats
@@ -3096,11 +3098,11 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 		WHERE franchise_id = $2`,
 		time.Now(), franchiseID,
 	)
- 
+
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("%w: commit: %v", ErrDatabaseError, err)
 	}
- 
+
 	return &ShareOutput{
 		ShareID:       shareID,
 		FranchiseID:   input.FranchiseID,
@@ -3109,19 +3111,19 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 		Message:       "Share recorded successfully",
 	}, nil
 }
- 
+
 // handleGetUserShares — get user's share history
 func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*GetUserSharesOutput, error) {
 	var input GetUserSharesInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
- 
+
 	userID, err := h.validateUUID("userId", input.UserID)
 	if err != nil {
 		return nil, err
 	}
- 
+
 	if input.Page <= 0 {
 		input.Page = 1
 	}
@@ -3129,12 +3131,12 @@ func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*G
 		input.Limit = 20
 	}
 	offset := (input.Page - 1) * input.Limit
- 
+
 	var totalCount int
 	_ = h.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM franchise_shares WHERE user_id = $1`, userID,
 	).Scan(&totalCount)
- 
+
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT
 			fs.id,
@@ -3153,7 +3155,7 @@ func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*G
 		return nil, fmt.Errorf("%w: get user shares: %v", ErrDatabaseError, err)
 	}
 	defer rows.Close()
- 
+
 	var shares []ShareItem
 	for rows.Next() {
 		var s ShareItem
@@ -3162,7 +3164,7 @@ func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*G
 		}
 		shares = append(shares, s)
 	}
- 
+
 	return &GetUserSharesOutput{
 		Shares:     shares,
 		TotalCount: totalCount,
@@ -3212,4 +3214,62 @@ func (h *Handler) failJob(ctx context.Context, client worker.JobClient, job enti
 		Retryable: retries > 0,
 	}
 	h.errorHandler.HandleJobError(ctx, client, job, stdErr)
+}
+
+func (h *Handler) saveContactMessage(ctx context.Context, variables string) (map[string]interface{}, error) {
+	var input struct {
+		ContactName    string `json:"contactName"`
+		ContactEmail   string `json:"contactEmail"`
+		ContactMessage string `json:"contactMessage"`
+		ContactCompany string `json:"contactCompany"`
+		ContactPhone   string `json:"contactPhone"`
+		IpAddress      string `json:"ipAddress"`
+	}
+
+	if err := json.Unmarshal([]byte(variables), &input); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+
+	if input.ContactName == "" {
+		return nil, fmt.Errorf("contactName is required")
+	}
+	if input.ContactEmail == "" {
+		return nil, fmt.Errorf("contactEmail is required")
+	}
+	if input.ContactMessage == "" {
+		return nil, fmt.Errorf("contactMessage is required")
+	}
+
+	var id uuid.UUID
+	query := `
+		INSERT INTO contact_messages (name, email, company, phone, message, ip_address, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id`
+
+	err := h.db.QueryRowContext(ctx, query,
+		input.ContactName,
+		input.ContactEmail,
+		nullableString(input.ContactCompany),
+		nullableString(input.ContactPhone),
+		input.ContactMessage,
+		nullableString(input.IpAddress),
+		time.Now().UTC(),
+	).Scan(&id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: saveContactMessage insert failed: %v", ErrDatabaseError, err)
+	}
+
+	return map[string]interface{}{
+		"id":      id.String(),
+		"success": true,
+		"message": "Message received. We'll get back to you within 1-2 business days.",
+	}, nil
+}
+
+// nullableString returns nil for empty strings so Postgres stores NULL
+func nullableString(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }

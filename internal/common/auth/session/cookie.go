@@ -55,7 +55,7 @@ func SetCookie(
 ) {
 	opts = opts.normalize()
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    sessionID,
 		Path:     opts.Path,
@@ -64,7 +64,8 @@ func SetCookie(
 		HttpOnly: opts.HttpOnly,
 		Secure:   opts.Secure,
 		SameSite: opts.SameSite,
-	})
+	}
+	http.SetCookie(w, cookie)
 }
 
 // ClearCookie removes the session cookie from the client.
@@ -74,7 +75,7 @@ func ClearCookie(
 ) {
 	opts = opts.normalize()
 
-	http.SetCookie(w, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     CookieName,
 		Value:    "",
 		Path:     opts.Path,
@@ -83,7 +84,8 @@ func ClearCookie(
 		HttpOnly: opts.HttpOnly,
 		Secure:   opts.Secure,
 		SameSite: opts.SameSite,
-	})
+	}
+	http.SetCookie(w, cookie)
 }
 
 // BuildSetCookieHeader creates a Set-Cookie header string
@@ -99,9 +101,27 @@ func BuildSetCookieHeader(sessionID string, expiresAt time.Time, secure bool, sa
 	// 	MaxAge:   maxAge,
 	// }
 
-	// --- TEST ONLY ---
+	// cookie := &http.Cookie{
+	// 	Name:     "session_id",
+	// 	Value:    sessionID,
+	// 	Path:     "/",
+	// 	HttpOnly: true,
+	// 	Secure:   true,
+	// 	SameSite: http.SameSiteNoneMode,
+	// 	MaxAge:   maxAge,
+	// }
+
+	// switch sameSite {
+	// case "Strict":
+	// 	cookie.SameSite = http.SameSiteStrictMode
+	// case "None":
+	// 	cookie.SameSite = http.SameSiteNoneMode
+	// default:
+	// 	cookie.SameSite = http.SameSiteLaxMode
+	// }
+
 	cookie := &http.Cookie{
-		Name:     "session_id",
+		Name:     "AUTH_SESSION_ID",
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
@@ -110,36 +130,37 @@ func BuildSetCookieHeader(sessionID string, expiresAt time.Time, secure bool, sa
 		MaxAge:   maxAge,
 	}
 
-	switch sameSite {
-	case "Strict":
-		cookie.SameSite = http.SameSiteStrictMode
-	case "None":
-		cookie.SameSite = http.SameSiteNoneMode
-	default:
-		cookie.SameSite = http.SameSiteLaxMode
-	}
-
 	return cookie.String()
 }
 
 // BuildClearCookieHeader creates a cookie deletion header
 func BuildClearCookieHeader(secure bool, sameSite string) string {
+	// cookie := &http.Cookie{
+	// 	Name:     "session_id",
+	// 	Value:    "",
+	// 	Path:     "/",
+	// 	HttpOnly: true,
+	// 	Secure:   secure,
+	// 	MaxAge:   -1,
+	// }
+
+	// switch sameSite {
+	// case "Strict":
+	// 	cookie.SameSite = http.SameSiteStrictMode
+	// case "None":
+	// 	cookie.SameSite = http.SameSiteNoneMode
+	// default:
+	// 	cookie.SameSite = http.SameSiteLaxMode
+	// }
+
 	cookie := &http.Cookie{
-		Name:     "session_id",
+		Name:     "AUTH_SESSION_ID",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   secure,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode,
 		MaxAge:   -1,
-	}
-
-	switch sameSite {
-	case "Strict":
-		cookie.SameSite = http.SameSiteStrictMode
-	case "None":
-		cookie.SameSite = http.SameSiteNoneMode
-	default:
-		cookie.SameSite = http.SameSiteLaxMode
 	}
 
 	return cookie.String()

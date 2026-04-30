@@ -126,6 +126,34 @@ func (r *RedisStore) Update(ctx context.Context, s Session) error {
 	return err
 }
 
+// DeleteAllForUser deletes all sessions associated with a user ID.
+// It removes all session keys and the user's session set key atomically.
+func (r *RedisStore) DeleteAllForUser(ctx context.Context, userID string) error {
+	// Get all session IDs for user
+	sessionIDs, err := r.client.SMembers(ctx, r.userKey(userID)).Result()
+	if err != nil && err != redis.Nil {
+		return err
+	}
+
+	if len(sessionIDs) == 0 {
+		return nil // No sessions to delete
+	}
+
+	// Use pipeline for efficiency
+	pipe := r.client.TxPipeline()
+
+	// Delete all session keys
+	for _, sessionID := range sessionIDs {
+		pipe.Del(ctx, r.key(sessionID))
+	}
+
+	// Delete the user's session set key
+	pipe.Del(ctx, r.userKey(userID))
+
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
 func (r *RedisStore) userKey(userID string) string {
 	return "user_sessions:" + userID
 }

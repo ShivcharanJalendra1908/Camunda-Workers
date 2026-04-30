@@ -39,7 +39,8 @@ type Output struct {
 	RefreshToken    string    `json:"refreshToken,omitempty"`
 	ExpiresIn       int       `json:"expiresIn,omitempty"`
 	IsNewUser       bool      `json:"isNewUser,omitempty"`
-	KeucloakUserID  string    `json:"keycloakUserId,omitempty"`
+	KeycloakUserID  string    `json:"keycloakUserId,omitempty"`
+	IDToken         string    `json:"idToken,omitempty"`
 	AuthenticatedAt time.Time `json:"authenticatedAt,omitempty"`
 }
 

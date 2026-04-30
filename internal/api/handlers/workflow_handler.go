@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -477,12 +478,14 @@ func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
 
 func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 	var input struct {
-		UserID    string                 `json:"userId"`
-		Token     string                 `json:"token"`
-		LogoutAll bool                   `json:"logoutAll"`
-		DeviceID  string                 `json:"deviceId"`
-		Reason    string                 `json:"reason"`
-		Metadata  map[string]interface{} `json:"metadata"`
+		UserID         string                 `json:"userId"`
+		KeycloakUserID string                 `json:"keycloakUserId"`
+		Token          string                 `json:"token"`
+		IDToken        string                 `json:"idToken"`
+		LogoutAll      bool                   `json:"logoutAll"`
+		DeviceID       string                 `json:"deviceId"`
+		Reason         string                 `json:"reason"`
+		Metadata       map[string]interface{} `json:"metadata"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -495,23 +498,58 @@ func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
 		claims = &middleware.Claims{}
 	}
 
+	// Generate correlation key and subscribe before starting workflow
+	correlationKey := uuid.New().String()
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
+	defer pubsub.Close()
+
 	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"token":        input.Token,
-		"sessionId":    claims.SessionID,
-		"logoutAll":    input.LogoutAll,
-		"deviceId":     input.DeviceID,
-		"reason":       input.Reason,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"userId":         getOrDefault(input.UserID, claims.UserID),
+		"keycloakUserId": input.KeycloakUserID,
+		"token":          input.Token,
+		"idToken":        input.IDToken,
+		"sessionId":      claims.SessionID,
+		"correlationKey": correlationKey, // Pass correlation key
+		"logoutAll":      input.LogoutAll,
+		"deviceId":       input.DeviceID,
+		"reason":         input.Reason,
+		"sourceSystem":   claims.SourceSystem,
+		"requestId":      uuid.New().String(),
 	}
 
 	if input.Metadata != nil {
 		variables["metadata"] = input.Metadata
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "user-logout-workflow", variables)
-	c.JSON(http.StatusOK, response)
+	// Start workflow
+	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
+
+	// Wait for response
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse workflow response"})
+			return
+		}
+
+		// Clear cookie if header provided
+		if envelope.CookieHeader != "" {
+			c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+		}
+
+		c.JSON(http.StatusOK, envelope.Response)
+
+	case <-time.After(15 * time.Second):
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "logout workflow timed out"})
+
+	case <-c.Request.Context().Done():
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
+	}
 }
 
 // ============================================================================
@@ -675,6 +713,105 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 	response := h.startWorkflow(c.Request.Context(), "account-deletion-workflow", variables)
 	c.JSON(http.StatusOK, response)
 }
+
+// ============================================================================
+// CONTACT US WORKFLOW
+// ============================================================================
+
+func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
+	var input struct {
+		FirstName string `json:"firstName" binding:"required"`
+		LastName  string `json:"lastName"`
+		Email     string `json:"email" binding:"required,email"`
+		Message   string `json:"message" binding:"required"`
+		Company   string `json:"company"`
+		Phone     string `json:"phone"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate inputs
+	if err := h.validateString(input.FirstName, 1, 50); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
+		return
+	}
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+	if err := h.validateString(input.Message, 10, 5000); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid message: " + err.Error()})
+		return
+	}
+
+	// Sanitize inputs
+	input.FirstName = h.sanitizeInput(input.FirstName)
+	input.LastName = h.sanitizeInput(input.LastName)
+	input.Email = h.sanitizeInput(input.Email)
+	input.Message = h.sanitizeInput(input.Message)
+	input.Company = h.sanitizeInput(input.Company)
+	input.Phone = h.sanitizeInput(input.Phone)
+
+	reqID := uuid.New().String()
+	
+	// Format payload exactly as public forms expects it
+	formData := map[string]interface{}{
+		"firstName": input.FirstName,
+		"lastName":  input.LastName,
+		"email":     input.Email,
+		"message":   input.Message,
+		"company":   input.Company,
+		"phone":     input.Phone,
+		"ip":        c.ClientIP(),
+	}
+
+	variables := map[string]interface{}{
+		"formType":       "contact_us",
+		"formData":       formData,
+		"requestId":      reqID,
+		"correlationKey": reqID,
+		"adminEmail":     h.config.Integrations.Internal.EnquiryAlertEmail,
+		"adminName":      h.config.Integrations.Internal.EnquiryAlertName,
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================================
+// PUBLIC FORM SUBMISSION WORKFLOW
+// ============================================================================
+
+func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
+	formType := c.Param("formType")
+	if formType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Form type is required"})
+		return
+	}
+
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload: " + err.Error()})
+		return
+	}
+
+	reqID := uuid.New().String()
+	variables := map[string]interface{}{
+		"formType":       formType,
+		"formData":       payload,
+		"requestId":      reqID,
+		"correlationKey": reqID,
+		"adminEmail":     h.config.Integrations.Internal.EnquiryAlertEmail,
+		"adminName":      h.config.Integrations.Internal.EnquiryAlertName,
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
+	c.JSON(http.StatusOK, response)
+}
+
 
 // ============================================================================
 // APPLICATION WORKFLOWS
@@ -1554,14 +1691,28 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 
 	select {
 	case msg := <-pubsub.Channel():
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+		// Parse new payload format: {"response": {...}, "cookieHeader": "..."}
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
 			h.redirectToLoginWithError(c, "invalid_response")
 			return
 		}
+		response := envelope.Response
+		if response == nil {
+			h.redirectToLoginWithError(c, "empty_response")
+			return
+		}
+
+		// cookie fix: redundant Set-Cookie header with completeLoginFlow
+		// if envelope.CookieHeader != "" {
+		// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+		// }
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-			h.completeLoginFlow(c, ctx, sessionID, userAgent)
+			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
 			return
 		}
 
@@ -1572,13 +1723,20 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
-			var response map[string]interface{}
-			if json.Unmarshal([]byte(cached), &response) == nil {
-				if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
-					h.completeLoginFlow(c, ctx, sessionID, userAgent)
+			var envelope struct {
+				Response     map[string]interface{} `json:"response"`
+				CookieHeader string                 `json:"cookieHeader"`
+			}
+			if json.Unmarshal([]byte(cached), &envelope) == nil && envelope.Response != nil {
+				// cookie fix: redundant with completeLoginFlow
+				// if envelope.CookieHeader != "" {
+				// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+				// }
+				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
+					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
 					return
 				}
-				c.JSON(http.StatusOK, response)
+				c.JSON(http.StatusOK, envelope.Response)
 				return
 			}
 		}
@@ -1593,7 +1751,7 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
 	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
 	// be cleared in cross-site context (CloudFront → API).
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie1 := &http.Cookie{
 		Name:     "pkce_verifier",
 		Value:    "",
 		Path:     "/",
@@ -1601,8 +1759,10 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	http.SetCookie(c.Writer, cookie1)
+
+	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
 		Path:     "/",
@@ -1610,8 +1770,10 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	http.SetCookie(c.Writer, cookie2)
+
+	cookie3 := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    "",
 		Path:     constants.SessionCookiePath,
@@ -1619,13 +1781,21 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	http.SetCookie(c.Writer, cookie3)
 
-	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
-	// Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
+	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// // Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
+	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	// if targetURL == "" {
+	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
+	// }
+	// c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
+		h.logger.Error("login_redirect_uri not configured in config", nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
+		return
 	}
 	c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 }
@@ -1667,39 +1837,98 @@ func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 		variables["metadata"] = input.Metadata
 	}
 
+	correlationKey := uuid.New().String()
+	variables["correlationKey"] = correlationKey
+
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
+	defer pubsub.Close()
+
+	// Confirm subscription before starting workflow
+	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer confirmCancel()
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
+		// Subscription failed — still clear local cookie and respond
+		h.logger.Warn("Redis subscription failed for logout", map[string]interface{}{"error": err.Error()})
+		cookie := &http.Cookie{
+			Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+			MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(c.Writer, cookie)
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
+		return
+	}
+
 	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
 
-	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
-	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
-	// be cleared in cross-site context (CloudFront → API).
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
+	// Wait for workflow response to get logoutUrl and cookieHeader
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope struct {
+			Response     map[string]interface{} `json:"response"`
+			CookieHeader string                 `json:"cookieHeader"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil {
+			// cookie fix: redundant clear-cookie header
+			// if envelope.CookieHeader != "" {
+			// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
+			// }
+			// Also clear local session cookie
+			cookie1 := &http.Cookie{
+				Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+				MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
+				SameSite: http.SameSiteNoneMode,
+			}
+			http.SetCookie(c.Writer, cookie1)
+
+			cookie2 := &http.Cookie{
+				Name: "pkce_verifier", Value: "", Path: "/",
+				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+			}
+			http.SetCookie(c.Writer, cookie2)
+
+			cookie3 := &http.Cookie{
+				Name: "oauth_state", Value: "", Path: "/",
+				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+			}
+			http.SetCookie(c.Writer, cookie3)
+			// Return response with logoutUrl so frontend can redirect browser to Keycloak
+			if envelope.Response != nil {
+				c.JSON(http.StatusOK, envelope.Response)
+			} else {
+				c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out successfully"})
+			}
+			return
+		}
+
+	case <-time.After(15 * time.Second):
+		h.logger.Warn("Logout workflow timeout", map[string]interface{}{"correlationKey": correlationKey})
+
+	case <-c.Request.Context().Done():
+		h.logger.Warn("Logout request cancelled", map[string]interface{}{"correlationKey": correlationKey})
+	}
+
+	// Fallback — clear cookies and respond without logoutUrl
+	cookie1 := &http.Cookie{
+		Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
+		MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "pkce_verifier",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
-	c.Status(http.StatusNoContent)
+	}
+	http.SetCookie(c.Writer, cookie1)
+
+	cookie2 := &http.Cookie{
+		Name: "pkce_verifier", Value: "", Path: "/",
+		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+	}
+	http.SetCookie(c.Writer, cookie2)
+
+	cookie3 := &http.Cookie{
+		Name: "oauth_state", Value: "", Path: "/",
+		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
+	}
+	http.SetCookie(c.Writer, cookie3)
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
 }
 
 // ============================================================================
@@ -1913,7 +2142,7 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 
 func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie1 := &http.Cookie{
 		Name:     "pkce_verifier",
 		Value:    "",
 		Path:     "/",
@@ -1921,8 +2150,9 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	http.SetCookie(c.Writer, cookie1)
+	cookie2 := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
 		Path:     "/",
@@ -1930,21 +2160,41 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(c.Writer, &http.Cookie{
+	}
+	http.SetCookie(c.Writer, cookie2)
+	// http.SetCookie(c.Writer, &http.Cookie{
+	// 	Name:     constants.SessionCookieName,
+	// 	Value:    "",
+	// 	Path:     constants.SessionCookiePath,
+	// 	Domain:   ".lemici.com",
+	// 	MaxAge:   -1,
+	// 	HttpOnly: constants.SessionCookieHTTPOnly,
+	// 	Secure:   constants.SessionCookieSecure,
+	// 	SameSite: http.SameSiteNoneMode,
+	// })
+	cookie3 := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    "",
 		Path:     constants.SessionCookiePath,
+		Domain:   "",
 		MaxAge:   -1,
 		HttpOnly: constants.SessionCookieHTTPOnly,
 		Secure:   constants.SessionCookieSecure,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	http.SetCookie(c.Writer, cookie3)
 
-	// ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
+	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
+	// if targetURL == "" {
+	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login"
+	// }
+	// c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/login"
+		h.logger.Error("login_redirect_uri not configured in config", nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
+		return
 	}
 	c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 }
@@ -1954,41 +2204,43 @@ func (h *WorkflowHandler) completeLoginFlow(
 	ctx context.Context,
 	sessionID string,
 	userAgent string,
+	responsePayload map[string]interface{},
 ) {
-
-	fmt.Printf(
-		"[SECURITY] login_flow_start session_id=%s user_agent=%q\n",
-		sessionID,
-		userAgent,
-	)
 
 	now := time.Now()
 
-	// Kill existing session
-	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		// SameSiteNoneMode is required for cross-domain cookie sending (e.g., CloudFront to API)
-		// This must be accompanied by Secure: true
-		SameSite: http.SameSiteNoneMode,
+	// Step 1: clear old cookies
+	for _, name := range []string{"AUTH_SESSION_ID", "session_id"} {
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		http.SetCookie(c.Writer, cookie)
+	}
+
+	// Step 2: set new cookie
+	h.logger.Info("Setting session cookie", map[string]interface{}{
+		"sessionId": sessionID,
+		"name":      constants.SessionCookieName,
+		"maxAge":    86400,
 	})
 
-	// Set new session
-	http.SetCookie(c.Writer, &http.Cookie{
+	cookie := &http.Cookie{
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
-		Path:     constants.SessionCookiePath,
+		Path:     "/",
+		Domain:   "",
 		MaxAge:   86400,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		// SameSiteNoneMode allows the cookie to be sent in cross-site requests,
-		// which is necessary when the frontend (e.g. CloudFront) and backend are on different domains.
+		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	http.SetCookie(c.Writer, cookie)
 
 	// Headers
 	c.Header("Cache-Control", "no-store")
@@ -2000,7 +2252,10 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 		sess, err := store.Get(ctx, sessionID)
 		if err != nil && err != redis.Nil {
-			fmt.Printf("[SECURITY] session_fetch_failed session_id=%s error=%v\n", sessionID, err)
+			h.logger.Error("Failed to fetch session during login", map[string]interface{}{
+				"sessionId": sessionID,
+				"error":     err.Error(),
+			})
 		}
 
 		if sess != nil {
@@ -2017,25 +2272,87 @@ func (h *WorkflowHandler) completeLoginFlow(
 			sess.IP = c.ClientIP()
 
 			if err := store.Update(ctx, *sess); err != nil {
-				fmt.Printf("[SECURITY] session_update_failed session_id=%s error=%v\n", sessionID, err)
+				h.logger.Error("Failed to update session during login", map[string]interface{}{
+					"sessionId": sessionID,
+					"error":     err.Error(),
+				})
 			}
 		} else {
-			fmt.Printf("[SECURITY] session_not_found_on_login session_id=%s\n", sessionID)
+			h.logger.Warn("Session not found during login flow", map[string]interface{}{
+				"sessionId": sessionID,
+			})
 		}
 	}
 
-	fmt.Printf(
-		"[SECURITY] session_initialized session_id=%s user_agent=%q ip=%s\n",
-		sessionID,
-		userAgent,
-		c.ClientIP(),
-	)
+	h.logger.Info("Session initialized for user", map[string]interface{}{
+		"sessionId": sessionID,
+		"userAgent": userAgent,
+		"ip":        c.ClientIP(),
+	})
 
-	// Redirect
-	// Final success redirect — uses configurable URI instead of hardcoded CloudFront URL
-	targetURL := h.config.Auth.Keycloak.PostLoginRedirectURI
-	if targetURL == "" {
-		targetURL = "https://d595hydlunw5u.cloudfront.net/home" // Fallback
+	// Compile final response map
+	result := gin.H{
+		"success":   true,
+		"sessionId": sessionID,
+		"message":   "Login complete",
 	}
-	c.Redirect(http.StatusFound, targetURL)
+
+	for k, v := range responsePayload {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	// ============================================================================
+	// Callback Handling - 302 Redirect to Frontend
+	// ============================================================================
+
+	isCallback := c.Query("code") != ""
+
+	if isCallback {
+		redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
+		if redirectURL == "" {
+			redirectURL = "https://d595hydlunw5u.cloudfront.net/"
+		}
+		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
+			"sessionId":   sessionID,
+			"redirectUrl": redirectURL,
+		})
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+
+}
+
+func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
+
+	code := c.Query("code")
+	state := c.Query("state")
+
+	h.logger.Info("OAuth callback received", map[string]interface{}{
+		"requestId": c.GetString("requestId"),
+		"traceId":   c.GetString("traceId"),
+		"hasCode":   code != "",
+		"hasState":  state != "",
+	})
+
+	if code == "" || state == "" {
+		h.logger.Warn("OAuth callback missing required parameters", map[string]interface{}{
+			"requestId": c.GetString("requestId"),
+			"hasCode":   code != "",
+			"hasState":  state != "",
+		})
+		h.redirectToLoginWithError(c, "missing_code_or_state")
+		return
+	}
+
+	// Reuse existing flow by simulating JSON input
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	body := fmt.Sprintf(`{"code":"%s","state":"%s","provider":"keycloak"}`, code, state)
+	c.Request.Body = io.NopCloser(strings.NewReader(body))
+
+	h.StartKeycloakLogin(c)
 }

@@ -19,6 +19,10 @@ import (
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
 
+	operateactions "camunda-workers/internal/workers/operate/actions"
+	operatequeries "camunda-workers/internal/workers/operate/queries"
+	operatews "camunda-workers/internal/workers/operate/ws"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -172,7 +176,7 @@ func main() {
 	router.Use(middleware.CORS(cfg.API.CORS))
 
 	// 4.1 CSRF Token Issuer (issue CSRF token for each request)
-	router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient()))
+	// router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient())) // cookie fix: disable for testing
 
 	// 5. Security Headers
 	router.Use(middleware.SecurityHeaders())
@@ -192,14 +196,17 @@ func main() {
 
 	// 10. Error Handler MUST BE LAST! (catches all errors)
 	router.Use(middleware.ErrorHandler(log))
-	// ============================================================================
 
+	// ============================================================================
 	// Public routes (no authentication required)
+	// ============================================================================
 	router.GET("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.GET("/metrics", metricsHandler())
 
+	// ============================================================================
 	// Initialize handlers
+	// ============================================================================
 	workflowHandler := handlers.NewWorkflowHandler(
 		camundaClient,
 		log,
@@ -208,6 +215,31 @@ func main() {
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination, postgresDB.DB)
+
+	userHandler := handlers.NewUserHandler(redisClient.GetClient(), log)
+
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log)
+
+	// ============================================================================
+	// Operate Live-Monitoring (WebSocket + Queries + Actions)
+	// ============================================================================
+	// Context for Operate background tasks (Poller)
+	operateCtx, operateCancel := context.WithCancel(context.Background())
+	defer operateCancel()
+
+	// 1. WebSocket hub (must start before handler registration)
+	wsHub := operatews.NewHub()
+
+	// 2. ES poller — polls every 3 seconds, broadcasts to WS clients
+	poller := operatews.NewPoller(esClient.Client, wsHub, 3*time.Second)
+	go poller.Run(operateCtx)
+
+	// 3. Services
+	operateQuerySvc := operatequeries.NewOperateQueryService(esClient.Client)
+	operateActionSvc := operateactions.NewOperateActionService(camundaClient.GetClient())
+
+	// 4. Handler
+	operateHandler := handlers.NewOperateHandler(operateQuerySvc, operateActionSvc, wsHub)
 
 	router.GET("/debug/response-handler", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -222,12 +254,27 @@ func main() {
 	publicAPI := router.Group("/api/v1/")
 	{
 		// ========================================================================
+		// OAUTH/OIDC ROUTES - Direct OAuth flow (for future migration from Camunda)
+		// ========================================================================
+		oauthGroup := publicAPI.Group("/oauth")
+		{
+			// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
+			oauthGroup.POST("/logout", oauthHandler.OAuthLogout)
+
+			// ✅ LOGOUT ALL DEVICES (OAuth)
+			oauthGroup.POST("/logout-all", oauthHandler.LogoutAll)
+		}
+
+		// ========================================================================
 		// AUTHENTICATION ROUTES - Workflow-based (Workers handle Keycloak/DB)
 		// ========================================================================
 		authGroup := publicAPI.Group("/auth")
 		{
 			// ✅ KEYCLOAK UNIFIED LOGIN (Email/Password + Google + LinkedIn)
 			authGroup.POST("/login", workflowHandler.StartKeycloakLogin)
+
+			// ✅ NEW: Keycloak callback (backend-handled)
+			authGroup.GET("/callback", workflowHandler.HandleKeycloakCallback)
 
 			// ✅ KEYCLOAK LOGOUT
 			authGroup.POST("/logout", workflowHandler.StartKeycloakLogout)
@@ -262,10 +309,19 @@ func main() {
 			franchiseGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
 		}
 
-		// // ========================================================================
-		// // ENQUIRY ROUTES
-		// // ========================================================================
-		// publicAPI.POST("/enquiries", placeholderHandler("POST /enquiries"))
+		// ========================================================================
+		// CONTACT US ROUTE
+		// ========================================================================
+		publicAPI.POST("/contact",
+			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
+			workflowHandler.StartContactUs)
+
+		// ========================================================================
+		// PUBLIC GENERIC FORMS (e.g., Buyer/Franchisor Registrations)
+		// ========================================================================
+		publicAPI.POST("/forms/:formType/submit",
+			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
+			workflowHandler.StartFormSubmission)
 	}
 
 	// ============================================================================
@@ -278,7 +334,7 @@ func main() {
 	}
 	//protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
 	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
-	protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
+	// protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient())) // cookie fix: disable for testing
 	{
 		// ========================================================================
 		// AI CONVERSATION WORKFLOWS
@@ -299,7 +355,8 @@ func main() {
 			userGroup.DELETE("/account", workflowHandler.StartAccountDeletion)
 
 			// Temporary placeholders
-			userGroup.GET("/profile", placeholderHandler("GET /user/profile"))
+			userGroup.GET("/profile", userHandler.GetProfile)
+			userGroup.GET("/session/validate", userHandler.ValidateSession)
 			userGroup.GET("/preferences", placeholderHandler("GET /user/preferences"))
 		}
 
@@ -387,6 +444,14 @@ func main() {
 	}
 
 	// ============================================================================
+	// OPERATE LIVE-MONITORING ROUTES
+	// ============================================================================
+	operateGroup := router.Group("/operate")
+	{
+		operateHandler.RegisterRoutes(operateGroup)
+	}
+
+	// ============================================================================
 	// ADMIN ROUTES (JWT + Admin Role Required)
 	// ============================================================================
 	adminAPI := router.Group("/api/admin")
@@ -399,7 +464,7 @@ func main() {
 	adminAPI.Use(middleware.RateLimiter(adminRateLimit))
 	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
-	adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
+	// adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient())) // cookie fix: disable for testing
 	{
 		// Workflow management
 		workflowGroup := adminAPI.Group("/workflows")

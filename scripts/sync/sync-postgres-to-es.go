@@ -252,7 +252,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		).Scan(&location)
 
 		// Tags
-		tags := m.generateSearchTags(ctx, id, name, industryName)
+		tags := m.generateSearchTags(ctx, id, name)
 
 		// Space
 		var minSpace, maxSpace sql.NullInt32
@@ -261,24 +261,24 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			id,
 		).Scan(&minSpace, &maxSpace)
 
-		if !minSpace.Valid || minSpace.Int32 == 0 {
-			minSpace.Int32 = 200
-			minSpace.Valid = true
-		}
-		if !maxSpace.Valid || maxSpace.Int32 == 0 {
-			maxSpace.Int32 = 1000
-			maxSpace.Valid = true
-		}
+		// if !minSpace.Valid || minSpace.Int32 == 0 {
+		// 	minSpace.Int32 = 200
+		// 	minSpace.Valid = true
+		// }
+		// if !maxSpace.Valid || maxSpace.Int32 == 0 {
+		// 	maxSpace.Int32 = 1000
+		// 	maxSpace.Valid = true
+		// }
 
 		// ✅ Investment + ROI — ek hi query mein
 		var minInv, maxInv, roiMin, roiMax sql.NullFloat64
-		var paybackMin sql.NullInt32
+		var paybackMin, paybackMax sql.NullInt32
 		m.db.QueryRowContext(ctx,
 			`SELECT initial_investment_min, initial_investment_max,
-			        roi_min_percentage, roi_max_percentage, payback_min_months
+			        roi_min_percentage, roi_max_percentage, payback_min_months, payback_max_months
 			 FROM franchise_investment_requirement WHERE franchise_id = $1`,
 			id,
-		).Scan(&minInv, &maxInv, &roiMin, &roiMax, &paybackMin)
+		).Scan(&minInv, &maxInv, &roiMin, &roiMax, &paybackMin, &paybackMax)
 
 		// Categories
 		categories := m.getCategories(ctx, id)
@@ -378,7 +378,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 // ============================================================
 // GENERATE TAGS
 // ============================================================
-func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franchiseName, industryName string) []string {
+func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franchiseName string) []string {
 	tags := []string{}
 	seen := make(map[string]bool)
 

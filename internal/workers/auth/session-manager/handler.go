@@ -238,6 +238,14 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.UserID = userID
 	}
 
+	if keycloakUserID, ok := variables["keycloakUserId"].(string); ok {
+		input.KeycloakUserID = keycloakUserID
+	}
+
+	if idToken, ok := variables["idToken"].(string); ok {
+		input.IDToken = idToken
+	}
+
 	if email, ok := variables["email"].(string); ok {
 		input.Email = email
 	}
@@ -269,8 +277,16 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 		variables["userId"] = output.UserID
 	}
 
+	if output.KeycloakUserID != "" {
+		variables["keycloakUserId"] = output.KeycloakUserID
+	}
+
 	if output.Email != "" {
 		variables["email"] = output.Email
+	}
+
+	if output.IDToken != "" {
+		variables["idToken"] = output.IDToken
 	}
 
 	if !output.ExpiresAt.IsZero() {

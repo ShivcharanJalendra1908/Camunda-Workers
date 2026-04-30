@@ -45,6 +45,8 @@ services:
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL: http://elasticsearch:9200
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE: 1
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY: 1
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX_PREFIX: zeebe
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX_CREATETEMPLATE: "false"
       ZEEBE_LOG_LEVEL: info
       JAVA_OPTS: "-Xms1g -Xmx1g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/usr/local/zeebe/data/heapdump.hprof"
       ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK: 0.85
@@ -177,12 +179,14 @@ services:
       CAMUNDA_OPERATE_ZEEBE_GATEWAYADDRESS: zeebe:26500
       CAMUNDA_OPERATE_ELASTICSEARCH_URL: http://elasticsearch:9200
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
+      CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_PREFIX: zeebe
       SPRING_PROFILES_ACTIVE: dev
 
-      CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: false
+      CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: "false"
       CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
       CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
       CAMUNDA_OPERATE_ELASTICSEARCH_REQUESTTIMEOUT: 10000
+      
     depends_on:
       zeebe:
         condition: service_healthy
@@ -327,6 +331,8 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_healthy
+    volumes:
+      - ../../configs:/app/configs:ro
     networks:
       - camunda-network
     healthcheck:
@@ -407,3 +413,20 @@ services:
       - "8025:8025"
     networks:
       - camunda-network
+
+  operate-ui:
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/operate-ui:latest
+    container_name: operate-ui
+    ports:
+      - "3005:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - camunda-network
+    restart: on-failure:3
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

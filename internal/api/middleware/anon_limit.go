@@ -95,8 +95,8 @@ func AnonymousInquiryLimiter(redisClient *redis.Client, limit int) gin.HandlerFu
 				"error":   "INQUIRY_LIMIT_REACHED",
 				"message": "You have used all 3 free enquiries. Please sign in to continue.",
 				"details": gin.H{
-					"inquiriesUsed":  countAfterRaw,
-					"inquiryLimit":   limit,
+					"inquiriesUsed":   countAfterRaw,
+					"inquiryLimit":    limit,
 					"resetsInMinutes": int(ttlDur.Minutes()),
 				},
 			})

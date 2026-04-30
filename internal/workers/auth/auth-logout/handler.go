@@ -250,6 +250,11 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.KeycloakUserID = keycloakUserID
 	}
 
+	// IDToken is used for id_token_hint in Keycloak 17+ logout URL
+	if idToken, ok := variables["idToken"].(string); ok && idToken != "" {
+		input.IDToken = idToken
+	}
+
 	// RefreshToken is optional but recommended for single session logout
 	if refreshToken, ok := variables["refreshToken"].(string); ok && refreshToken != "" {
 		input.RefreshToken = refreshToken
@@ -278,6 +283,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 	if metadata, ok := variables["metadata"].(map[string]interface{}); ok {
 		input.Metadata = metadata
+	}
+
+	if err := ValidateInput(input); err != nil {
+		return nil, err
 	}
 
 	return input, nil

@@ -87,6 +87,8 @@ func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, erro
 	sess := session.Session{
 		SessionID:         sessionID,
 		UserID:            input.UserID,
+		KeycloakUserID:    input.KeycloakUserID,
+		IDToken:           input.IDToken,
 		CreatedAt:         now,
 		AbsoluteExpiresAt: expiresAt,
 		ExpiresAt:         expiresAt,
@@ -115,13 +117,15 @@ func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, erro
 	})
 
 	return &Output{
-		Success:      true,
-		SessionID:    sessionID,
-		UserID:       input.UserID,
-		Email:        input.Email,
-		ExpiresAt:    expiresAt,
-		CookieHeader: cookieHeader,
-		Message:      "Session created successfully",
+		Success:        true,
+		SessionID:      sessionID,
+		UserID:         input.UserID,
+		KeycloakUserID: input.KeycloakUserID,
+		Email:          input.Email,
+		IDToken:        input.IDToken,
+		ExpiresAt:      expiresAt,
+		CookieHeader:   cookieHeader,
+		Message:        "Session created successfully",
 	}, nil
 }
 
@@ -154,11 +158,13 @@ func (s *Service) handleGet(ctx context.Context, input *Input) (*Output, error) 
 	})
 
 	return &Output{
-		Success:   true,
-		SessionID: sess.SessionID,
-		UserID:    sess.UserID,
-		ExpiresAt: sess.ExpiresAt,
-		Message:   "Session retrieved successfully",
+		Success:        true,
+		SessionID:      sess.SessionID,
+		UserID:         sess.UserID,
+		KeycloakUserID: sess.KeycloakUserID,
+		IDToken:        sess.IDToken,
+		ExpiresAt:      sess.ExpiresAt,
+		Message:        "Session retrieved successfully",
 	}, nil
 }
 

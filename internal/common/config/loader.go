@@ -401,6 +401,17 @@ func overrideEmptyConfig(cfg *Config) {
 		cfg.Auth.Keycloak.PublicBaseURL = val
 	}
 
+	// RedirectURL for OAuth callback
+	if cfg.Auth.Keycloak.RedirectURL == "" {
+		if val := os.Getenv("KEYCLOAK_REDIRECT_URL"); val != "" {
+			cfg.Auth.Keycloak.RedirectURL = val
+		}
+	}
+	// Always override RedirectURL from env if set (not just when empty)
+	if val := os.Getenv("KEYCLOAK_REDIRECT_URL"); val != "" {
+		cfg.Auth.Keycloak.RedirectURL = val
+	}
+
 	// ============================================================================
 	// EXTERNAL INTEGRATIONS
 	// ============================================================================
@@ -471,33 +482,12 @@ func overrideEmptyConfig(cfg *Config) {
 		}
 	}
 
-	// ============================================================================
-	// CORS CONFIGURATION
-	// ============================================================================
-	if len(cfg.API.CORS.AllowOrigins) == 0 {
-		if val := os.Getenv("API_CORS_ALLOWED_ORIGINS"); val != "" {
-			cfg.API.CORS.AllowOrigins = strings.Split(val, ",")
-			// Trim whitespace from each origin
-			for i, origin := range cfg.API.CORS.AllowOrigins {
-				cfg.API.CORS.AllowOrigins[i] = strings.TrimSpace(origin)
-			}
+	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
+		origins := strings.Split(val, ",")
+		for i := range origins {
+			origins[i] = strings.TrimSpace(origins[i])
 		}
-	}
-	if len(cfg.API.CORS.AllowMethods) == 0 {
-		if val := os.Getenv("API_CORS_ALLOWED_METHODS"); val != "" {
-			cfg.API.CORS.AllowMethods = strings.Split(val, ",")
-			for i, method := range cfg.API.CORS.AllowMethods {
-				cfg.API.CORS.AllowMethods[i] = strings.TrimSpace(method)
-			}
-		}
-	}
-	if len(cfg.API.CORS.AllowHeaders) == 0 {
-		if val := os.Getenv("API_CORS_ALLOWED_HEADERS"); val != "" {
-			cfg.API.CORS.AllowHeaders = strings.Split(val, ",")
-			for i, header := range cfg.API.CORS.AllowHeaders {
-				cfg.API.CORS.AllowHeaders[i] = strings.TrimSpace(header)
-			}
-		}
+		cfg.API.CORS.AllowOrigins = origins
 	}
 }
 

@@ -433,7 +433,12 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		// return nil, fmt.Errorf("unknown page type: %s", input.PageType)
 	}
 
-	return &Output{Success: true, Response: response}, nil
+	success := true
+	if s, ok := response["success"].(bool); ok {
+		success = s
+	}
+
+	return &Output{Success: success, Response: response}, nil
 }
 
 // ===== HOME PAGE BUILDER =====
@@ -1043,13 +1048,20 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 // ===== GENERIC RESPONSE BUILDER =====
 func (h *Handler) buildGenericResponse(input *Input) map[string]interface{} {
 	data := map[string]interface{}{}
+	success := true
+
 	if input.Data != nil {
 		for k, v := range input.Data {
 			data[k] = v
 		}
+		// If success is explicitly passed in data, use it
+		if s, ok := input.Data["success"].(bool); ok {
+			success = s
+		}
 	}
+
 	return map[string]interface{}{
-		"success": true,
+		"success": success,
 		"data":    data,
 		"metadata": map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),

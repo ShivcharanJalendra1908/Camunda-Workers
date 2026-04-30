@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"time"
 
 	"camunda-workers/internal/common/auth"
@@ -54,21 +55,29 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	var tokenRevoked bool
 
 	// Step 1: Keycloak server-side session revoke
-	if s.keycloak != nil && input.KeycloakUserID != "" {
-		err := s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
+	if s.keycloak != nil {
+		var err error
+		if input.LogoutAll && input.KeycloakUserID != "" {
+			err = s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
+			s.logger.Info("Keycloak global logout initiated", map[string]interface{}{"keycloakUserId": input.KeycloakUserID})
+		} else if input.SessionID != "" {
+			err = s.keycloak.DeleteSession(ctx, input.SessionID)
+			s.logger.Info("Keycloak targeted session deletion initiated", map[string]interface{}{"sessionId": input.SessionID})
+		}
+
 		if err != nil {
 			s.logger.Warn("Keycloak session revoke failed", map[string]interface{}{
-				"error":          err.Error(),
-				"keycloakUserId": input.KeycloakUserID,
+				"error":     err.Error(),
+				"sessionId": input.SessionID,
+				"userId":    input.KeycloakUserID,
 			})
-		} else {
+		} else if (input.LogoutAll && input.KeycloakUserID != "") || input.SessionID != "" {
 			tokenRevoked = true
 			sessionsInvalidated = 1
-			s.logger.Info("Keycloak session revoked successfully", map[string]interface{}{
-				"keycloakUserId": input.KeycloakUserID,
-			})
+			s.logger.Info("Keycloak session(s) revoked successfully", nil)
 		}
 	}
+
 
 	// Step 2: Redis local session cleanup
 	if s.redisClient != nil {
@@ -85,13 +94,17 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
 	}
 
-	// Step 4: Build Keycloak browser logout URL
-	logoutURL := fmt.Sprintf(
-		"%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
-		s.config.Issuer,
-		s.config.PostLogoutRedirectURI,
-		s.config.ClientID,
-	)
+	// Step 4: Build Keycloak browser logout URL (frontend MUST redirect the browser here to clear SSO cookies)
+	params := url.Values{}
+	params.Add("post_logout_redirect_uri", s.config.PostLogoutRedirectURI)
+	params.Add("client_id", s.config.ClientID)
+	
+	// Keycloak 17+ requires id_token_hint for redirect to work correctly
+	if input.IDToken != "" {
+		params.Add("id_token_hint", input.IDToken)
+	}
+
+	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?%s", s.config.Issuer, params.Encode())
 
 	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
 		"userId":              input.UserID,

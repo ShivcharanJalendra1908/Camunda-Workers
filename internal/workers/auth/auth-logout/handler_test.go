@@ -348,7 +348,7 @@ func TestHandler_ParseInput(t *testing.T) {
 				"refreshToken": "refresh-token-abc-123",
 			},
 			wantErr: true,
-			errCode: "INVALID_UUID",
+			errCode: "INVALID_UUID_FORMAT",
 		},
 		{
 			name: "refreshToken too short (when provided)",

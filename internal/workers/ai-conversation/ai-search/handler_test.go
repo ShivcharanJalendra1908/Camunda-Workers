@@ -104,17 +104,17 @@ func TestParameterExtractor_Parse(t *testing.T) {
 	}{
 		{
 			name:        "Valid JSON response",
-			llmResponse: `{"industry":"Food & Beverage","category":"Dessert & Frozen Treats","location":{"city":"Kolkata","country":"India"}}`,
+			llmResponse: `{"Industry":"Food & Beverage","Category":"Dessert & Frozen Treats","Location":"Kolkata"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Food & Beverage", p.Industry)
 				assert.Equal(t, "Dessert & Frozen Treats", p.Category)
+				assert.NotNil(t, p.Location)
 				assert.Equal(t, "Kolkata", p.Location.City)
-				assert.Equal(t, "India", p.Location.Country)
 			},
 		},
 		{
 			name:        "JSON with markdown code blocks",
-			llmResponse: "```json\n{\"industry\":\"Education\",\"category\":\"Tutoring\"}\n```",
+			llmResponse: "```json\n{\"Industry\":\"Education\",\"Category\":\"Tutoring\"}\n```",
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Education", p.Industry)
 				assert.Equal(t, "Tutoring", p.Category)
@@ -122,14 +122,14 @@ func TestParameterExtractor_Parse(t *testing.T) {
 		},
 		{
 			name:        "JSON with extra text",
-			llmResponse: `Sure! {"category":"Fashion"} Hope this helps!`,
+			llmResponse: `Sure! {"Category":"Fashion"} Hope this helps!`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Fashion", p.Category)
 			},
 		},
 		{
 			name:        "Invalid JSON - should error",
-			llmResponse: `{"industry": "Food", invalid}`,
+			llmResponse: `{"Industry": "Food", invalid}`,
 			wantErr:     true,
 			errContains: "JSON parse failed",
 		},
@@ -137,33 +137,34 @@ func TestParameterExtractor_Parse(t *testing.T) {
 			name:        "No JSON object found",
 			llmResponse: "I couldn't extract parameters",
 			wantErr:     true,
-			errContains: "no valid JSON object found",
+			errContains: "no valid JSON found",
 		},
 		{
 			name:        "Location normalization",
-			llmResponse: `{"location":{"city":"mumbai"}}`,
+			llmResponse: `{"Location":"mumbai"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, "Mumbai", p.Location.City)
 				assert.Equal(t, "India", p.Location.Country)
 			},
 		},
 		{
-			name:        "Investment min/max swap",
-			llmResponse: `{"investment":{"min":5000000,"max":1000000}}`,
+			name:        "Investment normalization",
+			llmResponse: `{"Minimum_Investment":"10L","Maximum_Investment":"50L"}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, float64(1000000), p.Investment.Min)
 				assert.Equal(t, float64(5000000), p.Investment.Max)
 			},
 		},
 		{
-			name:        "ROI out of range",
-			llmResponse: `{"roi":{"min":-10,"max":150}}`,
-			wantErr:     true,
-			errContains: "ROI must be between 0 and 100",
+			name:        "ROI clamping",
+			llmResponse: `{"ROI":150}`,
+			assertions: func(t *testing.T, p *ExtractedParameters) {
+				assert.Equal(t, 100.0, p.ROI.Min)
+			},
 		},
 		{
 			name:        "Rating clamped to 0-5",
-			llmResponse: `{"rating":7.5}`,
+			llmResponse: `{"Rating":7.5}`,
 			assertions: func(t *testing.T, p *ExtractedParameters) {
 				assert.Equal(t, 5.0, *p.Rating)
 			},
@@ -194,12 +195,12 @@ func TestParameterExtractor_ParseWithFallback(t *testing.T) {
 	pe := NewParameterExtractor(createTestConfig())
 
 	t.Run("Valid response", func(t *testing.T) {
-		params := pe.ParseWithFallback(`{"industry":"Food & Beverage","category":"Quick Service"}`)
+		params := pe.ParseWithFallback(`{"Industry":"Food & Beverage","Category":"Quick Service"}`)
 		assert.NotNil(t, params)
 		assert.Equal(t, "Food & Beverage", params.Industry)
 	})
 	t.Run("Invalid JSON returns empty", func(t *testing.T) {
-		params := pe.ParseWithFallback(`{"invalid": json}`)
+		params := pe.ParseWithFallback(`{"Invalid": JSON}`)
 		assert.NotNil(t, params)
 		assert.Equal(t, "", params.Industry)
 		assert.Nil(t, params.Location)
@@ -247,25 +248,12 @@ func TestParameterExtractor_normalizeParameters(t *testing.T) {
 			},
 		},
 		{
-			name:  "Investment auto-fills missing max (10x)",
-			input: &ExtractedParameters{Investment: &InvestmentFilter{Min: 1000000, Max: 0}},
+			name:  "ROI clamped",
+			input: &ExtractedParameters{ROI: &RangeFilter{Min: -5, Max: 150}},
 			assertions: func(t *testing.T, p *ExtractedParameters) {
-				assert.Equal(t, float64(1000000), p.Investment.Min)
-				assert.Equal(t, float64(10000000), p.Investment.Max)
+				assert.Equal(t, 0.0, p.ROI.Min)
+				assert.Equal(t, 100.0, p.ROI.Max)
 			},
-		},
-		{
-			name:  "ROI auto-fills min",
-			input: &ExtractedParameters{ROI: &RangeFilter{Min: 0, Max: 20}},
-			assertions: func(t *testing.T, p *ExtractedParameters) {
-				assert.Equal(t, 18.0, p.ROI.Min)
-				assert.Equal(t, 20.0, p.ROI.Max)
-			},
-		},
-		{
-			name:    "ROI negative - error",
-			input:   &ExtractedParameters{ROI: &RangeFilter{Min: -5, Max: 10}},
-			wantErr: true,
 		},
 		{
 			name:  "Rating clamped to 5.0",
@@ -562,5 +550,183 @@ func BenchmarkParameterExtractor_Parse(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = pe.Parse(resp)
+	}
+}
+
+func TestParameterExtractor_StressTest(t *testing.T) {
+	pe := NewParameterExtractor(createTestConfig())
+
+	type testCase struct {
+		name     string
+		query    string
+		llmResp  string
+		expected map[string]interface{}
+	}
+
+	scenarios := []testCase{
+		{
+			name:    "Dual Loc: English - Delhi to Pune",
+			query:   "I am currently in Delhi but want to start a business in Pune",
+			llmResp: `{"Location": "Delhi"}`,
+			expected: map[string]interface{}{"City": "Pune"},
+		},
+		{
+			name:    "Investment: Crores",
+			query:   "Searching for franchises under 2 Cr in Mumbai",
+			llmResp: `{"Maximum_Investment": "2 Cr", "Location": "Mumbai"}`,
+			expected: map[string]interface{}{"MaxInv": 20000000.0, "City": "Mumbai"},
+		},
+		{
+			name:    "ROI: Percentage Range",
+			query:   "ROI between 20% and 40% in Hyderabad",
+			llmResp: `{"ROI": "20% to 40%", "Location": "Hyderabad"}`,
+			expected: map[string]interface{}{"ROIMin": 20.0, "City": "Hyderabad"},
+		},
+		{
+			name:    "Space: Square Feet",
+			query:   "1000 square feet shop needed in Kolkata",
+			llmResp: `{"Area_Requirement": "1000", "Location": "Kolkata"}`,
+			expected: map[string]interface{}{"SpaceMin": 800.0, "City": "Kolkata"},
+		},
+		{
+			name:    "HQ Ambiguity",
+			query:   "This brand is headquartered in Chennai, but I want to open it in Gurgaon",
+			llmResp: `{"Location": "Chennai"}`,
+			expected: map[string]interface{}{"City": "Gurugram"}, // Normalized name
+		},
+		{
+			name:    "Main Road Bug Fix",
+			query:   "Main road location available for food franchise in Bangalore",
+			llmResp: `{"Location": "null"}`,
+			expected: map[string]interface{}{"City": "Bengaluru"},
+		},
+		{
+			name:    "Zone Priority: Northeast",
+			query:   "Northeast India expansion models under 5L",
+			llmResp: `{"Location": "null", "Maximum_Investment": "5L"}`,
+			expected: map[string]interface{}{"City": "Northeast India"},
+		},
+		{
+			name:    "Hinglish: Mumbai to Chennai",
+			query:   "Main Mumbai mein hun, Chennai mein lena hai",
+			llmResp: `{"Location": "Mumbai"}`,
+			expected: map[string]interface{}{"City": "Chennai"},
+		},
+		{
+			name:    "Investment: Lakhs",
+			query:   "Business around 25 Lakhs in Delhi NCR",
+			llmResp: `{"Maximum_Investment": "25L", "Location": "Delhi"}`,
+			expected: map[string]interface{}{"MaxInv": 2500000.0, "City": "Delhi NCR"},
+		},
+		{
+			name:    "State Match: West Bengal",
+			query:   "Education franchise for West Bengal",
+			llmResp: `{"Location": "West Bengal"}`,
+			expected: map[string]interface{}{"City": "West Bengal", "State": "West Bengal"},
+		},
+		{
+			name:    "Combination Query",
+			query:   "I need a retail franchise in Punjab with 30% ROI and 500 sq ft space",
+			llmResp: `{"Location": "Punjab", "ROI": "30%", "Area_Requirement": "500", "Industry": "Retail"}`,
+			expected: map[string]interface{}{"City": "Punjab", "ROIMin": 30.0, "SpaceMin": 400.0},
+		},
+		{
+			name:    "Negative: No location",
+			query:   "Best low investment food brands",
+			llmResp: `{"Industry": "Food", "Minimum_Investment": "1L"}`,
+			expected: map[string]interface{}{"City": ""},
+		},
+		{
+			name:    "Current Based In",
+			query:   "Currently based in Noida, seeking opportunities in Jaipur",
+			llmResp: `{"Location": "Noida"}`,
+			expected: map[string]interface{}{"City": "Jaipur"},
+		},
+		{
+			name:    "Hinglish: Patna se Kanpur",
+			query:   "Main Patna se hun, Kanpur mein business karna hai",
+			llmResp: `{"Location": "Patna"}`,
+			expected: map[string]interface{}{"City": "Kanpur"},
+		},
+		{
+			name:    "Pan India Target",
+			query:   "Nationwide franchise options above 50L",
+			llmResp: `{"Minimum_Investment": "50L", "Location": "Pan India"}`,
+			expected: map[string]interface{}{"City": "Pan India"},
+		},
+		{
+			name:    "Central India Search",
+			query:   "Central India dealership offers",
+			llmResp: `{"Location": "null"}`,
+			expected: map[string]interface{}{"City": "Central India"},
+		},
+		{
+			name:    "Substring Prevention: Puneet",
+			query:   "Puneet's garments franchise in Delhi",
+			llmResp: `{"Location": "Delhi"}`,
+			expected: map[string]interface{}{"City": "Delhi NCR"}, // Should NOT pick Pune, but Delhi normalizes to Delhi NCR
+		},
+		{
+			name:    "Investment Min/Max Range",
+			query:   "Franchise above 10L but below 30L in Surat",
+			llmResp: `{"Minimum_Investment": "10L", "Maximum_Investment": "30L", "Location": "Surat"}`,
+			expected: map[string]interface{}{"MinInv": 1000000.0, "MaxInv": 3000000.0, "City": "Surat"},
+		},
+		{
+			name:    "Simple English Query",
+			query:   "What are the food franchises in Ahmedabad?",
+			llmResp: `{"Industry": "Food", "Location": "Ahmedabad"}`,
+			expected: map[string]interface{}{"City": "Ahmedabad"},
+		},
+		{
+			name:    "Complex ROI Phrasing",
+			query:   "High profit business with ROI more than 25 percent in Indore",
+			llmResp: `{"ROI": "25", "Location": "Indore"}`,
+			expected: map[string]interface{}{"ROIMin": 25.0, "City": "Indore"},
+		},
+	}
+
+	for _, sc := range scenarios {
+		t.Run(sc.name, func(t *testing.T) {
+			params := pe.ParseWithContext(sc.llmResp, sc.query)
+
+			if expectedCity, ok := sc.expected["City"].(string); ok {
+				if expectedCity == "" {
+					assert.Nil(t, params.Location, "Location should be nil for: %s", sc.query)
+				} else {
+					if assert.NotNil(t, params.Location, "Location missing for: %s", sc.query) {
+						assert.Equal(t, expectedCity, params.Location.City, "City mismatch for: %s", sc.query)
+					}
+				}
+			}
+
+			if expectedState, ok := sc.expected["State"].(string); ok {
+				assert.Equal(t, expectedState, params.Location.State)
+			}
+
+			if expectedMax, ok := sc.expected["MaxInv"].(float64); ok {
+				if assert.NotNil(t, params.Investment) {
+					assert.Equal(t, expectedMax, params.Investment.Max)
+				}
+			}
+
+			if expectedMin, ok := sc.expected["MinInv"].(float64); ok {
+				if assert.NotNil(t, params.Investment) {
+					assert.Equal(t, expectedMin, params.Investment.Min)
+				}
+			}
+
+			if expectedROIMin, ok := sc.expected["ROIMin"].(float64); ok {
+				if assert.NotNil(t, params.ROI) {
+					assert.Equal(t, expectedROIMin, params.ROI.Min)
+				}
+			}
+
+			if expectedSpaceMin, ok := sc.expected["SpaceMin"].(float64); ok {
+				if assert.NotNil(t, params.Space) {
+					assert.Equal(t, expectedSpaceMin, params.Space.Min)
+				}
+			}
+		})
 	}
 }

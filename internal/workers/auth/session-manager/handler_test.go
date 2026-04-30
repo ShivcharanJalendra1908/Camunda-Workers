@@ -54,6 +54,7 @@ func createValidConfig() *Config {
 		RedisPort:     6379,
 		RedisPassword: "",
 		RedisDB:       0,
+		CookieName:    "session_id",
 	}
 }
 
@@ -366,6 +367,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       0,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "session_id",
 			},
 			wantErr: true,
 			errMsg:  "timeout",
@@ -378,6 +380,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       -5 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "session_id",
 			},
 			wantErr: true,
 			errMsg:  "timeout",
@@ -390,6 +393,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     6379,
+				CookieName:    "session_id",
 			},
 			wantErr: true,
 			errMsg:  "maxJobsActive",
@@ -401,6 +405,8 @@ func TestConfig_Validate(t *testing.T) {
 				MaxJobsActive: 5,
 				Timeout:       10 * time.Second,
 				RedisPort:     6379,
+				CookieName:    "session_id",
+				// RedisHost intentionally empty
 			},
 			wantErr: true,
 			errMsg:  "redisHost",
@@ -413,6 +419,7 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     0,
+				CookieName:    "session_id",
 			},
 			wantErr: true,
 			errMsg:  "redisPort",
@@ -425,10 +432,12 @@ func TestConfig_Validate(t *testing.T) {
 				Timeout:       10 * time.Second,
 				RedisHost:     "localhost",
 				RedisPort:     65536,
+				CookieName:    "session_id",
 			},
 			wantErr: true,
 			errMsg:  "redisPort",
 		},
+
 		{
 			name: "valid config with auth",
 			config: &Config{
@@ -439,6 +448,7 @@ func TestConfig_Validate(t *testing.T) {
 				RedisPort:     6380,
 				RedisPassword: "supersecret",
 				RedisDB:       2,
+				CookieName:    "session_id",
 			},
 			wantErr: false,
 		},
@@ -574,9 +584,10 @@ func TestHandler_CompleteJob_VariableMapping(t *testing.T) {
 		output := &Output{
 			Success:      true,
 			Message:      "Session created successfully",
-			SessionID:    "session-abc-123",
-			UserID:       "550e8400-e29b-41d4-a716-446655440000",
-			Email:        "user@example.com",
+			SessionID:      "session-abc-123",
+			UserID:         "550e8400-e29b-41d4-a716-446655440000",
+			KeycloakUserID: "kc-user-123",
+			Email:          "user@example.com",
 			ExpiresAt:    expiresAt,
 			CookieHeader: "session=abc; HttpOnly; Secure",
 		}
@@ -587,6 +598,7 @@ func TestHandler_CompleteJob_VariableMapping(t *testing.T) {
 		assert.Equal(t, "Session created successfully", vars["sessionMessage"])
 		assert.Equal(t, "session-abc-123", vars["sessionId"])
 		assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", vars["userId"])
+		assert.Equal(t, "kc-user-123", vars["keycloakUserId"])
 		assert.Equal(t, "user@example.com", vars["email"])
 		assert.Equal(t, expiresAt.Format(time.RFC3339), vars["expiresAt"])
 		assert.Equal(t, "session=abc; HttpOnly; Secure", vars["cookieHeader"])
@@ -649,6 +661,9 @@ func buildCompleteJobVariables(output *Output) map[string]interface{} {
 	if output.UserID != "" {
 		variables["userId"] = output.UserID
 	}
+	if output.KeycloakUserID != "" {
+		variables["keycloakUserId"] = output.KeycloakUserID
+	}
 	if output.Email != "" {
 		variables["email"] = output.Email
 	}
@@ -674,6 +689,7 @@ func TestHandler_SessionNotFound_GracefulComplete(t *testing.T) {
 	}
 
 	assert.Equal(t, errors.ErrorCode("SESSION_NOT_FOUND"), err.Code)
+	assert.Equal(t, "Session not found", err.Message)
 
 	// The handler completes gracefully (no error) for SESSION_NOT_FOUND
 	// This mirrors the logic in Handle():
@@ -692,6 +708,8 @@ func TestHandler_NonSessionNotFound_ReturnsError(t *testing.T) {
 
 	isGraceful := err.Code == "SESSION_NOT_FOUND"
 	assert.False(t, isGraceful, "REDIS_ERROR should not be handled gracefully")
+	assert.Equal(t, "Redis unavailable", err.Message)
+	assert.True(t, err.Retryable)
 }
 
 // ==========================
@@ -888,7 +906,6 @@ func TestTaskTypeConstant(t *testing.T) {
 func TestHandler_Handle_DisabledWorker(t *testing.T) {
 	handler := &Handler{
 		config: &Config{Enabled: false},
-		logger: logger.NewStructured("info", "json"),
 	}
 	assert.False(t, handler.config.Enabled)
 	// When disabled, Handle() completes job with Success=false, Message="Session manager disabled"
