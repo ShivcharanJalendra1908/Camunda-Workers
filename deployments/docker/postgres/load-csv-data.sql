@@ -8,6 +8,20 @@
 SET session_replication_role = 'replica';
 
 -- ========================================
+-- TRUNCATE TABLES (Clean start)
+-- ========================================
+\echo 'Cleaning existing data...'
+TRUNCATE 
+    industries, categories, sub_categories, 
+    franchises, franchise_categories, franchise_stats, 
+    franchise_cities, franchise_business_overview, 
+    franchise_investment_requirement, franchise_operations, 
+    franchise_social_links, category_questions,
+    industry_market_insights, franchise_documents,
+    franchise_contacts, franchise_faqs, franchise_news
+CASCADE;
+
+-- ========================================
 -- LOAD INDUSTRIES
 -- ========================================
 \echo 'Loading industries data...'

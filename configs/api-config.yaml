@@ -21,6 +21,7 @@ api:
       - "http://localhost:5173"
       - "https://d3c34598mt7qdx.cloudfront.net"
       - "https://lemici.com"
+      - "https://www.lemici.com"
       - "https://dev.lemici.com"
     allowMethods:
       - "GET"
