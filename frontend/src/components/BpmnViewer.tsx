@@ -162,7 +162,7 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
                 <div style={{
                     position: 'absolute', inset: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'var(--op-surface)', color: 'var(--op-text-muted)',
+                    background: '#1c1f23', color: 'var(--op-text-muted)',
                     zIndex: 10,
                 }}>
                     Loading BPMN diagram...
@@ -173,7 +173,7 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
                 <div style={{
                     position: 'absolute', inset: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--op-red)', zIndex: 10,
+                    color: '#ffcdd2', zIndex: 10,
                 }}>
                     {error}
                 </div>
@@ -182,65 +182,101 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
             {/* Legend */}
             {!loading && !error && (
                 <div style={{
-                    position: 'absolute', top: 8, right: 8,
-                    background: 'var(--op-surface)',
-                    border: '1px solid var(--op-border)',
-                    borderRadius: 6, padding: '8px 12px',
+                    position: 'absolute', top: 16, right: 16,
+                    background: '#25292e',
+                    border: '1px solid #3a3f45',
+                    borderRadius: 6, padding: '12px 16px',
                     zIndex: 10, fontSize: 12,
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.3)'
                 }}>
-                    {Object.entries(STATE_COLORS).map(([state, colors]) => (
-                        <div key={state} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <div style={{
-                                width: 12, height: 12, borderRadius: 2,
-                                background: colors.fill, border: `1.5px solid ${colors.stroke}`,
-                            }} />
-                            <span style={{ color: 'var(--op-text-muted)' }}>{state}</span>
-                        </div>
-                    ))}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#1c3e5e', border: '1.5px solid #4593e6' }} />
+                        <span style={{ color: '#eeeeee', fontWeight: 500 }}>ACTIVE</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#25292e', border: '1.5px solid #4593e6' }} />
+                        <span style={{ color: '#eeeeee', fontWeight: 500 }}>COMPLETED</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#25292e', border: '1.5px solid #a0a0a0' }} />
+                        <span style={{ color: '#eeeeee', fontWeight: 500 }}>DEFAULT</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#3b1c1c', border: '1.5px solid #e53935' }} />
+                        <span style={{ color: '#eeeeee', fontWeight: 500 }}>INCIDENT</span>
+                    </div>
                 </div>
             )}
 
             {/* BPMN canvas */}
             <div
                 ref={containerRef}
-                style={{ width: '100%', height: '100%', background: 'var(--op-bg)' }}
+                style={{ width: '100%', height: '100%', background: '#1c1f23' }}
             />
 
-            {/* bpmn-js default styles */}
+            {/* bpmn-js dark theme styles */}
             <style>{`
-        .bjs-container { height: 100% !important; }
+        /* Import core bpmn-js styles to fix giant triangles and layout issues */
+        @import url("https://unpkg.com/bpmn-js@18.15.0/dist/assets/diagram-js.css");
+        @import url("https://unpkg.com/bpmn-js@18.15.0/dist/assets/bpmn-js.css");
+        @import url("https://unpkg.com/bpmn-js@18.15.0/dist/assets/bpmn-font/css/bpmn.css");
+
+        .bjs-container { 
+            height: 100% !important; 
+            background-color: #1c1f23 !important;
+        }
         .djs-palette { display: none !important; }
-        
-        .state-COMPLETED .djs-visual rect,
-        .state-COMPLETED .djs-visual circle,
-        .state-COMPLETED .djs-visual polygon,
-        .state-COMPLETED .djs-visual path {
-            fill: #c8e6c9 !important;
-            stroke: #388e3c !important;
+        .bjs-powered-by { display: none !important; }
+
+        /* 1. Base Dark Theme for unexecuted elements */
+        .djs-element .djs-visual > rect,
+        .djs-element .djs-visual > circle,
+        .djs-element .djs-visual > polygon {
+            fill: #25292e !important;
+            stroke: #a0a0a0 !important;
+            stroke-width: 2px !important;
         }
-        
-        .state-ACTIVE .djs-visual rect,
-        .state-ACTIVE .djs-visual circle,
-        .state-ACTIVE .djs-visual polygon,
-        .state-ACTIVE .djs-visual path {
-            fill: #a9d4f5 !important;
-            stroke: #1b85cc !important;
+
+        .djs-connection .djs-visual > path {
+            stroke: #666666 !important;
+            stroke-width: 2px !important;
         }
-        
-        .state-TERMINATED .djs-visual rect,
-        .state-TERMINATED .djs-visual circle,
-        .state-TERMINATED .djs-visual polygon,
-        .state-TERMINATED .djs-visual path {
-            fill: #e0e0e0 !important;
-            stroke: #9e9e9e !important;
+
+        /* Make all arrowheads grey to match dark mode */
+        marker path {
+            fill: #a0a0a0 !important;
+            stroke: #a0a0a0 !important;
         }
-        
-        .state-INCIDENT .djs-visual rect,
-        .state-INCIDENT .djs-visual circle,
-        .state-INCIDENT .djs-visual polygon,
-        .state-INCIDENT .djs-visual path {
-            fill: #ffcdd2 !important;
-            stroke: #c62828 !important;
+
+        /* Text colors to white */
+        .djs-label, .djs-label > tspan, text {
+            fill: #eeeeee !important;
+        }
+
+        /* 2. COMPLETED State (Traces execution path in Blue) */
+        .state-COMPLETED.djs-shape .djs-visual > rect,
+        .state-COMPLETED.djs-shape .djs-visual > circle,
+        .state-COMPLETED.djs-shape .djs-visual > polygon {
+            stroke: #4593e6 !important;
+        }
+        .state-COMPLETED.djs-connection .djs-visual > path {
+            stroke: #4593e6 !important;
+        }
+
+        /* 3. ACTIVE State (Blue fill where token currently is) */
+        .state-ACTIVE.djs-shape .djs-visual > rect,
+        .state-ACTIVE.djs-shape .djs-visual > circle,
+        .state-ACTIVE.djs-shape .djs-visual > polygon {
+            stroke: #4593e6 !important;
+            fill: #1c3e5e !important;
+        }
+
+        /* 4. INCIDENT State (Red highlight) */
+        .state-INCIDENT.djs-shape .djs-visual > rect,
+        .state-INCIDENT.djs-shape .djs-visual > circle,
+        .state-INCIDENT.djs-shape .djs-visual > polygon {
+            stroke: #e53935 !important;
+            fill: #3b1c1c !important;
         }
       `}</style>
         </div>

@@ -1,11 +1,9 @@
-deployments/docker/ollama/qwen-extractor.gguf
-deployments/docker/ollama/qwen-extractor.gguf
 deployments/docker/ollama/*.gguf
 /arms_cache/*
 /.vscode/*
-<<<<<<< HEAD
 /docs/kintesh_plan/*
 /local-testing/**.swp
-=======
 /kintesh-local
->>>>>>> cb90dee (fix: resolve cookie persistence in OAuth callback flow)
+node_modules/
+frontend/node_modules/
+.env
