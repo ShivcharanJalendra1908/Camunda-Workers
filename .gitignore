@@ -22,4 +22,5 @@ frontend/node_modules/
 
 # Ollama / models
 deployments/docker/ollama/*.gguf
-/arms_cache/
+/arms_cache/api-gateway
+api-gateway*
