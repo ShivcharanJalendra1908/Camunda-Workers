@@ -115,17 +115,17 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 	// List Your Franchise (Franchisor) specific validation
 	if variables.FormType == "list_franchise" {
 		mandatoryFields := map[string]string{
-			"brandName":           "Brand Name is required",
-			"companyLegalName":    "Company Legal Name is required",
-			"industryCategory":    "Industry Category is required",
-			"initialInvestment":   "Initial Investment is required",
-			"franchiseFee":        "Franchise Fee is required",
-			"expectedROI":         "Expected ROI is required",
-			"citiesOfOperation":   "Cities of Operation is required",
-			"supportProvided":     "Support & Training Provided is required",
-			"contactPersonName":   "Contact Person Name is required",
-			"contactEmail":        "Contact Email is required",
-			"contactPhone":        "Contact Phone is required",
+			"brandName":         "Brand Name is required",
+			"companyLegalName":  "Company Legal Name is required",
+			"industryCategory":  "Industry Category is required",
+			"initialInvestment": "Initial Investment is required",
+			"franchiseFee":      "Franchise Fee is required",
+			"expectedROI":       "Expected ROI is required",
+			"citiesOfOperation": "Cities of Operation is required",
+			"supportProvided":   "Support & Training Provided is required",
+			"contactPersonName": "Contact Person Name is required",
+			"contactEmail":      "Contact Email is required",
+			"contactPhone":      "Contact Phone is required",
 		}
 
 		for field, msg := range mandatoryFields {
@@ -188,7 +188,7 @@ func (w *PublicFormWorker) HandleSaveForm(client worker.JobClient, job entities.
 	formDataJSON, err := json.Marshal(variables.FormData)
 	if err != nil {
 		w.logger.Error("Failed to marshal form data", map[string]interface{}{"error": err.Error()})
-		client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.GetRetries()-1).ErrorMessage("Internal error").Send(context.Background())
+		client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.GetRetries() - 1).ErrorMessage("Internal error").Send(context.Background())
 		return
 	}
 
@@ -202,7 +202,7 @@ func (w *PublicFormWorker) HandleSaveForm(client worker.JobClient, job entities.
 	err = w.db.QueryRow(context.Background(), query, variables.FormType, email, phone, formDataJSON).Scan(&submissionID)
 	if err != nil {
 		w.logger.Error("Database insertion failed", map[string]interface{}{"error": err.Error()})
-		client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.GetRetries()-1).ErrorMessage("Database error").Send(context.Background())
+		client.NewFailJobCommand().JobKey(job.GetKey()).Retries(job.GetRetries() - 1).ErrorMessage("Database error").Send(context.Background())
 		return
 	}
 

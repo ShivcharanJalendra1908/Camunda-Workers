@@ -211,19 +211,34 @@ export default function BpmnViewer({ processDefinitionKey, processInstanceKey, a
         .bjs-container { height: 100% !important; }
         .djs-palette { display: none !important; }
         
-        .state-COMPLETED .djs-visual > :nth-child(1) {
+        .state-COMPLETED .djs-visual rect,
+        .state-COMPLETED .djs-visual circle,
+        .state-COMPLETED .djs-visual polygon,
+        .state-COMPLETED .djs-visual path {
             fill: #c8e6c9 !important;
             stroke: #388e3c !important;
         }
-        .state-ACTIVE .djs-visual > :nth-child(1) {
+        
+        .state-ACTIVE .djs-visual rect,
+        .state-ACTIVE .djs-visual circle,
+        .state-ACTIVE .djs-visual polygon,
+        .state-ACTIVE .djs-visual path {
             fill: #a9d4f5 !important;
             stroke: #1b85cc !important;
         }
-        .state-TERMINATED .djs-visual > :nth-child(1) {
+        
+        .state-TERMINATED .djs-visual rect,
+        .state-TERMINATED .djs-visual circle,
+        .state-TERMINATED .djs-visual polygon,
+        .state-TERMINATED .djs-visual path {
             fill: #e0e0e0 !important;
             stroke: #9e9e9e !important;
         }
-        .state-INCIDENT .djs-visual > :nth-child(1) {
+        
+        .state-INCIDENT .djs-visual rect,
+        .state-INCIDENT .djs-visual circle,
+        .state-INCIDENT .djs-visual polygon,
+        .state-INCIDENT .djs-visual path {
             fill: #ffcdd2 !important;
             stroke: #c62828 !important;
         }
