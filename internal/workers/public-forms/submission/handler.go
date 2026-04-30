@@ -67,10 +67,12 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 		message = m
 	}
 
-	// Validate email
-	if err := ozzo.Validate(email, ozzo.Required, is.Email); err != nil {
-		isValid = false
-		validationErrors["email"] = "Invalid email format"
+	// Validate email format if provided
+	if email != "" {
+		if err := ozzo.Validate(email, is.Email); err != nil {
+			isValid = false
+			validationErrors["email"] = "Invalid email format"
+		}
 	}
 
 	// Validate phone

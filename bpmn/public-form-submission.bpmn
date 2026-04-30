@@ -170,7 +170,7 @@
     <sequenceFlow id="flow-422-to-send" sourceRef="task-422-build" targetRef="task-422-send" />
     <sequenceFlow id="flow-422-end" sourceRef="task-422-send" targetRef="end-422" />
   </process>
-  <error id="error-email-failed" name="Email Failed" errorCode="email-failed" />
+  <error id="error-email-failed" name="Email Failed" errorCode="SMTP_SEND_ERROR" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="public-form-submission">
       <bpmndi:BPMNShape id="start-public-form_di" bpmnElement="start-public-form">

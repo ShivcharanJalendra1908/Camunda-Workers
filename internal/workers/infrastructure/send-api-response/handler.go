@@ -305,8 +305,8 @@ func (h *Handler) Execute(ctx context.Context, task *registry.Task) (map[string]
 
 	// Convert to map
 	result := map[string]interface{}{
-		"success":   output.Success,
-		"sentToApi": output.SentToAPI,
+		"workerSuccess": output.Success,
+		"sentToApi":     output.SentToAPI,
 	}
 	if output.Error != "" {
 		result["error"] = output.Error
