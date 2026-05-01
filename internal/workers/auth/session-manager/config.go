@@ -19,6 +19,7 @@ type Config struct {
 	// Session Configuration
 	DefaultTTL time.Duration `yaml:"defaultTtl"`
 	CookieName string        `yaml:"cookieName"`
+	Domain     string        `yaml:"domain"`   // e.g. ".lemici.com" for subdomain sharing
 	Secure     bool          `yaml:"secure"`
 	HttpOnly   bool          `yaml:"httpOnly"`
 	SameSite   string        `yaml:"sameSite"` // "Lax", "Strict", "None"
@@ -33,11 +34,11 @@ func DefaultConfig() *Config {
 		RedisPort:     6379,
 		RedisDB:       0,
 		DefaultTTL:    24 * time.Hour,
-		// CookieName:    "session_id",
-		CookieName: "AUTH_SESSION_ID",
-		Secure:     true,
-		HttpOnly:   true,
-		SameSite:   "None",
+		CookieName:   "AUTH_SESSION_ID",
+		Domain:       ".lemici.com",
+		Secure:       true,
+		HttpOnly:     true,
+		SameSite:     "Lax",
 	}
 }
 

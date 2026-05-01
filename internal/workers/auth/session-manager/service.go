@@ -202,6 +202,7 @@ func (s *Service) buildSetCookieHeader(sessionID string, expiresAt time.Time) st
 		Name:     s.config.CookieName,
 		Value:    sessionID,
 		Path:     "/",
+		Domain:   s.config.Domain,
 		HttpOnly: s.config.HttpOnly,
 		Secure:   s.config.Secure,
 		MaxAge:   maxAge,
@@ -224,6 +225,7 @@ func (s *Service) buildClearCookieHeader() string {
 		Name:     s.config.CookieName,
 		Value:    "",
 		Path:     "/",
+		Domain:   s.config.Domain,
 		HttpOnly: s.config.HttpOnly,
 		Secure:   s.config.Secure,
 		MaxAge:   -1, // Immediate expiry
