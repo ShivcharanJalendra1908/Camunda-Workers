@@ -13,27 +13,6 @@ database:
   redis:
     address: redis-service:6379
 
-api:
-  cors:
-    allowOrigins:
-      - "https://lemici.com"
-      - "https://www.lemici.com"
-    allowMethods:
-      - "GET"
-      - "POST"
-      - "PUT"
-      - "PATCH"
-      - "DELETE"
-      - "OPTIONS"
-    allowHeaders:
-      - "*"
-    exposeHeaders:
-      - "X-Request-ID"
-      - "X-RateLimit-Limit"
-      - "X-RateLimit-Remaining"
-    allowCredentials: true
-    maxAge: 86400    
-
 apis:
   genai:
     base_url: "http://genai-service:8080"
