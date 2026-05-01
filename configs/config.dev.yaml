@@ -9,7 +9,35 @@ camunda:
     client_secret: "worker-secret"
     token_url: "https://dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     audience: "zeebe-api"
-
+    
+api:
+  cors:
+    allowOrigins:
+      - "https://lemici.com"
+      - "https://www.lemici.com"
+      - "https://dev.lemici.com"
+      - "https://d3r20osyd7sq76.cloudfront.net"
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "PATCH"
+      - "DELETE"
+      - "OPTIONS"
+    allowHeaders:
+      - "Origin"
+      - "Content-Type"
+      - "Accept"
+      - "Authorization"
+      - "X-Request-ID"
+      - "X-Session-ID"
+    exposeHeaders:
+      - "X-Request-ID"
+      - "X-RateLimit-Limit"
+      - "X-RateLimit-Remaining"
+    allowCredentials: true
+    maxAge: 86400
+    
 auth:
   keycloak:
     url: "https://dev-api.lemici.com"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
