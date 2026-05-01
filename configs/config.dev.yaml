@@ -5,7 +5,7 @@ app:
 camunda:
   oauth:
     enabled: true
-    client_id: "worker-client" 
+    client_id: "worker-client"
     client_secret: "worker-secret"
     # token_url: "https://dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     token_url: "https://us-dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
@@ -30,11 +30,11 @@ camunda:
       login_redirect_uri: "https://dev.lemici.com/login"
       # post_logout_redirect_uri: "https://www.lemici.com/login"
       post_logout_redirect_uri: "https://dev.lemici.com/"
+      callback_redirect_uri: "https://dev.lemici.com/" # ← NEW: where backend redirects after successful callback
 
-    
   session:
-    secure: false  # Allow HTTP in dev
-    sameSite: "None"
+    secure: true
+    sameSite: "Lax"
 
 logging:
   level: debug
