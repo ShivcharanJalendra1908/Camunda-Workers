@@ -482,7 +482,13 @@ func overrideEmptyConfig(cfg *Config) {
 		}
 	}
 
-	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
+	// CORS Origins override
+	val := os.Getenv("ALLOWED_ORIGINS")
+	if val == "" {
+		val = os.Getenv("API_CORS_ALLOWED_ORIGINS")
+	}
+
+	if val != "" {
 		origins := strings.Split(val, ",")
 		for i := range origins {
 			origins[i] = strings.TrimSpace(origins[i])

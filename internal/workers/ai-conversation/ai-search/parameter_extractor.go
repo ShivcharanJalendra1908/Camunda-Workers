@@ -180,8 +180,15 @@ func normalizeIndustry(industry string, category string) string {
 	lower := strings.ToLower(strings.TrimSpace(industry))
 	catLower := strings.ToLower(strings.TrimSpace(category))
 
-	// Health & Fitness — category se decide karo
-	if lower == "health & fitness" {
+	// 1. If category itself is a known top-level industry, use that!
+	// This handles cases where LLM says Industry: "Retail", Category: "Food & Beverage"
+	// but in our DB "Food & Beverage" is a top-level industry.
+	if normalized, ok := industryNormalizationMap[catLower]; ok {
+		return normalized
+	}
+
+	// 2. Health & Fitness — category se decide karo
+	if lower == "health & fitness" || lower == "health" || lower == "fitness" {
 		fitnessKws := []string{
 			"fitness centre", "fitness center", "gym", "yoga",
 			"pilates", "crossfit", "zumba", "aerobics", "sports",
@@ -192,10 +199,13 @@ func normalizeIndustry(industry string, category string) string {
 				return "Sports & Fitness"
 			}
 		}
-		return "Health"
+		if lower == "health" {
+			return "Health"
+		}
+		return "Health" // Default for "health & fitness" if no fitness kws
 	}
 
-	// Retail → Apparel/Fashion Retail → Fashion industry
+	// 3. Retail → Apparel/Fashion Retail → Fashion industry
 	if lower == "retail" {
 		if strings.Contains(catLower, "apparel") ||
 			strings.Contains(catLower, "fashion") ||
@@ -205,7 +215,7 @@ func normalizeIndustry(industry string, category string) string {
 		return "Retail"
 	}
 
-	// Business Services — subcategory check
+	// 4. Business Services — subcategory check
 	if lower == "business services" || lower == "business & professional services" {
 		travelKws := []string{
 			"resort", "holiday", "tourism", "travel", "hotel",
