@@ -2294,7 +2294,8 @@ func (h *WorkflowHandler) completeLoginFlow(
 	isCallback := c.Query("code") != ""
 
 	if isCallback {
-		redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
+		// redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
+		redirectURL := "https://dev.lemici.com/"
 		if redirectURL == "" {
 			redirectURL = "https://dev.lemici.com/"
 		}
