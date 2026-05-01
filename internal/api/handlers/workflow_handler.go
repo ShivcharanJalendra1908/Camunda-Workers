@@ -756,7 +756,7 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	input.Phone = h.sanitizeInput(input.Phone)
 
 	reqID := uuid.New().String()
-	
+
 	// Format payload exactly as public forms expects it
 	formData := map[string]interface{}{
 		"firstName": input.FirstName,
@@ -811,7 +811,6 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
 	c.JSON(http.StatusOK, response)
 }
-
 
 // ============================================================================
 // APPLICATION WORKFLOWS
@@ -2141,7 +2140,6 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 }
 
 func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
-	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
 	cookie1 := &http.Cookie{
 		Name:     "pkce_verifier",
 		Value:    "",
@@ -2183,13 +2181,6 @@ func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
 		SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(c.Writer, cookie3)
-
-	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
-	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
-	// if targetURL == "" {
-	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login"
-	// }
-	// c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
 		h.logger.Error("login_redirect_uri not configured in config", nil)
@@ -2215,10 +2206,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 			Name:     name,
 			Value:    "",
 			Path:     "/",
+			Domain:   ".lemici.com",
 			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   true,
-			SameSite: http.SameSiteNoneMode,
+			SameSite: http.SameSiteLaxMode,
 		}
 		http.SetCookie(c.Writer, cookie)
 	}
@@ -2234,11 +2226,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
-		Domain:   "",
+		Domain:   ".lemici.com",
 		MaxAge:   86400,
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
+		SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(c.Writer, cookie)
 
@@ -2312,7 +2304,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 	if isCallback {
 		redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
 		if redirectURL == "" {
-			redirectURL = "https://d595hydlunw5u.cloudfront.net/"
+			redirectURL = "https://dev.lemici.com/"
 		}
 		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
 			"sessionId":   sessionID,
