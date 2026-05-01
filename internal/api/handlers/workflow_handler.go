@@ -1782,14 +1782,6 @@ func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode str
 		SameSite: http.SameSiteNoneMode,
 	}
 	http.SetCookie(c.Writer, cookie3)
-
-	// // ✅ FIX: Use configurable login redirect instead of hardcoded CloudFront URL
-	// // Configure in configs/config.yaml: auth.keycloak.login_redirect_uri
-	// targetURL := h.config.Auth.Keycloak.LoginRedirectURI
-	// if targetURL == "" {
-	// 	targetURL = "https://d595hydlunw5u.cloudfront.net/login" // Fallback
-	// }
-	// c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
 	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
 	if targetURL == "" {
 		h.logger.Error("login_redirect_uri not configured in config", nil)
