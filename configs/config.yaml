@@ -20,18 +20,17 @@ api:
     requestsPerSecond: 100
     burst: 200
   
-    cors:
-     allowOrigins:
-       - "http://localhost:3000"
-       - "http://localhost:5173"
-       - "https://d3c34598mt7qdx.cloudfront.net"
-       - "https://www.lemici.com"
-       - "https://lemici.com"
+  cors:
+    allowOrigins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+      - "https://d3c34598mt7qdx.cloudfront.net"
       - "https://www.lemici.com"
-       - "https://dev.lemici.com"
-       - "https://d595hydlunw5u.cloudfront.net"
-       - "http://34.224.27.158:3005"
-       - "https://us-dev-api.lemici.com"
+      - "https://lemici.com"
+      - "https://dev.lemici.com"
+      - "https://d595hydlunw5u.cloudfront.net"
+      - "http://34.224.27.158:3005"
+      - "https://us-dev-api.lemici.com"
     allowMethods:
       - "GET"
       - "POST"
