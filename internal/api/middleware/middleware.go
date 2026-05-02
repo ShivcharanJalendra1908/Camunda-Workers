@@ -172,8 +172,10 @@ func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
 
 		originAllowed := false
 		if len(corsConfig.AllowOrigins) > 0 {
+			cleanOrigin := strings.TrimSuffix(origin, "/")
 			for _, allowedOrigin := range corsConfig.AllowOrigins {
-				if allowedOrigin == origin || allowedOrigin == "*" {
+				cleanAllowed := strings.TrimSuffix(allowedOrigin, "/")
+				if cleanAllowed == cleanOrigin || allowedOrigin == "*" {
 					if origin != "" {
 						c.Header("Access-Control-Allow-Origin", origin)
 					} else if allowedOrigin == "*" {
