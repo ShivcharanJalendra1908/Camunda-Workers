@@ -1,7 +1,10 @@
-﻿﻿_format_version: "3.0"
+﻿_format_version: "3.0"
 _transform: true
 
 services:
+  # ============================================================
+  # SINGLE SERVICE - All routes in one place
+  # ============================================================
   - name: api-gateway
     url: http://api-gateway:8080
 
@@ -49,7 +52,7 @@ services:
           - localhost
           - 127.0.0.1
         paths:
-          - /api/v1
+          - /api
         strip_path: false
         preserve_host: true
 
@@ -98,12 +101,14 @@ services:
               limit_by: ip
 
     plugins:
+      # Correlation ID - Request tracking
       - name: correlation-id
         config:
           header_name: X-Request-ID
           generator: uuid
           echo_downstream: true
 
+      # Rate Limiting - 100 req/min
       - name: rate-limiting
         config:
           minute: 100
@@ -144,11 +149,45 @@ services:
           credentials: true
           max_age: 86400
 
+      # CORS - Cross-origin requests
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:5173"
+            - "https://mvp.lemici.com"
+            - "https://api.mvp.lemici.com"
+            - "https://lemici.com"
+            - "https://www.lemici.com"
+            - "https://dev.lemici.com"  
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Origin
+            - Content-Type
+            - Accept
+            - Authorization
+            - X-Request-ID
+            - X-Session-ID
+          exposed_headers:
+            - X-Request-ID
+            - X-RateLimit-Limit
+            - X-RateLimit-Remaining
+          credentials: true
+          max_age: 86400
+
+      # Request Size Limit - 5MB
       - name: request-size-limiting
         config:
           allowed_payload_size: 5
           size_unit: megabytes
 
+      # Security Headers
       - name: response-transformer
         config:
           add:
