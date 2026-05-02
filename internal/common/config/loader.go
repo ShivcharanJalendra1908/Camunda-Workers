@@ -495,6 +495,29 @@ func overrideEmptyConfig(cfg *Config) {
 		}
 		cfg.API.CORS.AllowOrigins = origins
 	}
+
+	// CORS Methods override
+	if val := os.Getenv("API_CORS_ALLOWED_METHODS"); val != "" {
+		methods := strings.Split(val, ",")
+		for i := range methods {
+			methods[i] = strings.TrimSpace(methods[i])
+		}
+		cfg.API.CORS.AllowMethods = methods
+	}
+
+	// CORS Headers override
+	if val := os.Getenv("API_CORS_ALLOWED_HEADERS"); val != "" {
+		headers := strings.Split(val, ",")
+		for i := range headers {
+			headers[i] = strings.TrimSpace(headers[i])
+		}
+		cfg.API.CORS.AllowHeaders = headers
+	}
+
+	// CORS Credentials override
+	if val := os.Getenv("API_CORS_ALLOW_CREDENTIALS"); val != "" {
+		cfg.API.CORS.AllowCredentials = (strings.ToLower(val) == "true")
+	}
 }
 
 // LoadFromFile loads configuration from a specific file path

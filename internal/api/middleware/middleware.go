@@ -170,35 +170,42 @@ func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
+		originAllowed := false
 		if len(corsConfig.AllowOrigins) > 0 {
 			for _, allowedOrigin := range corsConfig.AllowOrigins {
 				if allowedOrigin == origin || allowedOrigin == "*" {
-					// ✅ FIXED: Set the ACTUAL request origin, not config value
-					// This ensures Access-Control-Allow-Origin matches exactly for credentials
-					c.Header("Access-Control-Allow-Origin", origin)
+					if origin != "" {
+						c.Header("Access-Control-Allow-Origin", origin)
+					} else if allowedOrigin == "*" {
+						c.Header("Access-Control-Allow-Origin", "*")
+					}
+					originAllowed = true
 					break
 				}
 			}
 		}
 
-		if len(corsConfig.AllowMethods) > 0 {
-			c.Header("Access-Control-Allow-Methods", joinStrings(corsConfig.AllowMethods, ", "))
-		}
+		// Only set other CORS headers if the origin is allowed
+		if originAllowed {
+			if len(corsConfig.AllowMethods) > 0 {
+				c.Header("Access-Control-Allow-Methods", strings.Join(corsConfig.AllowMethods, ", "))
+			}
 
-		if len(corsConfig.AllowHeaders) > 0 {
-			c.Header("Access-Control-Allow-Headers", joinStrings(corsConfig.AllowHeaders, ", "))
-		}
+			if len(corsConfig.AllowHeaders) > 0 {
+				c.Header("Access-Control-Allow-Headers", strings.Join(corsConfig.AllowHeaders, ", "))
+			}
 
-		if len(corsConfig.ExposeHeaders) > 0 {
-			c.Header("Access-Control-Expose-Headers", joinStrings(corsConfig.ExposeHeaders, ", "))
-		}
+			if len(corsConfig.ExposeHeaders) > 0 {
+				c.Header("Access-Control-Expose-Headers", strings.Join(corsConfig.ExposeHeaders, ", "))
+			}
 
-		if corsConfig.AllowCredentials {
-			c.Header("Access-Control-Allow-Credentials", "true")
-		}
+			if corsConfig.AllowCredentials && origin != "" {
+				c.Header("Access-Control-Allow-Credentials", "true")
+			}
 
-		if corsConfig.MaxAge > 0 {
-			c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", corsConfig.MaxAge))
+			if corsConfig.MaxAge > 0 {
+				c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", corsConfig.MaxAge))
+			}
 		}
 
 		if c.Request.Method == "OPTIONS" {
