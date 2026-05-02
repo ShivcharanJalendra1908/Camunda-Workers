@@ -33,7 +33,10 @@ func New(
 		return nil, errors.New("keycloak oauth config missing required fields")
 	}
 
-	oidcProvider, err := oidc.NewProvider(ctx, issuer)
+	// Use InsecureIssuerURLContext to skip issuer check during discovery
+	// This is necessary because us-dev-api and dev-api URLs may mismatch
+	insecureCtx := oidc.InsecureIssuerURLContext(ctx, issuer)
+	oidcProvider, err := oidc.NewProvider(insecureCtx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init keycloak oidc provider: %w", err)
 	}
