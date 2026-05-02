@@ -3,12 +3,13 @@ name: Backend + Camunda CI Pipeline
 on:
   push:
     branches:
+      - prod
       - mvp
       
 permissions:
- contents: read
- id-token: write
- actions: read     
+  contents: read
+  id-token: write
+  actions: read     
 
 jobs:
   ci:
@@ -91,12 +92,12 @@ jobs:
 
 
       - name: Deploy to EC2 
-        if: github.ref == 'refs/heads/prod'
+        if: github.ref == 'refs/heads/prod' || github.ref == 'refs/heads/mvp'
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_HOST_DEV }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY_DEV }} 
+          key: ${{ secrets.EC2_SSH_KEY_DEV }}
           script: |
             cd ~/Workflow-and-Workers/deployments/docker
 
