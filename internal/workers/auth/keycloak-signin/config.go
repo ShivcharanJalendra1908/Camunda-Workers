@@ -31,13 +31,10 @@ func DefaultConfig() *Config {
 		Enabled:       true,
 		MaxJobsActive: 10,
 		Timeout:       30 * time.Second,
-		// ✅ DEFAULT VALUES - will be overridden by config.yaml
-		// Issuer:   "https://us-dev-api.lemici.com/realms/camunda-platform",
-		Issuer:   "https://dev-api.lemici.com/realms/camunda-platform",
-		ClientID: "lemici-frontend",
-		// RedirectURL: "https://us-dev-api.lemici.com/api/v1/auth/callback",
-		RedirectURL: "https://dev-api.lemici.com/api/v1/auth/callback",
-		// PublicBaseURL: "http://localhost:8180",
+		// These will always be overridden by config.yaml - do NOT hardcode URLs here
+		Issuer:        "",
+		ClientID:      "lemici-frontend",
+		RedirectURL:   "",
 		PublicBaseURL: "",
 		RedisHost:     "redis",
 		RedisPort:     6379,
