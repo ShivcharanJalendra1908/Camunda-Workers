@@ -308,8 +308,6 @@ services:
       POSTGRES_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
-      KEYCLOAK_URL: https://us-dev-api.lemici.com
-      KEYCLOAK_PUBLIC_URL: https://us-dev-api.lemici.com
       KEYCLOAK_REALM: camunda-platform
       KEYCLOAK_CLIENT_ID: worker-client
       KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
@@ -366,8 +364,6 @@ services:
       DB_SSLMODE: disable
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
-      KEYCLOAK_URL: https://us-dev-api.lemici.com
-      KEYCLOAK_PUBLIC_URL: https://us-dev-api.lemici.com
       KEYCLOAK_REALM: camunda-platform
       KEYCLOAK_CLIENT_ID: worker-client
       KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
