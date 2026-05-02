@@ -24,6 +24,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
+	"strings"
+	"encoding/base64"
 )
 
 const TaskType = "email-send"
