@@ -22,6 +22,8 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
+	"net/http"
 )
 
 const TaskType = "email-send"
@@ -398,9 +400,9 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if attachments, ok := variables["attachments"].([]interface{}); ok {
 		input.Attachments = make([]Attachment, 0, len(attachments))
 		for _, att := range attachments {
+			// Handle map based attachment (already base64)
 			if attMap, ok := att.(map[string]interface{}); ok {
 				attachment := Attachment{}
-
 				if filename, ok := attMap["filename"].(string); ok {
 					attachment.Filename = filename
 				}
@@ -413,6 +415,28 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 				if attachment.Filename != "" && attachment.Content != "" {
 					input.Attachments = append(input.Attachments, attachment)
+				}
+			} else if urlStr, ok := att.(string); ok && (strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://")) {
+				// 🚀 AUTO-DOWNLOAD FEATURE
+				h.logger.Info("Downloading attachment from URL", map[string]interface{}{"url": urlStr})
+				resp, err := http.Get(urlStr)
+				if err == nil && resp.StatusCode == http.StatusOK {
+					defer resp.Body.Close()
+					data, _ := ioutil.ReadAll(resp.Body)
+					
+					filename := filepath.Base(urlStr)
+					if strings.Contains(filename, "?") {
+						filename = strings.Split(filename, "?")[0]
+					}
+					
+					input.Attachments = append(input.Attachments, Attachment{
+						Filename:    filename,
+						ContentType: resp.Header.Get("Content-Type"),
+						Content:     base64.StdEncoding.EncodeToString(data),
+					})
+					h.logger.Info("Attachment downloaded and added", map[string]interface{}{"filename": filename})
+				} else {
+					h.logger.Warn("Failed to download attachment", map[string]interface{}{"url": urlStr, "error": err})
 				}
 			}
 		}
