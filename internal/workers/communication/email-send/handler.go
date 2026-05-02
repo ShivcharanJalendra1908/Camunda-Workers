@@ -624,30 +624,41 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 }
 
 func resolveEmailAliases(vars map[string]interface{}) {
-	// Map "email" → "to" if "to" is absent
-	if _, hasTo := vars["to"]; !hasTo {
+	// Map "email" → "to" if "to" is absent or nil
+	if val, ok := vars["to"]; !ok || val == nil || val == "" {
 		if email, ok := vars["email"].(string); ok && email != "" {
 			vars["to"] = email
 		}
+	} else if _, isString := val.(string); !isString {
+		vars["to"] = fmt.Sprintf("%v", val)
 	}
 
-	// Build subject from applicant name if absent
-	if _, hasSubject := vars["subject"]; !hasSubject {
+	// Build subject from applicant name if absent or nil
+	if val, ok := vars["subject"]; !ok || val == nil || val == "" {
 		name, _ := vars["fullName"].(string)
 		if name == "" {
 			name = "Applicant"
 		}
 		vars["subject"] = fmt.Sprintf("Thank you for your franchise enquiry, %s", name)
+	} else if _, isString := val.(string); !isString {
+		vars["subject"] = fmt.Sprintf("%v", val)
 	}
 
-	// Build body from enquiry fields if absent
-	if _, hasBody := vars["body"]; !hasBody {
+	// Build body from enquiry fields if absent or nil
+	if val, ok := vars["body"]; !ok || val == nil || val == "" {
 		city, _ := vars["city"].(string)
 		franchise, _ := vars["franchiseId"].(string)
+		fullName, _ := vars["fullName"].(string)
+		if fullName == "" {
+			fullName = "Applicant"
+		}
+
 		vars["body"] = fmt.Sprintf(
 			"Dear %s,\n\nWe have received your enquiry for franchise %s in %s. Our team will contact you shortly.\n\nTeam LeMiCi",
-			vars["fullName"], franchise, city,
+			fullName, franchise, city,
 		)
+	} else if _, isString := val.(string); !isString {
+		vars["body"] = fmt.Sprintf("%v", val)
 	}
 }
 
