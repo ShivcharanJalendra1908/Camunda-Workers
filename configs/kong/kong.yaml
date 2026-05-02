@@ -2,253 +2,117 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  # ============================================================
+  # SINGLE SERVICE - All routes in one place
+  # ============================================================
   - name: api-gateway
     url: http://api-gateway:8080
-    tags: ["franchise", "camunda"]
+
     routes:
-      # ========================================================================
-      # API v1 Routes 
-      # ========================================================================
-      - name: api-v1-routes
+      # ================= PUBLIC API =================
+      - name: api-routes
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
+          - localhost
+          - 127.0.0.1  
         paths:
-          - /api/v1
+          - /api
         strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
+        preserve_host: true
 
-      # ========================================================================
-      # Auth Routes 
-      # ========================================================================
-      - name: auth-routes
-        paths:
-          - /api/v1/auth
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-
-      # ========================================================================
-      # Admin Routes 
-      # ========================================================================
-      - name: admin-routes
-        paths:
-          - /api/admin
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-
-      # ========================================================================
-      # Health & Metrics Routes
-      # ========================================================================
+      # ================= HEALTH CHECKS =================
       - name: health-routes
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
+          - localhost
+          - 127.0.0.1
         paths:
           - /health
           - /metrics
         strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - HEAD
+        preserve_host: true
 
-      # ========================================================================
-      # Public Franchise Routes (No Auth)
-      # ========================================================================
-      - name: public-franchise-routes
+      # ================= ADMIN API (IP RESTRICTED) =================
+      - name: admin-routes
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
         paths:
-          - /franchises
+          - /api/admin
         strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
+        preserve_host: true
+        plugins:
+          - name: ip-restriction
+            config:
+              allow:
+                - "10.0.0.0/8"
+                - "172.16.0.0/12"
+                - "172.31.0.0/16"
+              status: 403
+              message: "Access Denied: Admin API restricted to internal network"
 
-      # ========================================================================
-      # User Routes (Protected)
-      # ========================================================================
-      - name: user-routes
-        paths:
-          - /user
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-
-      # ========================================================================
-      # Application Routes
-      # ========================================================================
-      - name: application-routes
-        paths:
-          - /applications
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-
-      # ========================================================================
-      # CRM & Email Routes
-      # ========================================================================
-      - name: crm-email-routes
-        paths:
-          - /crm
-          - /email
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-          - PUT
-
-      # ========================================================================
-      # AI Routes
-      # ========================================================================
-      - name: ai-routes
-        paths:
-          - /ai
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-
-      # ========================================================================
-      # Social & Error Routes
-      # ========================================================================
-      - name: social-error-routes
-        paths:
-          - /social
-          - /error
-        strip_path: false
-        preserve_host: false
-        protocols:
-          - http
-        methods:
-          - GET
-          - POST
-
-    # ==========================================================================
-    # PLUGINS 
-    # ==========================================================================
+    # ================= GLOBAL PLUGINS =================
     plugins:
+      # Correlation ID - Request tracking
       - name: correlation-id
         config:
           header_name: X-Request-ID
           generator: uuid
           echo_downstream: true
 
+      # Rate Limiting - 100 req/min
       - name: rate-limiting
         config:
-          minute: 6000
-          hour: 360000
+          minute: 100
           policy: local
           limit_by: ip
           fault_tolerant: true
-        enabled: true
-        
-      - name: file-log
-        config:
-          path: /dev/stdout
-          reopen: true
-        enabled: true
+          hide_client_headers: false
 
+      # CORS - Cross-origin requests
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:5173"
+            - "https://mvp.lemici.com"
+            - "https://api.mvp.lemici.com"
+            - "https://lemici.com"
+            - "https://www.lemici.com"
+            - "https://dev.lemici.com"  
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Origin
+            - Content-Type
+            - Accept
+            - Authorization
+            - X-Request-ID
+            - X-Session-ID
+          exposed_headers:
+            - X-Request-ID
+            - X-RateLimit-Limit
+            - X-RateLimit-Remaining
+          credentials: true
+          max_age: 86400
+
+      # Request Size Limit - 5MB
       - name: request-size-limiting
         config:
           allowed_payload_size: 5
-        enabled: true
 
+      # Security Headers
       - name: response-transformer
         config:
           add:
             headers:
               - "X-Frame-Options: DENY"
               - "X-Content-Type-Options: nosniff"
-              - "Referrer-Policy: no-referrer"
-              - "X-Powered-By: Kong/3.6"
-        enabled: true
-
-      - name: cors
-        config:
-          origins:
-            - "http://localhost:3000"
-            - "http://localhost:5173"
-            - "https://lemici.com"
-            - "https://www.lemici.com"
-            - "https://api.lemici.com"
-            - "https://d3c34598mt7qdx.cloudfront.net"
-            - "https://d595hydlunw5u.cloudfront.net"
-          methods:
-            - "GET"
-            - "POST"
-            - "PUT"
-            - "PATCH"
-            - "DELETE"
-            - "OPTIONS"
-          headers:
-            - "Origin"
-            - "Content-Type"
-            - "Accept"
-            - "Authorization"
-            - "X-Request-ID"
-          exposed_headers:
-            - "X-Request-ID"
-            - "X-RateLimit-Limit"
-            - "X-RateLimit-Remaining"
-          credentials: true
-          max_age: 86400
-          preflight_continue: true
-        enabled: true
-
-# ============================================================================
-# GATEWAY HEALTH ROUTE 
-# ============================================================================
-routes:
-  - name: gateway-health
-    paths:
-      - /gateway/health
-    strip_path: false
-    preserve_host: false
-    protocols:
-      - http
-    methods:
-      - GET
-    plugins:
-      - name: request-termination
-        config:
-          status_code: 200
-          message: '{"status":"ok"}'
+              - "Referrer-Policy: strict-origin-when-cross-origin"
