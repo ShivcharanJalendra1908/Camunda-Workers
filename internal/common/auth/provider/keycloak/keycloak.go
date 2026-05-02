@@ -47,7 +47,12 @@ func New(
 	})
 
 	ep := oidcProvider.Endpoint()
-	ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
+	realm := issuer[strings.LastIndex(issuer, "/realms/")+8:]
+	// Ensure no trailing slash in publicBaseURL and clean the realm name
+	cleanBaseURL := strings.TrimSuffix(publicBaseURL, "/")
+	cleanRealm := strings.TrimSuffix(realm, "/")
+	
+	ep.AuthURL = fmt.Sprintf("%s/realms/%s/protocol/openid-connect/auth", cleanBaseURL, cleanRealm)
 
 	oauthCfg := &oauth2.Config{
 		ClientID:    clientID,
