@@ -674,11 +674,9 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		}
 
 		sections = append(sections, map[string]interface{}{
-			"type":    "listing",
+			"type":    "franchise_listing",
 			"enabled": true,
-			"data": map[string]interface{}{
-				"items": franchises,
-			},
+			"data":    franchises,
 		})
 	}
 
@@ -828,7 +826,6 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 		"data": map[string]interface{}{
 			"sections":   sections,
 			"pagination": pagination,
-			"franchises": franchises, // ✅ Added for compatibility
 		},
 		"metadata": map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
