@@ -37,7 +37,7 @@ func NewHandler(
 	esClient *database.ElasticsearchClient,
 	log logger.Logger,
 ) *Handler {
-	return &Handler{
+	h := &Handler{
 		config:         config,
 		llmService:     NewOllamaService(config, log),
 		esClient:       esClient,
@@ -45,8 +45,8 @@ func NewHandler(
 		paramExtractor: NewParameterExtractor(config),
 	}
 	// Preload model in background to avoid cold-start delay
-	go handler.llmService.Preload()
-	return handler
+	go h.llmService.Preload()
+	return h
 }
 
 // ============================================================
