@@ -2,26 +2,24 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # ============================================================
-  # SINGLE SERVICE - All routes in one place
-  # ============================================================
+  # Main API Gateway
   - name: api-gateway
     url: http://api-gateway:8080
 
     routes:
-      # ================= PUBLIC API =================
+      # Public API routes
       - name: api-routes
         hosts:
           - api.mvp.lemici.com
           - api.lemici.com
           - localhost
-          - 127.0.0.1  
+          - 127.0.0.1
         paths:
           - /api
         strip_path: false
         preserve_host: true
 
-      # ================= HEALTH CHECKS =================
+      # Health check endpoints
       - name: health-routes
         hosts:
           - api.mvp.lemici.com
@@ -34,11 +32,11 @@ services:
         strip_path: false
         preserve_host: true
 
-      # ================= ADMIN API (IP RESTRICTED) =================
+      # Admin API - Internal only
       - name: admin-routes
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - localhost
+          - 127.0.0.1
         paths:
           - /api/admin
         strip_path: false
@@ -47,41 +45,47 @@ services:
           - name: ip-restriction
             config:
               allow:
+                - "127.0.0.1/32"
                 - "10.0.0.0/8"
                 - "172.16.0.0/12"
                 - "172.31.0.0/16"
               status: 403
               message: "Access Denied: Admin API restricted to internal network"
 
-    # ================= GLOBAL PLUGINS =================
+          - name: rate-limiting
+            config:
+              minute: 30
+              policy: local
+              limit_by: ip
+              fault_tolerant: false
+
     plugins:
-      # Correlation ID - Request tracking
+      # Request tracking
       - name: correlation-id
         config:
           header_name: X-Request-ID
           generator: uuid
           echo_downstream: true
 
-      # Rate Limiting - 100 req/min
+      # Rate limiting for public APIs
       - name: rate-limiting
         config:
           minute: 100
           policy: local
           limit_by: ip
           fault_tolerant: true
-          hide_client_headers: false
 
-      # CORS - Cross-origin requests
+      # CORS configuration
       - name: cors
         config:
           origins:
+            - "https://dev.lemici.com"
             - "http://localhost:3000"
             - "http://localhost:5173"
             - "https://mvp.lemici.com"
             - "https://api.mvp.lemici.com"
             - "https://lemici.com"
             - "https://www.lemici.com"
-            - "https://dev.lemici.com"  
           methods:
             - GET
             - POST
@@ -103,12 +107,12 @@ services:
           credentials: true
           max_age: 86400
 
-      # Request Size Limit - 5MB
+      # Payload size limit
       - name: request-size-limiting
         config:
           allowed_payload_size: 5
 
-      # Security Headers
+      # Security headers
       - name: response-transformer
         config:
           add:
