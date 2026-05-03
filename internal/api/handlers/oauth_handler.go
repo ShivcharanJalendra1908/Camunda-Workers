@@ -3,12 +3,14 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"time"
 
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -18,9 +20,10 @@ type OAuthHandler struct {
 	redisClient  *redis.Client
 	log          logger.Logger
 	sessionStore *session.RedisStore
+	db           *sql.DB
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
@@ -30,12 +33,10 @@ func NewOAuthHandler(redisClient *redis.Client, log logger.Logger) *OAuthHandler
 		redisClient:  redisClient,
 		log:          log,
 		sessionStore: sessionStore,
+		db:           db,
 	}
 }
 
-// OAuthLogout handles pure OAuth/OIDC logout for cookie-based session auth
-// Flow: Read AUTH_SESSION_ID cookie → Delete session from Redis → Clear cookie → Redirect to homepage
-// ser is redirected to homepage, not Keycloak login
 func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	ctx := c.Request.Context()
 	requestID := c.GetString("requestId")
@@ -104,8 +105,6 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/")
 }
 
-// LogoutAll handles logout from all devices/sessions for a user.
-// It deletes all sessions associated with the user's ID from Redis.
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 	ctx := c.Request.Context()
 	requestID := c.GetString("requestId")
@@ -187,5 +186,106 @@ func (h *OAuthHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "healthy",
 		"redis":  "connected",
+	})
+}
+
+func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.User, error) {
+	if h.db == nil {
+		return nil, nil
+	}
+
+	var user models.User
+	err := h.db.QueryRowContext(ctx, `
+		SELECT id, email, name, first_name, last_name, profile_image, role
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.FirstName,
+		&user.LastName,
+		&user.ProfileImage,
+		&user.Role,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
+	ctx := c.Request.Context()
+	requestID := c.GetString("requestId")
+
+	sessionID, err := c.Cookie(constants.SessionCookieName)
+	if err != nil || sessionID == "" {
+		h.log.Warn("GetCurrentUser: No session cookie", map[string]interface{}{
+			"requestId": requestID,
+		})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthenticated",
+			"code":  "AUTH_REQUIRED",
+		})
+		return
+	}
+
+	sess, err := h.sessionStore.Get(ctx, sessionID)
+	if err != nil {
+		h.log.Error("GetCurrentUser: Error getting session", map[string]interface{}{
+			"sessionId": sessionID,
+			"error":     err.Error(),
+			"requestId": requestID,
+		})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthenticated",
+			"code":  "AUTH_REQUIRED",
+		})
+		return
+	}
+
+	if sess == nil || sess.UserID == "" {
+		h.log.Warn("GetCurrentUser: Session not found", map[string]interface{}{
+			"sessionId": sessionID,
+			"requestId": requestID,
+		})
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthenticated",
+			"code":  "AUTH_REQUIRED",
+		})
+		return
+	}
+
+	var userName, userEmail string
+
+	user, err := h.getUserByID(ctx, sess.UserID)
+	if err != nil {
+		h.log.Error("GetCurrentUser: Error fetching user from DB", map[string]interface{}{
+			"userId":    sess.UserID,
+			"error":     err.Error(),
+			"requestId": requestID,
+		})
+	} else if user != nil {
+		userName = user.Name
+		userEmail = user.Email
+	}
+
+	if userName == "" {
+		userName = "johndo"
+	}
+	if userEmail == "" {
+		userEmail = "johndo@email.com"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": true,
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"user": gin.H{
+			"name":  userName,
+			"email": userEmail,
+		},
 	})
 }

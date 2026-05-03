@@ -218,7 +218,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
 
-	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)
@@ -258,10 +258,7 @@ func main() {
 		// ========================================================================
 		oauthGroup := publicAPI.Group("/oauth")
 		{
-			// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
 			oauthGroup.POST("/logout", oauthHandler.OAuthLogout)
-
-			// ✅ LOGOUT ALL DEVICES (OAuth)
 			oauthGroup.POST("/logout-all", oauthHandler.LogoutAll)
 		}
 
@@ -441,6 +438,14 @@ func main() {
 		// ERROR HANDLING WORKFLOW
 		// ========================================================================
 		protectedAPI.POST("/error/handle", workflowHandler.StartErrorHandling)
+
+		// ========================================================================
+		// OAUTH ME ENDPOINT (Get current user info)
+		// ========================================================================
+		oauthMeGroup := protectedAPI.Group("/oauth")
+		{
+			oauthMeGroup.GET("/me", oauthHandler.GetCurrentUser)
+		}
 	}
 
 	// ============================================================================
