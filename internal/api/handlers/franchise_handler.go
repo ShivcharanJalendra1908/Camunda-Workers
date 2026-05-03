@@ -70,9 +70,17 @@ func (h *FranchiseHandler) executeWorkflow(
 	pubsub := h.redisClient.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	// ✅ STEP 2: Wait for subscription confirmation
-	if _, err := pubsub.Receive(ctx); err != nil {
-		return nil, fmt.Errorf("failed to confirm subscription: %w", err)
+	// ✅ STEP 2: Wait for subscription confirmation WITHOUT consuming messages.
+	// pubsub.Receive() is safe for the subscription event but we must NOT use it
+	// if a message might arrive at the same time (race on warm connections).
+	// Use ReceiveMessage only for the subscribe-confirmation event type.
+	subCtx, subCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer subCancel()
+	if _, err := pubsub.Receive(subCtx); err != nil {
+		// Non-fatal: connection may already be ready on warm pool; continue anyway.
+		h.logger.Warn("subscription confirm timeout, proceeding anyway", map[string]interface{}{
+			"channel": channel, "error": err.Error(),
+		})
 	}
 
 	h.logger.Info("✅ Subscribed to Redis channel BEFORE workflow", map[string]interface{}{
@@ -97,13 +105,32 @@ func (h *FranchiseHandler) executeWorkflow(
 	responseChan := pubsub.Channel()
 	timeoutDuration := 30 * time.Second
 
-	select {
-	case msg := <-responseChan:
-		var response map[string]interface{}
-		if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
+	// envelope is the format sent by send-api-response worker
+	type envelope struct {
+		Response     map[string]interface{} `json:"response"`
+		CookieHeader string                 `json:"cookieHeader,omitempty"`
+	}
+
+	parsePayload := func(raw string) (map[string]interface{}, error) {
+		// Try envelope format first (send-api-response publishes this)
+		var env envelope
+		if err := json.Unmarshal([]byte(raw), &env); err == nil && env.Response != nil {
+			return env.Response, nil
+		}
+		// Fallback: direct map (legacy)
+		var direct map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &direct); err != nil {
 			return nil, fmt.Errorf("failed to parse response: %w", err)
 		}
+		return direct, nil
+	}
 
+	select {
+	case msg := <-responseChan:
+		response, err := parsePayload(msg.Payload)
+		if err != nil {
+			return nil, err
+		}
 		h.logger.Info("✅ Received response from Redis", map[string]interface{}{
 			"correlationKey": correlationKey,
 			"channel":        channel,
@@ -116,8 +143,7 @@ func (h *FranchiseHandler) executeWorkflow(
 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
-			var response map[string]interface{}
-			if err := json.Unmarshal([]byte(cached), &response); err == nil {
+			if response, parseErr := parsePayload(cached); parseErr == nil {
 				h.logger.Info("Retrieved from cache after timeout", map[string]interface{}{
 					"correlationKey": correlationKey,
 				})

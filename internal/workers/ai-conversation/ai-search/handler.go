@@ -112,7 +112,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		Prompt:    prompt,
 		Stream:    false,
 		Format:    "json",
-		KeepAlive: "30m",
+		KeepAlive: "-1", // Keep model permanently loaded — prevents cold-start delay
 		Options: map[string]interface{}{
 			"temperature": 0.0,
 			"num_predict": 300,
