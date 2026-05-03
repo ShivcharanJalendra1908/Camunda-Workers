@@ -115,12 +115,19 @@ func (h *FranchiseHandler) executeWorkflow(
 		// Try envelope format first (send-api-response publishes this)
 		var env envelope
 		if err := json.Unmarshal([]byte(raw), &env); err == nil && env.Response != nil {
+			// Ensure success: true is present for frontend compatibility
+			if env.Response["success"] == nil {
+				env.Response["success"] = true
+			}
 			return env.Response, nil
 		}
 		// Fallback: direct map (legacy)
 		var direct map[string]interface{}
 		if err := json.Unmarshal([]byte(raw), &direct); err != nil {
 			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+		if direct["success"] == nil {
+			direct["success"] = true
 		}
 		return direct, nil
 	}

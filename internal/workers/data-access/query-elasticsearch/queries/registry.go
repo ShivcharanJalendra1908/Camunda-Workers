@@ -957,15 +957,31 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 			},
 		}
 	} else if categorySlug != "" {
-		// ✅ CASE 2: Category filter — nested query
+		// ✅ CASE 2: Category filter — search in both industry and nested categories
 		query["query"] = map[string]interface{}{
-			"nested": map[string]interface{}{
-				"path": "categories",
-				"query": map[string]interface{}{
-					"term": map[string]interface{}{
-						"categories.slug": categorySlug,
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{
+						"term": map[string]interface{}{"industry.slug": categorySlug},
+					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"term": map[string]interface{}{"categories.slug": categorySlug},
+							},
+						},
+					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "sub_categories",
+							"query": map[string]interface{}{
+								"term": map[string]interface{}{"sub_categories.slug": categorySlug},
+							},
+						},
 					},
 				},
+				"minimum_should_match": 1,
 			},
 		}
 	} else if industrySlug != "" {
