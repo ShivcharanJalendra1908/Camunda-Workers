@@ -3,13 +3,12 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	"camunda-workers/internal/common/auth/session"
-	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
 
 	"github.com/gin-gonic/gin"
@@ -18,12 +17,14 @@ import (
 
 type UserHandler struct {
 	redisClient *redis.Client
+	db          *sql.DB
 	log         logger.Logger
 }
 
-func NewUserHandler(redisClient *redis.Client, log logger.Logger) *UserHandler {
+func NewUserHandler(redisClient *redis.Client, db *sql.DB, log logger.Logger) *UserHandler {
 	return &UserHandler{
 		redisClient: redisClient,
+		db:          db,
 		log:         log,
 	}
 }
@@ -31,72 +32,71 @@ func NewUserHandler(redisClient *redis.Client, log logger.Logger) *UserHandler {
 type UserProfileResponse struct {
 	Success   bool        `json:"success"`
 	Data      UserProfile `json:"data"`
-	RequestID string      `json:"requestId"`
 	Timestamp string      `json:"timestamp"`
 }
 
 type UserProfile struct {
-	UserID    string `json:"userId"`
-	SessionID string `json:"sessionId"`
-	IsActive  bool   `json:"isActive"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	Phone            string `json:"phone"`
+	SubscriptionTier string `json:"subscriptionTier"`
+	IsActive         bool   `json:"isActive"`
 }
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	requestID := c.GetString("requestId")
 	ctx := c.Request.Context()
 
 	userID, exists := c.Get("userId")
 	if !exists || userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"success":   false,
-			"error":     "AUTH_REQUIRED",
-			"message":   "Not authenticated",
-			"requestId": requestID,
+			"success": false,
+			"error":   "AUTH_REQUIRED",
+			"message": "Not authenticated",
 		})
 		return
 	}
 
-	sessionID, _ := c.Get("sessionId")
-	cookieSessionID, cookieErr := c.Cookie(constants.SessionCookieName)
+	// 1. Fetch Fresh Data from Database
+	var name, phone, email sql.NullString
+	var status string
+	err := h.db.QueryRowContext(ctx, `
+		SELECT name, email, phone, status 
+		FROM users 
+		WHERE id = $1`, userID).Scan(&name, &email, &phone, &status)
 
-	sess, err := h.getSessionFromRedis(ctx, fmt.Sprintf("%v", sessionID))
-	if (err != nil || sess == nil) && cookieErr == nil && cookieSessionID != "" {
-		sess, err = h.getSessionFromRedis(ctx, cookieSessionID)
-	}
-
-	if err != nil || sess == nil {
-		h.log.Warn("Session not found in Redis, using context data", map[string]interface{}{
-			"userId":    userID,
-			"sessionId": sessionID,
-			"requestId": requestID,
+	if err != nil {
+		h.log.Error("Failed to fetch user profile from DB", map[string]interface{}{
+			"userId": userID,
+			"error":  err.Error(),
 		})
-		c.JSON(http.StatusOK, UserProfileResponse{
-			Success: true,
-			Data: UserProfile{
-				UserID:    fmt.Sprintf("%v", userID),
-				SessionID: fmt.Sprintf("%v", sessionID),
-				IsActive:  true,
-			},
-			RequestID: requestID,
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		// Fallback for unexpected DB errors
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "INTERNAL_ERROR",
+			"message": "Failed to retrieve profile",
 		})
 		return
 	}
 
-	h.log.Info("User profile fetched", map[string]interface{}{
-		"userId":    sess.UserID,
-		"sessionId": sess.SessionID,
-		"requestId": requestID,
-	})
+	// 2. Fetch Subscription Tier
+	var subscriptionTier string
+	_ = h.db.QueryRowContext(ctx, `
+		SELECT tier FROM user_subscriptions 
+		WHERE user_id = $1 AND is_valid = true 
+		ORDER BY created_at DESC LIMIT 1`, userID).Scan(&subscriptionTier)
+	if subscriptionTier == "" {
+		subscriptionTier = "free"
+	}
 
 	c.JSON(http.StatusOK, UserProfileResponse{
 		Success: true,
 		Data: UserProfile{
-			UserID:    sess.UserID,
-			SessionID: sess.SessionID,
-			IsActive:  true,
+			Name:             name.String,
+			Email:            email.String,
+			Phone:            phone.String,
+			SubscriptionTier: subscriptionTier,
+			IsActive:         status == "active",
 		},
-		RequestID: requestID,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -108,33 +108,25 @@ func (h *UserHandler) getSessionFromRedis(ctx context.Context, sessionID string)
 	store := session.NewRedisStore(h.redisClient)
 	sess, err := store.Get(ctx, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("redis fetch failed: %w", err)
+		return nil, err
 	}
 	return sess, nil
 }
 
 func (h *UserHandler) ValidateSession(c *gin.Context) {
-	requestID := c.GetString("requestId")
-
 	userID, exists := c.Get("userId")
 	if !exists || userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"success":   false,
-			"valid":     false,
-			"error":     "AUTH_REQUIRED",
-			"requestId": requestID,
+			"success": false,
+			"valid":   false,
+			"error":   "AUTH_REQUIRED",
 		})
 		return
 	}
 
-	sessionID, _ := c.Get("sessionId")
-
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"valid":     true,
-		"userId":    userID,
-		"sessionId": sessionID,
-		"requestId": requestID,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
