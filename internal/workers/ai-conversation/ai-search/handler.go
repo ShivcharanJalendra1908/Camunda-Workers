@@ -44,6 +44,9 @@ func NewHandler(
 		logger:         log,
 		paramExtractor: NewParameterExtractor(config),
 	}
+	// Preload model in background to avoid cold-start delay
+	go handler.llmService.Preload()
+	return handler
 }
 
 // ============================================================
@@ -65,7 +68,7 @@ type OllamaRequest struct {
 	Stream    bool                   `json:"stream"`
 	Options   map[string]interface{} `json:"options,omitempty"`
 	Format    string                 `json:"format,omitempty"`
-	KeepAlive string                 `json:"keep_alive,omitempty"`
+	KeepAlive interface{}          `json:"keep_alive,omitempty"`
 }
 
 type OllamaResponse struct {
@@ -98,6 +101,34 @@ func NewOllamaService(config *Config, log logger.Logger) *OllamaService {
 	}
 }
 
+func (s *OllamaService) Preload() {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	s.logger.Info("Pre-loading LLM model into memory...", map[string]interface{}{
+		"model": s.model,
+	})
+
+	reqBody := OllamaRequest{
+		Model:     s.model,
+		Prompt:    "",
+		Stream:    false,
+		KeepAlive: -1,
+	}
+
+	jsonData, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequestWithContext(ctx, "POST", s.endpoint+"/api/generate", bytes.NewBuffer(jsonData))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		s.logger.Warn("Pre-load failed", map[string]interface{}{"error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	s.logger.Info("LLM model pre-loaded successfully", map[string]interface{}{"status": resp.Status})
+}
+
 func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, error) {
 	startTime := time.Now()
 
@@ -112,7 +143,7 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		Prompt:    prompt,
 		Stream:    false,
 		Format:    "json",
-		KeepAlive: "30m",
+		KeepAlive: -1, // Indefinite load for maximum performance
 		Options: map[string]interface{}{
 			"temperature": 0.0,
 			"num_predict": 300,
