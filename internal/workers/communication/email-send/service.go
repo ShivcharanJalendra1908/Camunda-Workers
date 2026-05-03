@@ -545,7 +545,7 @@ func (s *Service) addAttachment(builder *strings.Builder, boundary string, att A
 		}
 	}
 
-	builder.WriteString(fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", contentType, att.Filename))
+	builder.WriteString(fmt.Sprintf("Content-Type: application/octet-stream; name=\"%s\"\r\n", att.Filename))
 	builder.WriteString("Content-Transfer-Encoding: base64\r\n")
 	builder.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", att.Filename))
 	builder.WriteString("\r\n")
