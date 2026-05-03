@@ -2,12 +2,25 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  # Main API Gateway
   - name: api-gateway
     url: http://api-gateway:8080
 
     routes:
-      # Public API routes
+      #  BLOCK ADMIN ON PUBLIC FQDN 
+      - name: block-admin-public
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
+        paths:
+          - /api/admin
+        regex_priority: 100
+        plugins:
+          - name: request-termination
+            config:
+              status_code: 404
+              message: "Not Found"
+
+      #  PUBLIC API
       - name: api-routes
         hosts:
           - api.mvp.lemici.com
@@ -19,7 +32,7 @@ services:
         strip_path: false
         preserve_host: true
 
-      # Health check endpoints
+      #  HEALTH CHECKS
       - name: health-routes
         hosts:
           - api.mvp.lemici.com
@@ -32,14 +45,12 @@ services:
         strip_path: false
         preserve_host: true
 
-      # Admin API - Internal only
+      #  INTERNAL ADMIN API 
       - name: admin-routes
-        hosts:
-          - localhost
-          - 127.0.0.1
+        # NO hosts - internal only
         paths:
-          - /api/admin
-        strip_path: false
+          - /internal
+        strip_path: true
         preserve_host: true
         plugins:
           - name: ip-restriction
@@ -50,24 +61,21 @@ services:
                 - "172.16.0.0/12"
                 - "172.31.0.0/16"
               status: 403
-              message: "Access Denied: Admin API restricted to internal network"
+              message: "Access Denied: Internal API"
 
           - name: rate-limiting
             config:
               minute: 30
               policy: local
               limit_by: ip
-              fault_tolerant: false
 
     plugins:
-      # Request tracking
       - name: correlation-id
         config:
           header_name: X-Request-ID
           generator: uuid
           echo_downstream: true
 
-      # Rate limiting for public APIs
       - name: rate-limiting
         config:
           minute: 100
@@ -75,7 +83,6 @@ services:
           limit_by: ip
           fault_tolerant: true
 
-      # CORS configuration
       - name: cors
         config:
           origins:
@@ -107,12 +114,10 @@ services:
           credentials: true
           max_age: 86400
 
-      # Payload size limit
       - name: request-size-limiting
         config:
           allowed_payload_size: 5
 
-      # Security headers
       - name: response-transformer
         config:
           add:
