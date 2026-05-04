@@ -52,7 +52,18 @@ func (r *DBResolver) Resolve(
     `, identity.Provider, identity.ProviderUserID).Scan(&userID)
 
 	if err == nil {
-		// Existing user — seedha return
+		// Existing user — check if name is missing and update if needed
+		fullName := strings.TrimSpace(identity.FirstName + " " + identity.LastName)
+		if fullName != "" {
+			_, err = tx.Exec(ctx, `
+				UPDATE public.users 
+				SET name = $1 
+				WHERE id = $2 AND (name IS NULL OR name = '')
+			`, fullName, userID)
+			if err != nil {
+				return "", err
+			}
+		}
 		return userID.String(), tx.Commit()
 	}
 	if err != sql.ErrNoRows {
