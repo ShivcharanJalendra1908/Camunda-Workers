@@ -46,6 +46,7 @@ api:
       - "Authorization"
       - "X-Request-ID"
       - "X-Session-ID"
+      - "X-CSRF-Token"
     exposeHeaders:
       - "X-Request-ID"
       - "X-RateLimit-Limit"
