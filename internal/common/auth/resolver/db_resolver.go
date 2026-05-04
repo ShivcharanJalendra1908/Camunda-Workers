@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	auth "camunda-workers/internal/common/auth/types"
 	"camunda-workers/internal/common/database"
@@ -65,7 +66,17 @@ func (r *DBResolver) Resolve(
     `, identity.Email).Scan(&userID)
 
 	if err == nil {
-		// User hai, sirf identity link karo
+		// User hai, link identity and update name if missing
+		fullName := strings.TrimSpace(identity.FirstName + " " + identity.LastName)
+		_, err = tx.Exec(ctx, `
+            UPDATE public.users 
+            SET name = $1 
+            WHERE id = $2 AND (name IS NULL OR name = '')
+        `, fullName, userID)
+		if err != nil {
+			return "", err
+		}
+
 		_, err = tx.Exec(ctx, `
             INSERT INTO public.identities (user_id, provider, provider_user_id)
             VALUES ($1, $2, $3)
@@ -81,12 +92,18 @@ func (r *DBResolver) Resolve(
 	}
 
 	// 3. Bilkul naya user — create karo
+	fullName := strings.TrimSpace(identity.FirstName + " " + identity.LastName)
 	err = tx.QueryRow(ctx, `
-        INSERT INTO public.users (email, email_verified)
-        VALUES ($1, $2)
-        ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+        INSERT INTO public.users (email, email_verified, name)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (email) DO UPDATE SET 
+            email = EXCLUDED.email,
+            name = CASE 
+                WHEN users.name IS NULL OR users.name = '' THEN EXCLUDED.name 
+                ELSE users.name 
+            END
         RETURNING id
-    `, identity.Email, identity.EmailVerified).Scan(&userID)
+    `, identity.Email, identity.EmailVerified, fullName).Scan(&userID)
 	if err != nil {
 		return "", err
 	}

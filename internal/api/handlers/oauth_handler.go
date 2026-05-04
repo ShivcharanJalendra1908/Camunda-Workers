@@ -196,15 +196,13 @@ func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.
 
 	var user models.User
 	err := h.db.QueryRowContext(ctx, `
-		SELECT id, email, name, first_name, last_name, profile_image, role
+		SELECT id, email, name, profile_image, role
 		FROM users
 		WHERE id = $1
 	`, userID).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
-		&user.FirstName,
-		&user.LastName,
 		&user.ProfileImage,
 		&user.Role,
 	)

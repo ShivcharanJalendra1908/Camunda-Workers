@@ -118,6 +118,8 @@ func (p *Provider) ExchangeCode(
 		Email             string `json:"email"`
 		EmailVerified     bool   `json:"email_verified"`
 		PreferredUsername string `json:"preferred_username"`
+		FirstName         string `json:"given_name"`
+		LastName          string `json:"family_name"`
 	}
 
 	if err := idToken.Claims(&claims); err != nil {
@@ -133,6 +135,8 @@ func (p *Provider) ExchangeCode(
 		ProviderUserID: claims.Subject,
 		Email:          claims.Email,
 		EmailVerified:  claims.EmailVerified,
+		FirstName:      claims.FirstName,
+		LastName:       claims.LastName,
 		IDToken:        rawIDToken,
 	}, nil
 }
