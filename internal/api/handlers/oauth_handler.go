@@ -217,6 +217,27 @@ func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.
 	return &user, nil
 }
 
+// getUserNameAndEmail fetches only the name and email fields for a user by ID
+func (h *OAuthHandler) getUserNameAndEmail(ctx context.Context, userID string) (name, email string, err error) {
+	if h.db == nil {
+		return "", "", nil
+	}
+
+	var nameSQL, emailSQL sql.NullString
+	err = h.db.QueryRowContext(ctx, `
+		SELECT name, email 
+		FROM users 
+		WHERE id = $1`, userID).Scan(&nameSQL, &emailSQL)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", nil
+		}
+		return "", "", err
+	}
+	return nameSQL.String, emailSQL.String, nil
+}
+
 func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 	ctx := c.Request.Context()
 	requestID := c.GetString("requestId")
@@ -259,33 +280,35 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	var userName, userEmail string
-
-	user, err := h.getUserByID(ctx, sess.UserID)
+	// Fetch ONLY name and email using our focused method
+	userName, userEmail, err := h.getUserNameAndEmail(ctx, sess.UserID)
 	if err != nil {
 		h.log.Error("GetCurrentUser: Error fetching user from DB", map[string]interface{}{
 			"userId":    sess.UserID,
 			"error":     err.Error(),
 			"requestId": requestID,
 		})
-	} else if user != nil {
-		userName = user.Name
-		userEmail = user.Email
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal_error",
+		})
+		return
 	}
 
-	if userName == "" {
-		userName = "johndo"
-	}
-	if userEmail == "" {
-		userEmail = "johndo@email.com"
-	}
+	// Debug logging for name and email being sent to frontend
+	h.log.Info("GetCurrentUser: Sending user data to frontend", map[string]interface{}{
+		"userId":    sess.UserID,
+		"name":      userName,
+		"email":     userEmail,
+		"requestId": requestID,
+	})
 
+	// Return ONLY name and email to frontend (no fallbacks)
 	c.JSON(http.StatusOK, gin.H{
 		"authenticated": true,
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 		"user": gin.H{
-			"name":  userName,
-			"email": userEmail,
+			"name":  userName, // Will be empty string if not set in DB
+			"email": userEmail, // Will be empty string if not set in DB
 		},
 	})
 }
