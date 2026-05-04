@@ -217,25 +217,25 @@ func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.
 	return &user, nil
 }
 
-// getUserFirstAndLastNameAndEmail fetches first_name, last_name, and email fields for a user by ID
-func (h *OAuthHandler) getUserFirstAndLastNameAndEmail(ctx context.Context, userID string) (firstName, lastName, email string, err error) {
+// getUserNameAndEmail fetches name and email fields for a user by ID
+func (h *OAuthHandler) getUserNameAndEmail(ctx context.Context, userID string) (name, email string, err error) {
 	if h.db == nil {
-		return "", "", "", nil
+		return "", "", nil
 	}
 
-	var firstNameSQL, lastNameSQL, emailSQL sql.NullString
+	var nameSQL, emailSQL sql.NullString
 	err = h.db.QueryRowContext(ctx, `
-		SELECT first_name, last_name, email 
+		SELECT name, email 
 		FROM users 
-		WHERE id = $1`, userID).Scan(&firstNameSQL, &lastNameSQL, &emailSQL)
+		WHERE id = $1`, userID).Scan(&nameSQL, &emailSQL)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", "", "", nil
+			return "", "", nil
 		}
-		return "", "", "", err
+		return "", "", err
 	}
-	return firstNameSQL.String, lastNameSQL.String, emailSQL.String, nil
+	return nameSQL.String, emailSQL.String, nil
 }
 
 func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
@@ -280,7 +280,7 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	firstName, lastName, userEmail, err := h.getUserFirstAndLastNameAndEmail(ctx, sess.UserID)
+	userName, userEmail, err := h.getUserNameAndEmail(ctx, sess.UserID)
 	if err != nil {
 		h.log.Error("GetCurrentUser: Error fetching user from DB", map[string]interface{}{
 			"userId":    sess.UserID,
@@ -293,7 +293,12 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	userName := firstName + " " + lastName
+	if userName == "" {
+		userName = "John Doe"
+	}
+	if userEmail == "" {
+		userEmail = "johndoe@email.com"
+	}
 
 	// Debug logging for user data being sent to frontend
 	h.log.Info("GetCurrentUser: Sending user data to frontend", map[string]interface{}{
