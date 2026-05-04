@@ -710,6 +710,14 @@ func applyDefaults(cfg *Config) {
 	if cfg.Workflows.ContextStorage.TTL == 0 {
 		cfg.Workflows.ContextStorage.TTL = 3600
 	}
+
+	// Internal Alert Defaults
+	if cfg.Integrations.Internal.OperationsAlertEmail == "" {
+		cfg.Integrations.Internal.OperationsAlertEmail = "shivcharan.jalendra@lemici.com"
+	}
+	if cfg.Integrations.Internal.MarketingAlertEmail == "" {
+		cfg.Integrations.Internal.MarketingAlertEmail = "arslaan.darwajkar@lemici.com"
+	}
 }
 
 // validateConfig validates critical configuration fields
