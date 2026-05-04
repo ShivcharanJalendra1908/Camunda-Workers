@@ -293,23 +293,22 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Debug logging for first name, last name and email being sent to frontend
+	userName := firstName + " " + lastName
+
+	// Debug logging for user data being sent to frontend
 	h.log.Info("GetCurrentUser: Sending user data to frontend", map[string]interface{}{
 		"userId":    sess.UserID,
-		"firstName": firstName,
-		"lastName":  lastName,
+		"name":      userName,
 		"email":     userEmail,
 		"requestId": requestID,
 	})
 
-	// Return ONLY first name, last name and email to frontend (no fallbacks)
 	c.JSON(http.StatusOK, gin.H{
 		"authenticated": true,
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 		"user": gin.H{
-			"firstName": firstName, // Will be empty string if not set in DB
-			"lastName":  lastName,  // Will be empty string if not set in DB
-			"email":     userEmail, // Will be empty string if not set in DB
+			"name":  userName,
+			"email": userEmail,
 		},
 	})
 }
