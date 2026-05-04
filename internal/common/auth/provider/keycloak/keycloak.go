@@ -120,6 +120,7 @@ func (p *Provider) ExchangeCode(
 		PreferredUsername string `json:"preferred_username"`
 		FirstName         string `json:"given_name"`
 		LastName          string `json:"family_name"`
+		FullName          string `json:"name"`
 	}
 
 	if err := idToken.Claims(&claims); err != nil {
@@ -130,13 +131,24 @@ func (p *Provider) ExchangeCode(
 		return nil, errors.New("keycloak id_token missing required claims")
 	}
 
+	// Determine best available name
+	firstName := claims.FirstName
+	lastName := claims.LastName
+	if firstName == "" && lastName == "" {
+		if claims.FullName != "" {
+			firstName = claims.FullName
+		} else if claims.PreferredUsername != "" {
+			firstName = claims.PreferredUsername
+		}
+	}
+
 	return &auth.Identity{
 		Provider:       providerName,
 		ProviderUserID: claims.Subject,
 		Email:          claims.Email,
 		EmailVerified:  claims.EmailVerified,
-		FirstName:      claims.FirstName,
-		LastName:       claims.LastName,
+		FirstName:      firstName,
+		LastName:       lastName,
 		IDToken:        rawIDToken,
 	}, nil
 }
