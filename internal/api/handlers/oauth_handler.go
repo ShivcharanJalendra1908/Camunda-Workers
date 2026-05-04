@@ -217,25 +217,25 @@ func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.
 	return &user, nil
 }
 
-// getUserNameAndEmail fetches only the name and email fields for a user by ID
-func (h *OAuthHandler) getUserNameAndEmail(ctx context.Context, userID string) (name, email string, err error) {
+// getUserFirstAndLastNameAndEmail fetches first_name, last_name, and email fields for a user by ID
+func (h *OAuthHandler) getUserFirstAndLastNameAndEmail(ctx context.Context, userID string) (firstName, lastName, email string, err error) {
 	if h.db == nil {
-		return "", "", nil
+		return "", "", "", nil
 	}
 
-	var nameSQL, emailSQL sql.NullString
+	var firstNameSQL, lastNameSQL, emailSQL sql.NullString
 	err = h.db.QueryRowContext(ctx, `
-		SELECT name, email 
+		SELECT first_name, last_name, email 
 		FROM users 
-		WHERE id = $1`, userID).Scan(&nameSQL, &emailSQL)
+		WHERE id = $1`, userID).Scan(&firstNameSQL, &lastNameSQL, &emailSQL)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", "", nil
+			return "", "", "", nil
 		}
-		return "", "", err
+		return "", "", "", err
 	}
-	return nameSQL.String, emailSQL.String, nil
+	return firstNameSQL.String, lastNameSQL.String, emailSQL.String, nil
 }
 
 func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
@@ -280,8 +280,7 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Fetch ONLY name and email using our focused method
-	userName, userEmail, err := h.getUserNameAndEmail(ctx, sess.UserID)
+	firstName, lastName, userEmail, err := h.getUserFirstAndLastNameAndEmail(ctx, sess.UserID)
 	if err != nil {
 		h.log.Error("GetCurrentUser: Error fetching user from DB", map[string]interface{}{
 			"userId":    sess.UserID,
@@ -294,21 +293,23 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	// Debug logging for name and email being sent to frontend
+	// Debug logging for first name, last name and email being sent to frontend
 	h.log.Info("GetCurrentUser: Sending user data to frontend", map[string]interface{}{
 		"userId":    sess.UserID,
-		"name":      userName,
+		"firstName": firstName,
+		"lastName":  lastName,
 		"email":     userEmail,
 		"requestId": requestID,
 	})
 
-	// Return ONLY name and email to frontend (no fallbacks)
+	// Return ONLY first name, last name and email to frontend (no fallbacks)
 	c.JSON(http.StatusOK, gin.H{
 		"authenticated": true,
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 		"user": gin.H{
-			"name":  userName, // Will be empty string if not set in DB
-			"email": userEmail, // Will be empty string if not set in DB
+			"firstName": firstName, // Will be empty string if not set in DB
+			"lastName":  lastName,  // Will be empty string if not set in DB
+			"email":     userEmail, // Will be empty string if not set in DB
 		},
 	})
 }
