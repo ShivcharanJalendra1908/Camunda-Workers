@@ -1042,7 +1042,7 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 		"requestId":          c.GetString("X-Request-ID"),
 		"userAgent":          c.Request.UserAgent(),
 		"ipAddress":          c.ClientIP(),
-		"internalAlertEmail": h.internalAlertEmail,
+		"operationsEmail": h.internalAlertEmail,
 	}
 
 	response, err := h.executeWorkflow(ctx, "franchise-enquiry-submission", variables)

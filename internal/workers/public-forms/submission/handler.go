@@ -111,8 +111,6 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 	if variables.FormType == "list_franchise" {
 		mandatoryFields := map[string]string{
 			"brandName":         "Brand Name is required",
-			"companyLegalName":  "Company Legal Name is required",
-			"industryCategory":  "Industry Category is required",
 			"contactPersonName": "Contact Person Name is required",
 			"contactEmail":      "Contact Email is required",
 			"contactPhone":      "Contact Phone is required",

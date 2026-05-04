@@ -287,7 +287,7 @@ func main() {
 	// ✅ STEP 2: CREATE FRANCHISE HANDLER (BEFORE REGISTRY)
 	// ============================================================================
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redis.GetClient(),
-		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination, pg.DB)
+		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, pg.DB)
 
 	zapLog.Info("✅ Franchise handler created",
 		zap.Int("pendingResponses", franchiseHandler.PendingResponsesCount()))

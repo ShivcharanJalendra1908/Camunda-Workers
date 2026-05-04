@@ -180,9 +180,10 @@ integrations:
 
   # Email id for Enquiry 
   internal: 
-    # enquiry_alert_email: "enquiries@lemici.com"   # hardcode 
-    enquiry_alert_email: "shivcharan.jalendra@lemici.com"
-    enquiry_alert_name: "Lemici Enquiry Team"
+    operations_alert_email: "shivcharan.jalendra@lemici.com"
+    operations_alert_name: "Lemici Operations Team"
+    marketing_alert_email: "arslaan.darwajkar@lemici.com"
+    marketing_alert_name: "Lemici Marketing Team"
 
 # ============================================================================
 # EXTERNAL APIs
