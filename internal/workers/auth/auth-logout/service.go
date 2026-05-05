@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"time"
 
+	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
@@ -43,82 +43,37 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
-	s.logger.Info("Executing auth logout", map[string]interface{}{
-		"userId":    input.UserID,
+	s.logger.Info("Executing simplified auth logout cleanup", map[string]interface{}{
 		"sessionId": input.SessionID,
-		"logoutAll": input.LogoutAll,
-		"deviceId":  input.DeviceID,
-		"reason":    input.Reason,
+		"requestId": input.RequestID,
 	})
 
-	var sessionsInvalidated int
-	var tokenRevoked bool
+	if input.SessionID == "" {
+		return nil, fmt.Errorf("sessionId is required for cleanup")
+	}
 
-	// Step 1: Keycloak server-side session revoke
-	if s.keycloak != nil {
-		var err error
-		if input.LogoutAll && input.KeycloakUserID != "" {
-			err = s.keycloak.RevokeAllUserSessions(ctx, input.KeycloakUserID)
-			s.logger.Info("Keycloak global logout initiated", map[string]interface{}{"keycloakUserId": input.KeycloakUserID})
-		} else if input.SessionID != "" {
-			err = s.keycloak.DeleteSession(ctx, input.SessionID)
-			s.logger.Info("Keycloak targeted session deletion initiated", map[string]interface{}{"sessionId": input.SessionID})
-		}
-
+	// Step 1: Redis local session cleanup
+	if s.redisClient != nil {
+		store := session.NewRedisStore(s.redisClient)
+		err := store.Delete(ctx, input.SessionID)
 		if err != nil {
-			s.logger.Warn("Keycloak session revoke failed", map[string]interface{}{
-				"error":     err.Error(),
+			s.logger.Error("Failed to delete session using RedisStore", map[string]interface{}{
 				"sessionId": input.SessionID,
-				"userId":    input.KeycloakUserID,
+				"requestId": input.RequestID,
+				"error":     err.Error(),
 			})
-		} else if (input.LogoutAll && input.KeycloakUserID != "") || input.SessionID != "" {
-			tokenRevoked = true
-			sessionsInvalidated = 1
-			s.logger.Info("Keycloak session(s) revoked successfully", nil)
+			return nil, err
 		}
+		s.logger.Info("Redis session deleted successfully via RedisStore", map[string]interface{}{
+			"sessionId": input.SessionID,
+			"requestId": input.RequestID,
+		})
 	}
-
-
-	// Step 2: Redis local session cleanup
-	if s.redisClient != nil {
-		if err := s.cleanupLocalSessions(ctx, input); err != nil {
-			s.logger.Warn("Failed to cleanup local sessions", map[string]interface{}{
-				"userId": input.UserID,
-				"error":  err.Error(),
-			})
-		}
-	}
-
-	// Step 3: Audit log
-	if s.redisClient != nil {
-		s.logLogoutEvent(ctx, input, sessionsInvalidated, tokenRevoked)
-	}
-
-	// Step 4: Build Keycloak browser logout URL (frontend MUST redirect the browser here to clear SSO cookies)
-	params := url.Values{}
-	params.Add("post_logout_redirect_uri", s.config.PostLogoutRedirectURI)
-	params.Add("client_id", s.config.ClientID)
-	
-	// Keycloak 17+ requires id_token_hint for redirect to work correctly
-	if input.IDToken != "" {
-		params.Add("id_token_hint", input.IDToken)
-	}
-
-	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?%s", s.config.Issuer, params.Encode())
-
-	s.logger.Info("Auth logout completed successfully", map[string]interface{}{
-		"userId":              input.UserID,
-		"sessionsInvalidated": sessionsInvalidated,
-		"tokenRevoked":        tokenRevoked,
-	})
 
 	return &Output{
-		Success:             true,
-		Message:             "Logged out successfully",
-		SessionsInvalidated: sessionsInvalidated,
-		TokenRevoked:        tokenRevoked,
-		LogoutURL:           logoutURL,
-		LogoutAt:            time.Now(),
+		Success:  true,
+		Message:  "Session deleted from Redis successfully",
+		LogoutAt: time.Now(),
 	}, nil
 }
 

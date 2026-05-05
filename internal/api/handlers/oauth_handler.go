@@ -11,6 +11,7 @@ import (
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -18,23 +19,25 @@ import (
 )
 
 type OAuthHandler struct {
-	redisClient  *redis.Client
-	log          logger.Logger
-	sessionStore *session.RedisStore
-	db           *sql.DB
+	redisClient   *redis.Client
+	log           logger.Logger
+	sessionStore  *session.RedisStore
+	db            *sql.DB
+	camundaClient *camunda.Client
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
 	}
 
 	return &OAuthHandler{
-		redisClient:  redisClient,
-		log:          log,
-		sessionStore: sessionStore,
-		db:           db,
+		redisClient:   redisClient,
+		log:           log,
+		sessionStore:  sessionStore,
+		db:            db,
+		camundaClient: camundaClient,
 	}
 }
 
@@ -43,8 +46,8 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	requestID := c.GetString("requestId")
 
 	sessionID, err := c.Cookie(constants.SessionCookieName)
-	if err != nil {
-		h.log.Info("OAuthLogout: No session cookie found", map[string]interface{}{
+	if err != nil || sessionID == "" {
+		h.log.Info("OAuthLogout: No session cookie found or empty", map[string]interface{}{
 			"requestId": requestID,
 		})
 		h.clearSessionCookie(c)
@@ -52,57 +55,61 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	if sessionID == "" {
-		h.log.Info("OAuthLogout: Empty session cookie", map[string]interface{}{
-			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
-
-	sess, err := h.sessionStore.Get(ctx, sessionID)
-	if err != nil {
-		h.log.Error("OAuthLogout: Error checking session in Redis", map[string]interface{}{
-			"sessionId": sessionID,
-			"error":     err.Error(),
-			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
-
-	if sess == nil {
-		h.log.Info("OAuthLogout: Session not found in Redis", map[string]interface{}{
+	// Trigger Camunda process (LogoutSimple)
+	// This is fire-and-forget as per requirements
+	if h.camundaClient != nil {
+		variables := map[string]interface{}{
 			"sessionId": sessionID,
 			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
+		}
 
-	if err := h.sessionStore.Delete(ctx, sessionID); err != nil {
-		h.log.Error("OAuthLogout: Failed to delete session", map[string]interface{}{
-			"sessionId": sessionID,
-			"userId":    sess.UserID,
-			"error":     err.Error(),
+		// Use background context for fire-and-forget to ensure it's not cancelled by request completion
+		go func(sessID, reqID string, vars map[string]interface{}) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			cmd, err := h.camundaClient.GetClient().NewCreateInstanceCommand().
+				BPMNProcessId("LogoutSimple").
+				LatestVersion().
+				VariablesFromMap(vars)
+
+			if err != nil {
+				h.log.Error("OAuthLogout: Failed to prepare Camunda command", map[string]interface{}{
+					"processId": "LogoutSimple",
+					"sessionId": sessID,
+					"requestId": reqID,
+					"error":     err.Error(),
+				})
+				return
+			}
+
+			resp, err := cmd.Send(bgCtx)
+
+			if err != nil {
+				h.log.Error("OAuthLogout: Failed to start Camunda process", map[string]interface{}{
+					"processId": "LogoutSimple",
+					"sessionId": sessID,
+					"requestId": reqID,
+					"error":     err.Error(),
+				})
+			} else {
+				h.log.Info("OAuthLogout: Camunda logout process started", map[string]interface{}{
+					"instanceKey": resp.GetProcessInstanceKey(),
+					"processId":   "LogoutSimple",
+					"sessionId":   sessID,
+					"requestId":   reqID,
+				})
+			}
+		}(sessionID, requestID, variables)
+	} else {
+		h.log.Warn("OAuthLogout: Camunda client not initialized, performing direct Redis cleanup", map[string]interface{}{
 			"requestId": requestID,
 		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
+		_ = h.sessionStore.Delete(ctx, sessionID)
 	}
 
-	h.log.Info("OAuthLogout: Session deleted successfully", map[string]interface{}{
-		"sessionId": sessionID,
-		"userId":    sess.UserID,
-		"requestId": requestID,
-	})
-
+	// Clear cookie and redirect immediately
 	h.clearSessionCookie(c)
-	// Redirect to homepage after logout, not Keycloak login
 	c.Redirect(http.StatusFound, "/")
 }
 
@@ -165,12 +172,27 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 }
 
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
+	// Domain should match what was set during login (usually .lemici.com)
+	domain := ".lemici.com"
+
+	// Clear the primary session cookie
 	c.SetCookie(
 		constants.SessionCookieName,
 		"",
 		-1,
 		constants.SessionCookiePath,
+		domain,
+		false,
+		true,
+	)
+
+	// Also clear the legacy session_id cookie just in case
+	c.SetCookie(
+		"session_id",
 		"",
+		-1,
+		constants.SessionCookiePath,
+		domain,
 		false,
 		true,
 	)

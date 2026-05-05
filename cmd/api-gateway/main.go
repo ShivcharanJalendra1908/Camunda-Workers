@@ -218,7 +218,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
 
-	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)
@@ -272,9 +272,6 @@ func main() {
 
 			// ✅ NEW: Keycloak callback (backend-handled)
 			authGroup.GET("/callback", workflowHandler.HandleKeycloakCallback)
-
-			// ✅ KEYCLOAK LOGOUT
-			authGroup.POST("/logout", workflowHandler.StartKeycloakLogout)
 
 			// Password Reset workflow (keep if needed)
 			authGroup.POST("/password/reset", workflowHandler.StartPasswordReset)

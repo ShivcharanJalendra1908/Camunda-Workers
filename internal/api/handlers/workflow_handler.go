@@ -477,81 +477,11 @@ func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *WorkflowHandler) StartUserLogout(c *gin.Context) {
-	var input struct {
-		UserID         string                 `json:"userId"`
-		KeycloakUserID string                 `json:"keycloakUserId"`
-		Token          string                 `json:"token"`
-		IDToken        string                 `json:"idToken"`
-		LogoutAll      bool                   `json:"logoutAll"`
-		DeviceID       string                 `json:"deviceId"`
-		Reason         string                 `json:"reason"`
-		Metadata       map[string]interface{} `json:"metadata"`
-	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
 
-	// Generate correlation key and subscribe before starting workflow
-	correlationKey := uuid.New().String()
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
-	defer pubsub.Close()
 
-	variables := map[string]interface{}{
-		"userId":         getOrDefault(input.UserID, claims.UserID),
-		"keycloakUserId": input.KeycloakUserID,
-		"token":          input.Token,
-		"idToken":        input.IDToken,
-		"sessionId":      claims.SessionID,
-		"correlationKey": correlationKey, // Pass correlation key
-		"logoutAll":      input.LogoutAll,
-		"deviceId":       input.DeviceID,
-		"reason":         input.Reason,
-		"sourceSystem":   claims.SourceSystem,
-		"requestId":      uuid.New().String(),
-	}
 
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	// Start workflow
-	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
-
-	// Wait for response
-	select {
-	case msg := <-pubsub.Channel():
-		var envelope struct {
-			Response     map[string]interface{} `json:"response"`
-			CookieHeader string                 `json:"cookieHeader"`
-		}
-		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse workflow response"})
-			return
-		}
-
-		// Clear cookie if header provided
-		if envelope.CookieHeader != "" {
-			c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-		}
-
-		c.JSON(http.StatusOK, envelope.Response)
-
-	case <-time.After(15 * time.Second):
-		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "logout workflow timed out"})
-
-	case <-c.Request.Context().Done():
-		c.JSON(http.StatusRequestTimeout, gin.H{"error": "request cancelled"})
-	}
-}
 
 // ============================================================================
 // USER MANAGEMENT WORKFLOWS
@@ -1758,136 +1688,9 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 }
 
 
-func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
-	var input struct {
-		UserID      string                 `json:"userId"`
-		SessionID   string                 `json:"sessionId"`
-		LogoutAll   bool                   `json:"logoutAll"`
-		RedirectURL string                 `json:"redirectUrl"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
 
-	sessionID := input.SessionID
-	if sessionID == "" {
-		sessionID = claims.SessionID
-	}
-
-	variables := map[string]interface{}{
-		"sessionId":    sessionID,
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"logoutAll":    input.LogoutAll,
-		"redirectUrl":  input.RedirectURL,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	correlationKey := uuid.New().String()
-	variables["correlationKey"] = correlationKey
-
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-	pubsub := h.redisClient.Subscribe(c.Request.Context(), channel)
-	defer pubsub.Close()
-
-	// Confirm subscription before starting workflow
-	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer confirmCancel()
-	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
-		// Subscription failed — still clear local cookie and respond
-		h.logger.Warn("Redis subscription failed for logout", map[string]interface{}{"error": err.Error()})
-		cookie := &http.Cookie{
-			Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
-			MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
-			SameSite: http.SameSiteNoneMode,
-		}
-		http.SetCookie(c.Writer, cookie)
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
-		return
-	}
-
-	h.startWorkflow(c.Request.Context(), "keycloak-logout-workflow", variables)
-
-	// Wait for workflow response to get logoutUrl and cookieHeader
-	select {
-	case msg := <-pubsub.Channel():
-		var envelope struct {
-			Response     map[string]interface{} `json:"response"`
-			CookieHeader string                 `json:"cookieHeader"`
-		}
-		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil {
-			// cookie fix: redundant clear-cookie header
-			// if envelope.CookieHeader != "" {
-			// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-			// }
-			// Also clear local session cookie
-			cookie1 := &http.Cookie{
-				Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
-				MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
-				SameSite: http.SameSiteNoneMode,
-			}
-			http.SetCookie(c.Writer, cookie1)
-
-			cookie2 := &http.Cookie{
-				Name: "pkce_verifier", Value: "", Path: "/",
-				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-			}
-			http.SetCookie(c.Writer, cookie2)
-
-			cookie3 := &http.Cookie{
-				Name: "oauth_state", Value: "", Path: "/",
-				MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-			}
-			http.SetCookie(c.Writer, cookie3)
-			// Return response with logoutUrl so frontend can redirect browser to Keycloak
-			if envelope.Response != nil {
-				c.JSON(http.StatusOK, envelope.Response)
-			} else {
-				c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out successfully"})
-			}
-			return
-		}
-
-	case <-time.After(15 * time.Second):
-		h.logger.Warn("Logout workflow timeout", map[string]interface{}{"correlationKey": correlationKey})
-
-	case <-c.Request.Context().Done():
-		h.logger.Warn("Logout request cancelled", map[string]interface{}{"correlationKey": correlationKey})
-	}
-
-	// Fallback — clear cookies and respond without logoutUrl
-	cookie1 := &http.Cookie{
-		Name: constants.SessionCookieName, Value: "", Path: constants.SessionCookiePath,
-		MaxAge: -1, HttpOnly: constants.SessionCookieHTTPOnly, Secure: constants.SessionCookieSecure,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie1)
-
-	cookie2 := &http.Cookie{
-		Name: "pkce_verifier", Value: "", Path: "/",
-		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie2)
-
-	cookie3 := &http.Cookie{
-		Name: "oauth_state", Value: "", Path: "/",
-		MaxAge: -1, HttpOnly: true, Secure: true, SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie3)
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logged out"})
-}
 
 // ============================================================================
 // ADMIN ENDPOINTS
