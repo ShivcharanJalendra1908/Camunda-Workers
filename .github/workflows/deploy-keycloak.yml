@@ -5,6 +5,7 @@ on:
     branches: [mvp]
     paths:
       - 'keycloak-theme/**'
+      - .github/workflows/deploy-keycloak.yml
 
 permissions:
   id-token: write
