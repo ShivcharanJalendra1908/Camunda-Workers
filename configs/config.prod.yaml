@@ -35,6 +35,8 @@ integrations:
     use_tls: true
     default_from: "noreply@lemici.com"
 
-internal:
-  enquiry_alert_email: "shivcharan.jalendra@lemici.com"
-  enquiry_alert_name: "Lemici Enquiry Team"
+  internal: 
+    operations_alert_email: "Operations@lemici.com"  # "shivcharan.jalendra@lemici.com"
+    operations_alert_name: "Lemici Operations Team"
+    marketing_alert_email: "marketing@lemici.com"  # "arslaan.darwajkar@lemici.com"
+    marketing_alert_name: "Lemici Marketing Team"

@@ -66,8 +66,10 @@ integrations:
     password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
     use_tls: true
     default_from: "noreply@lemici.com"
+
   internal: 
-    operations_alert_email: "shivcharan.jalendra@lemici.com"
+    operations_alert_email: "Operations@lemici.com"  # "shivcharan.jalendra@lemici.com"
     operations_alert_name: "Lemici Operations Team"
-    marketing_alert_email: "arslaan.darwajkar@lemici.com"
+    marketing_alert_email: "marketing@lemici.com"  # "arslaan.darwajkar@lemici.com"
     marketing_alert_name: "Lemici Marketing Team"
+
