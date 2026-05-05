@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"camunda-workers/internal/api/errors"
+	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/api/middleware"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"camunda-workers/internal/api/errors"
+	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
