@@ -135,7 +135,39 @@
         .login-testimonial .directors { font-size: 14px; font-weight: 600; color: #60a5fa; margin: 0; }
         .login-testimonial .title { font-size: 12px; margin: 0; }
         
-        .alert-error { background: #fee2e2; border: 1px solid #fca5a5; color: #b91c1c; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
+        .alert-error { 
+            background: #fff5f5; 
+            border: 1px solid #feb2b2; 
+            color: #c53030; 
+            padding: 14px 18px; 
+            border-radius: 12px; 
+            margin-bottom: 20px; 
+            font-size: 14px; 
+            font-weight: 500;
+            box-shadow: 0 4px 6px -1px rgba(197, 48, 48, 0.1);
+            display: flex;
+            align-items: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .alert-error::before {
+            content: '';
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23c53030'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            flex-shrink: 0;
+        }
+        
+        .alert-success { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; padding: 14px 18px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; font-weight: 500; display: flex; align-items: center; animation: fadeIn 0.3s ease-out; }
+        .alert-info { background: #ebf8ff; border: 1px solid #90cdf4; color: #2c5282; padding: 14px 18px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; font-weight: 500; display: flex; align-items: center; animation: fadeIn 0.3s ease-out; }
+        .alert-warning { background: #fffaf0; border: 1px solid #fbd38d; color: #7b341e; padding: 14px 18px; border-radius: 12px; margin-bottom: 20px; font-size: 14px; font-weight: 500; display: flex; align-items: center; animation: fadeIn 0.3s ease-out; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* Password Eye Toggle */
         .password-wrapper .pf-c-form-control { padding-right: 45px !important; }
