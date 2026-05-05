@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	TaskType = "auth-logout"
+	TaskType = "logout-delete-session"
 )
 
 type Handler struct {
@@ -242,31 +242,18 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		}
 	}
 
-	input := &Input{
-		UserID: variables["userId"].(string),
-	}
+	input := &Input{}
 
-	if keycloakUserID, ok := variables["keycloakUserId"].(string); ok {
-		input.KeycloakUserID = keycloakUserID
-	}
-
-	// IDToken is used for id_token_hint in Keycloak 17+ logout URL
-	if idToken, ok := variables["idToken"].(string); ok && idToken != "" {
-		input.IDToken = idToken
-	}
-
-	// RefreshToken is optional but recommended for single session logout
-	if refreshToken, ok := variables["refreshToken"].(string); ok && refreshToken != "" {
-		input.RefreshToken = refreshToken
-	}
-
-	// AccessToken is optional - used for adding to revocation list
-	if accessToken, ok := variables["accessToken"].(string); ok && accessToken != "" {
-		input.AccessToken = accessToken
+	if userID, ok := variables["userId"].(string); ok {
+		input.UserID = userID
 	}
 
 	if sessionID, ok := variables["sessionId"].(string); ok {
 		input.SessionID = sessionID
+	}
+
+	if requestID, ok := variables["requestId"].(string); ok {
+		input.RequestID = requestID
 	}
 
 	if deviceID, ok := variables["deviceId"].(string); ok {

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"camunda-workers/internal/common/constants"
 	"net/http"
 	"time"
 
@@ -19,7 +20,7 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 		}
 
 		// Get session_id from cookie
-		sessionID, err := c.Cookie("session_id")
+		sessionID, err := c.Cookie(constants.SessionCookieName)
 		if err != nil || sessionID == "" {
 			c.Next()
 			return
@@ -86,7 +87,7 @@ func CSRFProtection(redisClient *redis.Client) gin.HandlerFunc {
 		}
 
 		// 1. Get session_id
-		sessionID, err := c.Cookie("session_id")
+		sessionID, err := c.Cookie(constants.SessionCookieName)
 		if err != nil || sessionID == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "missing session",

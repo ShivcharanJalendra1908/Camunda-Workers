@@ -434,8 +434,12 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 
 	success := true
-	if s, ok := response["success"].(bool); ok {
-		success = s
+	if response != nil {
+		if s, ok := response["success"].(bool); ok {
+			success = s
+		} else {
+			response["success"] = true
+		}
 	}
 
 	return &Output{Success: success, Response: response}, nil

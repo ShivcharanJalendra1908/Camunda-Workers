@@ -496,7 +496,7 @@ func (s *Service) buildEmailMessage(input *Input) (string, error) {
 
 		builder.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
 	} else {
-		// Simple email without attachments
+	// Simple email without attachments
 		if input.IsHTML {
 			builder.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 		} else {
@@ -504,10 +504,31 @@ func (s *Service) buildEmailMessage(input *Input) (string, error) {
 		}
 		builder.WriteString("Content-Transfer-Encoding: quoted-printable\r\n")
 		builder.WriteString("\r\n")
-		builder.WriteString(input.Body)
+		builder.WriteString(s.encodeQuotedPrintable(input.Body))
+		builder.WriteString("\r\n")
 	}
 
 	return builder.String(), nil
+}
+
+func (s *Service) encodeQuotedPrintable(str string) string {
+	var builder strings.Builder
+	for _, r := range str {
+		if r > 126 || r == '=' {
+			builder.WriteString(fmt.Sprintf("=%02X", r))
+		} else {
+			builder.WriteRune(r)
+		}
+	}
+	// Wrap lines at 76 characters
+	content := builder.String()
+	var wrapped strings.Builder
+	for len(content) > 75 {
+		wrapped.WriteString(content[:75] + "=\r\n")
+		content = content[75:]
+	}
+	wrapped.WriteString(content)
+	return wrapped.String()
 }
 
 func (s *Service) addAttachment(builder *strings.Builder, boundary string, att Attachment) error {
@@ -524,7 +545,7 @@ func (s *Service) addAttachment(builder *strings.Builder, boundary string, att A
 		}
 	}
 
-	builder.WriteString(fmt.Sprintf("Content-Type: %s; name=\"%s\"\r\n", contentType, att.Filename))
+	builder.WriteString(fmt.Sprintf("Content-Type: application/octet-stream; name=\"%s\"\r\n", att.Filename))
 	builder.WriteString("Content-Transfer-Encoding: base64\r\n")
 	builder.WriteString(fmt.Sprintf("Content-Disposition: attachment; filename=\"%s\"\r\n", att.Filename))
 	builder.WriteString("\r\n")

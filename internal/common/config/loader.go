@@ -482,12 +482,41 @@ func overrideEmptyConfig(cfg *Config) {
 		}
 	}
 
-	if val := os.Getenv("ALLOWED_ORIGINS"); val != "" {
+	// CORS Origins override
+	val := os.Getenv("ALLOWED_ORIGINS")
+	if val == "" {
+		val = os.Getenv("API_CORS_ALLOWED_ORIGINS")
+	}
+
+	if val != "" {
 		origins := strings.Split(val, ",")
 		for i := range origins {
 			origins[i] = strings.TrimSpace(origins[i])
 		}
 		cfg.API.CORS.AllowOrigins = origins
+	}
+
+	// CORS Methods override
+	if val := os.Getenv("API_CORS_ALLOWED_METHODS"); val != "" {
+		methods := strings.Split(val, ",")
+		for i := range methods {
+			methods[i] = strings.TrimSpace(methods[i])
+		}
+		cfg.API.CORS.AllowMethods = methods
+	}
+
+	// CORS Headers override
+	if val := os.Getenv("API_CORS_ALLOWED_HEADERS"); val != "" {
+		headers := strings.Split(val, ",")
+		for i := range headers {
+			headers[i] = strings.TrimSpace(headers[i])
+		}
+		cfg.API.CORS.AllowHeaders = headers
+	}
+
+	// CORS Credentials override
+	if val := os.Getenv("API_CORS_ALLOW_CREDENTIALS"); val != "" {
+		cfg.API.CORS.AllowCredentials = (strings.ToLower(val) == "true")
 	}
 }
 
@@ -681,6 +710,7 @@ func applyDefaults(cfg *Config) {
 	if cfg.Workflows.ContextStorage.TTL == 0 {
 		cfg.Workflows.ContextStorage.TTL = 3600
 	}
+
 }
 
 // validateConfig validates critical configuration fields

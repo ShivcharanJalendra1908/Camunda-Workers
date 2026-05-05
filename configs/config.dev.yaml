@@ -5,28 +5,31 @@ app:
 camunda:
   oauth:
     enabled: true
-    client_id: "worker-client" 
+    client_id: "worker-client"
     client_secret: "worker-secret"
-    token_url: "https://dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
+    token_url: "https://us-dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
     audience: "zeebe-api"
-    
-auth:
-  keycloak:
-    url: "https://dev-api.lemici.com"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
-    realm: "camunda-platform"
-    issuer: "https://dev-api.lemici.com/realms/camunda-platform"  # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
-    clientId: "lemici-frontend"
-    admin_client_secret: "yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS"
-    publicBaseUrl: "https://dev-api.lemici.com"   # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
-    redirectUrl: "https://www.lemici.com/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN  CHANGES
-    post_login_redirect_uri: "https://www.lemici.com"
-    login_redirect_uri: "https://www.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
-    post_logout_redirect_uri: "https://www.lemici.com/login" 
 
-    
+  auth:
+    keycloak:
+      url: "https://us-dev-api.lemici.com"
+      realm: "camunda-platform"
+      issuer: "https://us-dev-api.lemici.com/realms/camunda-platform"
+      clientId: "lemici-frontend"
+      admin_client_secret: "yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS"
+      publicBaseUrl: "https://us-dev-api.lemici.com"
+      redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"
+      post_login_redirect_uri: "https://www.lemici.com"
+#       post_login_redirect_uri: "https://dev.lemici.com/dashboard"
+      login_redirect_uri: "https://www.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
+#       login_redirect_uri: "https://dev.lemici.com/login"
+      post_logout_redirect_uri: "https://www.lemici.com/"
+#       post_logout_redirect_uri: "https://dev.lemici.com/"
+      callback_redirect_uri: "https://dev.lemici.com/" # ← NEW: where backend redirects after successful callback
+
   session:
-    secure: false  # Allow HTTP in dev
-    sameSite: "None"
+    secure: true
+    sameSite: "Lax"
 
 logging:
   level: debug
@@ -63,3 +66,10 @@ integrations:
     password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
     use_tls: true
     default_from: "noreply@lemici.com"
+
+  internal: 
+    operations_alert_email: "Operations@lemici.com"  # "shivcharan.jalendra@lemici.com"
+    operations_alert_name: "Lemici Operations Team"
+    marketing_alert_email: "marketing@lemici.com"  # "arslaan.darwajkar@lemici.com"
+    marketing_alert_name: "Lemici Marketing Team"
+

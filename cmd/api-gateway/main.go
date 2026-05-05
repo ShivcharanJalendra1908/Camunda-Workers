@@ -176,7 +176,7 @@ func main() {
 	router.Use(middleware.CORS(cfg.API.CORS))
 
 	// 4.1 CSRF Token Issuer (issue CSRF token for each request)
-	// router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient())) // cookie fix: disable for testing
+	// router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient()))
 
 	// 5. Security Headers
 	router.Use(middleware.SecurityHeaders())
@@ -195,7 +195,7 @@ func main() {
 	router.Use(middleware.Logger(log))
 
 	// 10. Error Handler MUST BE LAST! (catches all errors)
-	router.Use(middleware.ErrorHandler(log))
+	router.Use(middleware.ErrorHandler(log, cfg.Auth.Keycloak.LoginRedirectURI))
 
 	// ============================================================================
 	// Public routes (no authentication required)
@@ -214,11 +214,11 @@ func main() {
 		cfg)
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
-		cfg.Integrations.Internal.EnquiryAlertEmail, cfg.Pagination, postgresDB.DB)
+		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, postgresDB.DB)
 
-	userHandler := handlers.NewUserHandler(redisClient.GetClient(), log)
+	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
 
-	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)
@@ -258,10 +258,7 @@ func main() {
 		// ========================================================================
 		oauthGroup := publicAPI.Group("/oauth")
 		{
-			// ✅ OAUTH LOGOUT - Redis session + Keycloak logout
 			oauthGroup.POST("/logout", oauthHandler.OAuthLogout)
-
-			// ✅ LOGOUT ALL DEVICES (OAuth)
 			oauthGroup.POST("/logout-all", oauthHandler.LogoutAll)
 		}
 
@@ -275,9 +272,6 @@ func main() {
 
 			// ✅ NEW: Keycloak callback (backend-handled)
 			authGroup.GET("/callback", workflowHandler.HandleKeycloakCallback)
-
-			// ✅ KEYCLOAK LOGOUT
-			authGroup.POST("/logout", workflowHandler.StartKeycloakLogout)
 
 			// Password Reset workflow (keep if needed)
 			authGroup.POST("/password/reset", workflowHandler.StartPasswordReset)
@@ -334,7 +328,7 @@ func main() {
 	}
 	//protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
 	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
-	// protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient())) // cookie fix: disable for testing
+	// protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
 	{
 		// ========================================================================
 		// AI CONVERSATION WORKFLOWS
@@ -441,6 +435,14 @@ func main() {
 		// ERROR HANDLING WORKFLOW
 		// ========================================================================
 		protectedAPI.POST("/error/handle", workflowHandler.StartErrorHandling)
+
+		// ========================================================================
+		// OAUTH ME ENDPOINT (Get current user info)
+		// ========================================================================
+		oauthMeGroup := protectedAPI.Group("/oauth")
+		{
+			oauthMeGroup.GET("/me", oauthHandler.GetCurrentUser)
+		}
 	}
 
 	// ============================================================================
@@ -464,7 +466,7 @@ func main() {
 	adminAPI.Use(middleware.RateLimiter(adminRateLimit))
 	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
-	// adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient())) // cookie fix: disable for testing
+	// adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
 	{
 		// Workflow management
 		workflowGroup := adminAPI.Group("/workflows")

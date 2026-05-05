@@ -22,6 +22,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"encoding/base64"
 )
 
 const TaskType = "email-send"
@@ -399,20 +404,69 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.Attachments = make([]Attachment, 0, len(attachments))
 		for _, att := range attachments {
 			if attMap, ok := att.(map[string]interface{}); ok {
-				attachment := Attachment{}
-
-				if filename, ok := attMap["filename"].(string); ok {
-					attachment.Filename = filename
+				// Check if it's a URL-based attachment with custom filename: {"url": "...", "filename": "..."}
+				if urlStr, hasURL := attMap["url"].(string); hasURL && (strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://")) {
+					customFilename, _ := attMap["filename"].(string)
+					h.logger.Info("Downloading named attachment from URL", map[string]interface{}{"url": urlStr, "filename": customFilename})
+					resp, err := http.Get(urlStr)
+					if err == nil && resp.StatusCode == http.StatusOK {
+						defer resp.Body.Close()
+						data, _ := ioutil.ReadAll(resp.Body)
+						filename := customFilename
+						if filename == "" {
+							filename = filepath.Base(urlStr)
+							if strings.Contains(filename, "?") {
+								filename = strings.Split(filename, "?")[0]
+							}
+						}
+						contentType := resp.Header.Get("Content-Type")
+						if contentType == "" {
+							contentType = "image/png"
+						}
+						input.Attachments = append(input.Attachments, Attachment{
+							Filename:    filename,
+							ContentType: contentType,
+							Content:     base64.StdEncoding.EncodeToString(data),
+						})
+						h.logger.Info("Named attachment downloaded", map[string]interface{}{"filename": filename})
+					} else {
+						h.logger.Warn("Failed to download named attachment", map[string]interface{}{"url": urlStr, "error": err})
+					}
+				} else {
+					// Legacy base64 format: {"filename": "...", "contentType": "...", "content": "..."}
+					attachment := Attachment{}
+					if filename, ok := attMap["filename"].(string); ok {
+						attachment.Filename = filename
+					}
+					if contentType, ok := attMap["contentType"].(string); ok {
+						attachment.ContentType = contentType
+					}
+					if content, ok := attMap["content"].(string); ok {
+						attachment.Content = content
+					}
+					if attachment.Filename != "" && attachment.Content != "" {
+						input.Attachments = append(input.Attachments, attachment)
+					}
 				}
-				if contentType, ok := attMap["contentType"].(string); ok {
-					attachment.ContentType = contentType
-				}
-				if content, ok := attMap["content"].(string); ok {
-					attachment.Content = content
-				}
-
-				if attachment.Filename != "" && attachment.Content != "" {
-					input.Attachments = append(input.Attachments, attachment)
+			} else if urlStr, ok := att.(string); ok && (strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://")) {
+				// Plain URL string — filename derived from URL
+				h.logger.Info("Downloading attachment from URL", map[string]interface{}{"url": urlStr})
+				resp, err := http.Get(urlStr)
+				if err == nil && resp.StatusCode == http.StatusOK {
+					defer resp.Body.Close()
+					data, _ := ioutil.ReadAll(resp.Body)
+					filename := filepath.Base(urlStr)
+					if strings.Contains(filename, "?") {
+						filename = strings.Split(filename, "?")[0]
+					}
+					input.Attachments = append(input.Attachments, Attachment{
+						Filename:    filename,
+						ContentType: resp.Header.Get("Content-Type"),
+						Content:     base64.StdEncoding.EncodeToString(data),
+					})
+					h.logger.Info("Attachment downloaded", map[string]interface{}{"filename": filename})
+				} else {
+					h.logger.Warn("Failed to download attachment", map[string]interface{}{"url": urlStr, "error": err})
 				}
 			}
 		}
@@ -624,30 +678,41 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 }
 
 func resolveEmailAliases(vars map[string]interface{}) {
-	// Map "email" → "to" if "to" is absent
-	if _, hasTo := vars["to"]; !hasTo {
+	// Map "email" → "to" if "to" is absent or nil
+	if val, ok := vars["to"]; !ok || val == nil || val == "" {
 		if email, ok := vars["email"].(string); ok && email != "" {
 			vars["to"] = email
 		}
+	} else if _, isString := val.(string); !isString {
+		vars["to"] = fmt.Sprintf("%v", val)
 	}
 
-	// Build subject from applicant name if absent
-	if _, hasSubject := vars["subject"]; !hasSubject {
+	// Build subject from applicant name if absent or nil
+	if val, ok := vars["subject"]; !ok || val == nil || val == "" {
 		name, _ := vars["fullName"].(string)
 		if name == "" {
 			name = "Applicant"
 		}
 		vars["subject"] = fmt.Sprintf("Thank you for your franchise enquiry, %s", name)
+	} else if _, isString := val.(string); !isString {
+		vars["subject"] = fmt.Sprintf("%v", val)
 	}
 
-	// Build body from enquiry fields if absent
-	if _, hasBody := vars["body"]; !hasBody {
+	// Build body from enquiry fields if absent or nil
+	if val, ok := vars["body"]; !ok || val == nil || val == "" {
 		city, _ := vars["city"].(string)
 		franchise, _ := vars["franchiseId"].(string)
+		fullName, _ := vars["fullName"].(string)
+		if fullName == "" {
+			fullName = "Applicant"
+		}
+
 		vars["body"] = fmt.Sprintf(
 			"Dear %s,\n\nWe have received your enquiry for franchise %s in %s. Our team will contact you shortly.\n\nTeam LeMiCi",
-			vars["fullName"], franchise, city,
+			fullName, franchise, city,
 		)
+	} else if _, isString := val.(string); !isString {
+		vars["body"] = fmt.Sprintf("%v", val)
 	}
 }
 

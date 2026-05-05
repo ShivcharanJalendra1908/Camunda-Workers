@@ -9,14 +9,14 @@ import (
 
 // ValidateInput performs comprehensive validation for auth-logout
 func ValidateInput(input *Input) error {
-	// ===== TEMPLATE SECTION 4: User ID (UUID validation) =====
-	if err := ozzo.Validate(input.UserID,
-		ozzo.Required.Error("userId is required"),
-		ozzo.Length(36, 36).Error("userId must be exactly 36 characters"),
-		validation.IsUUID,
-		validation.SafeSQLString,
-	); err != nil {
-		return errors.NewInvalidUUIDError("userId", input.UserID)
+	// UserID is now optional for the simplified flow
+	if input.UserID != "" {
+		if err := ozzo.Validate(input.UserID,
+			ozzo.Length(3, 255).Error("userId must be between 3 and 255 characters"),
+			validation.SafeSQLString,
+		); err != nil {
+			return errors.NewValidationError("userId", err.Error())
+		}
 	}
 
 	// ===== TEMPLATE SECTION 3: Refresh Token (Session Token validation) =====
@@ -104,6 +104,9 @@ func (input *Input) Sanitize() {
 	if input.SessionID != "" {
 		input.SessionID = sanitizer.SanitizeString(input.SessionID)
 	}
+	if input.RequestID != "" {
+		input.RequestID = sanitizer.SanitizeString(input.RequestID)
+	}
 	if input.DeviceID != "" {
 		input.DeviceID = sanitizer.SanitizeString(input.DeviceID)
 	}
@@ -151,12 +154,17 @@ func validateMetadata(metadata map[string]interface{}) error {
 func GetInputSchema() validation.JSONSchema {
 	return validation.JSONSchema{
 		Type:     "object",
-		Required: []string{"userId"},
+		Required: []string{}, // No required fields for the simplified flow (either sessionId or userId could be used)
 		Properties: map[string]validation.Property{
 			"userId": {
 				Type:        "string",
-				Description: "Keycloak user identifier (required for all logout operations)",
+				Description: "User identifier (optional for simple logout)",
 				MinLength:   intPtr(3),
+				MaxLength:   intPtr(255),
+			},
+			"requestId": {
+				Type:        "string",
+				Description: "Request correlation identifier",
 				MaxLength:   intPtr(255),
 			},
 			"refreshToken": {

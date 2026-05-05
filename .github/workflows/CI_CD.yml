@@ -4,11 +4,12 @@ on:
   push:
     branches:
       - prod
+      - mvp
       
 permissions:
- contents: read
- id-token: write
- actions: read     
+  contents: read
+  id-token: write
+  actions: read     
 
 jobs:
   ci:
@@ -41,22 +42,21 @@ jobs:
        
       - name: Build Gateway image
         run: |
-          docker build -t backend-gateway-dev:${{ github.sha }} \
+          docker build -t backend-gateway:${{ github.sha }} \
             -f deployments/docker/Dockerfile.gateway \
             .
 
       - name: Build Worker image
         run: |
-          docker build -t backend-worker-dev:${{ github.sha }} \
+          docker build -t backend-worker:${{ github.sha }} \
             -f deployments/docker/Dockerfile.worker \
             .
-
 
       - name: Configure AWS credentials
         if: github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV1 }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
           aws-region: ${{ secrets.AWS_REGION_DEV }}
 
       - name: Login to Amazon ECR
@@ -70,33 +70,32 @@ jobs:
           ECR_URL="$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION_DEV }}.amazonaws.com"
 
           # Tag with SHA
-          docker tag backend-gateway-dev:${{ github.sha }} $ECR_URL/backend-gateway-dev:${{ github.sha }}
-          docker tag backend-worker-dev:${{ github.sha }} $ECR_URL/backend-worker-dev:${{ github.sha }}
+          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:${{ github.sha }}
+          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:${{ github.sha }}
 
           # Tag with latest
-          docker tag backend-gateway-dev:${{ github.sha }} $ECR_URL/backend-gateway-dev:latest
-          docker tag backend-worker-dev:${{ github.sha }} $ECR_URL/backend-worker-dev:latest
+          docker tag backend-gateway:${{ github.sha }} $ECR_URL/backend-gateway:latest
+          docker tag backend-worker:${{ github.sha }} $ECR_URL/backend-worker:latest
 
           echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
 
       - name: Push images to ECR
         if: github.event_name == 'push'
         run: |
-          docker push $ECR_URL/backend-gateway-dev:${{ github.sha }}
-          docker push $ECR_URL/backend-worker-dev:${{ github.sha }}
+          docker push $ECR_URL/backend-gateway:${{ github.sha }}
+          docker push $ECR_URL/backend-worker:${{ github.sha }}
 
-          docker push $ECR_URL/backend-gateway-dev:latest
-          docker push $ECR_URL/backend-worker-dev:latest
-
-
+          docker push $ECR_URL/backend-gateway:latest
+          docker push $ECR_URL/backend-worker:latest
 
       - name: Deploy to EC2 
-        if: github.ref == 'refs/heads/prod'
+        if: github.ref == 'refs/heads/prod' || github.ref == 'refs/heads/mvp'
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.EC2_HOST_DEV1 }}
+          host: ${{ secrets.EC2_HOST_DEV }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY_DEV }} 
+          key: ${{ secrets.EC2_SSH_KEY_DEV }}
+          
           script: |
             cd ~/Workflow-and-Workers/deployments/docker
 
@@ -115,3 +114,4 @@ jobs:
             docker compose up -d --remove-orphans
 
             echo "Deployment complete"
+            

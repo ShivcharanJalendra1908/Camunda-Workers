@@ -434,8 +434,10 @@ type IntegrationConfig struct {
 	} `mapstructure:"twilio"`
 
 	Internal struct {
-		EnquiryAlertEmail string `mapstructure:"enquiry_alert_email"`
-		EnquiryAlertName  string `mapstructure:"enquiry_alert_name"`
+		OperationsAlertEmail string `mapstructure:"operations_alert_email"`
+		OperationsAlertName  string `mapstructure:"operations_alert_name"`
+		MarketingAlertEmail  string `mapstructure:"marketing_alert_email"`
+		MarketingAlertName   string `mapstructure:"marketing_alert_name"`
 	} `mapstructure:"internal"`
 }
 

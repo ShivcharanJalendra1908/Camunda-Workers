@@ -3,46 +3,51 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"time"
 
+	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/camunda"
+	"camunda-workers/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 )
 
 type OAuthHandler struct {
-	redisClient  *redis.Client
-	log          logger.Logger
-	sessionStore *session.RedisStore
+	redisClient   *redis.Client
+	log           logger.Logger
+	sessionStore  *session.RedisStore
+	db            *sql.DB
+	camundaClient *camunda.Client
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
 	}
 
 	return &OAuthHandler{
-		redisClient:  redisClient,
-		log:          log,
-		sessionStore: sessionStore,
+		redisClient:   redisClient,
+		log:           log,
+		sessionStore:  sessionStore,
+		db:            db,
+		camundaClient: camundaClient,
 	}
 }
 
-// OAuthLogout handles pure OAuth/OIDC logout for cookie-based session auth
-// Flow: Read AUTH_SESSION_ID cookie → Delete session from Redis → Clear cookie → Redirect to homepage
-// ser is redirected to homepage, not Keycloak login
 func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	ctx := c.Request.Context()
 	requestID := c.GetString("requestId")
 
 	sessionID, err := c.Cookie(constants.SessionCookieName)
-	if err != nil {
-		h.log.Info("OAuthLogout: No session cookie found", map[string]interface{}{
+	if err != nil || sessionID == "" {
+		h.log.Info("OAuthLogout: No session cookie found or empty", map[string]interface{}{
 			"requestId": requestID,
 		})
 		h.clearSessionCookie(c)
@@ -50,62 +55,64 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	if sessionID == "" {
-		h.log.Info("OAuthLogout: Empty session cookie", map[string]interface{}{
-			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
-
-	sess, err := h.sessionStore.Get(ctx, sessionID)
-	if err != nil {
-		h.log.Error("OAuthLogout: Error checking session in Redis", map[string]interface{}{
-			"sessionId": sessionID,
-			"error":     err.Error(),
-			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
-
-	if sess == nil {
-		h.log.Info("OAuthLogout: Session not found in Redis", map[string]interface{}{
+	// Trigger Camunda process (LogoutSimple)
+	// This is fire-and-forget as per requirements
+	if h.camundaClient != nil {
+		variables := map[string]interface{}{
 			"sessionId": sessionID,
 			"requestId": requestID,
-		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
-	}
+		}
 
-	if err := h.sessionStore.Delete(ctx, sessionID); err != nil {
-		h.log.Error("OAuthLogout: Failed to delete session", map[string]interface{}{
-			"sessionId": sessionID,
-			"userId":    sess.UserID,
-			"error":     err.Error(),
+		// Use background context for fire-and-forget to ensure it's not cancelled by request completion
+		go func(sessID, reqID string, vars map[string]interface{}) {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			cmd, err := h.camundaClient.GetClient().NewCreateInstanceCommand().
+				BPMNProcessId("LogoutSimple").
+				LatestVersion().
+				VariablesFromMap(vars)
+
+			if err != nil {
+				h.log.Error("OAuthLogout: Failed to prepare Camunda command", map[string]interface{}{
+					"processId": "LogoutSimple",
+					"sessionId": sessID,
+					"requestId": reqID,
+					"error":     err.Error(),
+				})
+				return
+			}
+
+			resp, err := cmd.Send(bgCtx)
+
+			if err != nil {
+				h.log.Error("OAuthLogout: Failed to start Camunda process", map[string]interface{}{
+					"processId": "LogoutSimple",
+					"sessionId": sessID,
+					"requestId": reqID,
+					"error":     err.Error(),
+				})
+			} else {
+				h.log.Info("OAuthLogout: Camunda logout process started", map[string]interface{}{
+					"instanceKey": resp.GetProcessInstanceKey(),
+					"processId":   "LogoutSimple",
+					"sessionId":   sessID,
+					"requestId":   reqID,
+				})
+			}
+		}(sessionID, requestID, variables)
+	} else {
+		h.log.Warn("OAuthLogout: Camunda client not initialized, performing direct Redis cleanup", map[string]interface{}{
 			"requestId": requestID,
 		})
-		h.clearSessionCookie(c)
-		c.Redirect(http.StatusFound, "/")
-		return
+		_ = h.sessionStore.Delete(ctx, sessionID)
 	}
 
-	h.log.Info("OAuthLogout: Session deleted successfully", map[string]interface{}{
-		"sessionId": sessionID,
-		"userId":    sess.UserID,
-		"requestId": requestID,
-	})
-
+	// Clear cookie and redirect immediately
 	h.clearSessionCookie(c)
-	// Redirect to homepage after logout, not Keycloak login
 	c.Redirect(http.StatusFound, "/")
 }
 
-// LogoutAll handles logout from all devices/sessions for a user.
-// It deletes all sessions associated with the user's ID from Redis.
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 	ctx := c.Request.Context()
 	requestID := c.GetString("requestId")
@@ -142,9 +149,14 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 				"requestId": requestID,
 			})
 			h.clearSessionCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "failed_to_logout_all_sessions",
+			c.Error(&apierrors.AppError{
+				Code:       "INTERNAL_ERROR",
+				Message:    "Failed to log out from all sessions. Please try again.",
+				StatusCode: http.StatusInternalServerError,
+				LogMessage: "Failed to delete all sessions for user " + sess.UserID + ": " + err.Error(),
 			})
+			h.clearSessionCookie(c)
+			c.Abort()
 			return
 		}
 
@@ -160,12 +172,27 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 }
 
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
+	// Domain should match what was set during login (usually .lemici.com)
+	domain := ".lemici.com"
+
+	// Clear the primary session cookie
 	c.SetCookie(
 		constants.SessionCookieName,
 		"",
 		-1,
 		constants.SessionCookiePath,
+		domain,
+		false,
+		true,
+	)
+
+	// Also clear the legacy session_id cookie just in case
+	c.SetCookie(
+		"session_id",
 		"",
+		-1,
+		constants.SessionCookiePath,
+		domain,
 		false,
 		true,
 	)
@@ -187,5 +214,130 @@ func (h *OAuthHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "healthy",
 		"redis":  "connected",
+	})
+}
+
+func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.User, error) {
+	if h.db == nil {
+		return nil, nil
+	}
+
+	var user models.User
+	err := h.db.QueryRowContext(ctx, `
+		SELECT id, email, name, profile_image, role
+		FROM users
+		WHERE id = $1
+	`, userID).Scan(
+		&user.ID,
+		&user.Email,
+		&user.Name,
+		&user.ProfileImage,
+		&user.Role,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// getUserNameAndEmail fetches name and email fields for a user by ID
+func (h *OAuthHandler) getUserNameAndEmail(ctx context.Context, userID string) (name, email string, err error) {
+	if h.db == nil {
+		return "", "", nil
+	}
+
+	var nameSQL, emailSQL sql.NullString
+	err = h.db.QueryRowContext(ctx, `
+		SELECT name, email 
+		FROM users 
+		WHERE id = $1`, userID).Scan(&nameSQL, &emailSQL)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", "", nil
+		}
+		return "", "", err
+	}
+	return nameSQL.String, emailSQL.String, nil
+}
+
+func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
+	ctx := c.Request.Context()
+	requestID := c.GetString("requestId")
+
+	sessionID, err := c.Cookie(constants.SessionCookieName)
+	if err != nil || sessionID == "" {
+		h.log.Warn("GetCurrentUser: No session cookie", map[string]interface{}{
+			"requestId": requestID,
+		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
+		return
+	}
+
+	sess, err := h.sessionStore.Get(ctx, sessionID)
+	if err != nil {
+		h.log.Error("GetCurrentUser: Error getting session", map[string]interface{}{
+			"sessionId": sessionID,
+			"error":     err.Error(),
+			"requestId": requestID,
+		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
+		return
+	}
+
+	if sess == nil || sess.UserID == "" {
+		h.log.Warn("GetCurrentUser: Session not found", map[string]interface{}{
+			"sessionId": sessionID,
+			"requestId": requestID,
+		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
+		return
+	}
+
+	userName, userEmail, err := h.getUserNameAndEmail(ctx, sess.UserID)
+	if err != nil {
+		h.log.Error("GetCurrentUser: Error fetching user from DB", map[string]interface{}{
+			"userId":    sess.UserID,
+			"error":     err.Error(),
+			"requestId": requestID,
+		})
+		c.Error(&apierrors.AppError{
+			Code:       "INTERNAL_ERROR",
+			Message:    "An unexpected error occurred. Please try again.",
+			StatusCode: http.StatusInternalServerError,
+			LogMessage: "Failed to fetch user from DB: " + err.Error(),
+		})
+		c.Abort()
+		return
+	}
+
+	if userName == "" {
+		userName = "John Doe"
+	}
+	if userEmail == "" {
+		userEmail = "johndoe@email.com"
+	}
+
+	// Debug logging for user data being sent to frontend
+	h.log.Info("GetCurrentUser: Sending user data to frontend", map[string]interface{}{
+		"userId":    sess.UserID,
+		"name":      userName,
+		"email":     userEmail,
+		"requestId": requestID,
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"authenticated": true,
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"user": gin.H{
+			"name":  userName,
+			"email": userEmail,
+		},
 	})
 }

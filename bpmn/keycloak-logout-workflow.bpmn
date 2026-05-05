@@ -1,168 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_Logout" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.2.0">
-  <bpmn:process id="keycloak-logout-workflow" name="Keycloak Logout Workflow" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_LogoutInitiated" name="User Clicks Logout">
-      <bpmn:outgoing>Flow_ToGetSession</bpmn:outgoing>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_Logout" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:process id="LogoutSimple" name="Logout Simple" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:userTaskForm id="userTaskForm_1" />
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="StartEvent_LogoutRequest" name="Logout Request">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:serviceTask id="Task_GetSession" name="Get Session">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="session-manager" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;get&#34;" target="action" />
-          <zeebe:input source="=sessionId" target="sessionId" />
-          <zeebe:input source="=userId" target="userId" />
-          <zeebe:output source="=sessionSuccess" target="sessionSuccess" />
-          <zeebe:output source="=keycloakUserId" target="keycloakUserId" />
-          <zeebe:output source="=idToken" target="idToken" />
-          <zeebe:output source="=sessionMessage" target="sessionMessage" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_ToGetSession</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToCheckSession</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="Gateway_SessionValid" name="Session Valid?" default="Flow_SessionInvalid">
-      <bpmn:incoming>Flow_ToCheckSession</bpmn:incoming>
-      <bpmn:outgoing>Flow_SessionValid</bpmn:outgoing>
-      <bpmn:outgoing>Flow_SessionInvalid</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="Task_RevokeKeycloakSession" name="Revoke Keycloak Session">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="auth-logout" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=sessionId" target="sessionId" />
-          <zeebe:input source="=logoutAll" target="logoutAll" />
-          <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
-          <zeebe:input source="=idToken" target="idToken" />
-          <zeebe:output source="=logoutUrl" target="logoutUrl" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_SessionValid</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToDeleteSession</bpmn:outgoing>
-    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_DeleteSession" name="Delete Session">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="session-manager" />
+        <zeebe:taskDefinition type="logout-delete-session" retries="3" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;delete&#34;" target="action" />
           <zeebe:input source="=sessionId" target="sessionId" />
-          <zeebe:input source="=userId" target="userId" />
-          <zeebe:output source="=cookieHeader" target="cookieHeader" />
-          <zeebe:output source="=success" target="sessionSuccess" />
-          <zeebe:output source="=message" target="sessionMessage" />
+          <zeebe:input source="=requestId" target="requestId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_ToDeleteSession</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToMerge</bpmn:outgoing>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:exclusiveGateway id="Gateway_MergeLogout" name="Merge Flows">
-      <bpmn:incoming>Flow_ToMerge</bpmn:incoming>
-      <bpmn:incoming>Flow_SessionInvalid</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToSendResponse</bpmn:outgoing>
-    </bpmn:exclusiveGateway>
-    <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
-      <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-api-response" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=cookieHeader" target="cookieHeader" />
-          <zeebe:input source="={&#34;success&#34;: true, &#34;message&#34;: &#34;Logged out successfully&#34;, &#34;logoutUrl&#34;: logoutUrl}" target="response" />
-        </zeebe:ioMapping>
-      </bpmn:extensionElements>
-      <bpmn:incoming>Flow_ToSendResponse</bpmn:incoming>
-      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
-    </bpmn:serviceTask>
-    <bpmn:endEvent id="EndEvent_LogoutSuccess" name="Logout Success (302 /login)">
-      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    <bpmn:endEvent id="EndEvent_LogoutCompleted" name="Logout Completed">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_ToGetSession" sourceRef="StartEvent_LogoutInitiated" targetRef="Task_GetSession" />
-    <bpmn:sequenceFlow id="Flow_ToCheckSession" sourceRef="Task_GetSession" targetRef="Gateway_SessionValid" />
-    <bpmn:sequenceFlow id="Flow_SessionValid" name="Yes" sourceRef="Gateway_SessionValid" targetRef="Task_RevokeKeycloakSession">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=sessionSuccess = true</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="Flow_SessionInvalid" name="No / Skip" sourceRef="Gateway_SessionValid" targetRef="Gateway_MergeLogout" />
-    <bpmn:sequenceFlow id="Flow_ToDeleteSession" sourceRef="Task_RevokeKeycloakSession" targetRef="Task_DeleteSession" />
-    <bpmn:sequenceFlow id="Flow_ToMerge" sourceRef="Task_DeleteSession" targetRef="Gateway_MergeLogout" />
-    <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_MergeLogout" targetRef="Task_SendResponse" />
-    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_LogoutSuccess" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_LogoutRequest" targetRef="Task_DeleteSession" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_DeleteSession" targetRef="EndEvent_LogoutCompleted" />
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_Logout">
-    <bpmndi:BPMNPlane id="BPMNPlane_Logout" bpmnElement="keycloak-logout-workflow">
-      <bpmndi:BPMNShape id="StartEvent_LogoutInitiated_di" bpmnElement="StartEvent_LogoutInitiated">
-        <dc:Bounds x="152" y="102" width="36" height="36" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="LogoutSimple">
+      <bpmndi:BPMNShape id="StartEvent_LogoutRequest_di" bpmnElement="StartEvent_LogoutRequest">
+        <dc:Bounds x="179" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="129" y="145" width="82" height="14" />
+          <dc:Bounds x="158" y="145" width="79" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_GetSession_di" bpmnElement="Task_GetSession">
-        <dc:Bounds x="240" y="80" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_SessionValid_di" bpmnElement="Gateway_SessionValid" isMarkerVisible="true">
-        <dc:Bounds x="395" y="95" width="50" height="50" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="380" y="65" width="80" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_RevokeKeycloakSession_di" bpmnElement="Task_RevokeKeycloakSession">
-        <dc:Bounds x="500" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_DeleteSession_di" bpmnElement="Task_DeleteSession">
-        <dc:Bounds x="660" y="80" width="100" height="80" />
+        <dc:Bounds x="270" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_MergeLogout_di" bpmnElement="Gateway_MergeLogout" isMarkerVisible="true">
-        <dc:Bounds x="815" y="95" width="50" height="50" />
+      <bpmndi:BPMNShape id="EndEvent_LogoutCompleted_di" bpmnElement="EndEvent_LogoutCompleted">
+        <dc:Bounds x="432" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="808" y="71" width="63" height="14" />
+          <dc:Bounds x="405" y="145" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="920" y="80" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_LogoutSuccess_di" bpmnElement="EndEvent_LogoutSuccess">
-        <dc:Bounds x="1070" y="102" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="1046" y="145" width="85" height="27" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_ToGetSession_di" bpmnElement="Flow_ToGetSession">
-        <di:waypoint x="188" y="120" />
-        <di:waypoint x="240" y="120" />
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="215" y="120" />
+        <di:waypoint x="270" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToCheckSession_di" bpmnElement="Flow_ToCheckSession">
-        <di:waypoint x="340" y="120" />
-        <di:waypoint x="395" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SessionValid_di" bpmnElement="Flow_SessionValid">
-        <di:waypoint x="445" y="120" />
-        <di:waypoint x="500" y="120" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="462" y="102" width="20" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SessionInvalid_di" bpmnElement="Flow_SessionInvalid">
-        <di:waypoint x="420" y="145" />
-        <di:waypoint x="420" y="230" />
-        <di:waypoint x="840" y="230" />
-        <di:waypoint x="840" y="145" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="432" y="163" width="42" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToDeleteSession_di" bpmnElement="Flow_ToDeleteSession">
-        <di:waypoint x="600" y="120" />
-        <di:waypoint x="660" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToMerge_di" bpmnElement="Flow_ToMerge">
-        <di:waypoint x="760" y="120" />
-        <di:waypoint x="815" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToSendResponse_di" bpmnElement="Flow_ToSendResponse">
-        <di:waypoint x="865" y="120" />
-        <di:waypoint x="920" y="120" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
-        <di:waypoint x="1020" y="120" />
-        <di:waypoint x="1070" y="120" />
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="370" y="120" />
+        <di:waypoint x="432" y="120" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -33,7 +33,10 @@ func New(
 		return nil, errors.New("keycloak oauth config missing required fields")
 	}
 
-	oidcProvider, err := oidc.NewProvider(ctx, issuer)
+	// Use InsecureIssuerURLContext to skip issuer check during discovery
+	// This is necessary because us-dev-api and dev-api URLs may mismatch
+	insecureCtx := oidc.InsecureIssuerURLContext(ctx, issuer)
+	oidcProvider, err := oidc.NewProvider(insecureCtx, issuer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init keycloak oidc provider: %w", err)
 	}
@@ -44,7 +47,12 @@ func New(
 	})
 
 	ep := oidcProvider.Endpoint()
-	ep.AuthURL = publicBaseURL + "/realms/" + issuer[strings.LastIndex(issuer, "/realms/")+8:] + "/protocol/openid-connect/auth"
+	realm := issuer[strings.LastIndex(issuer, "/realms/")+8:]
+	// Ensure no trailing slash in publicBaseURL and clean the realm name
+	cleanBaseURL := strings.TrimSuffix(publicBaseURL, "/")
+	cleanRealm := strings.TrimSuffix(realm, "/")
+	
+	ep.AuthURL = fmt.Sprintf("%s/realms/%s/protocol/openid-connect/auth", cleanBaseURL, cleanRealm)
 
 	oauthCfg := &oauth2.Config{
 		ClientID:    clientID,
@@ -110,6 +118,9 @@ func (p *Provider) ExchangeCode(
 		Email             string `json:"email"`
 		EmailVerified     bool   `json:"email_verified"`
 		PreferredUsername string `json:"preferred_username"`
+		FirstName         string `json:"given_name"`
+		LastName          string `json:"family_name"`
+		FullName          string `json:"name"`
 	}
 
 	if err := idToken.Claims(&claims); err != nil {
@@ -120,11 +131,24 @@ func (p *Provider) ExchangeCode(
 		return nil, errors.New("keycloak id_token missing required claims")
 	}
 
+	// Determine best available name
+	firstName := claims.FirstName
+	lastName := claims.LastName
+	if firstName == "" && lastName == "" {
+		if claims.FullName != "" {
+			firstName = claims.FullName
+		} else if claims.PreferredUsername != "" {
+			firstName = claims.PreferredUsername
+		}
+	}
+
 	return &auth.Identity{
 		Provider:       providerName,
 		ProviderUserID: claims.Subject,
 		Email:          claims.Email,
 		EmailVerified:  claims.EmailVerified,
+		FirstName:      firstName,
+		LastName:       lastName,
 		IDToken:        rawIDToken,
 	}, nil
 }
