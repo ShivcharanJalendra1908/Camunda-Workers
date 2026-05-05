@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"camunda-workers/internal/api/errors"
 	"camunda-workers/internal/api/middleware"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"
@@ -1655,7 +1656,8 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer confirmCancel()
 	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
-		h.redirectToLoginWithError(c, "service_unavailable")
+		c.Error(apierrors.ErrServiceUnavailable)
+		c.Abort()
 		return
 	}
 
@@ -1700,12 +1702,14 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			CookieHeader string                 `json:"cookieHeader"`
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
-			h.redirectToLoginWithError(c, "invalid_response")
+			c.Error(apierrors.ErrInternalError)
+			c.Abort()
 			return
 		}
 		response := envelope.Response
 		if response == nil {
-			h.redirectToLoginWithError(c, "empty_response")
+			c.Error(apierrors.ErrInternalError)
+			c.Abort()
 			return
 		}
 
@@ -1743,57 +1747,16 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				return
 			}
 		}
-		h.redirectToLoginWithError(c, "timeout")
+		h.logger.Warn("Keycloak login timeout", map[string]interface{}{"correlationKey": correlationKey})
+		c.Error(apierrors.ErrTimeout)
+		c.Abort()
 
 	case <-ctx.Done():
-		h.redirectToLoginWithError(c, "request_cancelled")
+		c.Error(apierrors.ErrInternalError)
+		c.Abort()
 	}
 }
 
-func (h *WorkflowHandler) redirectToLoginWithError(c *gin.Context, errorCode string) {
-	// ✅ FIX: Use http.SetCookie with SameSite=None for cross-origin cookie deletion
-	// Gin's c.SetCookie() ignores SameSite and defaults to Lax — cookies won't
-	// be cleared in cross-site context (CloudFront → API).
-	cookie1 := &http.Cookie{
-		Name:     "pkce_verifier",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie1)
-
-	cookie2 := &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie2)
-
-	cookie3 := &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie3)
-	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
-	if targetURL == "" {
-		h.logger.Error("login_redirect_uri not configured in config", nil)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
-		return
-	}
-	c.Redirect(http.StatusFound, targetURL+"?error="+errorCode)
-}
 
 func (h *WorkflowHandler) StartKeycloakLogout(c *gin.Context) {
 	var input struct {
@@ -2135,56 +2098,6 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 	}
 }
 
-func (h *WorkflowHandler) redirectToLogin(c *gin.Context) {
-	cookie1 := &http.Cookie{
-		Name:     "pkce_verifier",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie1)
-	cookie2 := &http.Cookie{
-		Name:     "oauth_state",
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie2)
-	// http.SetCookie(c.Writer, &http.Cookie{
-	// 	Name:     constants.SessionCookieName,
-	// 	Value:    "",
-	// 	Path:     constants.SessionCookiePath,
-	// 	Domain:   ".lemici.com",
-	// 	MaxAge:   -1,
-	// 	HttpOnly: constants.SessionCookieHTTPOnly,
-	// 	Secure:   constants.SessionCookieSecure,
-	// 	SameSite: http.SameSiteNoneMode,
-	// })
-	cookie3 := &http.Cookie{
-		Name:     constants.SessionCookieName,
-		Value:    "",
-		Path:     constants.SessionCookiePath,
-		Domain:   "",
-		MaxAge:   -1,
-		HttpOnly: constants.SessionCookieHTTPOnly,
-		Secure:   constants.SessionCookieSecure,
-		SameSite: http.SameSiteNoneMode,
-	}
-	http.SetCookie(c.Writer, cookie3)
-	targetURL := h.config.Auth.Keycloak.LoginRedirectURI
-	if targetURL == "" {
-		h.logger.Error("login_redirect_uri not configured in config", nil)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth configuration missing"})
-		return
-	}
-	c.Redirect(http.StatusFound, targetURL+"?error=auth_failed")
-}
 
 func (h *WorkflowHandler) completeLoginFlow(
 	c *gin.Context,
@@ -2333,7 +2246,8 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 			"hasCode":   code != "",
 			"hasState":  state != "",
 		})
-		h.redirectToLoginWithError(c, "missing_code_or_state")
+		c.Error(apierrors.ErrOAuthCodeMissing)
+		c.Abort()
 		return
 	}
 

@@ -195,7 +195,7 @@ func main() {
 	router.Use(middleware.Logger(log))
 
 	// 10. Error Handler MUST BE LAST! (catches all errors)
-	router.Use(middleware.ErrorHandler(log))
+	router.Use(middleware.ErrorHandler(log, cfg.Auth.Keycloak.LoginRedirectURI))
 
 	// ============================================================================
 	// Public routes (no authentication required)

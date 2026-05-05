@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
@@ -141,9 +142,14 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 				"requestId": requestID,
 			})
 			h.clearSessionCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "failed_to_logout_all_sessions",
+			c.Error(&apierrors.AppError{
+				Code:       "INTERNAL_ERROR",
+				Message:    "Failed to log out from all sessions. Please try again.",
+				StatusCode: http.StatusInternalServerError,
+				LogMessage: "Failed to delete all sessions for user " + sess.UserID + ": " + err.Error(),
 			})
+			h.clearSessionCookie(c)
+			c.Abort()
 			return
 		}
 
@@ -245,10 +251,8 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 		h.log.Warn("GetCurrentUser: No session cookie", map[string]interface{}{
 			"requestId": requestID,
 		})
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthenticated",
-			"code":  "AUTH_REQUIRED",
-		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
 		return
 	}
 
@@ -259,10 +263,8 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 			"error":     err.Error(),
 			"requestId": requestID,
 		})
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthenticated",
-			"code":  "AUTH_REQUIRED",
-		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
 		return
 	}
 
@@ -271,10 +273,8 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 			"sessionId": sessionID,
 			"requestId": requestID,
 		})
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthenticated",
-			"code":  "AUTH_REQUIRED",
-		})
+		c.Error(apierrors.ErrUnauthenticated)
+		c.Abort()
 		return
 	}
 
@@ -285,9 +285,13 @@ func (h *OAuthHandler) GetCurrentUser(c *gin.Context) {
 			"error":     err.Error(),
 			"requestId": requestID,
 		})
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal_error",
+		c.Error(&apierrors.AppError{
+			Code:       "INTERNAL_ERROR",
+			Message:    "An unexpected error occurred. Please try again.",
+			StatusCode: http.StatusInternalServerError,
+			LogMessage: "Failed to fetch user from DB: " + err.Error(),
 		})
+		c.Abort()
 		return
 	}
 

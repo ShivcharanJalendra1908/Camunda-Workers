@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
@@ -478,27 +479,89 @@ func (w bodyLogWriter) WriteString(s string) (int, error) {
 // ERROR HANDLER MIDDLEWARE (MUST BE LAST)
 // ============================================================================
 
-func ErrorHandler(log logger.Logger) gin.HandlerFunc {
+func ErrorHandler(log logger.Logger, frontendBaseURL string) gin.HandlerFunc {
+	// Ensure base URL doesn't end with a slash for clean concatenation
+	baseURL := strings.TrimSuffix(frontendBaseURL, "/")
+
 	return func(c *gin.Context) {
 		c.Next()
 
-		// Only handle errors if response not already written
-		if len(c.Errors) > 0 && !c.Writer.Written() {
-			err := c.Errors.Last()
-
-			log.Error("Request error", map[string]interface{}{
-				"error":     err.Error(),
-				"path":      c.Request.URL.Path,
-				"method":    c.Request.Method,
-				"requestId": c.GetString("requestId"),
-			})
-
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success":   false,
-				"error":     "internal server error",
-				"requestId": c.GetString("requestId"),
-			})
+		if len(c.Errors) == 0 || c.Writer.Written() {
+			return
 		}
+
+		lastErr := c.Errors.Last().Err
+
+		// 1. Handle typed AppError
+		if appErr, ok := lastErr.(*apierrors.AppError); ok {
+			log.Error("Typed API error", map[string]interface{}{
+				"error_code":  appErr.Code,
+				"log_message": appErr.LogMessage,
+				"path":        c.Request.URL.Path,
+				"method":      c.Request.Method,
+				"requestId":   c.GetString("requestId"),
+			})
+
+			if appErr.RedirectTo != "" {
+				clearAuthCookies(c)
+				// Ensure RedirectTo starts with a slash
+				redirectPath := appErr.RedirectTo
+				if !strings.HasPrefix(redirectPath, "/") && !strings.HasPrefix(redirectPath, "?") {
+					redirectPath = "/" + redirectPath
+				}
+				c.Redirect(http.StatusFound, baseURL+redirectPath)
+				return
+			}
+
+			c.JSON(appErr.StatusCode, gin.H{
+				"error":     appErr.Message,
+				"code":      appErr.Code,
+				"requestId": c.GetString("requestId"),
+			})
+			return
+		}
+
+		// 2. Generic fallback (context-aware)
+		log.Error("Untyped error", map[string]interface{}{
+			"error":     lastErr.Error(),
+			"path":      c.Request.URL.Path,
+			"method":    c.Request.Method,
+			"requestId": c.GetString("requestId"),
+		})
+
+		acceptsJSON := strings.Contains(c.GetHeader("Accept"), "application/json")
+		isAuthFlow := strings.HasPrefix(c.Request.URL.Path, "/api/v1/auth") || strings.HasPrefix(c.Request.URL.Path, "/oauth")
+
+		if acceptsJSON || !isAuthFlow {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":     "An unexpected error occurred. Please try again.",
+				"code":      "INTERNAL_ERROR",
+				"requestId": c.GetString("requestId"),
+			})
+			return
+		}
+
+		clearAuthCookies(c)
+		c.Redirect(http.StatusFound, baseURL+"/login?error=unexpected")
+	}
+}
+
+// clearAuthCookies clears auth-related cookies on error with proper domain scoping
+func clearAuthCookies(c *gin.Context) {
+	cookieNames := []string{"pkce_verifier", "oauth_state", "AUTH_SESSION_ID", "session_id"}
+	domain := ".lemici.com" // Ensure this matches constants/config
+
+	for _, name := range cookieNames {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			MaxAge:   -1,
+			Path:     "/",
+			Domain:   domain,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode, // Consistent with successful login
+		})
 	}
 }
 
