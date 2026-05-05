@@ -17,7 +17,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+      - name: Print OIDC subject
+        run: |
+         echo "Requesting token..."
+         TOKEN=$(curl -s "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" \
+         -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" | jq -r '.value')
 
+         echo $TOKEN | cut -d "." -f2 | base64 -d
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
