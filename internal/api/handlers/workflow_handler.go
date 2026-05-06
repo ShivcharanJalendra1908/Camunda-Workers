@@ -1938,11 +1938,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 		Name:     constants.SessionCookieName,
 		Value:    sessionID,
 		Path:     "/",
-		Domain:   ".lemici.com",
-		MaxAge:   86400,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		Domain:   h.config.Auth.Session.CookieDomain,
+		MaxAge:   h.config.Auth.Session.SessionTTL / 1000,
+		HttpOnly: h.config.Auth.Session.CookieHTTPOnly,
+		Secure:   h.config.Auth.Session.CookieSecure,
+		SameSite: http.SameSiteLaxMode, // Keep Lax for subdomain compatibility
 	}
 	http.SetCookie(c.Writer, cookie)
 
