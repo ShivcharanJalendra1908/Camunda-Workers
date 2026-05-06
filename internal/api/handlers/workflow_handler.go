@@ -1919,7 +1919,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 		domain = ".lemici.com"
 	}
 
-	for _, name := range []string{"AUTH_SESSION_ID", "session_id"} {
+	for _, name := range []string{"session_id"} {
 		cookie := &http.Cookie{
 			Name:     name,
 			Value:    "",
