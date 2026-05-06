@@ -1920,15 +1920,28 @@ func (h *WorkflowHandler) completeLoginFlow(
 	}
 
 	for _, name := range []string{"AUTH_SESSION_ID", "session_id"} {
-		c.SetCookie(
-			name,
-			"",
-			-1,
-			"/",
-			domain,
-			h.config.Auth.Session.CookieSecure,
-			h.config.Auth.Session.CookieHTTPOnly,
-		)
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     "/",
+			Domain:   domain,
+			MaxAge:   -1,
+			HttpOnly: h.config.Auth.Session.CookieHTTPOnly,
+			Secure:   h.config.Auth.Session.CookieSecure,
+		}
+
+		switch strings.ToLower(h.config.Auth.Session.CookieSameSite) {
+		case "lax":
+			cookie.SameSite = http.SameSiteLaxMode
+		case "strict":
+			cookie.SameSite = http.SameSiteStrictMode
+		case "none":
+			cookie.SameSite = http.SameSiteNoneMode
+		default:
+			cookie.SameSite = http.SameSiteLaxMode
+		}
+
+		http.SetCookie(c.Writer, cookie)
 	}
 
 	// Step 2: set new cookie
@@ -1944,15 +1957,28 @@ func (h *WorkflowHandler) completeLoginFlow(
 		"domain":    domain,
 	})
 
-	c.SetCookie(
-		constants.SessionCookieName,
-		sessionID,
-		int(maxAge),
-		"/",
-		domain,
-		h.config.Auth.Session.CookieSecure,
-		h.config.Auth.Session.CookieHTTPOnly,
-	)
+	cookie := &http.Cookie{
+		Name:     constants.SessionCookieName,
+		Value:    sessionID,
+		Path:     "/",
+		Domain:   domain,
+		MaxAge:   int(maxAge),
+		HttpOnly: h.config.Auth.Session.CookieHTTPOnly,
+		Secure:   h.config.Auth.Session.CookieSecure,
+	}
+
+	switch strings.ToLower(h.config.Auth.Session.CookieSameSite) {
+	case "lax":
+		cookie.SameSite = http.SameSiteLaxMode
+	case "strict":
+		cookie.SameSite = http.SameSiteStrictMode
+	case "none":
+		cookie.SameSite = http.SameSiteNoneMode
+	default:
+		cookie.SameSite = http.SameSiteLaxMode
+	}
+
+	http.SetCookie(c.Writer, cookie)
 
 	// Headers
 	c.Header("Cache-Control", "no-store")

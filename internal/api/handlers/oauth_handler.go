@@ -181,31 +181,30 @@ func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 		domain = ".lemici.com"
 	}
 
-	path := constants.SessionCookiePath
-	secure := h.config.Auth.Session.CookieSecure
-	httpOnly := h.config.Auth.Session.CookieHTTPOnly
+	for _, name := range []string{constants.SessionCookieName, "session_id"} {
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     constants.SessionCookiePath,
+			Domain:   domain,
+			MaxAge:   -1,
+			HttpOnly: h.config.Auth.Session.CookieHTTPOnly,
+			Secure:   h.config.Auth.Session.CookieSecure,
+		}
 
-	// Clear the primary session cookie
-	c.SetCookie(
-		constants.SessionCookieName,
-		"",
-		-1,
-		path,
-		domain,
-		secure,
-		httpOnly,
-	)
+		switch strings.ToLower(h.config.Auth.Session.CookieSameSite) {
+		case "lax":
+			cookie.SameSite = http.SameSiteLaxMode
+		case "strict":
+			cookie.SameSite = http.SameSiteStrictMode
+		case "none":
+			cookie.SameSite = http.SameSiteNoneMode
+		default:
+			cookie.SameSite = http.SameSiteLaxMode
+		}
 
-	// Also clear the legacy session_id cookie just in case
-	c.SetCookie(
-		"session_id",
-		"",
-		-1,
-		path,
-		domain,
-		secure,
-		httpOnly,
-	)
+		http.SetCookie(c.Writer, cookie)
+	}
 }
 
 func (h *OAuthHandler) HealthCheck(c *gin.Context) {
