@@ -81,12 +81,12 @@ auth:
   
   # Session Configuration
   session:
-    ttl: 86400000  # 24 hours in milliseconds
-    cookieName: "session_id"
-    domain: ".lemici.com"
-    secure: true
-    httpOnly: true
-    sameSite: "Lax"
+    sessionTTL: 86400000  # 24 hours in milliseconds
+    cookieName: "AUTH_SESSION_ID"
+    cookieDomain: ".lemici.com"
+    cookieSecure: true
+    cookieHttpOnly: true
+    cookieSameSite: "Lax"
 
 # ============================================================================
 # CAMUNDA/ZEEBE CONFIGURATION

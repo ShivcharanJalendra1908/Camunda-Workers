@@ -9,6 +9,7 @@ import (
 
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
+	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/camunda"
@@ -24,9 +25,10 @@ type OAuthHandler struct {
 	sessionStore  *session.RedisStore
 	db            *sql.DB
 	camundaClient *camunda.Client
+	config        *config.Config
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cfg *config.Config) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
@@ -38,6 +40,7 @@ func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, c
 		sessionStore:  sessionStore,
 		db:            db,
 		camundaClient: camundaClient,
+		config:        cfg,
 	}
 }
 
@@ -172,18 +175,25 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 }
 
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
-	// Domain should match what was set during login (usually .lemici.com)
-	domain := ".lemici.com"
+	// Use domain from config, fallback to .lemici.com
+	domain := h.config.Auth.Session.CookieDomain
+	if domain == "" {
+		domain = ".lemici.com"
+	}
+
+	path := constants.SessionCookiePath
+	secure := h.config.Auth.Session.CookieSecure
+	httpOnly := h.config.Auth.Session.CookieHTTPOnly
 
 	// Clear the primary session cookie
 	c.SetCookie(
 		constants.SessionCookieName,
 		"",
 		-1,
-		constants.SessionCookiePath,
+		path,
 		domain,
-		false,
-		true,
+		secure,
+		httpOnly,
 	)
 
 	// Also clear the legacy session_id cookie just in case
@@ -191,10 +201,10 @@ func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 		"session_id",
 		"",
 		-1,
-		constants.SessionCookiePath,
+		path,
 		domain,
-		false,
-		true,
+		secure,
+		httpOnly,
 	)
 }
 

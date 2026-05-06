@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"camunda-workers/internal/common/constants"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -116,7 +117,7 @@ func AnonymousInquiryLimiter(redisClient *redis.Client, limit int) gin.HandlerFu
 // by doing a fast Redis existence check (no TTL update, no risk scoring).
 // If Redis is down it returns false (deny session bypass, not block user).
 func isSessionValid(ctx context.Context, c *gin.Context, redisClient *redis.Client) bool {
-	sessionID, err := c.Cookie("session_id")
+	sessionID, err := c.Cookie(constants.SessionCookieName)
 	if err != nil || sessionID == "" {
 		return false
 	}
