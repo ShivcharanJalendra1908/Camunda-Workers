@@ -86,7 +86,7 @@ auth:
     cookieDomain: ".lemici.com"
     cookieSecure: true
     cookieHttpOnly: true
-    cookieSameSite: "None"
+    cookieSameSite: "Lax"
 
 # ============================================================================
 # CAMUNDA/ZEEBE CONFIGURATION
