@@ -697,8 +697,13 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 
 		// STEP 1: Try session cookie first
 		cookie, err := c.Cookie(constants.SessionCookieName)
-		if err == nil && cookie != "" {
+		if err != nil {
+			// fmt.Printf("[DEBUG] session_cookie_not_found name=%s error=%v\n", constants.SessionCookieName, err)
+		} else if cookie != "" {
+			fmt.Printf("[DEBUG] session_cookie_found name=%s value_len=%d\n", constants.SessionCookieName, len(cookie))
+		}
 
+		if err == nil && cookie != "" {
 			val, err := redisClient.Get(ctx, "session:"+cookie).Result()
 			if err != nil && err != redis.Nil {
 				fmt.Printf("[SECURITY] session_fetch_failed session_id=%s error=%v\n", cookie, err)
