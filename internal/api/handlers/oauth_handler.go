@@ -58,7 +58,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	// Trigger Camunda process (LogoutSimple)
+	// Trigger Camunda process (Logout)
 	// This is fire-and-forget as per requirements
 	if h.camundaClient != nil {
 		variables := map[string]interface{}{
@@ -72,13 +72,13 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			defer cancel()
 
 			cmd, err := h.camundaClient.GetClient().NewCreateInstanceCommand().
-				BPMNProcessId("LogoutSimple").
+				BPMNProcessId("Logout").
 				LatestVersion().
 				VariablesFromMap(vars)
 
 			if err != nil {
 				h.log.Error("OAuthLogout: Failed to prepare Camunda command", map[string]interface{}{
-					"processId": "LogoutSimple",
+					"processId": "Logout",
 					"sessionId": sessID,
 					"requestId": reqID,
 					"error":     err.Error(),
@@ -90,7 +90,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 			if err != nil {
 				h.log.Error("OAuthLogout: Failed to start Camunda process", map[string]interface{}{
-					"processId": "LogoutSimple",
+					"processId": "Logout",
 					"sessionId": sessID,
 					"requestId": reqID,
 					"error":     err.Error(),
@@ -98,7 +98,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			} else {
 				h.log.Info("OAuthLogout: Camunda logout process started", map[string]interface{}{
 					"instanceKey": resp.GetProcessInstanceKey(),
-					"processId":   "LogoutSimple",
+					"processId":   "Logout",
 					"sessionId":   sessID,
 					"requestId":   reqID,
 				})
