@@ -23,7 +23,7 @@
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_DeleteSession" targetRef="EndEvent_LogoutCompleted" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="LogoutSimple">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Logout">
       <bpmndi:BPMNShape id="StartEvent_LogoutRequest_di" bpmnElement="StartEvent_LogoutRequest">
         <dc:Bounds x="179" y="102" width="36" height="36" />
         <bpmndi:BPMNLabel>
