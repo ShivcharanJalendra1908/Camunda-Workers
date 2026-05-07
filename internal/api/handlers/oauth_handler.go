@@ -9,15 +9,15 @@ import (
 
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
+	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
-	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/models"
+
+	"camunda-workers/internal/common/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"fmt"
-	"camunda-workers/internal/common/config"
 )
 
 type OAuthHandler struct {
@@ -73,7 +73,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			userID = sess.UserID
 			// Resolve Keycloak Internal ID from identities table
 			if h.db != nil {
-				_ = h.db.QueryRowContext(ctx, 
+				_ = h.db.QueryRowContext(ctx,
 					"SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1",
 					userID).Scan(&keycloakUserID)
 			}
@@ -136,15 +136,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	// Clear cookie
 	h.clearSessionCookie(c)
 
-	// Step 3: Redirect to Keycloak Logout URL for professional OIDC logout
-	// Format: {URL}/realms/{Realm}/protocol/openid-connect/logout?client_id={ClientID}&post_logout_redirect_uri={PostLogoutRedirectURI}
-	keycloakCfg := h.config.Auth.Keycloak
-	logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
-		keycloakCfg.URL,
-		keycloakCfg.Realm,
-		keycloakCfg.ClientID,
-		keycloakCfg.PostLogoutRedirectURI,
-	)
+	// Keycloak logout is handled via background Camunda worker now
 
 	h.log.Info("OAuthLogout: Triggered background cleanup, returning success to frontend", map[string]interface{}{
 		"requestId": requestID,
