@@ -46,7 +46,10 @@ jobs:
 
             cd deployments/docker
 
+            echo "Stopping old Keycloak..."
+            docker compose stop keycloak
+
             echo "Recreating Keycloak..."
-            docker compose up -d keycloak
+            docker compose up -d --force-recreate keycloak
 
             echo "Done"
