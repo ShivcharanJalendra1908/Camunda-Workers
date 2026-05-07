@@ -14,9 +14,9 @@ volumes:
 
 services:
 
-# ============================================================================
-# CAMUNDA 8 - MOVED TO TOP FOR PRIORITY
-# ============================================================================
+  # ============================================================================
+  # CAMUNDA 8 - MOVED TO TOP FOR PRIORITY
+  # ============================================================================
 
   zeebe:
     image: camunda/zeebe:8.3.9
@@ -59,17 +59,16 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/9600' || exit 1"]
+      test: [ "CMD-SHELL", "timeout 10s bash -c ':> /dev/tcp/127.0.0.1/9600' || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 10
       start_period: 180s
     restart: on-failure:5
 
-
-# ============================================================================
-# INFRASTRUCTURE
-# ============================================================================
+  # ============================================================================
+  # INFRASTRUCTURE
+  # ============================================================================
 
   postgres:
     image: postgres:15-alpine
@@ -97,7 +96,7 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 5s
       timeout: 60s
       retries: 10
@@ -112,7 +111,7 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -136,15 +135,15 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1" ]
       interval: 10s
       timeout: 10s
       retries: 30
       start_period: 120s
 
-# ============================================================================
-# OBSERVABILITY
-# ============================================================================
+  # ============================================================================
+  # OBSERVABILITY
+  # ============================================================================
 
   jaeger:
     image: jaegertracing/all-in-one:1.52
@@ -163,7 +162,7 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -186,7 +185,7 @@ services:
       CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
       CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
       CAMUNDA_OPERATE_ELASTICSEARCH_REQUESTTIMEOUT: 10000
-      
+
     depends_on:
       zeebe:
         condition: service_healthy
@@ -196,9 +195,9 @@ services:
       - camunda-network
     restart: on-failure:3
 
-# ============================================================================
-# KEYCLOAK
-# ============================================================================
+  # ============================================================================
+  # KEYCLOAK
+  # ============================================================================
 
   keycloak:
     image: quay.io/keycloak/keycloak:23.0
@@ -230,23 +229,33 @@ services:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
       - /home/ubuntu/Workflow-and-Workers/keycloak-theme/lemici:/opt/keycloak/themes/lemici
-      
+
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.0\r
+
+            Host: localhost\r
+
+            \r
+
+            ' >&3 && cat <&3 | grep -q '200 OK'"
+        ]
       interval: 30s
       timeout: 15s
       retries: 10
       start_period: 90s
     restart: on-failure:5
 
-# ============================================================================
-# OLLAMA
-# ============================================================================
+  # ============================================================================
+  # OLLAMA
+  # ============================================================================
 
   ollama:
     image: ollama/ollama:latest
@@ -255,8 +264,8 @@ services:
       - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
-      - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf  
-      - ./ollama/Modelfile:/models/Modelfile       
+      - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
+      - ./ollama/Modelfile:/models/Modelfile
     environment:
       OLLAMA_HOST: 0.0.0.0
       OLLAMA_KEEP_ALIVE: "30m"
@@ -264,7 +273,7 @@ services:
     networks:
       - camunda-network
     restart: unless-stopped
-    
+
   ollama-setup:
     image: ollama/ollama:latest
     container_name: ollama-setup
@@ -273,7 +282,7 @@ services:
     networks:
       - camunda-network
     restart: "no"
-    entrypoint: ["/bin/sh", "-c"]
+    entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
         sleep 20 &&
@@ -284,9 +293,9 @@ services:
       - ./ollama/Modelfile:/models/Modelfile
       - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
 
-# ============================================================================
-# APPLICATION
-# ============================================================================
+  # ============================================================================
+  # APPLICATION
+  # ============================================================================
 
   api-gateway:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway:latest
@@ -334,7 +343,7 @@ services:
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -386,15 +395,16 @@ services:
         condition: service_healthy
       jaeger:
         condition: service_healthy
-      keycloak:                    # ✅ ADD THIS
-        condition: service_healthy 
+      keycloak:
+        # ✅ ADD THIS
+        condition: service_healthy
     volumes:
       - ../../configs:/app/configs:ro
       - ../../bpmn:/app/bpmn:ro
     networks:
       - camunda-network
     healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep -v grep | grep worker-manager || exit 1"]
+      test: [ "CMD-SHELL", "ps aux | grep -v grep | grep worker-manager || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -422,7 +432,7 @@ services:
       - camunda-network
     restart: on-failure:3
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health" ]
       interval: 30s
       timeout: 5s
       retries: 3
