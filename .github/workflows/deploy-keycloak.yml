@@ -2,41 +2,51 @@ name: Deploy Keycloak Theme
 
 on:
   push:
-    branches: [mvp]
+    branches:
+      - mvp
+      - prod
     paths:
       - 'keycloak-theme/**'
-      - .github/workflows/deploy-keycloak.yml
+      - '.github/workflows/deploy-keycloak.yml'
 
 permissions:
   id-token: write
   contents: read
- 
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    environment: ${{ github.ref_name }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN_DEV }}
-          aws-region: ${{ secrets.AWS_REGION_DEV }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: SSH and Deploy
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ secrets.EC2_HOST_DEV }}
+          host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY_DEV }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+
           script: |
             cd ~/Workflow-and-Workers
+
             echo "Pulling latest code..."
-            git pull origin mvp
+            git fetch --all
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
 
             cd deployments/docker
+
             echo "Recreating Keycloak..."
             docker compose up -d keycloak
+
             echo "Done"
