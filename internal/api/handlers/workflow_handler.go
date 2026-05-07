@@ -1592,10 +1592,11 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	}
 
 	variables := map[string]interface{}{
-		"sessionId":      claims.SessionID,
-		"sourceSystem":   claims.SourceSystem,
-		"requestId":      uuid.New().String(),
-		"correlationKey": correlationKey,
+		"sessionId":            claims.SessionID,
+		"sourceSystem":         claims.SourceSystem,
+		"requestId":            uuid.New().String(),
+		"correlationKey":       correlationKey,
+		"postLoginRedirectUri": h.config.Auth.Keycloak.PostLoginRedirectURI,
 	}
 
 	if input.Code != "" && input.State != "" {

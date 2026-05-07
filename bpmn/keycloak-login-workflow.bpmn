@@ -106,7 +106,7 @@
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={&#34;success&#34;: false, &#34;error&#34;: &#34;SESSION_EXPIRED&#34;, &#34;redirectUrl&#34;: &#34;https://dev.lemici.com/&#34;, &#34;message&#34;: &#34;Your session has expired. Redirecting you to the home page...&#34;}" target="response" />
+          <zeebe:input source="={&#34;success&#34;: false, &#34;error&#34;: &#34;SESSION_EXPIRED&#34;, &#34;redirectUrl&#34;: postLoginRedirectUri, &#34;message&#34;: &#34;Your session has expired. Redirecting you to the home page...&#34;}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToInvalidStateResponse</bpmn:incoming>
