@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -67,10 +68,11 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 	// Step 1: Trigger Camunda process (LogoutWorkflow) for background cleanup
 	if h.camundaClient != nil {
-		var userID, keycloakUserID string
+		var userID, keycloakUserID, idToken string
 		sess, err := h.sessionStore.Get(ctx, sessionID)
 		if err == nil && sess != nil {
 			userID = sess.UserID
+			idToken = sess.IDToken
 			// Resolve Keycloak Internal ID from identities table
 			if h.db != nil {
 				_ = h.db.QueryRowContext(ctx,
@@ -79,11 +81,24 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			}
 		}
 
+		// Direct Server-to-Server Logout using id_token_hint (Bypasses Admin Credentials & CORS)
+		if idToken != "" {
+			go func(token string) {
+				keycloakCfg := h.config.Auth.Keycloak
+				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?id_token_hint=%s",
+					keycloakCfg.URL, keycloakCfg.Realm, token)
+
+				// Fire and forget server-side logout request
+				_, _ = http.Get(logoutURL)
+			}(idToken)
+		}
+
 		variables := map[string]interface{}{
 			"sessionId":      sessionID,
 			"requestId":      requestID,
 			"userId":         userID,
 			"keycloakUserId": keycloakUserID,
+			"idToken":        idToken,
 		}
 
 		// Use background context for fire-and-forget to ensure it's not cancelled by request completion
@@ -138,7 +153,16 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 	// Keycloak logout is handled via background Camunda worker now
 
-	h.log.Info("OAuthLogout: Triggered background cleanup, returning success to frontend", map[string]interface{}{
+	// Forced Browser Cookie Cleanup (Keycloak common cookies)
+	// Since we are on the same domain, we can attempt to expire them
+	cookiesToClear := []string{"KEYCLOAK_IDENTITY", "KEYCLOAK_SESSION", "KEYCLOAK_REMEMBER_ME"}
+	domain := h.cookieDomain
+	for _, cookieName := range cookiesToClear {
+		c.SetCookie(cookieName, "", -1, "/", domain, true, true)
+		c.SetCookie(cookieName, "", -1, "/realms", domain, true, true)
+	}
+
+	h.log.Info("OAuthLogout: Triggered background cleanup and cookie wipe, returning success to frontend", map[string]interface{}{
 		"requestId": requestID,
 	})
 
