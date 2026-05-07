@@ -106,6 +106,19 @@ jobs:
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
             | docker login --username AWS --password-stdin $ECR_URL
 
+            echo "Pulling latest code..."
+            git fetch --all
+            git checkout ${{ github.ref_name }}
+            git pull origin ${{ github.ref_name }}
+
+
+            echo "Stopping existing containers..."
             docker compose down
+
+            echo "Pulling latest images..."
             docker compose pull
+
+            echo "Starting updated containers..."
             docker compose up -d --remove-orphans
+
+            echo "Deployment completed."
