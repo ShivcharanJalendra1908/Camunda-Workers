@@ -204,6 +204,18 @@ func main() {
 	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.GET("/metrics", metricsHandler())
 
+	// Root + catch-all redirect → configured home page (Keycloak "Return to Login" fix)
+	// Only registered when PostLoginRedirectURI is set in config
+	if cfg.Auth.Keycloak.PostLoginRedirectURI != "" {
+		homePage := cfg.Auth.Keycloak.PostLoginRedirectURI
+		router.GET("/", func(c *gin.Context) {
+			c.Redirect(http.StatusFound, homePage)
+		})
+		router.NoRoute(func(c *gin.Context) {
+			c.Redirect(http.StatusFound, homePage)
+		})
+	}
+
 	// ============================================================================
 	// Initialize handlers
 	// ============================================================================

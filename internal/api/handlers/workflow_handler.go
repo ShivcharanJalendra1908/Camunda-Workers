@@ -1654,7 +1654,13 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			return
 		}
 
-		// Initiate flow — authorizationUrl return karo
+		// Agar callback hai aur error aya (SESSION_EXPIRED etc.) toh
+		// silently fresh login initiate karo - Amazon/Flipkart style
+		isCallback := c.Query("code") != ""
+		if isCallback {
+			h.initiateFreshLogin(c)
+			return
+		}
 		c.JSON(http.StatusOK, response)
 
 	case <-time.After(30 * time.Second):
@@ -1672,6 +1678,12 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// }
 				if sessionID, ok := envelope.Response["sessionId"].(string); ok && sessionID != "" {
 					h.completeLoginFlow(c, ctx, sessionID, userAgent, envelope.Response)
+					return
+				}
+				// Callback error - initiate fresh login
+				isCallbackCache := c.Query("code") != ""
+				if isCallbackCache {
+					h.initiateFreshLogin(c)
 					return
 				}
 				c.JSON(http.StatusOK, envelope.Response)
@@ -2043,14 +2055,13 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 		"hasState":  state != "",
 	})
 
+	// No code = Keycloak error (session expired, auth failed, user cancelled)
+	// → silently start fresh login so user sees Keycloak login page again
 	if code == "" || state == "" {
-		h.logger.Warn("OAuth callback missing required parameters", map[string]interface{}{
+		h.logger.Warn("OAuth callback missing code/state — initiating fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
-			"hasCode":   code != "",
-			"hasState":  state != "",
 		})
-		c.Error(apierrors.ErrOAuthCodeMissing)
-		c.Abort()
+		h.initiateFreshLogin(c)
 		return
 	}
 
@@ -2061,4 +2072,107 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	c.Request.Body = io.NopCloser(strings.NewReader(body))
 
 	h.StartKeycloakLogin(c)
+}
+
+// initiateFreshLogin starts a new login workflow and redirects the user
+// directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
+func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
+	ctx := c.Request.Context()
+	correlationKey := uuid.New().String()
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	// Confirm subscription using same pattern as StartKeycloakLogin
+	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer confirmCancel()
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
+		// Redis unavailable — fall back to home page
+		h.logger.Warn("initiateFreshLogin: Redis subscription confirm failed", map[string]interface{}{"err": err.Error()})
+		c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
+		return
+	}
+
+	// Start fresh initiate workflow (same as /auth/login)
+	variables := map[string]interface{}{
+		"action":               "initiate",
+		"provider":             "keycloak",
+		"correlationKey":       correlationKey,
+		"postLoginRedirectUri": h.config.Auth.Keycloak.PostLoginRedirectURI,
+		"redirectUrl":          h.config.Auth.Keycloak.RedirectURL,
+	}
+
+	if _, err := h.camunda.StartProcessInstance(ctx, "keycloak-login-workflow", variables); err != nil {
+		h.logger.Error("initiateFreshLogin: workflow start failed", map[string]interface{}{"err": err.Error()})
+		c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
+		return
+	}
+
+	// Wait for auth URL from worker (max 10s)
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope struct {
+			Response map[string]interface{} `json:"response"`
+		}
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
+			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
+				// Add prompt=login so Keycloak shows fresh login page even if SSO session exists
+				if strings.Contains(authURL, "?") {
+					authURL += "&prompt=login"
+				} else {
+					authURL += "?prompt=login"
+				}
+				// Show bridge page with message before redirecting to fresh login
+				h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
+				return
+			}
+		}
+	case <-time.After(10 * time.Second):
+		h.logger.Warn("initiateFreshLogin: timed out waiting for auth URL", map[string]interface{}{"correlationKey": correlationKey})
+	}
+
+	// Final fallback — home page (config driven, no hardcoding)
+	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
+}
+
+// renderRedirectPage renders a premium, branded bridge page that informs the user
+// of a session timeout before auto-redirecting to the fresh login page.
+func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string, title string, message string) {
+	html := fmt.Sprintf(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting | LeMiCi</title>
+    <meta http-equiv="refresh" content="3;url=%s">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #050810; --card: #0c1220; --accent: #38bdf8; --text: #f8fafc; --muted: #94a3b8; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        .container { position: relative; width: 100%%; max-width: 440px; padding: 2rem; }
+        .card { background: var(--card); border: 1px solid rgba(56, 189, 248, 0.1); border-radius: 24px; padding: 3rem 2rem; text-align: center; backdrop-filter: blur(10px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); position: relative; z-index: 10; }
+        .glow { position: absolute; top: 50%%; left: 50%%; transform: translate(-50%%, -50%%); width: 300px; height: 300px; background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%%, transparent 70%%); z-index: 1; pointer-events: none; }
+        .loader { width: 48px; height: 48px; border: 3px solid rgba(56, 189, 248, 0.1); border-top-color: var(--accent); border-radius: 50%%; display: inline-block; animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite; margin-bottom: 2rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h1 { font-weight: 600; font-size: 1.5rem; margin: 0 0 0.75rem; color: var(--text); letter-spacing: -0.02em; }
+        p { color: var(--muted); font-size: 0.95rem; line-height: 1.6; margin: 0 0 2rem; }
+        .btn { display: inline-block; padding: 0.75rem 1.5rem; background: rgba(56, 189, 248, 0.1); color: var(--accent); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.875rem; border: 1px solid rgba(56, 189, 248, 0.2); transition: all 0.2s ease; }
+        .btn:hover { background: var(--accent); color: var(--bg); transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+    <div class="glow"></div>
+    <div class="container">
+        <div class="card">
+            <div class="loader"></div>
+            <h1>%s</h1>
+            <p>%s</p>
+            <a href="%s" class="btn">Login Again Now</a>
+        </div>
+    </div>
+</body>
+</html>`, redirectURL, title, message, redirectURL)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
