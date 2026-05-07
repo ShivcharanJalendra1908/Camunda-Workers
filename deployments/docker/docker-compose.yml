@@ -289,7 +289,7 @@ services:
 # ============================================================================
 
   api-gateway:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway:latest
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-dev:latest
     container_name: api-gateway
     ports:
       - "8080:8080"
@@ -342,7 +342,7 @@ services:
     restart: on-failure:3
 
   camunda-workers:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker:latest
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-dev:latest
     container_name: camunda-workers
     environment:
       APP_NAME: camunda-workers
