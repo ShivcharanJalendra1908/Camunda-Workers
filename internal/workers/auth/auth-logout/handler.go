@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	TaskType = "logout-delete-session"
+	TaskType = "auth-logout"
 )
 
 type Handler struct {

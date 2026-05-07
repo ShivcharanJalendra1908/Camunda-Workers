@@ -206,15 +206,23 @@ func main() {
 
 	// Root + catch-all redirect → configured home page (Keycloak "Return to Login" fix)
 	// Only registered when PostLoginRedirectURI is set in config
-	if cfg.Auth.Keycloak.PostLoginRedirectURI != "" {
+	// Root redirect to Home (Handles Keycloak "Return to Login")
+	router.GET("/", func(c *gin.Context) {
 		homePage := cfg.Auth.Keycloak.PostLoginRedirectURI
-		router.GET("/", func(c *gin.Context) {
-			c.Redirect(http.StatusFound, homePage)
-		})
-		router.NoRoute(func(c *gin.Context) {
-			c.Redirect(http.StatusFound, homePage)
-		})
-	}
+		if homePage == "" {
+			homePage = "/"
+		}
+		c.Redirect(http.StatusFound, homePage)
+	})
+
+	// Global 404 handler - Redirect to Home instead of showing 404
+	router.NoRoute(func(c *gin.Context) {
+		homePage := cfg.Auth.Keycloak.PostLoginRedirectURI
+		if homePage == "" {
+			homePage = "/"
+		}
+		c.Redirect(http.StatusFound, homePage)
+	})
 
 	// ============================================================================
 	// Initialize handlers

@@ -146,12 +146,16 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		keycloakCfg.PostLogoutRedirectURI,
 	)
 
-	h.log.Info("OAuthLogout: Redirecting to Keycloak logout", map[string]interface{}{
+	h.log.Info("OAuthLogout: Triggered background cleanup, returning success to frontend", map[string]interface{}{
 		"requestId": requestID,
-		"logoutUrl": logoutURL,
 	})
 
-	c.Redirect(http.StatusFound, logoutURL)
+	// Since frontend uses fetch, any 302 redirect causes a CORS error.
+	// We return 200 OK so the frontend fetch succeeds and the frontend can smoothly route the user to Home.
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Logged out successfully",
+	})
 }
 
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {

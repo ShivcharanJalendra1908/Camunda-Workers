@@ -11,7 +11,7 @@
     
     <bpmn:serviceTask id="Task_KeycloakRevoke" name="Keycloak Session Revoke">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="logout-delete-session" retries="3" />
+        <zeebe:taskDefinition type="auth-logout" retries="3" />
         <zeebe:ioMapping>
           <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
           <zeebe:input source="=userId" target="userId" />

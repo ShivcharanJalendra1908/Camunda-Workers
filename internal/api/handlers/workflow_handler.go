@@ -1646,9 +1646,9 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 
 		if authURL, ok := response["authorizationUrl"].(string); ok && authURL != "" {
 			if strings.Contains(authURL, "?") {
-				authURL += "&prompt=login"
+				authURL += "&max_age=0"
 			} else {
-				authURL += "?prompt=login"
+				authURL += "?max_age=0"
 			}
 			response["authorizationUrl"] = authURL
 		}
@@ -1693,9 +1693,9 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
 					if strings.Contains(authURL, "?") {
-						authURL += "&prompt=login"
+						authURL += "&max_age=0"
 					} else {
-						authURL += "?prompt=login"
+						authURL += "?max_age=0"
 					}
 					envelope.Response["authorizationUrl"] = authURL
 				}
