@@ -230,7 +230,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
 
-	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain, cfg)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)

@@ -16,6 +16,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"fmt"
+	"camunda-workers/internal/common/config"
 )
 
 type OAuthHandler struct {
@@ -25,9 +27,10 @@ type OAuthHandler struct {
 	db            *sql.DB
 	camundaClient *camunda.Client
 	cookieDomain  string
+	config        *config.Config
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cookieDomain string) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cookieDomain string, cfg *config.Config) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
@@ -44,6 +47,7 @@ func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, c
 		db:            db,
 		camundaClient: camundaClient,
 		cookieDomain:  cookieDomain,
+		config:        cfg,
 	}
 }
 
@@ -61,12 +65,25 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	// Trigger Camunda process (LogoutSimple)
-	// This is fire-and-forget as per requirements
+	// Step 1: Trigger Camunda process (LogoutWorkflow) for background cleanup
 	if h.camundaClient != nil {
+		var userID, keycloakUserID string
+		sess, err := h.sessionStore.Get(ctx, sessionID)
+		if err == nil && sess != nil {
+			userID = sess.UserID
+			// Resolve Keycloak Internal ID from identities table
+			if h.db != nil {
+				_ = h.db.QueryRowContext(ctx, 
+					"SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1",
+					userID).Scan(&keycloakUserID)
+			}
+		}
+
 		variables := map[string]interface{}{
-			"sessionId": sessionID,
-			"requestId": requestID,
+			"sessionId":      sessionID,
+			"requestId":      requestID,
+			"userId":         userID,
+			"keycloakUserId": keycloakUserID,
 		}
 
 		// Use background context for fire-and-forget to ensure it's not cancelled by request completion
@@ -74,8 +91,10 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
+			// vars is already populated from the outer scope
+
 			cmd, err := h.camundaClient.GetClient().NewCreateInstanceCommand().
-				BPMNProcessId("LogoutSimple").
+				BPMNProcessId("LogoutWorkflow").
 				LatestVersion().
 				VariablesFromMap(vars)
 
@@ -114,9 +133,25 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		_ = h.sessionStore.Delete(ctx, sessionID)
 	}
 
-	// Clear cookie and redirect immediately
+	// Clear cookie
 	h.clearSessionCookie(c)
-	c.Redirect(http.StatusFound, "/")
+
+	// Step 3: Redirect to Keycloak Logout URL for professional OIDC logout
+	// Format: {URL}/realms/{Realm}/protocol/openid-connect/logout?client_id={ClientID}&post_logout_redirect_uri={PostLogoutRedirectURI}
+	keycloakCfg := h.config.Auth.Keycloak
+	logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
+		keycloakCfg.URL,
+		keycloakCfg.Realm,
+		keycloakCfg.ClientID,
+		keycloakCfg.PostLogoutRedirectURI,
+	)
+
+	h.log.Info("OAuthLogout: Redirecting to Keycloak logout", map[string]interface{}{
+		"requestId": requestID,
+		"logoutUrl": logoutURL,
+	})
+
+	c.Redirect(http.StatusFound, logoutURL)
 }
 
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {

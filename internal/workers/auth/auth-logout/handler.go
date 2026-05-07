@@ -248,6 +248,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.UserID = userID
 	}
 
+	if keycloakUserID, ok := variables["keycloakUserId"].(string); ok {
+		input.KeycloakUserID = keycloakUserID
+	}
+
 	if sessionID, ok := variables["sessionId"].(string); ok {
 		input.SessionID = sessionID
 	}

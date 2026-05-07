@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
@@ -43,37 +42,38 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
-	s.logger.Info("Executing simplified auth logout cleanup", map[string]interface{}{
-		"sessionId": input.SessionID,
-		"requestId": input.RequestID,
+	s.logger.Info("Executing Keycloak revocation cleanup", map[string]interface{}{
+		"userId":         input.UserID,
+		"keycloakUserId": input.KeycloakUserID,
+		"requestId":      input.RequestID,
 	})
 
-	if input.SessionID == "" {
-		return nil, fmt.Errorf("sessionId is required for cleanup")
+	var keycloakInvalidated bool
+
+	// Step 1: Keycloak Server-Side Invalidation (Back-channel)
+	kcID := input.KeycloakUserID
+	if kcID == "" {
+		kcID = input.UserID // Fallback
 	}
 
-	// Step 1: Redis local session cleanup
-	if s.redisClient != nil {
-		store := session.NewRedisStore(s.redisClient)
-		err := store.Delete(ctx, input.SessionID)
+	if s.keycloak != nil && kcID != "" {
+		err := s.keycloak.RevokeAllUserSessions(ctx, kcID)
 		if err != nil {
-			s.logger.Error("Failed to delete session using RedisStore", map[string]interface{}{
-				"sessionId": input.SessionID,
-				"requestId": input.RequestID,
-				"error":     err.Error(),
+			s.logger.Warn("Keycloak session revocation failed", map[string]interface{}{
+				"keycloakUserId": kcID,
+				"error":          err.Error(),
 			})
-			return nil, err
+		} else {
+			s.logger.Info("Keycloak sessions revoked successfully", map[string]interface{}{"keycloakUserId": kcID})
+			keycloakInvalidated = true
 		}
-		s.logger.Info("Redis session deleted successfully via RedisStore", map[string]interface{}{
-			"sessionId": input.SessionID,
-			"requestId": input.RequestID,
-		})
 	}
 
 	return &Output{
-		Success:  true,
-		Message:  "Session deleted from Redis successfully",
-		LogoutAt: time.Now(),
+		Success:      true,
+		Message:      "Keycloak revocation triggered",
+		TokenRevoked: keycloakInvalidated,
+		LogoutAt:     time.Now(),
 	}, nil
 }
 

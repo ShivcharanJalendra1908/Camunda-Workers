@@ -1644,10 +1644,15 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			return
 		}
 
-		// cookie fix: redundant Set-Cookie header with completeLoginFlow
-		// if envelope.CookieHeader != "" {
-		// 	c.Writer.Header().Add("Set-Cookie", envelope.CookieHeader)
-		// }
+		if authURL, ok := response["authorizationUrl"].(string); ok && authURL != "" {
+			if strings.Contains(authURL, "?") {
+				authURL += "&prompt=login"
+			} else {
+				authURL += "?prompt=login"
+			}
+			response["authorizationUrl"] = authURL
+		}
+		// Initiate flow — authorizationUrl return karo
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
 			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
@@ -1685,6 +1690,14 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				if isCallbackCache {
 					h.initiateFreshLogin(c)
 					return
+				}
+				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
+					if strings.Contains(authURL, "?") {
+						authURL += "&prompt=login"
+					} else {
+						authURL += "?prompt=login"
+					}
+					envelope.Response["authorizationUrl"] = authURL
 				}
 				c.JSON(http.StatusOK, envelope.Response)
 				return
