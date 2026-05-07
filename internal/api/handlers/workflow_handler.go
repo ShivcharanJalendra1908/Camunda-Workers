@@ -1918,7 +1918,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 			Name:     name,
 			Value:    "",
 			Path:     "/",
-			Domain:   ".lemici.com",
+			Domain:   h.config.Auth.Session.CookieDomain,
 			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   true,
@@ -2014,10 +2014,9 @@ func (h *WorkflowHandler) completeLoginFlow(
 	isCallback := c.Query("code") != ""
 
 	if isCallback {
-		// redirectURL := h.config.Auth.Keycloak.CallbackRedirectURI
-		redirectURL := "https://dev.lemici.com/"
+		redirectURL := h.config.Auth.Keycloak.PostLoginRedirectURI
 		if redirectURL == "" {
-			redirectURL = "https://dev.lemici.com/"
+			redirectURL = "https://lemici.com/"
 		}
 		h.logger.Info("Redirecting to frontend after successful login", map[string]interface{}{
 			"sessionId":   sessionID,

@@ -1556,7 +1556,7 @@
         "disableUserInfo": "false",
         "filteredByClaim": "false",
         "syncMode": "IMPORT",
-        "clientSecret": "**********",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
         "defaultScope": "openid profile email "
       }
     }

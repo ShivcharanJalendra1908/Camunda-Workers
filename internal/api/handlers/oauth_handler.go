@@ -24,12 +24,17 @@ type OAuthHandler struct {
 	sessionStore  *session.RedisStore
 	db            *sql.DB
 	camundaClient *camunda.Client
+	cookieDomain  string
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cookieDomain string) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
+	}
+
+	if cookieDomain == "" {
+		cookieDomain = ".lemici.com"
 	}
 
 	return &OAuthHandler{
@@ -38,6 +43,7 @@ func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, c
 		sessionStore:  sessionStore,
 		db:            db,
 		camundaClient: camundaClient,
+		cookieDomain:  cookieDomain,
 	}
 }
 
@@ -172,8 +178,8 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 }
 
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
-	// Domain should match what was set during login (usually .lemici.com)
-	domain := ".lemici.com"
+	// Domain read from config via constructor injection
+	domain := h.cookieDomain
 
 	// Clear the primary session cookie
 	c.SetCookie(

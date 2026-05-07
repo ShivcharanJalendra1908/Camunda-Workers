@@ -225,6 +225,7 @@ services:
       KC_DB_PASSWORD: postgres
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
