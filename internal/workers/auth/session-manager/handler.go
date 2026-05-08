@@ -441,6 +441,19 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			cfg.RedisPassword = appConfig.Database.Redis.Password
 			cfg.RedisDB = appConfig.Database.Redis.DB
 		}
+
+		// Session settings
+		if appConfig.Auth.Session.SessionTTL > 0 {
+			cfg.DefaultTTL = time.Duration(appConfig.Auth.Session.SessionTTL) * time.Millisecond
+		}
+		if appConfig.Auth.Session.CookieName != "" {
+			cfg.CookieName = appConfig.Auth.Session.CookieName
+		}
+		if appConfig.Auth.Session.CookieDomain != "" {
+			cfg.Domain = appConfig.Auth.Session.CookieDomain
+		}
+		cfg.Secure = appConfig.Auth.Session.CookieSecure
+		cfg.HttpOnly = appConfig.Auth.Session.CookieHTTPOnly
 	}
 
 	return cfg

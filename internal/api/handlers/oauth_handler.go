@@ -13,11 +13,10 @@ import (
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"
+	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/models"
-
-	"camunda-workers/internal/common/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -126,7 +125,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 			if err != nil {
 				h.log.Error("OAuthLogout: Failed to prepare Camunda command", map[string]interface{}{
-					"processId": "LogoutSimple",
+					"processId": "Logout",
 					"sessionId": sessID,
 					"requestId": reqID,
 					"error":     err.Error(),
@@ -138,7 +137,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 			if err != nil {
 				h.log.Error("OAuthLogout: Failed to start Camunda process", map[string]interface{}{
-					"processId": "LogoutSimple",
+					"processId": "Logout",
 					"sessionId": sessID,
 					"requestId": reqID,
 					"error":     err.Error(),
@@ -146,7 +145,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			} else {
 				h.log.Info("OAuthLogout: Camunda logout process started", map[string]interface{}{
 					"instanceKey": resp.GetProcessInstanceKey(),
-					"processId":   "LogoutSimple",
+					"processId":   "Logout",
 					"sessionId":   sessID,
 					"requestId":   reqID,
 				})
@@ -233,24 +232,25 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 	// Domain read from config via constructor injection
 	domain := h.cookieDomain
+	path := constants.SessionCookiePath
 
 	// Clear the primary session cookie
 	c.SetCookie(
 		constants.SessionCookieName,
 		"",
 		-1,
-		constants.SessionCookiePath,
+		path,
 		domain,
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,
 	)
-
+	
 	// Also clear the legacy session_id cookie just in case
 	c.SetCookie(
 		"session_id",
 		"",
 		-1,
-		constants.SessionCookiePath,
+		path,
 		domain,
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,

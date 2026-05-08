@@ -473,7 +473,7 @@ func respondWithError(c *gin.Context, status int, code, message string, details 
 const enforceUserAgentBinding = false
 
 // sessionCookieName is the name of the session cookie issued to clients.
-const sessionCookieName = "session_id"
+const sessionCookieName = constants.SessionCookieName
 
 // sessionCookiePath is the cookie path.
 const sessionCookiePath = "/"

@@ -97,6 +97,7 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 			"firstName":   "First Name is required",
 			"lastName":    "Last Name is required",
 			"phoneNumber": "Phone Number is required",
+			"source":      "Source (origin) is required",
 		}
 
 		for field, msg := range mandatoryFields {
@@ -114,6 +115,7 @@ func (w *PublicFormWorker) HandleValidateForm(client worker.JobClient, job entit
 			"contactPersonName": "Contact Person Name is required",
 			"contactEmail":      "Contact Email is required",
 			"contactPhone":      "Contact Phone is required",
+			"source":            "Source (origin) is required",
 		}
 
 		for field, msg := range mandatoryFields {

@@ -1576,13 +1576,14 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	pubsub := h.redisClient.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	// FIX 1: dedicated 3s timeout, redirectToLogin nahi — 500 return
+	// FIX 1: dedicated 3s timeout, non-fatal to allow workflow start
 	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer confirmCancel()
 	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
-		c.Error(apierrors.ErrServiceUnavailable)
-		c.Abort()
-		return
+		h.logger.Warn("Subscription confirm timeout, proceeding anyway", map[string]interface{}{
+			"channel": channel,
+			"error":   err.Error(),
+		})
 	}
 
 	variables := map[string]interface{}{
@@ -1927,6 +1928,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 	now := time.Now()
 
 	// Step 1: clear old cookies
+	domain := h.config.Auth.Session.CookieDomain
+	if domain == "" {
+		domain = ".lemici.com"
+	}
+
 	for _, name := range []string{"AUTH_SESSION_ID", "session_id"} {
 		cookie := &http.Cookie{
 			Name:     name,
@@ -1942,10 +1948,16 @@ func (h *WorkflowHandler) completeLoginFlow(
 	}
 
 	// Step 2: set new cookie
+	maxAge := h.config.Auth.Session.SessionTTL / 1000 // Convert ms to seconds
+	if maxAge <= 0 {
+		maxAge = 86400 // Default 24h
+	}
+
 	h.logger.Info("Setting session cookie", map[string]interface{}{
 		"sessionId": sessionID,
 		"name":      constants.SessionCookieName,
-		"maxAge":    86400,
+		"maxAge":    maxAge,
+		"domain":    domain,
 	})
 
 	cookie := &http.Cookie{
