@@ -4,16 +4,20 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
-	"camunda-workers/internal/common/config"
+	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
-	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/models"
+
+	"camunda-workers/internal/common/config"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -25,13 +29,18 @@ type OAuthHandler struct {
 	sessionStore  *session.RedisStore
 	db            *sql.DB
 	camundaClient *camunda.Client
+	cookieDomain  string
 	config        *config.Config
 }
 
-func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cfg *config.Config) *OAuthHandler {
+func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, camundaClient *camunda.Client, cookieDomain string, cfg *config.Config) *OAuthHandler {
 	var sessionStore *session.RedisStore
 	if redisClient != nil {
 		sessionStore = session.NewRedisStore(redisClient)
+	}
+
+	if cookieDomain == "" {
+		cookieDomain = ".lemici.com"
 	}
 
 	return &OAuthHandler{
@@ -40,6 +49,7 @@ func NewOAuthHandler(redisClient *redis.Client, log logger.Logger, db *sql.DB, c
 		sessionStore:  sessionStore,
 		db:            db,
 		camundaClient: camundaClient,
+		cookieDomain:  cookieDomain,
 		config:        cfg,
 	}
 }
@@ -58,12 +68,48 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	// Trigger Camunda process (Logout)
-	// This is fire-and-forget as per requirements
+	var userID, keycloakUserID, idToken, refreshToken string
+	sess, err := h.sessionStore.Get(ctx, sessionID)
+	if err == nil && sess != nil {
+		userID = sess.UserID
+		idToken = sess.IDToken
+		refreshToken = sess.RefreshToken
+		// Resolve Keycloak Internal ID from identities table
+		if h.db != nil {
+			_ = h.db.QueryRowContext(ctx,
+				"SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1",
+				userID).Scan(&keycloakUserID)
+		}
+	}
+
+	// Step 1: Trigger Camunda process (LogoutWorkflow) for background cleanup
 	if h.camundaClient != nil {
+
+		// Direct Server-to-Server Logout using refresh_token (Bypasses Admin Credentials & CORS)
+		if refreshToken != "" {
+			go func(token string) {
+				keycloakCfg := h.config.Auth.Keycloak
+				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout",
+					keycloakCfg.URL, keycloakCfg.Realm)
+
+				data := url.Values{}
+				data.Set("client_id", keycloakCfg.ClientID)
+				data.Set("refresh_token", token)
+
+				req, _ := http.NewRequest("POST", logoutURL, strings.NewReader(data.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				
+				// Fire and forget server-side logout request
+				_, _ = http.DefaultClient.Do(req)
+			}(refreshToken)
+		}
+
 		variables := map[string]interface{}{
-			"sessionId": sessionID,
-			"requestId": requestID,
+			"sessionId":      sessionID,
+			"requestId":      requestID,
+			"userId":         userID,
+			"keycloakUserId": keycloakUserID,
+			"idToken":        idToken,
 		}
 
 		// Use background context for fire-and-forget to ensure it's not cancelled by request completion
@@ -71,8 +117,10 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
+			// vars is already populated from the outer scope
+
 			cmd, err := h.camundaClient.GetClient().NewCreateInstanceCommand().
-				BPMNProcessId("Logout").
+				BPMNProcessId("LogoutWorkflow").
 				LatestVersion().
 				VariablesFromMap(vars)
 
@@ -111,9 +159,17 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		_ = h.sessionStore.Delete(ctx, sessionID)
 	}
 
-	// Clear cookie and redirect immediately
+	// Clear cookie
 	h.clearSessionCookie(c)
-	c.Redirect(http.StatusFound, "/")
+
+	// Professional Seamless Logout:
+	// Since the backend now securely revokes the Keycloak session using the refresh_token,
+	// we no longer need to force the browser to navigate to Keycloak.
+	// We can safely return a 200 OK JSON response for the frontend's fetch call.
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Logged out successfully",
+	})
 }
 
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {
@@ -175,15 +231,8 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 }
 
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
-	// Use domain from config, fallback to .lemici.com
-	domain := h.config.Auth.Session.CookieDomain
-	if domain == "" {
-		domain = ".lemici.com"
-	}
-
-	path := constants.SessionCookiePath
-	secure := h.config.Auth.Session.CookieSecure
-	httpOnly := h.config.Auth.Session.CookieHTTPOnly
+	// Domain read from config via constructor injection
+	domain := h.cookieDomain
 
 	// Clear the primary session cookie
 	c.SetCookie(

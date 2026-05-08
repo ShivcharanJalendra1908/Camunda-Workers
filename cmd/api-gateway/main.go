@@ -204,6 +204,26 @@ func main() {
 	router.HEAD("/health", healthCheckHandler(cfg, postgresDB, redisClient, esClient))
 	router.GET("/metrics", metricsHandler())
 
+	// Root + catch-all redirect → configured home page (Keycloak "Return to Login" fix)
+	// Only registered when PostLoginRedirectURI is set in config
+	// Root redirect to Home (Handles Keycloak "Return to Login")
+	router.GET("/", func(c *gin.Context) {
+		homePage := cfg.Auth.Keycloak.PostLoginRedirectURI
+		if homePage == "" {
+			homePage = "/"
+		}
+		c.Redirect(http.StatusFound, homePage)
+	})
+
+	// Global 404 handler - Redirect to Home instead of showing 404
+	router.NoRoute(func(c *gin.Context) {
+		homePage := cfg.Auth.Keycloak.PostLoginRedirectURI
+		if homePage == "" {
+			homePage = "/"
+		}
+		c.Redirect(http.StatusFound, homePage)
+	})
+
 	// ============================================================================
 	// Initialize handlers
 	// ============================================================================
@@ -218,7 +238,7 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
 
-	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg)
+	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain, cfg)
 
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)

@@ -13,7 +13,7 @@ COPY frontend/ .
 
 # VITE_API_URL is injected at build time via ARG
 # In ECR/ECS this comes from your build pipeline
-ARG VITE_API_URL=https://us-dev-api.lemici.com
+ARG VITE_API_URL=https://dev-api.lemici.com
 ENV VITE_API_URL=$VITE_API_URL
 
 RUN npm run build

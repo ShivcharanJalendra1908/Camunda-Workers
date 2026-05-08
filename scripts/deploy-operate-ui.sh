@@ -15,7 +15,7 @@ AWS_ACCOUNT_ID="177925987307"
 AWS_REGION="us-east-1"
 ECR_REPO="operate-ui"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
-VITE_API_URL="${VITE_API_URL:-https://us-dev-api.lemici.com}"
+VITE_API_URL="${VITE_API_URL:-https://dev-api.lemici.com}"
 
 ECR_REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 FULL_IMAGE="$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG"

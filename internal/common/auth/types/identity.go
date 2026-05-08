@@ -10,4 +10,5 @@ type Identity struct {
 	FirstName      string // user's first name
 	LastName       string // user's last name
 	IDToken        string // raw id_token for OIDC logout hint
+	RefreshToken   string // refresh token for backend-initiated logout
 }

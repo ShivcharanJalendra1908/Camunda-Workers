@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/auth"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
@@ -43,37 +42,19 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
-	s.logger.Info("Executing simplified auth logout cleanup", map[string]interface{}{
-		"sessionId": input.SessionID,
-		"requestId": input.RequestID,
+	s.logger.Info("Executing auth logout cleanup (Keycloak revocation is now handled by API Gateway)", map[string]interface{}{
+		"userId":         input.UserID,
+		"keycloakUserId": input.KeycloakUserID,
+		"requestId":      input.RequestID,
 	})
 
-	if input.SessionID == "" {
-		return nil, fmt.Errorf("sessionId is required for cleanup")
-	}
-
-	// Step 1: Redis local session cleanup
-	if s.redisClient != nil {
-		store := session.NewRedisStore(s.redisClient)
-		err := store.Delete(ctx, input.SessionID)
-		if err != nil {
-			s.logger.Error("Failed to delete session using RedisStore", map[string]interface{}{
-				"sessionId": input.SessionID,
-				"requestId": input.RequestID,
-				"error":     err.Error(),
-			})
-			return nil, err
-		}
-		s.logger.Info("Redis session deleted successfully via RedisStore", map[string]interface{}{
-			"sessionId": input.SessionID,
-			"requestId": input.RequestID,
-		})
-	}
-
+	// Keycloak revocation is now handled synchronously by the API Gateway using the refresh_token.
+	// This worker only serves as a placeholder in the BPMN flow before session-manager cleans up Redis.
 	return &Output{
-		Success:  true,
-		Message:  "Session deleted from Redis successfully",
-		LogoutAt: time.Now(),
+		Success:      true,
+		Message:      "Keycloak revocation skipped in worker (handled by Gateway)",
+		TokenRevoked: true,
+		LogoutAt:     time.Now(),
 	}, nil
 }
 

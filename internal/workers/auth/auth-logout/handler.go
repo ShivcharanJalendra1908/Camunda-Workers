@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	TaskType = "logout-delete-session"
+	TaskType = "auth-logout"
 )
 
 type Handler struct {
@@ -246,6 +246,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 	if userID, ok := variables["userId"].(string); ok {
 		input.UserID = userID
+	}
+
+	if keycloakUserID, ok := variables["keycloakUserId"].(string); ok {
+		input.KeycloakUserID = keycloakUserID
 	}
 
 	if sessionID, ok := variables["sessionId"].(string); ok {

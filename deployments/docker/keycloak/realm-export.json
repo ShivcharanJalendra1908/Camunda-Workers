@@ -695,8 +695,10 @@
         "https://d3r20osyd7sq76.cloudfront.net/*",
         "http://localhost:3000/*",
         "https://d3c34598mt7qdx.cloudfront.net/*",
-        "https://us-dev-api.lemici.com/api/v1/auth/callback",
         "https://dev-api.lemici.com/api/v1/auth/callback",
+        "https://dev-api.lemici.com/api/v1/auth/callback*",
+        "https://us-dev-api.lemici.com/api/v1/auth/callback",
+        "https://us-dev-api.lemici.com/api/v1/auth/callback*",
         "https://www.lemici.com/*"
       ],
       "webOrigins": [
@@ -704,6 +706,7 @@
         "https://www.lemici.com",
         "https://dev.lemici.com",
         "https://dev-api.lemici.com",
+        "https://us-dev-api.lemici.com",
         "https://d3c34598mt7qdx.cloudfront.net",
         "http://localhost:3000/",
         "https://d595hydlunw5u.cloudfront.net"
@@ -1545,7 +1548,7 @@
       "addReadTokenRoleOnCreate": false,
       "authenticateByDefault": false,
       "linkOnly": false,
-      "firstBrokerLoginFlowAlias": "first broker login",
+      "firstBrokerLoginFlowAlias": "Silent first broker login",
       "config": {
         "hideOnLoginPage": "false",
         "acceptsPromptNoneForwardFromClient": "false",
@@ -1553,7 +1556,7 @@
         "disableUserInfo": "false",
         "filteredByClaim": "false",
         "syncMode": "IMPORT",
-        "clientSecret": "**********",
+        "clientSecret": "${GOOGLE_CLIENT_SECRET}",
         "defaultScope": "openid profile email "
       }
     }
