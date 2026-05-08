@@ -67,20 +67,21 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
+	var userID, keycloakUserID, idToken string
+	sess, err := h.sessionStore.Get(ctx, sessionID)
+	if err == nil && sess != nil {
+		userID = sess.UserID
+		idToken = sess.IDToken
+		// Resolve Keycloak Internal ID from identities table
+		if h.db != nil {
+			_ = h.db.QueryRowContext(ctx,
+				"SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1",
+				userID).Scan(&keycloakUserID)
+		}
+	}
+
 	// Step 1: Trigger Camunda process (LogoutWorkflow) for background cleanup
 	if h.camundaClient != nil {
-		var userID, keycloakUserID, idToken string
-		sess, err := h.sessionStore.Get(ctx, sessionID)
-		if err == nil && sess != nil {
-			userID = sess.UserID
-			idToken = sess.IDToken
-			// Resolve Keycloak Internal ID from identities table
-			if h.db != nil {
-				_ = h.db.QueryRowContext(ctx,
-					"SELECT provider_user_id FROM identities WHERE user_id = $1 AND provider = 'keycloak' LIMIT 1",
-					userID).Scan(&keycloakUserID)
-			}
-		}
 
 		// Direct Server-to-Server Logout using id_token_hint (Bypasses Admin Credentials & CORS)
 		if idToken != "" {
