@@ -42,37 +42,18 @@ func NewService(deps ServiceDependencies, config *Config) *Service {
 }
 
 func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
-	s.logger.Info("Executing Keycloak revocation cleanup", map[string]interface{}{
+	s.logger.Info("Executing auth logout cleanup (Keycloak revocation is now handled by API Gateway)", map[string]interface{}{
 		"userId":         input.UserID,
 		"keycloakUserId": input.KeycloakUserID,
 		"requestId":      input.RequestID,
 	})
 
-	var keycloakInvalidated bool
-
-	// Step 1: Keycloak Server-Side Invalidation (Back-channel)
-	kcID := input.KeycloakUserID
-	if kcID == "" {
-		kcID = input.UserID // Fallback
-	}
-
-	if s.keycloak != nil && kcID != "" {
-		err := s.keycloak.RevokeAllUserSessions(ctx, kcID)
-		if err != nil {
-			s.logger.Warn("Keycloak session revocation failed", map[string]interface{}{
-				"keycloakUserId": kcID,
-				"error":          err.Error(),
-			})
-		} else {
-			s.logger.Info("Keycloak sessions revoked successfully", map[string]interface{}{"keycloakUserId": kcID})
-			keycloakInvalidated = true
-		}
-	}
-
+	// Keycloak revocation is now handled synchronously by the API Gateway using the refresh_token.
+	// This worker only serves as a placeholder in the BPMN flow before session-manager cleans up Redis.
 	return &Output{
 		Success:      true,
-		Message:      "Keycloak revocation triggered",
-		TokenRevoked: keycloakInvalidated,
+		Message:      "Keycloak revocation skipped in worker (handled by Gateway)",
+		TokenRevoked: true,
 		LogoutAt:     time.Now(),
 	}, nil
 }

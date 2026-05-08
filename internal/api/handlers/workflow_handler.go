@@ -2130,12 +2130,6 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				// Add prompt=login so Keycloak shows fresh login page even if SSO session exists
-				if strings.Contains(authURL, "?") {
-					authURL += "&prompt=login"
-				} else {
-					authURL += "?prompt=login"
-				}
 				// Show bridge page with message before redirecting to fresh login
 				h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
 				return
@@ -2149,43 +2143,147 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
 }
 
-// renderRedirectPage renders a premium, branded bridge page that informs the user
-// of a session timeout before auto-redirecting to the fresh login page.
 func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string, title string, message string) {
-	html := fmt.Sprintf(`
-<!DOCTYPE html>
+	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Redirecting | LeMiCi</title>
-    <meta http-equiv="refresh" content="3;url=%s">
+    <title>Timeout | LeMiCi</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #050810; --card: #0c1220; --accent: #38bdf8; --text: #f8fafc; --muted: #94a3b8; }
-        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        .container { position: relative; width: 100%%; max-width: 440px; padding: 2rem; }
-        .card { background: var(--card); border: 1px solid rgba(56, 189, 248, 0.1); border-radius: 24px; padding: 3rem 2rem; text-align: center; backdrop-filter: blur(10px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); position: relative; z-index: 10; }
-        .glow { position: absolute; top: 50%%; left: 50%%; transform: translate(-50%%, -50%%); width: 300px; height: 300px; background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%%, transparent 70%%); z-index: 1; pointer-events: none; }
-        .loader { width: 48px; height: 48px; border: 3px solid rgba(56, 189, 248, 0.1); border-top-color: var(--accent); border-radius: 50%%; display: inline-block; animation: spin 1s cubic-bezier(0.55, 0.055, 0.675, 0.19) infinite; margin-bottom: 2rem; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        h1 { font-weight: 600; font-size: 1.5rem; margin: 0 0 0.75rem; color: var(--text); letter-spacing: -0.02em; }
-        p { color: var(--muted); font-size: 0.95rem; line-height: 1.6; margin: 0 0 2rem; }
-        .btn { display: inline-block; padding: 0.75rem 1.5rem; background: rgba(56, 189, 248, 0.1); color: var(--accent); text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.875rem; border: 1px solid rgba(56, 189, 248, 0.2); transition: all 0.2s ease; }
-        .btn:hover { background: var(--accent); color: var(--bg); transform: translateY(-2px); }
+        :root {
+            --bg: #030712; /* Very dark blue */
+            --card-bg: rgba(15, 23, 42, 0.7); /* Slate 900 with transparency */
+            --border: rgba(56, 189, 248, 0.2);
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+        }
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at center, #0f172a 0%%, var(--bg) 100%%);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .container {
+            width: 100%%;
+            max-width: 460px;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            text-align: center;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            position: relative;
+            z-index: 10;
+        }
+        .icon-wrapper {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 1.5rem;
+            background: rgba(56, 189, 248, 0.1);
+            border-radius: 50%%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+        .icon-wrapper svg {
+            width: 32px;
+            height: 32px;
+            color: var(--accent);
+        }
+        h1 {
+            font-weight: 600;
+            font-size: 1.75rem;
+            margin: 0 0 1rem;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+        p {
+            color: var(--muted);
+            font-size: 1.05rem;
+            line-height: 1.6;
+            margin: 0 0 2rem;
+        }
+        .timer-text {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .btn {
+            display: inline-block;
+            width: 100%%;
+            padding: 0.875rem 1.5rem;
+            background: var(--accent);
+            color: #030712;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(56, 189, 248, 0.3);
+            background: #7dd3fc;
+        }
+        /* Background decorative elements */
+        .glow {
+            position: absolute;
+            top: 50%%;
+            left: 50%%;
+            transform: translate(-50%%, -50%%);
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.1) 0%%, transparent 60%%);
+            z-index: 1;
+            pointer-events: none;
+            border-radius: 50%%;
+        }
     </style>
 </head>
 <body>
     <div class="glow"></div>
     <div class="container">
         <div class="card">
-            <div class="loader"></div>
+            <div class="icon-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
             <h1>%s</h1>
-            <p>%s</p>
+            <p>%s<br><br>Redirecting in <span class="timer-text" id="countdown">4</span> seconds...</p>
             <a href="%s" class="btn">Login Again Now</a>
         </div>
     </div>
+    <script>
+        let timeLeft = 4;
+        const countdownEl = document.getElementById('countdown');
+        const redirectUrl = "%s";
+        
+        const timer = setInterval(() => {
+            timeLeft -= 1;
+            countdownEl.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                window.location.replace(redirectUrl);
+            }
+        }, 1000);
+    </script>
 </body>
-</html>`, redirectURL, title, message, redirectURL)
+</html>`, title, message, redirectURL, redirectURL)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
