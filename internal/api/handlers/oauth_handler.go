@@ -232,14 +232,13 @@ func (h *OAuthHandler) LogoutAll(c *gin.Context) {
 func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 	// Domain read from config via constructor injection
 	domain := h.cookieDomain
-	path := constants.SessionCookiePath
 
 	// Clear the primary session cookie
 	c.SetCookie(
 		constants.SessionCookieName,
 		"",
 		-1,
-		path,
+		constants.SessionCookiePath,
 		domain,
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,
@@ -250,7 +249,7 @@ func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 		"session_id",
 		"",
 		-1,
-		path,
+		constants.SessionCookiePath,
 		domain,
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,

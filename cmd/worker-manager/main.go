@@ -679,7 +679,7 @@ func main() {
 		if err != nil {
 			zapLog.Fatal("failed to create auth-logout handler", zap.Error(err))
 		}
-		startWorker(zeebeClient, alo.TaskType, cfg.Workers[taskType], handler.Handle, zapLog)
+		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
 
 	// Captcha Verify
