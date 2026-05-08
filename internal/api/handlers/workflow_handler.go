@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -1698,9 +1699,9 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				return
 			}
 		}
-		h.logger.Warn("Keycloak login timeout", map[string]interface{}{"correlationKey": correlationKey})
-		c.Error(apierrors.ErrTimeout)
-		c.Abort()
+		h.logger.Warn("Keycloak login timeout - initiating silent deep clean", map[string]interface{}{"correlationKey": correlationKey})
+		h.initiateFreshLogin(c, false)
+		return
 
 	case <-ctx.Done():
 		c.Error(apierrors.ErrInternalError)
@@ -2132,6 +2133,10 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
+				// PROFESSIONAL SILENT FIX: Sanitize and Restart
+				// We skip the bridge page to keep the flow seamless.
+				// The Login page itself shows "Session Timeout! Please try again." via the Keycloak theme.
+				
 				// Force login screen by adding prompt=login and max_age=0
 				if strings.Contains(authURL, "?") {
 					authURL += "&prompt=login&max_age=0"
@@ -2139,13 +2144,23 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 					authURL += "?prompt=login&max_age=0"
 				}
 
-				if showBridge {
-					// Show bridge page with message before redirecting to fresh login
-					h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
-				} else {
-					// Silent redirect
-					c.Redirect(http.StatusFound, authURL)
+				// Construct the Deep Clean URL: Keycloak Logout -> Redirect back to OUR Login Gateway
+				// We MUST point to the /login endpoint, not the /callback URL.
+				// h.config.Auth.Keycloak.RedirectURL is usually the callback, so we derive the login URL.
+				baseGatewayURL := strings.TrimSuffix(h.config.Auth.Keycloak.RedirectURL, "/callback")
+				if !strings.HasSuffix(baseGatewayURL, "/login") {
+					baseGatewayURL += "/login"
 				}
+				
+				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
+					h.config.Auth.Keycloak.URL,
+					h.config.Auth.Keycloak.Realm,
+					url.QueryEscape(baseGatewayURL),
+					h.config.Auth.Keycloak.ClientID,
+				)
+
+				// Always Silent deep clean redirect for maximum speed and zero redundancy
+				c.Redirect(http.StatusFound, logoutURL)
 				return
 			}
 		}
