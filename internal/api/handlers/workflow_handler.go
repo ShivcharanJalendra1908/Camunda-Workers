@@ -477,12 +477,6 @@ func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-
-
-
-
-
-
 // ============================================================================
 // USER MANAGEMENT WORKFLOWS
 // ============================================================================
@@ -700,14 +694,14 @@ func (h *WorkflowHandler) StartContactUs(c *gin.Context) {
 	}
 
 	variables := map[string]interface{}{
-		"formType":       "contact_us",
-		"formData":       formData,
-		"requestId":      reqID,
-		"correlationKey": reqID,
+		"formType":        "contact_us",
+		"formData":        formData,
+		"requestId":       reqID,
+		"correlationKey":  reqID,
 		"operationsEmail": h.config.Integrations.Internal.OperationsAlertEmail,
 		"operationsName":  h.config.Integrations.Internal.OperationsAlertName,
-		"marketingEmail":   h.config.Integrations.Internal.MarketingAlertEmail,
-		"marketingName":    h.config.Integrations.Internal.MarketingAlertName,
+		"marketingEmail":  h.config.Integrations.Internal.MarketingAlertEmail,
+		"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
@@ -733,14 +727,14 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 
 	reqID := uuid.New().String()
 	variables := map[string]interface{}{
-		"formType":       formType,
-		"formData":       payload,
-		"requestId":      reqID,
-		"correlationKey": reqID,
+		"formType":        formType,
+		"formData":        payload,
+		"requestId":       reqID,
+		"correlationKey":  reqID,
 		"operationsEmail": h.config.Integrations.Internal.OperationsAlertEmail,
 		"operationsName":  h.config.Integrations.Internal.OperationsAlertName,
-		"marketingEmail":   h.config.Integrations.Internal.MarketingAlertEmail,
-		"marketingName":    h.config.Integrations.Internal.MarketingAlertName,
+		"marketingEmail":  h.config.Integrations.Internal.MarketingAlertEmail,
+		"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
@@ -1713,11 +1707,6 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	}
 }
 
-
-
-
-
-
 // ============================================================================
 // ADMIN ENDPOINTS
 // ============================================================================
@@ -1926,7 +1915,6 @@ func waitForRedisResponse(ctx context.Context, client *redis.Client, correlation
 		return nil, ctx.Err()
 	}
 }
-
 
 func (h *WorkflowHandler) completeLoginFlow(
 	c *gin.Context,
