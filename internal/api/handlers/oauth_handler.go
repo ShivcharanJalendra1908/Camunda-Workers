@@ -244,7 +244,7 @@ func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,
 	)
-
+	
 	// Also clear the legacy session_id cookie just in case
 	c.SetCookie(
 		"session_id",
