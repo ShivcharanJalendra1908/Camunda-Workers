@@ -13,6 +13,10 @@ import (
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/camunda"
+<<<<<<< HEAD
+=======
+	"camunda-workers/internal/common/config"
+>>>>>>> cc805f0 (fix:build error)
 	"camunda-workers/internal/common/constants"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/models"
