@@ -162,8 +162,13 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		keycloakCfg.URL,
 		keycloakCfg.Realm,
 		keycloakCfg.ClientID,
-		url.QueryEscape(keycloakCfg.PostLoginRedirectURI), // Redirect back home
+		url.QueryEscape(keycloakCfg.PostLoginRedirectURI),
 	)
+
+	// Add id_token_hint for silent logout
+	if idToken != "" {
+		logoutURL += "&id_token_hint=" + idToken
+	}
 
 	h.log.Info("OAuthLogout: Performing seamless OIDC redirect", map[string]interface{}{
 		"requestId": requestID,
