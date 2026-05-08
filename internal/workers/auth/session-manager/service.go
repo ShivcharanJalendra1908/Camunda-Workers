@@ -89,6 +89,7 @@ func (s *Service) handleCreate(ctx context.Context, input *Input) (*Output, erro
 		UserID:            input.UserID,
 		KeycloakUserID:    input.KeycloakUserID,
 		IDToken:           input.IDToken,
+		RefreshToken:      input.RefreshToken,
 		CreatedAt:         now,
 		AbsoluteExpiresAt: expiresAt,
 		ExpiresAt:         expiresAt,

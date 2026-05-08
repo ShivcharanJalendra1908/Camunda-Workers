@@ -15,6 +15,7 @@ type Session struct {
 	CSRFToken         string    `json:"csrf_token"`
 	KeycloakUserID    string    `json:"keycloak_user_id"`
 	IDToken           string    `json:"id_token"`
+	RefreshToken      string    `json:"refresh_token"`
 	UserAgent         string    `json:"user_agent"`
 	IP                string    `json:"ip"`
 }

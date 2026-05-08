@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	apierrors "camunda-workers/internal/api/errors"
@@ -67,11 +68,12 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 		return
 	}
 
-	var userID, keycloakUserID, idToken string
+	var userID, keycloakUserID, idToken, refreshToken string
 	sess, err := h.sessionStore.Get(ctx, sessionID)
 	if err == nil && sess != nil {
 		userID = sess.UserID
 		idToken = sess.IDToken
+		refreshToken = sess.RefreshToken
 		// Resolve Keycloak Internal ID from identities table
 		if h.db != nil {
 			_ = h.db.QueryRowContext(ctx,
@@ -83,16 +85,23 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	// Step 1: Trigger Camunda process (LogoutWorkflow) for background cleanup
 	if h.camundaClient != nil {
 
-		// Direct Server-to-Server Logout using id_token_hint (Bypasses Admin Credentials & CORS)
-		if idToken != "" {
+		// Direct Server-to-Server Logout using refresh_token (Bypasses Admin Credentials & CORS)
+		if refreshToken != "" {
 			go func(token string) {
 				keycloakCfg := h.config.Auth.Keycloak
-				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?id_token_hint=%s",
-					keycloakCfg.URL, keycloakCfg.Realm, token)
+				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout",
+					keycloakCfg.URL, keycloakCfg.Realm)
 
+				data := url.Values{}
+				data.Set("client_id", keycloakCfg.ClientID)
+				data.Set("refresh_token", token)
+
+				req, _ := http.NewRequest("POST", logoutURL, strings.NewReader(data.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				
 				// Fire and forget server-side logout request
-				_, _ = http.Get(logoutURL)
-			}(idToken)
+				_, _ = http.DefaultClient.Do(req)
+			}(refreshToken)
 		}
 
 		variables := map[string]interface{}{
@@ -154,31 +163,13 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	h.clearSessionCookie(c)
 
 	// Professional Seamless Logout:
-	// We return 200 OK to avoid CORS/Connection Reset issues with fetch.
-	// The body contains a script that performs a top-level navigation to Keycloak.
-	// Keycloak will then clear the cookies and redirect the user back to the Home page.
-	
-	keycloakCfg := h.config.Auth.Keycloak
-	logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
-		keycloakCfg.URL,
-		keycloakCfg.Realm,
-		keycloakCfg.ClientID,
-		url.QueryEscape(keycloakCfg.PostLoginRedirectURI),
-	)
-
-	// Add id_token_hint for silent logout
-	if idToken != "" {
-		logoutURL += "&id_token_hint=" + idToken
-	}
-
-	h.log.Info("OAuthLogout: Performing seamless OIDC redirect", map[string]interface{}{
-		"requestId": requestID,
-		"target":    logoutURL,
+	// Since the backend now securely revokes the Keycloak session using the refresh_token,
+	// we no longer need to force the browser to navigate to Keycloak.
+	// We can safely return a 200 OK JSON response for the frontend's fetch call.
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Logged out successfully",
 	})
-
-	html := fmt.Sprintf(`<html><body onload="window.location.replace('%s')"></body></html>`, logoutURL)
-	c.Header("Content-Type", "text/html")
-	c.String(http.StatusOK, html)
 }
 
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {

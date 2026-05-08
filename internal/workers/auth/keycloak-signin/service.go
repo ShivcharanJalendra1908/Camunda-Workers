@@ -193,6 +193,7 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 		IsNewUser:       isNewUser,
 		KeycloakUserID:  identity.ProviderUserID,
 		IDToken:         identity.IDToken,
+		RefreshToken:    identity.RefreshToken,
 		AuthenticatedAt: time.Now(),
 	}, nil
 }

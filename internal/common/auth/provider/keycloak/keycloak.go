@@ -150,5 +150,6 @@ func (p *Provider) ExchangeCode(
 		FirstName:      firstName,
 		LastName:       lastName,
 		IDToken:        rawIDToken,
+		RefreshToken:   token.RefreshToken,
 	}, nil
 }
