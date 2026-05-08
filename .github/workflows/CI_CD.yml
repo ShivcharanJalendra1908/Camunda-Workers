@@ -121,4 +121,7 @@ jobs:
             echo "Starting updated containers..."
             docker compose up -d --remove-orphans
 
+            echo "Cleaning old Docker resources..."
+            docker system prune -af
+
             echo "Deployment completed."
