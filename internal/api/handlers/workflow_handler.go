@@ -1657,7 +1657,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		// silently fresh login initiate karo - Amazon/Flipkart style
 		isCallback := c.Query("code") != ""
 		if isCallback {
-			h.initiateFreshLogin(c)
+			h.initiateFreshLogin(c, false) // Silent redirect on callback error
 			return
 		}
 		c.JSON(http.StatusOK, response)
@@ -1682,7 +1682,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// Callback error - initiate fresh login
 				isCallbackCache := c.Query("code") != ""
 				if isCallbackCache {
-					h.initiateFreshLogin(c)
+					h.initiateFreshLogin(c, false) // Silent redirect on callback error
 					return
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
@@ -2057,12 +2057,14 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	})
 
 	// No code = Keycloak error (session expired, auth failed, user cancelled)
-	// → silently start fresh login so user sees Keycloak login page again
+	// → Redirect directly to fresh login initiation
+	// Skip bridge page here for login-page timeouts to avoid double-login frustration
 	if code == "" || state == "" {
-		h.logger.Warn("OAuth callback missing code/state — initiating fresh login", map[string]interface{}{
+		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
 		})
-		h.initiateFreshLogin(c)
+		
+		h.initiateFreshLogin(c, false) // Silent redirect
 		return
 	}
 
@@ -2077,7 +2079,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 // initiateFreshLogin starts a new login workflow and redirects the user
 // directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
-func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
+func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 	ctx := c.Request.Context()
 	correlationKey := uuid.New().String()
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
@@ -2118,8 +2120,20 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				// Show bridge page with message before redirecting to fresh login
-				h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
+				// Force login screen by adding prompt=login and max_age=0
+				if strings.Contains(authURL, "?") {
+					authURL += "&prompt=login&max_age=0"
+				} else {
+					authURL += "?prompt=login&max_age=0"
+				}
+
+				if showBridge {
+					// Show bridge page with message before redirecting to fresh login
+					h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
+				} else {
+					// Silent redirect
+					c.Redirect(http.StatusFound, authURL)
+				}
 				return
 			}
 		}
