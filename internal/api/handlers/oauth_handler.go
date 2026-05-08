@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	apierrors "camunda-workers/internal/api/errors"
@@ -151,27 +152,27 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 	// Clear cookie
 	h.clearSessionCookie(c)
 
-	// Keycloak logout is handled via background Camunda worker now
+	// Professional Seamless Logout:
+	// We return 200 OK to avoid CORS/Connection Reset issues with fetch.
+	// The body contains a script that performs a top-level navigation to Keycloak.
+	// Keycloak will then clear the cookies and redirect the user back to the Home page.
+	
+	keycloakCfg := h.config.Auth.Keycloak
+	logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
+		keycloakCfg.URL,
+		keycloakCfg.Realm,
+		keycloakCfg.ClientID,
+		url.QueryEscape(keycloakCfg.PostLoginRedirectURI), // Redirect back home
+	)
 
-	// Forced Browser Cookie Cleanup (Keycloak common cookies)
-	// Since we are on the same domain, we can attempt to expire them
-	cookiesToClear := []string{"KEYCLOAK_IDENTITY", "KEYCLOAK_SESSION", "KEYCLOAK_REMEMBER_ME"}
-	domain := h.cookieDomain
-	for _, cookieName := range cookiesToClear {
-		c.SetCookie(cookieName, "", -1, "/", domain, true, true)
-		c.SetCookie(cookieName, "", -1, "/realms", domain, true, true)
-	}
-
-	h.log.Info("OAuthLogout: Triggered background cleanup and cookie wipe, returning success to frontend", map[string]interface{}{
+	h.log.Info("OAuthLogout: Performing seamless OIDC redirect", map[string]interface{}{
 		"requestId": requestID,
+		"target":    logoutURL,
 	})
 
-	// Since frontend uses fetch, any 302 redirect causes a CORS error.
-	// We return 200 OK so the frontend fetch succeeds and the frontend can smoothly route the user to Home.
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Logged out successfully",
-	})
+	html := fmt.Sprintf(`<html><body onload="window.location.replace('%s')"></body></html>`, logoutURL)
+	c.Header("Content-Type", "text/html")
+	c.String(http.StatusOK, html)
 }
 
 func (h *OAuthHandler) LogoutAll(c *gin.Context) {
