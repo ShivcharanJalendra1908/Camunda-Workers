@@ -2133,22 +2133,55 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				// Redirect to Keycloak logout to completely destroy the session internally.
-				// We use the frontend login page as the redirect URI so the user seamlessly re-enters the flow.
-				logoutRedirectURL := h.config.Auth.Keycloak.LoginRedirectURI // Example: "https://lemici.com/login"
-
-				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
-					h.config.Auth.Keycloak.URL,
-					h.config.Auth.Keycloak.Realm,
-					url.QueryEscape(logoutRedirectURL),
-					h.config.Auth.Keycloak.ClientID,
-				)
-
-				if showBridge {
-					h.renderRedirectPage(c, logoutURL, "Session Expired", "Your session has expired. Redirecting you to login...")
-				} else {
-					c.Redirect(http.StatusFound, logoutURL)
+				// NUCLEAR COOKIE DELETION (Internal Logout Bypass)
+				// We forcefully clear Keycloak cookies from the browser to prevent "Account Collision".
+				// Since we don't have the Keycloak Session ID server-side, this is the most reliable way 
+				// to ensure a fresh login without 400 Bad Request errors.
+				kcURL, err := url.Parse(h.config.Auth.Keycloak.URL)
+				kcDomain := ""
+				if err == nil {
+					kcDomain = kcURL.Hostname()
 				}
+				
+				kcPath := fmt.Sprintf("/realms/%s/", h.config.Auth.Keycloak.Realm)
+				kcPathNoSlash := fmt.Sprintf("/realms/%s", h.config.Auth.Keycloak.Realm)
+				
+				cookieNames := []string{
+					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY", 
+					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
+					"KEYCLOAK_REMEMBER_ME", "KC_RESTART",
+				}
+				
+				for _, name := range cookieNames {
+					clearCookie := func(domain, path string) {
+						http.SetCookie(c.Writer, &http.Cookie{
+							Name:     name,
+							Value:    "",
+							Path:     path,
+							Domain:   domain,
+							MaxAge:   -1,
+							Secure:   true,
+							HttpOnly: true,
+							SameSite: http.SameSiteNoneMode,
+						})
+					}
+					clearCookie(kcDomain, kcPath)
+					clearCookie(kcDomain, kcPathNoSlash)
+					clearCookie(kcDomain, "/")
+					clearCookie("", kcPath)
+					clearCookie("", kcPathNoSlash)
+					clearCookie("", "/")
+				}
+
+				// Append prompt=login to force Keycloak to ignore any server-side session state
+				if strings.Contains(authURL, "?") {
+					authURL += "&prompt=login&max_age=0"
+				} else {
+					authURL += "?prompt=login&max_age=0"
+				}
+
+				// SILENT REDIRECT: No bridge page, no extra clicks.
+				c.Redirect(http.StatusFound, authURL)
 				return
 			}
 		}

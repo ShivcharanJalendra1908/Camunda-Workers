@@ -7,7 +7,7 @@ camunda:
     enabled: true
     client_id: "worker-client"
     client_secret: "worker-secret"
-    token_url: "https://dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
+    token_url: "https://us-dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
     audience: "zeebe-api"
 
   auth:
