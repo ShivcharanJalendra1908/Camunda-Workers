@@ -2132,19 +2132,21 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				// Force login screen by adding prompt=login and max_age=0
-				if strings.Contains(authURL, "?") {
-					authURL += "&prompt=login&max_age=0"
-				} else {
-					authURL += "?prompt=login&max_age=0"
-				}
+				// Redirect to Keycloak logout to completely destroy the session internally.
+				// We use the frontend login page as the redirect URI so the user seamlessly re-enters the flow.
+				logoutRedirectURL := h.config.Auth.Keycloak.LoginRedirectURI // Example: "https://lemici.com/login"
+				
+				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
+					h.config.Auth.Keycloak.URL,
+					h.config.Auth.Keycloak.Realm,
+					url.QueryEscape(logoutRedirectURL),
+					h.config.Auth.Keycloak.ClientID,
+				)
 
 				if showBridge {
-					// Show bridge page with message before redirecting to fresh login
-					h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
+					h.renderRedirectPage(c, logoutURL, "Session Expired", "Your session has expired. Redirecting you to login...")
 				} else {
-					// Silent redirect
-					c.Redirect(http.StatusFound, authURL)
+					c.Redirect(http.StatusFound, logoutURL)
 				}
 				return
 			}
