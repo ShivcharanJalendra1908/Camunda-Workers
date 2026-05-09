@@ -237,320 +237,8 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 }
 
 // ============================================================================
-// AUTHENTICATION WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartGoogleSignup(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		Email       string                 `json:"email" binding:"required,email"`
-		RedirectURI string                 `json:"redirectUri"`
-		FirstName   string                 `json:"firstName"`
-		LastName    string                 `json:"lastName"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate names if provided
-	if input.FirstName != "" {
-		if err := h.validateString(input.FirstName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-			return
-		}
-		input.FirstName = h.sanitizeInput(input.FirstName)
-	}
-
-	if input.LastName != "" {
-		if err := h.validateString(input.LastName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-			return
-		}
-		input.LastName = h.sanitizeInput(input.LastName)
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"email":        input.Email,
-		"redirectUri":  input.RedirectURI,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "google",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartLinkedInSignup(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		Email       string                 `json:"email" binding:"required,email"`
-		RedirectURI string                 `json:"redirectUri"`
-		FirstName   string                 `json:"firstName"`
-		LastName    string                 `json:"lastName"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate names if provided
-	if input.FirstName != "" {
-		if err := h.validateString(input.FirstName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-			return
-		}
-		input.FirstName = h.sanitizeInput(input.FirstName)
-	}
-
-	if input.LastName != "" {
-		if err := h.validateString(input.LastName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-			return
-		}
-		input.LastName = h.sanitizeInput(input.LastName)
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"email":        input.Email,
-		"redirectUri":  input.RedirectURI,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "linkedin",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartGoogleSignin(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		State       string                 `json:"state"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"state":        input.State,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "google",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartLinkedInSignin(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		State       string                 `json:"state"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"state":        input.State,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "linkedin",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
-	var input struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate password
-	if err := h.validateString(input.Password, 8, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"email":        input.Email,
-		"password":     input.Password,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-login-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
 // USER MANAGEMENT WORKFLOWS
 // ============================================================================
-
-func (h *WorkflowHandler) StartUserSignup(c *gin.Context) {
-	var input struct {
-		Email     string `json:"email" binding:"required,email"`
-		Password  string `json:"password" binding:"required,min=8"`
-		FirstName string `json:"firstName" binding:"required"`
-		LastName  string `json:"lastName" binding:"required"`
-		Phone     string `json:"phone"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate password
-	if err := h.validateString(input.Password, 8, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
-		return
-	}
-
-	// Validate names
-	if err := h.validateString(input.FirstName, 1, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-		return
-	}
-
-	if err := h.validateString(input.LastName, 1, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-		return
-	}
-
-	// Validate phone if provided
-	if input.Phone != "" {
-		if err := h.validatePhone(input.Phone); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid phone number: " + err.Error()})
-			return
-		}
-	}
-
-	// Sanitize inputs
-	input.FirstName = h.sanitizeInput(input.FirstName)
-	input.LastName = h.sanitizeInput(input.LastName)
-	input.Phone = h.sanitizeInput(input.Phone)
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"email":        input.Email,
-		"password":     input.Password,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"phone":        input.Phone,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
 
 func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	var input struct {
@@ -1549,6 +1237,10 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// ============================================================================
+// AUTHENTICATION WORKFLOWS
+// ============================================================================
+
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
 		Code        string                 `json:"code"`
@@ -2145,16 +1837,16 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 				if err == nil {
 					kcDomain = kcURL.Hostname()
 				}
-				
+
 				kcPath := fmt.Sprintf("/realms/%s/", h.config.Auth.Keycloak.Realm)
 				kcPathNoSlash := fmt.Sprintf("/realms/%s", h.config.Auth.Keycloak.Realm)
-				
+
 				cookieNames := []string{
-					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY", 
+					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY",
 					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
 					"KEYCLOAK_REMEMBER_ME", "KC_RESTART",
 				}
-				
+
 				for _, name := range cookieNames {
 					clearCookie := func(domain, path string) {
 						http.SetCookie(c.Writer, &http.Cookie{
