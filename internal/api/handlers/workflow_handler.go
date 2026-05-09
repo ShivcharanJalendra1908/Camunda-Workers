@@ -1659,7 +1659,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		// silently fresh login initiate karo - Amazon/Flipkart style
 		isCallback := c.Query("code") != ""
 		if isCallback {
-			h.initiateFreshLogin(c, false) // Silent redirect on callback error
+			h.initiateFreshLogin(c) // Silent redirect on callback error
 			return
 		}
 		c.JSON(http.StatusOK, response)
@@ -1684,7 +1684,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// Callback error - initiate fresh login
 				isCallbackCache := c.Query("code") != ""
 				if isCallbackCache {
-					h.initiateFreshLogin(c, false) // Silent redirect on callback error
+					h.initiateFreshLogin(c) // Silent redirect on callback error
 					return
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
@@ -1700,7 +1700,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			}
 		}
 		h.logger.Warn("Keycloak login timeout - initiating silent deep clean", map[string]interface{}{"correlationKey": correlationKey})
-		h.initiateFreshLogin(c, false)
+		h.initiateFreshLogin(c)
 		return
 
 	case <-ctx.Done():
@@ -2069,15 +2069,22 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 		"hasState":  state != "",
 	})
 
-	// No code = Keycloak error (session expired, auth failed, user cancelled)
-	// → Redirect directly to fresh login initiation
-	// Skip bridge page here for login-page timeouts to avoid double-login frustration
-	if code == "" || state == "" {
-		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
+	// Deep Clean Recovery: If we are coming back from a session logout
+	if c.Query("restart_login") == "true" {
+		h.logger.Info("Restarting login flow after deep clean", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
 		})
-		
-		h.initiateFreshLogin(c, false) // Silent redirect
+		h.initiateFreshLogin(c)
+		return
+	}
+
+	// No code = Keycloak error (session expired, auth failed, user cancelled)
+	// → Redirect directly to fresh login initiation
+	if code == "" || state == "" {
+		h.logger.Warn("OAuth callback missing code/state — initiating deep clean", map[string]interface{}{
+			"requestId": c.GetString("requestId"),
+		})
+		h.initiateFreshLogin(c)
 		return
 	}
 
@@ -2092,7 +2099,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 // initiateFreshLogin starts a new login workflow and redirects the user
 // directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
-func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
+func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	correlationKey := uuid.New().String()
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
@@ -2136,30 +2143,25 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 				// PROFESSIONAL SILENT FIX: Sanitize and Restart
 				// We skip the bridge page to keep the flow seamless.
 				// The Login page itself shows "Session Timeout! Please try again." via the Keycloak theme.
-				
-				// Force login screen by adding prompt=login and max_age=0
-				if strings.Contains(authURL, "?") {
-					authURL += "&prompt=login&max_age=0"
-				} else {
-					authURL += "?prompt=login&max_age=0"
+				// If we already went through the Deep Clean loop, redirect straight to the new login page!
+				if c.Query("restart_login") == "true" {
+					c.Redirect(http.StatusFound, authURL)
+					return
 				}
 
-				// Construct the Deep Clean URL: Keycloak Logout -> Redirect back to OUR Login Gateway
-				// We MUST point to the /login endpoint, not the /callback URL.
-				// h.config.Auth.Keycloak.RedirectURL is usually the callback, so we derive the login URL.
-				baseGatewayURL := strings.TrimSuffix(h.config.Auth.Keycloak.RedirectURL, "/callback")
-				if !strings.HasSuffix(baseGatewayURL, "/login") {
-					baseGatewayURL += "/login"
-				}
-				
+				// DEEP CLEAN RESTART (First Pass)
+				// We use the whitelisted callback URL with a special flag to bypass whitelist issues.
+				// This ensures Keycloak clears the session and then we handle the restart.
+				recoveryURL := h.config.Auth.Keycloak.RedirectURL + "?restart_login=true"
+
 				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
 					h.config.Auth.Keycloak.URL,
 					h.config.Auth.Keycloak.Realm,
-					url.QueryEscape(baseGatewayURL),
+					url.QueryEscape(recoveryURL),
 					h.config.Auth.Keycloak.ClientID,
 				)
 
-				// Always Silent deep clean redirect for maximum speed and zero redundancy
+				// Redirect to Logout to clear Keycloak ghost session
 				c.Redirect(http.StatusFound, logoutURL)
 				return
 			}
