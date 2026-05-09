@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -237,8 +236,320 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 }
 
 // ============================================================================
+// AUTHENTICATION WORKFLOWS
+// ============================================================================
+
+func (h *WorkflowHandler) StartGoogleSignup(c *gin.Context) {
+	var input struct {
+		AuthCode    string                 `json:"authCode" binding:"required"`
+		Email       string                 `json:"email" binding:"required,email"`
+		RedirectURI string                 `json:"redirectUri"`
+		FirstName   string                 `json:"firstName"`
+		LastName    string                 `json:"lastName"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate email
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+
+	// Validate names if provided
+	if input.FirstName != "" {
+		if err := h.validateString(input.FirstName, 1, 100); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
+			return
+		}
+		input.FirstName = h.sanitizeInput(input.FirstName)
+	}
+
+	if input.LastName != "" {
+		if err := h.validateString(input.LastName, 1, 100); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
+			return
+		}
+		input.LastName = h.sanitizeInput(input.LastName)
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"authCode":     input.AuthCode,
+		"email":        input.Email,
+		"redirectUri":  input.RedirectURI,
+		"firstName":    input.FirstName,
+		"lastName":     input.LastName,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"provider":     "google",
+		"requestId":    uuid.New().String(),
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *WorkflowHandler) StartLinkedInSignup(c *gin.Context) {
+	var input struct {
+		AuthCode    string                 `json:"authCode" binding:"required"`
+		Email       string                 `json:"email" binding:"required,email"`
+		RedirectURI string                 `json:"redirectUri"`
+		FirstName   string                 `json:"firstName"`
+		LastName    string                 `json:"lastName"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate email
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+
+	// Validate names if provided
+	if input.FirstName != "" {
+		if err := h.validateString(input.FirstName, 1, 100); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
+			return
+		}
+		input.FirstName = h.sanitizeInput(input.FirstName)
+	}
+
+	if input.LastName != "" {
+		if err := h.validateString(input.LastName, 1, 100); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
+			return
+		}
+		input.LastName = h.sanitizeInput(input.LastName)
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"authCode":     input.AuthCode,
+		"email":        input.Email,
+		"redirectUri":  input.RedirectURI,
+		"firstName":    input.FirstName,
+		"lastName":     input.LastName,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"provider":     "linkedin",
+		"requestId":    uuid.New().String(),
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *WorkflowHandler) StartGoogleSignin(c *gin.Context) {
+	var input struct {
+		AuthCode    string                 `json:"authCode" binding:"required"`
+		RedirectURI string                 `json:"redirectUri"`
+		State       string                 `json:"state"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"authCode":     input.AuthCode,
+		"redirectUri":  input.RedirectURI,
+		"state":        input.State,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"provider":     "google",
+		"requestId":    uuid.New().String(),
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *WorkflowHandler) StartLinkedInSignin(c *gin.Context) {
+	var input struct {
+		AuthCode    string                 `json:"authCode" binding:"required"`
+		RedirectURI string                 `json:"redirectUri"`
+		State       string                 `json:"state"`
+		Metadata    map[string]interface{} `json:"metadata"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"authCode":     input.AuthCode,
+		"redirectUri":  input.RedirectURI,
+		"state":        input.State,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"provider":     "linkedin",
+		"requestId":    uuid.New().String(),
+	}
+
+	if input.Metadata != nil {
+		variables["metadata"] = input.Metadata
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
+	var input struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate email
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+
+	// Validate password
+	if err := h.validateString(input.Password, 8, 100); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"email":        input.Email,
+		"password":     input.Password,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"requestId":    uuid.New().String(),
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "user-login-workflow", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================================
 // USER MANAGEMENT WORKFLOWS
 // ============================================================================
+
+func (h *WorkflowHandler) StartUserSignup(c *gin.Context) {
+	var input struct {
+		Email     string `json:"email" binding:"required,email"`
+		Password  string `json:"password" binding:"required,min=8"`
+		FirstName string `json:"firstName" binding:"required"`
+		LastName  string `json:"lastName" binding:"required"`
+		Phone     string `json:"phone"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate email
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+
+	// Validate password
+	if err := h.validateString(input.Password, 8, 100); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
+		return
+	}
+
+	// Validate names
+	if err := h.validateString(input.FirstName, 1, 100); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
+		return
+	}
+
+	if err := h.validateString(input.LastName, 1, 100); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
+		return
+	}
+
+	// Validate phone if provided
+	if input.Phone != "" {
+		if err := h.validatePhone(input.Phone); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid phone number: " + err.Error()})
+			return
+		}
+	}
+
+	// Sanitize inputs
+	input.FirstName = h.sanitizeInput(input.FirstName)
+	input.LastName = h.sanitizeInput(input.LastName)
+	input.Phone = h.sanitizeInput(input.Phone)
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"email":        input.Email,
+		"password":     input.Password,
+		"firstName":    input.FirstName,
+		"lastName":     input.LastName,
+		"phone":        input.Phone,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"requestId":    uuid.New().String(),
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
+	c.JSON(http.StatusOK, response)
+}
 
 func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	var input struct {
@@ -265,6 +576,38 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "user-profile-update", variables)
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *WorkflowHandler) StartPasswordReset(c *gin.Context) {
+	var input struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate email
+	if err := h.validateEmail(input.Email); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil {
+		claims = &middleware.Claims{}
+	}
+
+	variables := map[string]interface{}{
+		"email":        input.Email,
+		"sessionId":    claims.SessionID,
+		"sourceSystem": claims.SourceSystem,
+		"requestId":    uuid.New().String(),
+	}
+
+	response := h.startWorkflow(c.Request.Context(), "password-reset-workflow", variables)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -1205,10 +1548,6 @@ func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// ============================================================================
-// AUTHENTICATION WORKFLOWS
-// ============================================================================
-
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
 		Code        string                 `json:"code"`
@@ -1319,7 +1658,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		// silently fresh login initiate karo - Amazon/Flipkart style
 		isCallback := c.Query("code") != ""
 		if isCallback {
-			h.initiateFreshLogin(c) // Silent redirect on callback error
+			h.initiateFreshLogin(c, false) // Silent redirect on callback error
 			return
 		}
 		c.JSON(http.StatusOK, response)
@@ -1344,7 +1683,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// Callback error - initiate fresh login
 				isCallbackCache := c.Query("code") != ""
 				if isCallbackCache {
-					h.initiateFreshLogin(c) // Silent redirect on callback error
+					h.initiateFreshLogin(c, false) // Silent redirect on callback error
 					return
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
@@ -1718,15 +2057,16 @@ func (h *WorkflowHandler) completeLoginFlow(
 }
 
 func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
-
 	code := c.Query("code")
 	state := c.Query("state")
+	errParam := c.Query("error") // ✅ Keycloak error capture karo
 
 	h.logger.Info("OAuth callback received", map[string]interface{}{
 		"requestId": c.GetString("requestId"),
 		"traceId":   c.GetString("traceId"),
 		"hasCode":   code != "",
 		"hasState":  state != "",
+		"error":     errParam,
 	})
 
 	// No code = Keycloak error (session expired, auth failed, user cancelled)
@@ -1735,7 +2075,11 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	if code == "" || state == "" {
 		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
+			"error":     errParam,
 		})
+
+		// ✅ Orphan Keycloak session background mein kill karo
+		go h.revokeKeycloakOrphanSession(context.Background())
 
 		h.initiateFreshLogin(c) // Silent redirect
 		return
@@ -1795,23 +2139,21 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
 				// NUCLEAR COOKIE DELETION (Internal Logout Bypass)
 				// We forcefully clear Keycloak cookies from the browser to prevent "Account Collision".
-				// Since we don't have the Keycloak Session ID server-side, this is the most reliable way
-				// to ensure a fresh login without 400 Bad Request errors.
 				kcURL, err := url.Parse(h.config.Auth.Keycloak.URL)
 				kcDomain := ""
 				if err == nil {
 					kcDomain = kcURL.Hostname()
 				}
-
+				
 				kcPath := fmt.Sprintf("/realms/%s/", h.config.Auth.Keycloak.Realm)
 				kcPathNoSlash := fmt.Sprintf("/realms/%s", h.config.Auth.Keycloak.Realm)
-
+				
 				cookieNames := []string{
-					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY",
+					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY", 
 					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
 					"KEYCLOAK_REMEMBER_ME", "KC_RESTART",
 				}
-
+				
 				for _, name := range cookieNames {
 					clearCookie := func(domain, path string) {
 						http.SetCookie(c.Writer, &http.Cookie{
@@ -1833,14 +2175,25 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 					clearCookie("", "/")
 				}
 
-				// Append prompt=login to force Keycloak to ignore any server-side session state
+				// Force login screen by adding prompt=login and max_age=0
 				if strings.Contains(authURL, "?") {
 					authURL += "&prompt=login&max_age=0"
 				} else {
 					authURL += "?prompt=login&max_age=0"
 				}
 
-				// SILENT REDIRECT: No bridge page, no extra clicks.
+				// ✅ Timeout cookie set karo
+				http.SetCookie(c.Writer, &http.Cookie{
+					Name:     "session_timeout",
+					Value:    "true",
+					Path:     "/",
+					MaxAge:   300,
+					HttpOnly: false,
+					Secure:   true,
+					SameSite: http.SameSiteLaxMode,
+				})
+
+				// Silent redirect
 				c.Redirect(http.StatusFound, authURL)
 				return
 			}
@@ -1848,6 +2201,17 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	case <-time.After(10 * time.Second):
 		h.logger.Warn("initiateFreshLogin: timed out waiting for auth URL", map[string]interface{}{"correlationKey": correlationKey})
 	}
+
+	// ✅ Fallback cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "session_timeout",
+		Value:    "true",
+		Path:     "/",
+		MaxAge:   300,
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	// Final fallback — home page (config driven, no hardcoding)
 	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
@@ -1996,4 +2360,74 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 </body>
 </html>`, title, message, redirectURL, redirectURL)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+// revokeKeycloakOrphanSession — failed PKCE ke baad Keycloak ka orphan session kill karta hai
+func (h *WorkflowHandler) revokeKeycloakOrphanSession(ctx context.Context) {
+	cfg := h.config.Auth.Keycloak
+
+	// Step 1: Admin credentials se token lo
+	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
+		cfg.URL, cfg.Realm)
+
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("client_id", cfg.AdminClientID)         // ✅ already hai
+	data.Set("client_secret", cfg.AdminClientSecret) // ✅ already hai
+
+	resp, err := http.PostForm(tokenURL, data)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		h.logger.Warn("revokeKeycloakOrphanSession: admin token failed", map[string]interface{}{"error": err})
+		return
+	}
+	defer resp.Body.Close()
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil || tokenResp.AccessToken == "" {
+		return
+	}
+
+	// Step 2: ClientID se internal UUID dynamically fetch karo
+	clientsURL := fmt.Sprintf("%s/admin/realms/%s/clients?clientId=%s",
+		cfg.URL, cfg.Realm, cfg.ClientID) // ✅ ClientID already hai
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, clientsURL, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+
+	clientResp, err := http.DefaultClient.Do(req)
+	if err != nil || clientResp.StatusCode != http.StatusOK {
+		h.logger.Warn("revokeKeycloakOrphanSession: client lookup failed", map[string]interface{}{"error": err})
+		return
+	}
+	defer clientResp.Body.Close()
+
+	var clients []struct {
+		ID string `json:"id"` // yeh internal UUID hai
+	}
+	if err := json.NewDecoder(clientResp.Body).Decode(&clients); err != nil || len(clients) == 0 {
+		return
+	}
+
+	clientUUID := clients[0].ID
+
+	// Step 3: Is client ke orphan sessions delete karo
+	sessionsURL := fmt.Sprintf("%s/admin/realms/%s/clients/%s/user-sessions",
+		cfg.URL, cfg.Realm, clientUUID)
+
+	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, sessionsURL, nil)
+	delReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+
+	delResp, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		h.logger.Warn("revokeKeycloakOrphanSession: delete failed", map[string]interface{}{"error": err})
+		return
+	}
+	defer delResp.Body.Close()
+
+	h.logger.Info("revokeKeycloakOrphanSession: done", map[string]interface{}{
+		"clientUUID": clientUUID,
+		"status":     delResp.StatusCode,
+	})
 }
