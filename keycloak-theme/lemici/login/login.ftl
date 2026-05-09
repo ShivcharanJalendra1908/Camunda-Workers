@@ -6,6 +6,32 @@
             <p>Signing up is quick and easy. <br> Let's get started on something great.</p>
         </div>
     <#elseif section = "form">
+        <div id="session-timeout-banner" style="
+            display: none;
+            background: rgba(251,191,36,0.10);
+            border: 1px solid rgba(251,191,36,0.35);
+            border-radius: 10px;
+            padding: 0.7rem 1rem;
+            margin-bottom: 1.2rem;
+            color: #fbbf24;
+            font-size: 0.875rem;
+            text-align: center;
+        ">
+            ⏱&nbsp; ${msg("reauthenticate")}
+        </div>
+
+        <script>
+        (function () {
+            var hasCookie = document.cookie.split(';').some(function (c) {
+                return c.trim() === 'session_timeout=true';
+            });
+            if (hasCookie) {
+                document.getElementById('session-timeout-banner').style.display = 'block';
+                document.cookie = 'session_timeout=; Max-Age=0; path=/; Secure; SameSite=Lax';
+            }
+        })();
+        </script>
+
         <div id="kc-form">
             <div id="kc-form-wrapper">
                 <#if realm.password>
