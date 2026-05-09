@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -2075,7 +2076,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
 		})
-		
+
 		h.initiateFreshLogin(c, false) // Silent redirect
 		return
 	}
@@ -2135,7 +2136,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 				// Redirect to Keycloak logout to completely destroy the session internally.
 				// We use the frontend login page as the redirect URI so the user seamlessly re-enters the flow.
 				logoutRedirectURL := h.config.Auth.Keycloak.LoginRedirectURI // Example: "https://lemici.com/login"
-				
+
 				logoutURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/logout?post_logout_redirect_uri=%s&client_id=%s",
 					h.config.Auth.Keycloak.URL,
 					h.config.Auth.Keycloak.Realm,
