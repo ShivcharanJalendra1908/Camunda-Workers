@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -1659,7 +1658,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		// silently fresh login initiate karo - Amazon/Flipkart style
 		isCallback := c.Query("code") != ""
 		if isCallback {
-			h.initiateFreshLogin(c) // Silent redirect on callback error
+			h.initiateFreshLogin(c, false) // Silent redirect on callback error
 			return
 		}
 		c.JSON(http.StatusOK, response)
@@ -1684,7 +1683,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// Callback error - initiate fresh login
 				isCallbackCache := c.Query("code") != ""
 				if isCallbackCache {
-					h.initiateFreshLogin(c) // Silent redirect on callback error
+					h.initiateFreshLogin(c, false) // Silent redirect on callback error
 					return
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
@@ -1699,9 +1698,9 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				return
 			}
 		}
-		h.logger.Warn("Keycloak login timeout - initiating silent deep clean", map[string]interface{}{"correlationKey": correlationKey})
-		h.initiateFreshLogin(c)
-		return
+		h.logger.Warn("Keycloak login timeout", map[string]interface{}{"correlationKey": correlationKey})
+		c.Error(apierrors.ErrTimeout)
+		c.Abort()
 
 	case <-ctx.Done():
 		c.Error(apierrors.ErrInternalError)
@@ -2071,11 +2070,13 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 	// No code = Keycloak error (session expired, auth failed, user cancelled)
 	// → Redirect directly to fresh login initiation
+	// Skip bridge page here for login-page timeouts to avoid double-login frustration
 	if code == "" || state == "" {
-		h.logger.Warn("OAuth callback missing code/state — initiating deep clean", map[string]interface{}{
+		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
 		})
-		h.initiateFreshLogin(c)
+		
+		h.initiateFreshLogin(c, false) // Silent redirect
 		return
 	}
 
@@ -2090,7 +2091,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 // initiateFreshLogin starts a new login workflow and redirects the user
 // directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
-func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
+func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 	ctx := c.Request.Context()
 	correlationKey := uuid.New().String()
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
@@ -2131,48 +2132,20 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				// THE NUCLEAR OPTION: HARD CLEAR KEYCLOAK COOKIES
-				// Since Keycloak's strict whitelist blocks logout redirects with 400 Bad Request,
-				// we bypass the logout endpoint entirely and forcefully delete Keycloak's browser cookies 
-				// from our same-domain backend. This perfectly destroys the 'Ghost Session'.
-				kcURL, err := url.Parse(h.config.Auth.Keycloak.URL)
-				kcDomain := ""
-				if err == nil {
-					kcDomain = kcURL.Hostname()
-				} else {
-					kcDomain = "dev-api.lemici.com" // Safe fallback
-				}
-
-				kcPath := fmt.Sprintf("/realms/%s/", h.config.Auth.Keycloak.Realm)
-				kcPathNoSlash := fmt.Sprintf("/realms/%s", h.config.Auth.Keycloak.Realm)
-				
-				cookieNames := []string{
-					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY", 
-					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
-					"KEYCLOAK_REMEMBER_ME", "OAuth_Token_Request_State",
-				}
-				
-				// Clear cookies for all possible Keycloak paths, with AND without domain to handle host-only cookies
-				for _, name := range cookieNames {
-					// With Domain
-					c.SetCookie(name, "", -1, kcPath, kcDomain, true, true)
-					c.SetCookie(name, "", -1, kcPathNoSlash, kcDomain, true, true)
-					c.SetCookie(name, "", -1, "/", kcDomain, true, true)
-					
-					// Without Domain (Host-Only Cookies)
-					c.SetCookie(name, "", -1, kcPath, "", true, true)
-					c.SetCookie(name, "", -1, kcPathNoSlash, "", true, true)
-					c.SetCookie(name, "", -1, "/", "", true, true)
-				}
-
+				// Force login screen by adding prompt=login and max_age=0
 				if strings.Contains(authURL, "?") {
 					authURL += "&prompt=login&max_age=0"
 				} else {
 					authURL += "?prompt=login&max_age=0"
 				}
 
-				// Redirect straight to Keycloak — the ghost session is dead, so no collision errors!
-				c.Redirect(http.StatusFound, authURL)
+				if showBridge {
+					// Show bridge page with message before redirecting to fresh login
+					h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
+				} else {
+					// Silent redirect
+					c.Redirect(http.StatusFound, authURL)
+				}
 				return
 			}
 		}
