@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1700,6 +1701,13 @@ func (h *WorkflowHandler) completeLoginFlow(
 					"error":     err.Error(),
 				})
 			}
+
+			// ✅ IDToken se Keycloak user ID nikalo, purane orphan sessions clean karo
+			if sess.IDToken != "" {
+				if kcUserID := extractSubFromJWT(sess.IDToken); kcUserID != "" {
+					go h.revokeUserPreviousKeycloakSessions(context.Background(), kcUserID)
+				}
+			}
 		} else {
 			h.logger.Warn("Session not found during login flow", map[string]interface{}{
 				"sessionId": sessionID,
@@ -1745,11 +1753,6 @@ func (h *WorkflowHandler) completeLoginFlow(
 		return
 	}
 
-	// ✅ Successful login ke baad user ke purane orphan sessions clean karo
-	if keycloakUserID, ok := responsePayload["keycloakUserId"].(string); ok && keycloakUserID != "" {
-		go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID)
-	}
-
 	c.JSON(http.StatusOK, result)
 
 }
@@ -1775,9 +1778,6 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 			"requestId": c.GetString("requestId"),
 			"error":     errParam,
 		})
-
-		// ✅ Orphan Keycloak session background mein kill karo
-		go h.revokeKeycloakOrphanSession(context.Background())
 
 		h.initiateFreshLogin(c) // Silent redirect
 		return
@@ -2061,53 +2061,23 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
-// revokeKeycloakOrphanSession — callback fail hone par saari client sessions delete karo
-func (h *WorkflowHandler) revokeKeycloakOrphanSession(ctx context.Context) {
-	cfg := h.config.Auth.Keycloak
-
-	// Admin token lo
-	adminToken := h.getKeycloakAdminToken(ctx)
-	if adminToken == "" {
-		return
+// extractSubFromJWT — IDToken se Keycloak user UUID (sub claim) nikalta hai — no verification needed
+func extractSubFromJWT(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
 	}
-
-	// ClientID string se internal UUID dhundho
-	clientsURL := fmt.Sprintf("%s/admin/realms/%s/clients?clientId=%s",
-		cfg.URL, cfg.Realm, cfg.ClientID)
-
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, clientsURL, nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return
-	}
-	defer resp.Body.Close()
-
-	var clients []struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&clients); err != nil || len(clients) == 0 {
-		return
-	}
-
-	// Is client ki saari sessions delete karo
-	delURL := fmt.Sprintf("%s/admin/realms/%s/clients/%s/user-sessions",
-		cfg.URL, cfg.Realm, clients[0].ID)
-
-	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
-	delReq.Header.Set("Authorization", "Bearer "+adminToken)
-
-	delResp, err := http.DefaultClient.Do(delReq)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		h.logger.Warn("revokeKeycloakOrphanSession: failed", map[string]interface{}{"error": err})
-		return
+		return ""
 	}
-	defer delResp.Body.Close()
-
-	h.logger.Info("revokeKeycloakOrphanSession: done", map[string]interface{}{
-		"status": delResp.StatusCode,
-	})
+	var claims struct {
+		Sub string `json:"sub"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	return claims.Sub
 }
 
 // revokeUserPreviousKeycloakSessions — successful login ke baad user ke purane sessions hatao
