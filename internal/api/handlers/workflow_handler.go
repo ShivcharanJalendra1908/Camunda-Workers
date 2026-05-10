@@ -1016,229 +1016,6 @@ func (h *WorkflowHandler) GetFullFranchise(c *gin.Context) {
 	})
 }
 
-// ============================================================================
-// CRM WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartCRMSync(c *gin.Context) {
-	var input struct {
-		UserID   string                 `json:"userId"`
-		SyncType string                 `json:"syncType" binding:"required"`
-		Data     map[string]interface{} `json:"data"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate sync type
-	if err := h.validateString(input.SyncType, 1, 50); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sync type: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"syncType":     input.SyncType,
-		"data":         input.Data,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "crm-user-sync", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// EMAIL WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartEmailCampaign(c *gin.Context) {
-	var input struct {
-		CampaignID string   `json:"campaignId" binding:"required"`
-		Recipients []string `json:"recipients" binding:"required"`
-		TemplateID string   `json:"templateId" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate campaign ID
-	if err := h.validateUUID(input.CampaignID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid campaign ID: " + err.Error()})
-		return
-	}
-
-	// Validate template ID
-	if err := h.validateUUID(input.TemplateID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template ID: " + err.Error()})
-		return
-	}
-
-	// Validate recipients
-	if len(input.Recipients) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one recipient is required"})
-		return
-	}
-
-	for i, recipient := range input.Recipients {
-		if err := h.validateEmail(recipient); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid recipient at position %d: %s", i, err.Error())})
-			return
-		}
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"campaignId":   input.CampaignID,
-		"recipients":   input.Recipients,
-		"templateId":   input.TemplateID,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "email-campaign-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartWelcomeSeries(c *gin.Context) {
-	var input struct {
-		UserID string `json:"userId"`
-		Email  string `json:"email" binding:"required,email"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"email":        input.Email,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "welcome-email-series", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// SOCIAL AUTH WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartSocialAuthOrchestration(c *gin.Context) {
-	var input struct {
-		Provider    string                 `json:"provider" binding:"required"`
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate provider
-	validProviders := map[string]bool{
-		"google":   true,
-		"linkedin": true,
-		"facebook": true,
-		"github":   true,
-	}
-
-	if !validProviders[input.Provider] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid provider. Must be one of: google, linkedin, facebook, github"})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"provider":     input.Provider,
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "social-auth-orchestration", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// ERROR HANDLING WORKFLOW
-// ============================================================================
-
-func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
-	var input struct {
-		ErrorCode    string                 `json:"errorCode" binding:"required"`
-		ErrorMessage string                 `json:"errorMessage" binding:"required"`
-		Context      map[string]interface{} `json:"context"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Sanitize error message
-	input.ErrorMessage = h.sanitizeInput(input.ErrorMessage)
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"errorCode":    input.ErrorCode,
-		"errorMessage": input.ErrorMessage,
-		"context":      input.Context,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "error-handling-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
 // AUTHENTICATION WORKFLOWS
 // ============================================================================
 
@@ -1341,7 +1118,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			}
 			response["authorizationUrl"] = authURL
 		}
-		// Initiate flow — authorizationUrl return karo
+		// Initiate flow - authorizationUrl return karo
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
 			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
@@ -1716,48 +1493,20 @@ func (h *WorkflowHandler) completeLoginFlow(
 				})
 			}
 
-			// ✅ DEBUG — dekho tokens hai ya nahi
-			h.logger.Info("completeLoginFlow session debug", map[string]interface{}{
-				"sessionId":       sessionID,
-				"userId":          sess.UserID,
-				"hasIDToken":      sess.IDToken != "",
-				"hasAccessToken":  sess.AccessToken != "",
-				"hasRefreshToken": sess.RefreshToken != "",
-			})
-
-			// ✅ Robust Keycloak user ID identification
+			// Robust Keycloak user ID identification
 			keycloakUserID := ""
 
-			// Source 1: IDToken se (most reliable)
 			if sess.IDToken != "" {
 				keycloakUserID = extractSubFromJWT(sess.IDToken)
-				if keycloakUserID != "" {
-					h.logger.Info("Got keycloakUserID from IDToken", map[string]interface{}{"keycloakUserId": keycloakUserID})
-				}
 			}
 
 			// Source 2: AccessToken se (fallback)
 			if keycloakUserID == "" && sess.AccessToken != "" {
 				keycloakUserID = extractSubFromJWT(sess.AccessToken)
-				if keycloakUserID != "" {
-					h.logger.Info("Got keycloakUserID from AccessToken", map[string]interface{}{"keycloakUserId": keycloakUserID})
-				}
-			}
-
-			// Source 3: Userinfo endpoint (last resort)
-			if keycloakUserID == "" && sess.AccessToken != "" {
-				keycloakUserID = h.fetchKeycloakUserID(context.Background(), sess.AccessToken)
-				if keycloakUserID != "" {
-					h.logger.Info("Got keycloakUserID from userinfo endpoint", map[string]interface{}{"keycloakUserId": keycloakUserID})
-				}
 			}
 
 			if keycloakUserID != "" {
 				go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID)
-			} else {
-				h.logger.Warn("Could not determine keycloakUserID — orphan session cleanup skipped", map[string]interface{}{
-					"sessionId": sessionID,
-				})
 			}
 		} else {
 			h.logger.Warn("Session not found during login flow", map[string]interface{}{
@@ -1811,7 +1560,7 @@ func (h *WorkflowHandler) completeLoginFlow(
 func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
-	errParam := c.Query("error") // ✅ Keycloak error capture karo
+	errParam := c.Query("error") // Keycloak error capture karo
 
 	h.logger.Info("OAuth callback received", map[string]interface{}{
 		"requestId": c.GetString("requestId"),
@@ -2194,9 +1943,6 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 		if err == nil {
 			defer delResp.Body.Close()
 		}
-		h.logger.Info("revokeUserPreviousKeycloakSessions: deleted orphan", map[string]interface{}{
-			"sessionId": s.ID,
-		})
 	}
 }
 
@@ -2228,29 +1974,3 @@ func (h *WorkflowHandler) getKeycloakAdminToken(ctx context.Context) string {
 	return result.AccessToken
 }
 
-// fetchKeycloakUserID — Keycloak userinfo endpoint se sub (Keycloak UUID) fetch karta hai
-func (h *WorkflowHandler) fetchKeycloakUserID(ctx context.Context, accessToken string) string {
-	cfg := h.config.Auth.Keycloak
-	userInfoURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/userinfo",
-		cfg.URL, cfg.Realm)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userInfoURL, nil)
-	if err != nil {
-		return ""
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	var info struct {
-		Sub string `json:"sub"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return ""
-	}
-	return info.Sub
-}

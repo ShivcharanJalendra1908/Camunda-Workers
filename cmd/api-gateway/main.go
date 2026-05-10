@@ -427,34 +427,6 @@ func main() {
 		}
 
 		// ========================================================================
-		// CRM WORKFLOWS
-		// ========================================================================
-		crmGroup := protectedAPI.Group("/crm")
-		{
-			crmGroup.POST("/sync", workflowHandler.StartCRMSync)
-		}
-
-		// ========================================================================
-		// EMAIL WORKFLOWS
-		// ========================================================================
-		emailGroup := protectedAPI.Group("/email")
-		{
-			emailGroup.POST("/campaign", workflowHandler.StartEmailCampaign)
-			emailGroup.POST("/welcome-series", workflowHandler.StartWelcomeSeries)
-		}
-
-		// ========================================================================
-		// SOCIAL AUTH ORCHESTRATION WORKFLOW
-		// ========================================================================
-		socialGroup := protectedAPI.Group("/social")
-		{
-			socialGroup.POST("/auth", workflowHandler.StartSocialAuthOrchestration)
-		}
-
-		// ========================================================================
-		// ERROR HANDLING WORKFLOW
-		// ========================================================================
-		protectedAPI.POST("/error/handle", workflowHandler.StartErrorHandling)
 
 		// ========================================================================
 		// OAUTH ME ENDPOINT (Get current user info)
