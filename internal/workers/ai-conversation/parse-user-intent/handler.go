@@ -105,6 +105,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	// ✅ CREATE WORKER SPAN
@@ -406,6 +409,10 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 		return nil, fmt.Errorf("%w: %v", ErrIntentParsingFailed, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Propagate X-Request-ID for end-to-end tracing
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
 
 	var resp *http.Response
 	var lastErr error

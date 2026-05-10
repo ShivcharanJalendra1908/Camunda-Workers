@@ -664,7 +664,7 @@ func main() {
 		}
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 	}
-	
+
 	// Auth Logout
 	if taskType := "auth-logout"; cfg.Workers[taskType].Enabled {
 		handler, err := alo.NewHandler(alo.HandlerOptions{
@@ -727,7 +727,7 @@ func main() {
 	// Public Forms Worker
 	pfConfig := pf.DefaultConfig()
 	pfHandler := pf.NewPublicFormWorker(log, pg, pfConfig)
-	
+
 	// Register Validation Task
 	zeebeClient.NewJobWorker().
 		JobType("validate-public-form").
@@ -974,6 +974,18 @@ func startWorker(client zbc.Client, taskType string, wcfg config.WorkerConfig, h
 		ctx := context.Background()
 		ctx, span := otel.Tracer("worker-manager").Start(ctx, "worker:"+taskType)
 		start := time.Now()
+
+		// Extract correlation ID from Zeebe job variables
+		var vars map[string]interface{}
+		json.Unmarshal([]byte(j.Variables), &vars)
+		if reqID, ok := vars["x_request_id"].(string); ok && reqID != "" {
+			span.SetAttributes(attribute.String("http.request_id", reqID))
+			ctx = context.WithValue(ctx, "requestId", reqID)
+		} else if reqID, ok := vars["requestId"].(string); ok && reqID != "" {
+			span.SetAttributes(attribute.String("http.request_id", reqID))
+			ctx = context.WithValue(ctx, "requestId", reqID)
+		}
+
 		span.SetAttributes(
 			attribute.String("worker.task_type", taskType),
 			attribute.Int64("job.key", j.GetKey()),

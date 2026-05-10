@@ -119,6 +119,10 @@ func (s *OllamaService) Preload() {
 	jsonData, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", s.endpoint+"/api/generate", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
+	// Propagate X-Request-ID for end-to-end tracing
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -164,6 +168,9 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("request creation failed: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -208,6 +215,13 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	ctx := context.Background()
 	startTime := time.Now()
+
+	var jobVars map[string]interface{}
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
+	}
 
 	h.logger.Info("AI search job started", map[string]interface{}{
 		"job_key":    job.Key,

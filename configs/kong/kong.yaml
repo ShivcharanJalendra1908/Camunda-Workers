@@ -1,4 +1,4 @@
-_format_version: "3.0"
+﻿_format_version: "3.0"
 _transform: true
 
 services:
@@ -6,13 +6,13 @@ services:
     url: http://api-gateway:8080
 
     routes:
-      #  BLOCK ADMIN ON PUBLIC FQDN 
       - name: block-admin-public
         hosts:
           - api.mvp.lemici.com
           - api.lemici.com
         paths:
           - /api/admin
+          - ~/api/v[0-9]+/admin(/.*)?$
         regex_priority: 100
         plugins:
           - name: request-termination
@@ -20,19 +20,50 @@ services:
               status_code: 404
               message: "Not Found"
 
-      #  PUBLIC API
-      - name: api-routes
+      - name: oauth-routes
         hosts:
           - api.mvp.lemici.com
           - api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
-          - /api
+          - ~/api/v1/oauth(/.*)?$
+        strip_path: false
+        preserve_host: true
+        regex_priority: 200
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 300
+              policy: local
+              limit_by: ip
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+              size_unit: megabytes
+
+      - name: api-v1-routes
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1
         strip_path: false
         preserve_host: true
 
-      #  HEALTH CHECKS
+      - name: api-v2-routes
+        hosts:
+          - api.mvp.lemici.com
+          - api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v2
+        strip_path: false
+        preserve_host: true
+
       - name: health-routes
         hosts:
           - api.mvp.lemici.com
@@ -45,9 +76,7 @@ services:
         strip_path: false
         preserve_host: true
 
-      #  INTERNAL ADMIN API 
       - name: admin-routes
-        # NO hosts - internal only
         paths:
           - /internal
         strip_path: true
@@ -62,7 +91,6 @@ services:
                 - "172.31.0.0/16"
               status: 403
               message: "Access Denied: Internal API"
-
           - name: rate-limiting
             config:
               minute: 30
@@ -82,6 +110,7 @@ services:
           policy: local
           limit_by: ip
           fault_tolerant: true
+          hide_client_headers: false
 
       - name: cors
         config:
@@ -111,12 +140,14 @@ services:
             - X-Request-ID
             - X-RateLimit-Limit
             - X-RateLimit-Remaining
+            - X-RateLimit-Reset
           credentials: true
           max_age: 86400
 
       - name: request-size-limiting
         config:
           allowed_payload_size: 5
+          size_unit: megabytes
 
       - name: response-transformer
         config:
@@ -125,3 +156,10 @@ services:
               - "X-Frame-Options: DENY"
               - "X-Content-Type-Options: nosniff"
               - "Referrer-Policy: strict-origin-when-cross-origin"
+              - "X-XSS-Protection: 1; mode=block"
+              - "Content-Security-Policy: default-src 'self'"
+
+      # - name: opentelemetry
+      #   config:
+      #     endpoint: http://jaeger:4317
+      #     sampling_rate: 1.0

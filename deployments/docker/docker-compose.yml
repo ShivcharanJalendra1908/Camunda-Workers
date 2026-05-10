@@ -147,6 +147,11 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.52
     container_name: jaeger
+    command:
+      - --collector.otlp.enabled=true
+      - --collector.otlp.grpc.host-port=:4317
+      - --collector.otlp.http.host-port=:4318
+      - --log-level=info
     ports:
       - "16686:16686"
       - "14268:14268"
@@ -155,9 +160,7 @@ services:
       - "4317:4317"
       - "4318:4318"
     environment:
-      COLLECTOR_OTLP_ENABLED: "true"
       SPAN_STORAGE_TYPE: memory
-      LOG_LEVEL: info
     networks:
       - camunda-network
     healthcheck:
@@ -454,20 +457,23 @@ services:
     volumes:
       - ../../configs/kong/kong.yaml:/kong/declarative/kong.yml:ro
     environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
-      KONG_REAL_IP_HEADER: X-Forwarded-For
-      KONG_REAL_IP_RECURSIVE: "on"
-      KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction"
+        KONG_DATABASE: "off"
+        KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+        KONG_PROXY_ACCESS_LOG: /dev/stdout
+        KONG_ADMIN_ACCESS_LOG: /dev/stdout
+        KONG_PROXY_ERROR_LOG: /dev/stderr
+        KONG_ADMIN_ERROR_LOG: /dev/stderr
+        KONG_ADMIN_LISTEN: 127.0.0.1:8001
+        KONG_LOG_LEVEL: info
+        KONG_SLASHING_MODE: "escaped"
+        KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
+        KONG_REAL_IP_HEADER: X-Forwarded-For
+        KONG_REAL_IP_RECURSIVE: "on"
+        KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction"
+
     ports:
       - "8000:8000"
-      - "8001:8001"
+      # - "8001:8001"
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 30s

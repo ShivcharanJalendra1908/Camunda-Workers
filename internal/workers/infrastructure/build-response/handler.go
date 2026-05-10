@@ -54,6 +54,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	tracer := otel.Tracer("worker-manager")
@@ -68,6 +71,10 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		),
 	)
 	defer span.End()
+
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		span.SetAttributes(attribute.String("http.request_id", reqID))
+	}
 
 	h.logger.Info("processing job",
 		map[string]interface{}{

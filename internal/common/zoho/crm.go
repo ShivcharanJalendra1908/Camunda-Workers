@@ -89,6 +89,11 @@ func NewCRMClient(apiKey, oauthToken string, cbManager *circuitbreaker.Manager) 
 }
 
 func (c *CRMClient) doRequest(req *http.Request) (*http.Response, error) {
+	// Propagate X-Request-ID from context to header for end-to-end tracing
+	if reqID, ok := req.Context().Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+
 	result, err := c.cb.Execute(func() (interface{}, error) {
 		resp, err := c.httpClient.Do(req)
 		if err != nil {

@@ -68,6 +68,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	// Create worker span
@@ -83,6 +86,10 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		),
 	)
 	defer span.End()
+
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		span.SetAttributes(attribute.String("http.request_id", reqID))
+	}
 
 	h.logger.Info("processing job",
 		map[string]interface{}{
@@ -194,14 +201,17 @@ func (h *Handler) ExecuteWorker(ctx context.Context, input *Input) (*Output, err
 	}
 
 	// ✅ Publish to Redis — include cookieHeader so API gateway can set Set-Cookie header
+	requestID, _ := ctx.Value("requestId").(string)
 	type redisPayload struct {
 		Response     map[string]interface{} `json:"response"`
 		CookieHeader string                 `json:"cookieHeader,omitempty"`
+		RequestID    string                 `json:"requestId,omitempty"`
 	}
 
 	publishPayload := redisPayload{
 		Response:     input.Response,
 		CookieHeader: input.CookieHeader,
+		RequestID:    requestID,
 	}
 
 	payload, err := json.Marshal(publishPayload)
