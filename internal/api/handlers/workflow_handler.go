@@ -1845,6 +1845,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY",
 					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
 					"KEYCLOAK_REMEMBER_ME", "KC_RESTART",
+					"AUTH_SESSION_ID", "AUTH_SESSION_ID_LEGACY",
 				}
 
 				for _, name := range cookieNames {
