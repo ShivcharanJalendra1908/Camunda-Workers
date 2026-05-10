@@ -67,7 +67,7 @@ auth:
     client_id: "lemici-frontend"
     client_secret: "client-secret"
     admin_client_id: "worker-client"                     
-    admin_client_secret: "yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS"
+    admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
     publicBaseUrl: "https://us-dev-api.lemici.com"   # ⚠️ CHANGE THIS WHEN DOMAIN IP CHANGES
     redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"  # ⚠️ CHANGE THIS WHEN DOMAIN  CHANGES
     post_login_redirect_uri: "https://d595hydlunw5u.cloudfront.net/"
@@ -108,7 +108,7 @@ camunda:
   oauth:
     enabled: false
     client_id: "worker-client"
-    client_secret: "worker-secret"
+    client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
     token_url: "http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token"
     audience: "zeebe-api"
 

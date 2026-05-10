@@ -1493,20 +1493,25 @@ func (h *WorkflowHandler) completeLoginFlow(
 				})
 			}
 
-			// Robust Keycloak user ID identification
+			// Robust Keycloak identification (User ID + Session ID)
 			keycloakUserID := ""
+			keycloakSessionID := ""
 
 			if sess.IDToken != "" {
-				keycloakUserID = extractSubFromJWT(sess.IDToken)
+				keycloakUserID, keycloakSessionID = extractClaimsFromJWT(sess.IDToken)
 			}
 
-			// Source 2: AccessToken se (fallback)
+			// Fallback to AccessToken if IDToken failed
 			if keycloakUserID == "" && sess.AccessToken != "" {
-				keycloakUserID = extractSubFromJWT(sess.AccessToken)
+				keycloakUserID, keycloakSessionID = extractClaimsFromJWT(sess.AccessToken)
 			}
 
 			if keycloakUserID != "" {
-				go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID)
+				h.logger.Info("Triggering targeted session cleanup", map[string]interface{}{
+					"keycloakUserId":     keycloakUserID,
+					"currentKeycloakSid": keycloakSessionID,
+				})
+				go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID, keycloakSessionID)
 			}
 		} else {
 			h.logger.Warn("Session not found during login flow", map[string]interface{}{
@@ -1861,31 +1866,33 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
-// extractSubFromJWT — IDToken se Keycloak user UUID (sub claim) nikalta hai — no verification needed
-func extractSubFromJWT(token string) string {
+// extractClaimsFromJWT — JWT se sub (User UUID) aur sid (Session ID) nikalta hai
+func extractClaimsFromJWT(token string) (string, string) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return ""
+		return "", ""
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	var claims struct {
 		Sub string `json:"sub"`
+		Sid string `json:"sid"`
 	}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return ""
+		return "", ""
 	}
-	return claims.Sub
+	return claims.Sub, claims.Sid
 }
 
 // revokeUserPreviousKeycloakSessions — successful login ke baad user ke purane sessions hatao
-func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context, keycloakUserID string) {
+func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context, keycloakUserID string, currentKeycloakSid string) {
 	cfg := h.config.Auth.Keycloak
 
-	adminToken := h.getKeycloakAdminToken(ctx)
+	adminToken := h.getKeycloakAdminToken()
 	if adminToken == "" {
+		h.logger.Error("revokeUserPreviousKeycloakSessions: failed to get admin token", nil)
 		return
 	}
 
@@ -1898,6 +1905,10 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
+		h.logger.Error("revokeUserPreviousKeycloakSessions: failed to fetch sessions from Keycloak", map[string]interface{}{
+			"status": resp.StatusCode,
+			"err":    err,
+		})
 		return
 	}
 	defer resp.Body.Close()
@@ -1906,23 +1917,36 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 		ID    string `json:"id"`
 		Start int64  `json:"start"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil || len(sessions) == 0 {
-		h.logger.Warn("revokeUserPreviousKeycloakSessions: no sessions found", map[string]interface{}{
-			"keycloakUserId": keycloakUserID,
-		})
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
 		return
 	}
 
-	h.logger.Info("revokeUserPreviousKeycloakSessions: sessions found", map[string]interface{}{
+	h.logger.Info("revokeUserPreviousKeycloakSessions: scanning sessions", map[string]interface{}{
 		"keycloakUserId": keycloakUserID,
-		"count":          len(sessions),
+		"foundCount":     len(sessions),
+		"currentSid":     currentKeycloakSid,
 	})
 
-	if len(sessions) <= 1 {
-		return // Sirf ek session hai — kuch nahi karna
+	if len(sessions) == 0 {
+		return
 	}
 
-	// Latest session (highest start time) ko bachao, baaki delete karo
+	// Case A: sid available hai — delete everything EXCEPT sid
+	if currentKeycloakSid != "" {
+		for _, s := range sessions {
+			if s.ID == currentKeycloakSid {
+				continue // Current session ko mat chhuo
+			}
+			h.revokeSingleKeycloakSession(ctx, adminToken, s.ID)
+		}
+		return
+	}
+
+	// Case B: sid missing hai (fallback) — keep latest start time
+	if len(sessions) <= 1 {
+		return
+	}
+
 	latestIdx := 0
 	for i, s := range sessions {
 		if s.Start > sessions[latestIdx].Start {
@@ -1932,22 +1956,36 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 
 	for i, s := range sessions {
 		if i == latestIdx {
-			continue // Latest session ko mat chhuo
+			continue
 		}
-		delURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s",
-			cfg.URL, cfg.Realm, s.ID)
+		h.revokeSingleKeycloakSession(ctx, adminToken, s.ID)
+	}
+}
 
-		delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
-		delReq.Header.Set("Authorization", "Bearer "+adminToken)
-		delResp, err := http.DefaultClient.Do(delReq)
-		if err == nil {
-			defer delResp.Body.Close()
-		}
+// revokeSingleKeycloakSession — individual session deletion helper
+func (h *WorkflowHandler) revokeSingleKeycloakSession(ctx context.Context, adminToken string, sessionID string) {
+	cfg := h.config.Auth.Keycloak
+	delURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s", cfg.URL, cfg.Realm, sessionID)
+
+	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+	delReq.Header.Set("Authorization", "Bearer "+adminToken)
+
+	delResp, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		h.logger.Warn("Failed to delete Keycloak session", map[string]interface{}{"sid": sessionID, "err": err})
+		return
+	}
+	defer delResp.Body.Close()
+
+	if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusOK {
+		h.logger.Info("Keycloak orphaned session revoked", map[string]interface{}{"sid": sessionID})
+	} else {
+		h.logger.Warn("Keycloak session revocation returned unexpected status", map[string]interface{}{"sid": sessionID, "status": delResp.StatusCode})
 	}
 }
 
 // getKeycloakAdminToken — shared helper, admin credentials se token lao
-func (h *WorkflowHandler) getKeycloakAdminToken(ctx context.Context) string {
+func (h *WorkflowHandler) getKeycloakAdminToken() string {
 	cfg := h.config.Auth.Keycloak
 
 	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
@@ -1959,18 +1997,28 @@ func (h *WorkflowHandler) getKeycloakAdminToken(ctx context.Context) string {
 	data.Set("client_secret", cfg.AdminClientSecret)
 
 	resp, err := http.PostForm(tokenURL, data)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		h.logger.Warn("getKeycloakAdminToken: failed", map[string]interface{}{"error": err})
+	if err != nil {
+		h.logger.Error("getKeycloakAdminToken: network error", map[string]interface{}{"error": err.Error()})
 		return ""
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		h.logger.Warn("getKeycloakAdminToken: auth rejected by Keycloak", map[string]interface{}{
+			"status":   resp.StatusCode,
+			"response": string(body),
+			"clientId": cfg.AdminClientID,
+		})
+		return ""
+	}
 
 	var result struct {
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		h.logger.Error("getKeycloakAdminToken: decode failed", map[string]interface{}{"error": err.Error()})
 		return ""
 	}
 	return result.AccessToken
 }
-
