@@ -6,15 +6,16 @@ import (
 )
 
 type Input struct {
-	Action    string                 `json:"action"` // "create", "get", "delete"
-	SessionID string                 `json:"sessionId,omitempty"`
+	Action         string                 `json:"action"` // "create", "get", "delete"
+	SessionID      string                 `json:"sessionId,omitempty"`
 	UserID         string                 `json:"userId,omitempty"`
 	KeycloakUserID string                 `json:"keycloakUserId,omitempty"`
 	IDToken        string                 `json:"idToken,omitempty"`
+	AccessToken    string                 `json:"accessToken,omitempty"`
 	RefreshToken   string                 `json:"refreshToken,omitempty"`
 	Email          string                 `json:"email,omitempty"`
-	ExpiresIn int                    `json:"expiresIn,omitempty"` // seconds
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	ExpiresIn      int                    `json:"expiresIn,omitempty"` // seconds
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (i *Input) Sanitize() {
@@ -36,14 +37,15 @@ func (i *Input) Sanitize() {
 }
 
 type Output struct {
-	Success      bool      `json:"success"`
+	Success        bool      `json:"success"`
 	SessionID      string    `json:"sessionId,omitempty"`
 	UserID         string    `json:"userId,omitempty"`
 	KeycloakUserID string    `json:"keycloakUserId,omitempty"`
 	Email          string    `json:"email,omitempty"`
 	IDToken        string    `json:"idToken,omitempty"`
+	AccessToken    string    `json:"accessToken,omitempty"`
 	RefreshToken   string    `json:"refreshToken,omitempty"`
-	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
-	CookieHeader string    `json:"cookieHeader,omitempty"`
-	Message      string    `json:"message,omitempty"`
+	ExpiresAt      time.Time `json:"expiresAt,omitempty"`
+	CookieHeader   string    `json:"cookieHeader,omitempty"`
+	Message        string    `json:"message,omitempty"`
 }

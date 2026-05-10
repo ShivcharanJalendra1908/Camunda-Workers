@@ -49,6 +49,7 @@
           <zeebe:output source="=email" target="email" />
           <zeebe:output source="=keycloakUserId" target="keycloakUserId" />
           <zeebe:output source="=idToken" target="idToken" />
+          <zeebe:output source="=accessToken" target="accessToken" />
           <zeebe:output source="=refreshToken" target="refreshToken" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -64,6 +65,7 @@
           <zeebe:input source="=email" target="email" />
           <zeebe:input source="=keycloakUserId" target="keycloakUserId" />
           <zeebe:input source="=idToken" target="idToken" />
+          <zeebe:input source="=accessToken" target="accessToken" />
           <zeebe:input source="=refreshToken" target="refreshToken" />
           <zeebe:input source="=86400" target="expiresIn" />
           <zeebe:input source="=correlationKey" target="correlationKey" />
@@ -80,7 +82,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=cookieHeader" target="cookieHeader" />
-          <zeebe:input source="={&#34;success&#34;: true, &#34;userId&#34;: userId, &#34;email&#34;: email, &#34;sessionId&#34;: sessionId, &#34;keycloakUserId&#34;: keycloakUserId, &#34;idToken&#34;: idToken}" target="response" />
+          <zeebe:input source="={&#34;success&#34;: true, &#34;userId&#34;: userId, &#34;email&#34;: email, &#34;sessionId&#34;: sessionId, &#34;keycloakUserId&#34;: keycloakUserId, &#34;idToken&#34;: idToken, &#34;accessToken&#34;: accessToken}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SessionToSendResponse</bpmn:incoming>
