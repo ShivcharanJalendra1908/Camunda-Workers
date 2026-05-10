@@ -1,4 +1,18 @@
 <#import "template.ftl" as layout>
+
+<#-- ✅ Fix 1: loginTimeout flash suppress karo - user ko blank page dikhega briefly
+     instead of Keycloak ka raw "loginTimeout" error banner -->
+<#if message?has_content && message.type == "error">
+<script>
+(function() {
+    if (window.location.pathname.indexOf('login-actions') !== -1) {
+        document.documentElement.style.visibility = 'hidden';
+        document.documentElement.style.backgroundColor = 'white';
+    }
+})();
+</script>
+</#if>
+
 <@layout.registrationLayout displayInfo=social.displayInfo; section>
     <#if section = "header">
         <div class="login-header">
@@ -6,6 +20,8 @@
             <p>Signing up is quick and easy. <br> Let's get started on something great.</p>
         </div>
     <#elseif section = "form">
+
+        <#-- ✅ Fix 2: Cookie se signal padhke banner dikhao — sirf fresh login page pe -->
         <div id="session-timeout-banner" style="
             display: none;
             background: rgba(251,191,36,0.10);
@@ -22,6 +38,7 @@
 
         <script>
         (function () {
+            if (window.location.pathname.indexOf('login-actions') !== -1) return;
             var hasCookie = document.cookie.split(';').some(function (c) {
                 return c.trim() === 'session_timeout=true';
             });

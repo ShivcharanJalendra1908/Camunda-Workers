@@ -1745,6 +1745,11 @@ func (h *WorkflowHandler) completeLoginFlow(
 		return
 	}
 
+	// ✅ Successful login ke baad user ke purane orphan sessions clean karo
+	if keycloakUserID, ok := responsePayload["keycloakUserId"].(string); ok && keycloakUserID != "" {
+		go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID)
+	}
+
 	c.JSON(http.StatusOK, result)
 
 }
@@ -2056,72 +2061,136 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
-// revokeKeycloakOrphanSession — failed PKCE ke baad Keycloak ka orphan session kill karta hai
+// revokeKeycloakOrphanSession — callback fail hone par saari client sessions delete karo
 func (h *WorkflowHandler) revokeKeycloakOrphanSession(ctx context.Context) {
 	cfg := h.config.Auth.Keycloak
 
-	// Step 1: Admin credentials se token lo
-	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
-		cfg.URL, cfg.Realm)
+	// Admin token lo
+	adminToken := h.getKeycloakAdminToken(ctx)
+	if adminToken == "" {
+		return
+	}
 
-	data := url.Values{}
-	data.Set("grant_type", "client_credentials")
-	data.Set("client_id", cfg.AdminClientID)         // ✅ already hai
-	data.Set("client_secret", cfg.AdminClientSecret) // ✅ already hai
+	// ClientID string se internal UUID dhundho
+	clientsURL := fmt.Sprintf("%s/admin/realms/%s/clients?clientId=%s",
+		cfg.URL, cfg.Realm, cfg.ClientID)
 
-	resp, err := http.PostForm(tokenURL, data)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, clientsURL, nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		h.logger.Warn("revokeKeycloakOrphanSession: admin token failed", map[string]interface{}{"error": err})
 		return
 	}
 	defer resp.Body.Close()
 
-	var tokenResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil || tokenResp.AccessToken == "" {
-		return
-	}
-
-	// Step 2: ClientID se internal UUID dynamically fetch karo
-	clientsURL := fmt.Sprintf("%s/admin/realms/%s/clients?clientId=%s",
-		cfg.URL, cfg.Realm, cfg.ClientID) // ✅ ClientID already hai
-
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, clientsURL, nil)
-	req.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
-
-	clientResp, err := http.DefaultClient.Do(req)
-	if err != nil || clientResp.StatusCode != http.StatusOK {
-		h.logger.Warn("revokeKeycloakOrphanSession: client lookup failed", map[string]interface{}{"error": err})
-		return
-	}
-	defer clientResp.Body.Close()
-
 	var clients []struct {
-		ID string `json:"id"` // yeh internal UUID hai
+		ID string `json:"id"`
 	}
-	if err := json.NewDecoder(clientResp.Body).Decode(&clients); err != nil || len(clients) == 0 {
+	if err := json.NewDecoder(resp.Body).Decode(&clients); err != nil || len(clients) == 0 {
 		return
 	}
 
-	clientUUID := clients[0].ID
+	// Is client ki saari sessions delete karo
+	delURL := fmt.Sprintf("%s/admin/realms/%s/clients/%s/user-sessions",
+		cfg.URL, cfg.Realm, clients[0].ID)
 
-	// Step 3: Is client ke orphan sessions delete karo
-	sessionsURL := fmt.Sprintf("%s/admin/realms/%s/clients/%s/user-sessions",
-		cfg.URL, cfg.Realm, clientUUID)
-
-	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, sessionsURL, nil)
-	delReq.Header.Set("Authorization", "Bearer "+tokenResp.AccessToken)
+	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+	delReq.Header.Set("Authorization", "Bearer "+adminToken)
 
 	delResp, err := http.DefaultClient.Do(delReq)
 	if err != nil {
-		h.logger.Warn("revokeKeycloakOrphanSession: delete failed", map[string]interface{}{"error": err})
+		h.logger.Warn("revokeKeycloakOrphanSession: failed", map[string]interface{}{"error": err})
 		return
 	}
 	defer delResp.Body.Close()
 
 	h.logger.Info("revokeKeycloakOrphanSession: done", map[string]interface{}{
-		"clientUUID": clientUUID,
-		"status":     delResp.StatusCode,
+		"status": delResp.StatusCode,
 	})
+}
+
+// revokeUserPreviousKeycloakSessions — successful login ke baad user ke purane sessions hatao
+func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context, keycloakUserID string) {
+	cfg := h.config.Auth.Keycloak
+
+	adminToken := h.getKeycloakAdminToken(ctx)
+	if adminToken == "" {
+		return
+	}
+
+	// User ke saare sessions lo
+	sessionsURL := fmt.Sprintf("%s/admin/realms/%s/users/%s/sessions",
+		cfg.URL, cfg.Realm, keycloakUserID)
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, sessionsURL, nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return
+	}
+	defer resp.Body.Close()
+
+	var sessions []struct {
+		ID    string `json:"id"`
+		Start int64  `json:"start"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil || len(sessions) <= 1 {
+		return // Sirf ek session hai — kuch nahi karna
+	}
+
+	// Latest session (highest start time) ko bachao, baaki delete karo
+	latestIdx := 0
+	for i, s := range sessions {
+		if s.Start > sessions[latestIdx].Start {
+			latestIdx = i
+		}
+	}
+
+	for i, s := range sessions {
+		if i == latestIdx {
+			continue // Latest session ko mat chhuo
+		}
+		delURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s",
+			cfg.URL, cfg.Realm, s.ID)
+
+		delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+		delReq.Header.Set("Authorization", "Bearer "+adminToken)
+		delResp, err := http.DefaultClient.Do(delReq)
+		if err == nil {
+			defer delResp.Body.Close()
+		}
+		h.logger.Info("revokeUserPreviousKeycloakSessions: deleted orphan", map[string]interface{}{
+			"sessionId": s.ID,
+		})
+	}
+}
+
+// getKeycloakAdminToken — shared helper, admin credentials se token lao
+func (h *WorkflowHandler) getKeycloakAdminToken(ctx context.Context) string {
+	cfg := h.config.Auth.Keycloak
+
+	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
+		cfg.URL, cfg.Realm)
+
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("client_id", cfg.AdminClientID)
+	data.Set("client_secret", cfg.AdminClientSecret)
+
+	resp, err := http.PostForm(tokenURL, data)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		h.logger.Warn("getKeycloakAdminToken: failed", map[string]interface{}{"error": err})
+		return ""
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return ""
+	}
+	return result.AccessToken
 }
