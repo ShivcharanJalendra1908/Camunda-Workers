@@ -1695,6 +1695,20 @@ func (h *WorkflowHandler) completeLoginFlow(
 			sess.UserAgent = userAgent
 			sess.IP = c.ClientIP()
 
+			// Assign tokens from payload to session for persistence
+			if idToken, ok := responsePayload["idToken"].(string); ok && idToken != "" {
+				sess.IDToken = idToken
+			}
+			if accessToken, ok := responsePayload["accessToken"].(string); ok && accessToken != "" {
+				sess.AccessToken = accessToken
+			}
+			if refreshToken, ok := responsePayload["refreshToken"].(string); ok && refreshToken != "" {
+				sess.RefreshToken = refreshToken
+			}
+			if kcUserID, ok := responsePayload["keycloakUserId"].(string); ok && kcUserID != "" {
+				sess.KeycloakUserID = kcUserID
+			}
+
 			if err := store.Update(ctx, *sess); err != nil {
 				h.logger.Error("Failed to update session during login", map[string]interface{}{
 					"sessionId": sessionID,
@@ -1702,11 +1716,48 @@ func (h *WorkflowHandler) completeLoginFlow(
 				})
 			}
 
-			// ✅ IDToken se Keycloak user ID nikalo, purane orphan sessions clean karo
+			// ✅ DEBUG — dekho tokens hai ya nahi
+			h.logger.Info("completeLoginFlow session debug", map[string]interface{}{
+				"sessionId":       sessionID,
+				"userId":          sess.UserID,
+				"hasIDToken":      sess.IDToken != "",
+				"hasAccessToken":  sess.AccessToken != "",
+				"hasRefreshToken": sess.RefreshToken != "",
+			})
+
+			// ✅ Robust Keycloak user ID identification
+			keycloakUserID := ""
+
+			// Source 1: IDToken se (most reliable)
 			if sess.IDToken != "" {
-				if kcUserID := extractSubFromJWT(sess.IDToken); kcUserID != "" {
-					go h.revokeUserPreviousKeycloakSessions(context.Background(), kcUserID)
+				keycloakUserID = extractSubFromJWT(sess.IDToken)
+				if keycloakUserID != "" {
+					h.logger.Info("Got keycloakUserID from IDToken", map[string]interface{}{"keycloakUserId": keycloakUserID})
 				}
+			}
+
+			// Source 2: AccessToken se (fallback)
+			if keycloakUserID == "" && sess.AccessToken != "" {
+				keycloakUserID = extractSubFromJWT(sess.AccessToken)
+				if keycloakUserID != "" {
+					h.logger.Info("Got keycloakUserID from AccessToken", map[string]interface{}{"keycloakUserId": keycloakUserID})
+				}
+			}
+
+			// Source 3: Userinfo endpoint (last resort)
+			if keycloakUserID == "" && sess.AccessToken != "" {
+				keycloakUserID = h.fetchKeycloakUserID(context.Background(), sess.AccessToken)
+				if keycloakUserID != "" {
+					h.logger.Info("Got keycloakUserID from userinfo endpoint", map[string]interface{}{"keycloakUserId": keycloakUserID})
+				}
+			}
+
+			if keycloakUserID != "" {
+				go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID)
+			} else {
+				h.logger.Warn("Could not determine keycloakUserID — orphan session cleanup skipped", map[string]interface{}{
+					"sessionId": sessionID,
+				})
 			}
 		} else {
 			h.logger.Warn("Session not found during login flow", map[string]interface{}{
@@ -2106,7 +2157,19 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 		ID    string `json:"id"`
 		Start int64  `json:"start"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil || len(sessions) <= 1 {
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil || len(sessions) == 0 {
+		h.logger.Warn("revokeUserPreviousKeycloakSessions: no sessions found", map[string]interface{}{
+			"keycloakUserId": keycloakUserID,
+		})
+		return
+	}
+
+	h.logger.Info("revokeUserPreviousKeycloakSessions: sessions found", map[string]interface{}{
+		"keycloakUserId": keycloakUserID,
+		"count":          len(sessions),
+	})
+
+	if len(sessions) <= 1 {
 		return // Sirf ek session hai — kuch nahi karna
 	}
 
@@ -2163,4 +2226,31 @@ func (h *WorkflowHandler) getKeycloakAdminToken(ctx context.Context) string {
 		return ""
 	}
 	return result.AccessToken
+}
+
+// fetchKeycloakUserID — Keycloak userinfo endpoint se sub (Keycloak UUID) fetch karta hai
+func (h *WorkflowHandler) fetchKeycloakUserID(ctx context.Context, accessToken string) string {
+	cfg := h.config.Auth.Keycloak
+	userInfoURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/userinfo",
+		cfg.URL, cfg.Realm)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userInfoURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	var info struct {
+		Sub string `json:"sub"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return ""
+	}
+	return info.Sub
 }
