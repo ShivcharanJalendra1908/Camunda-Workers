@@ -8,8 +8,7 @@ services:
     routes:
       - name: block-admin-public
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - us-dev-api.lemici.com
         paths:
           - /api/admin
           - ~/api/v[0-9]+/admin(/.*)?$
@@ -22,8 +21,7 @@ services:
 
       - name: oauth-routes
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - us-dev-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -44,8 +42,7 @@ services:
 
       - name: api-v1-routes
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - us-dev-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -55,8 +52,7 @@ services:
 
       - name: api-v2-routes
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - us-dev-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -66,8 +62,7 @@ services:
 
       - name: health-routes
         hosts:
-          - api.mvp.lemici.com
-          - api.lemici.com
+          - us-dev-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -75,6 +70,19 @@ services:
           - /metrics
         strip_path: false
         preserve_host: true
+
+      - name: operate-ws
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/operate/ws
+        strip_path: false
+        preserve_host: true
+        protocols:
+          - ws
+          - wss
 
       - name: admin-routes
         paths:
@@ -118,10 +126,13 @@ services:
             - "https://dev.lemici.com"
             - "http://localhost:3000"
             - "http://localhost:5173"
-            - "https://mvp.lemici.com"
-            - "https://api.mvp.lemici.com"
+            - "https://us-dev-api.lemici.com"
             - "https://lemici.com"
             - "https://www.lemici.com"
+            - "https://d3c34598mt7qdx.cloudfront.net"
+            - "https://d595hydlunw5u.cloudfront.net"
+            - "http://34.224.27.158:3005"
+            - "https://dev-api.lemici.com"
           methods:
             - GET
             - POST
@@ -140,7 +151,6 @@ services:
             - X-Request-ID
             - X-RateLimit-Limit
             - X-RateLimit-Remaining
-            - X-RateLimit-Reset
           credentials: true
           max_age: 86400
 
@@ -163,3 +173,138 @@ services:
       #   config:
       #     endpoint: http://jaeger:4317
       #     sampling_rate: 1.0
+
+  # ── Keycloak Service ──────────────────────────────────────────────────
+  - name: keycloak
+    url: http://keycloak:8080
+
+    routes:
+      - name: keycloak-auth
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /auth/realms
+          - /auth/admin
+          - /auth/resources
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+          - name: cors
+            config:
+              origins:
+                - "https://dev.lemici.com"
+                - "http://localhost:3000"
+                - "http://localhost:5173"
+                - "https://us-dev-api.lemici.com"
+                - "https://lemici.com"
+                - "https://www.lemici.com"
+                - "https://d3c34598mt7qdx.cloudfront.net"
+                - "https://d595hydlunw5u.cloudfront.net"
+                - "http://34.224.27.158:3005"
+                - "https://dev-api.lemici.com"
+              methods:
+                - GET
+                - POST
+                - OPTIONS
+              headers:
+                - Origin
+                - Content-Type
+                - Authorization
+              credentials: true
+
+      - name: keycloak-token
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/token
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-auth
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/auth
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-logout
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/logout
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-userinfo
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/userinfo
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-certs
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/certs
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
