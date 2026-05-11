@@ -1,6 +1,7 @@
 # Local dev / personal
 /docs/kintesh_plan/*
 /kintesh-local
+.kintesh-local/
 /local-testing/*.swp
 
 # Editors / IDE
