@@ -205,10 +205,13 @@ services:
             - multipart/form-data
           max_body_size: 5242880
 
-      # - name: opentelemetry
-      #   config:
-      #     endpoint: http://jaeger:4317
-      #     sampling_rate: 1.0
+      - name: opentelemetry
+        config:
+          endpoint: http://jaeger:4318/v1/traces
+          sampling_rate: 0.1
+          resource_attributes:
+            - "service.name=kong-api-gateway"
+            - "deployment.environment=development"
 
   # ── Keycloak Service ──────────────────────────────────────────────────
   - name: keycloak

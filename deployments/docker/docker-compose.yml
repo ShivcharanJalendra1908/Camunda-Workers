@@ -471,7 +471,7 @@ services:
         KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
         KONG_REAL_IP_HEADER: X-Forwarded-For
         KONG_REAL_IP_RECURSIVE: "on"
-        KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache"
+        KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
 
     ports:
       - "8000:8000"
