@@ -70,6 +70,13 @@ type WorkflowResponse struct {
 	Variables           map[string]interface{} `json:"variables,omitempty"`
 }
 
+func (h *WorkflowHandler) getRequestID(c *gin.Context) string {
+	if requestID := c.GetString("requestId"); requestID != "" {
+		return requestID
+	}
+	return uuid.New().String()
+}
+
 // ===== VALIDATION & SANITIZATION HELPERS =====
 func (h *WorkflowHandler) validateEmail(email string) error {
 	return ozzo.Validate(email,
@@ -183,7 +190,7 @@ func (h *WorkflowHandler) StartAIQuery(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	if input.Context != nil {
@@ -226,7 +233,7 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	if input.Filters != nil {
@@ -262,7 +269,7 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 		"profileData":  input.ProfileData,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "user-profile-update", variables)
@@ -294,7 +301,7 @@ func (h *WorkflowHandler) StartPasswordReset(c *gin.Context) {
 		"email":        input.Email,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "password-reset-workflow", variables)
@@ -322,7 +329,7 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 		"reason":       input.Reason,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "account-deletion-workflow", variables)
@@ -472,7 +479,7 @@ func (h *WorkflowHandler) StartApplicationProcessing(c *gin.Context) {
 		"applicationData": input.ApplicationData,
 		"sessionId":       claims.SessionID,
 		"sourceSystem":    claims.SourceSystem,
-		"requestId":       uuid.New().String(),
+		"requestId":       h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "application_processing", variables)
@@ -510,7 +517,7 @@ func (h *WorkflowHandler) StartActivityApproval(c *gin.Context) {
 		"data":         input.Data,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "activity-approval-workflow", variables)
@@ -550,7 +557,7 @@ func (h *WorkflowHandler) StartFranchiseSearch(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "franchise_detail", variables)
@@ -580,7 +587,7 @@ func (h *WorkflowHandler) GetFranchiseDetails(c *gin.Context) {
 		"userId":       claims.UserID,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "franchise_detail", variables)
@@ -1060,7 +1067,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	variables := map[string]interface{}{
 		"sessionId":            claims.SessionID,
 		"sourceSystem":         claims.SourceSystem,
-		"requestId":            uuid.New().String(),
+		"requestId":            h.getRequestID(c),
 		"correlationKey":       correlationKey,
 		"postLoginRedirectUri": h.config.Auth.Keycloak.PostLoginRedirectURI,
 	}
