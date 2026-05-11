@@ -444,7 +444,7 @@ func main() {
 	// ============================================================================
 	// ADMIN ROUTES (JWT + Admin Role Required)
 	// ============================================================================
-	adminAPI := router.Group("/api/admin")
+	adminAPI := router.Group("/internal")
 	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
 	// adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
@@ -681,10 +681,10 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/email/campaign", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/email/welcome-series", port),
 		"",
-		"🛡️  ADMIN ROUTES (JWT + admin role):",
-		fmt.Sprintf("    GET  http://localhost:%d/api/admin/workflows", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/admin/workflows/:id/status", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/admin/workflows/:id/cancel", port),
+		"🛡️  ADMIN ROUTES (JWT + admin role, IP-restricted via Kong):",
+		fmt.Sprintf("    GET  http://localhost:%d/internal/workflows", port),
+		fmt.Sprintf("    GET  http://localhost:%d/internal/workflows/:id/status", port),
+		fmt.Sprintf("    POST http://localhost:%d/internal/workflows/:id/cancel", port),
 		"",
 		"❤️  HEALTH & METRICS:",
 		fmt.Sprintf("    GET  http://localhost:%d/health", port),

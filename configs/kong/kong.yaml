@@ -40,7 +40,133 @@ services:
               allowed_payload_size: 1
               size_unit: megabytes
 
-      - name: api-v1-routes
+      - name: ai-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/ai
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 3
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: contact-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/contact
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              hour: 6
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: forms-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/forms
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              hour: 6
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: auth-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/auth
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: franchise-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/franchises
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 100
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: user-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/user
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 30
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: application-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/applications
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: api-v1-fallback
         hosts:
           - us-dev-api.lemici.com
           - localhost
@@ -52,7 +178,7 @@ services:
         plugins:
           - name: rate-limiting
             config:
-              minute: 100
+              minute: 10
               policy: local
               limit_by: ip
               fault_tolerant: true
@@ -81,7 +207,7 @@ services:
           - localhost
           - 127.0.0.1
         paths:
-          - /api/v1/operate/ws
+          - /operate/ws
         strip_path: false
         preserve_host: true
         protocols:
@@ -104,7 +230,7 @@ services:
       - name: admin-routes
         paths:
           - /internal
-        strip_path: true
+        strip_path: false
         preserve_host: true
         plugins:
           - name: ip-restriction
