@@ -58,24 +58,6 @@ services:
               fault_tolerant: true
               hide_client_headers: false
 
-      - name: api-v2-routes
-        hosts:
-          - us-dev-api.lemici.com
-          - localhost
-          - 127.0.0.1
-        paths:
-          - /api/v2
-        strip_path: false
-        preserve_host: true
-        plugins:
-          - name: rate-limiting
-            config:
-              minute: 100
-              policy: local
-              limit_by: ip
-              fault_tolerant: true
-              hide_client_headers: false
-
       - name: health-routes
         hosts:
           - us-dev-api.lemici.com

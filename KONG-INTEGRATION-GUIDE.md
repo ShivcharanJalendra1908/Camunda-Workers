@@ -82,8 +82,7 @@ Keycloak Auth ──► Kong:8000 ──► api-gateway:8080 ──► (workflow
 | -------------------- | --------------------------------------- | ---------------------------------- | -------------------------------------------------- | ---------- | -------- |
 | `block-admin-public` | `/api/admin`, regex `api/v[0-9]+/admin` | us-dev-api.lemici.com | request-termination (404)                          | —          | 100      |
 | `oauth-routes`       | regex `/api/v1/oauth(/.*)?$`            | all hosts                          | rate-limiting (300/m), request-size-limiting (1MB) | false      | 200      |
-| `api-v1-routes`      | `/api/v1`                               | all hosts                          | —                                                  | false      | —        |
-| `api-v2-routes`      | `/api/v2`                               | all hosts                          | —                                                  | false      | —        |
+| `api-v1-routes`      | `/api/v1`                               | all hosts                          | rate-limiting (100/m)                             | false      | —        |
 | `health-routes`      | `/health`, `/metrics`                   | all hosts                          | —                                                  | false      | —        |
 | `admin-routes`       | `/internal`                             | (no host filter)                   | ip-restriction, rate-limiting (30/m)               | true       | —        |
 
