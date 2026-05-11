@@ -49,6 +49,14 @@ services:
           - /api/v1
         strip_path: false
         preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 100
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
 
       - name: api-v2-routes
         hosts:
@@ -59,6 +67,14 @@ services:
           - /api/v2
         strip_path: false
         preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 100
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
 
       - name: health-routes
         hosts:
@@ -70,6 +86,12 @@ services:
           - /metrics
         strip_path: false
         preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 1000
+              policy: local
+              limit_by: ip
 
       - name: operate-ws
         hosts:
@@ -101,7 +123,7 @@ services:
               message: "Access Denied: Internal API"
           - name: rate-limiting
             config:
-              minute: 30
+              minute: 10
               policy: local
               limit_by: ip
 
@@ -168,6 +190,25 @@ services:
               - "Referrer-Policy: strict-origin-when-cross-origin"
               - "X-XSS-Protection: 1; mode=block"
               - "Content-Security-Policy: default-src 'self'"
+
+      - name: bot-detection
+        config:
+          allow:
+            - "Mozilla/5.0"
+            - "PostmanRuntime"
+          deny:
+            - "curl"
+            - "wget"
+            - "python-requests"
+          deny_on_failure: false
+
+      - name: request-validator
+        config:
+          allowed_content_types:
+            - application/json
+            - application/x-www-form-urlencoded
+            - multipart/form-data
+          max_body_size: 5242880
 
       # - name: opentelemetry
       #   config:
