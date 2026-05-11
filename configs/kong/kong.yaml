@@ -88,6 +88,19 @@ services:
           - ws
           - wss
 
+      - name: auth-callback
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/auth/callback
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        preserve_host: true
+
       - name: admin-routes
         paths:
           - /internal
@@ -241,6 +254,16 @@ services:
                 - Content-Type
                 - Authorization
               credentials: true
+          - name: proxy-cache
+            config:
+              content_type:
+                - text/css
+                - application/javascript
+                - image/png
+                - image/jpeg
+                - image/svg+xml
+              cache_ttl: 3600
+              strategy: memory
 
       - name: keycloak-token
         hosts:
