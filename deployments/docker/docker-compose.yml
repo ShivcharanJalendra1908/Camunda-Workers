@@ -474,7 +474,7 @@ services:
         KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
 
     ports:
-      - "8000:8000"
+      - "80:8000"
       # - "8001:8001"
     healthcheck:
       test: ["CMD", "kong", "health"]

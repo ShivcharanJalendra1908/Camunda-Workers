@@ -210,9 +210,9 @@ services:
           - /operate/ws
         strip_path: false
         preserve_host: true
-        # protocols:
-        #   - ws
-        #   - wss
+        protocols:
+          - ws
+          - wss
 
       - name: auth-callback
         hosts:
@@ -249,6 +249,12 @@ services:
               limit_by: ip
 
     plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Proto: https"
+
       - name: correlation-id
         config:
           header_name: X-Request-ID
@@ -321,15 +327,6 @@ services:
             - "curl"
             - "wget"
             - "python-requests"
-          # deny_on_failure: false
-
-      # - name: request-validator
-      #   config:
-      #     allowed_content_types:
-      #       - application/json
-      #       - application/x-www-form-urlencoded
-      #       - multipart/form-data
-      #     max_body_size: 5242880
 
       - name: opentelemetry
         config:
@@ -350,12 +347,19 @@ services:
           - localhost
           - 127.0.0.1
         paths:
-          - /auth/realms
-          - /auth/admin
-          - /auth/resources
+          - /realms
+          - /admin
+          - /resources
+          - /js
+          - /.well-known
         strip_path: false
         preserve_host: true
         plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
           - name: rate-limiting
             config:
               minute: 60
@@ -481,5 +485,38 @@ services:
           - name: rate-limiting
             config:
               minute: 120
+              policy: local
+              limit_by: ip
+
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Proto: https"
+
+  # ── Meeting Notes Service ────────────────────────────────────────────
+  - name: meeting-notes
+    url: http://host.docker.internal:8010
+
+    routes:
+      - name: meeting-notes-api
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/meeting-notes
+        strip_path: true
+        preserve_host: true
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+          - name: rate-limiting
+            config:
+              minute: 60
               policy: local
               limit_by: ip
