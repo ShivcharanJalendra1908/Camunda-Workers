@@ -210,9 +210,9 @@ services:
           - /operate/ws
         strip_path: false
         preserve_host: true
-        protocols:
-          - ws
-          - wss
+        # protocols:
+        #   - ws
+        #   - wss
 
       - name: auth-callback
         hosts:
@@ -321,23 +321,23 @@ services:
             - "curl"
             - "wget"
             - "python-requests"
-          deny_on_failure: false
+          # deny_on_failure: false
 
-      - name: request-validator
-        config:
-          allowed_content_types:
-            - application/json
-            - application/x-www-form-urlencoded
-            - multipart/form-data
-          max_body_size: 5242880
+      # - name: request-validator
+      #   config:
+      #     allowed_content_types:
+      #       - application/json
+      #       - application/x-www-form-urlencoded
+      #       - multipart/form-data
+      #     max_body_size: 5242880
 
       - name: opentelemetry
         config:
           endpoint: http://jaeger:4318/v1/traces
           sampling_rate: 0.1
           resource_attributes:
-            - "service.name=kong-api-gateway"
-            - "deployment.environment=development"
+             service.name: kong-api-gateway
+             deployment.environment: development
 
   # ── Keycloak Service ──────────────────────────────────────────────────
   - name: keycloak
