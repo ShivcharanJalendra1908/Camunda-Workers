@@ -1498,6 +1498,11 @@ func executeQuery(ctx context.Context, esClient *elasticsearch.Client, index str
 		for _, hit := range hitsList {
 			if hitMap, ok := hit.(map[string]interface{}); ok {
 				if source, ok := hitMap["_source"].(map[string]interface{}); ok {
+					// Add metadata back
+					source["_id"] = hitMap["_id"]
+					if score, ok := hitMap["_score"].(float64); ok {
+						source["_score"] = score
+					}
 					// ✅ APPLY TRANSFORMATION
 					transformed := transformFranchiseFields(source)
 					data = append(data, transformed)
@@ -1642,8 +1647,9 @@ func transformFranchiseFields(source map[string]interface{}) map[string]interfac
 		}
 	}
 
-	// ✅ FIX 7: Ensure investmentRange has unit
+	// ✅ FIX 7: Map investment range for listing cards
 	if invRange, ok := source["investmentRange"].(map[string]interface{}); ok {
+		// Ensure unit exists
 		if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
 			invRange["investmentUnit"] = "Lakhs"
 		}

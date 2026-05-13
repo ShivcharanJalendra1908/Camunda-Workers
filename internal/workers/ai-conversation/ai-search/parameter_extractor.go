@@ -58,9 +58,53 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 func (pe *ParameterExtractor) BuildPrompt(query string) string {
 	q := strings.TrimSpace(query)
 	if len(strings.Fields(q)) == 1 {
-		return q + " franchise"
+		q = q + " franchise"
 	}
-	return q
+
+	return `You are a highly accurate entity extraction AI for a franchise search engine. Extract search parameters from the user's query and output them EXACTLY in the specified JSON format.
+
+TAXONOMY:
+Industry → Category → Subcategory
+
+RULES:
+1. Return ONLY valid JSON. No markdown, no conversational text.
+2. If a value is missing, use null. DO NOT use empty strings.
+3. For investments, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
+4. Determine Min/Max Investment carefully: 
+   - "under", "below", "budget of", "max" -> Maximum_Investment
+   - "above", "starting from", "min" -> Minimum_Investment
+   - "between X to Y" -> Minimum_Investment = X, Maximum_Investment = Y
+5. Area_Requirement should be in numbers (sq ft).
+6. ROI should be just the percentage number (e.g., 20).
+7. Rating should be a number between 0 and 5.
+8. Verified and Trusted_Seller should be boolean true/false.
+
+DATA STRUCTURE (Return ONLY valid JSON matching this):
+{
+  "Industry": "string or null",
+  "Category": "string or null",
+  "Subcategory": "string or null",
+  "Location": "string (City/State) or null",
+  "Minimum_Investment": "string (e.g., '1L', '50L', '1Cr') or null",
+  "Maximum_Investment": "string (e.g., '10L', '2Cr') or null",
+  "Area_Requirement": "string (e.g., '500') or null",
+  "ROI": "string (e.g., '20') or null",
+  "Rating": "number or null",
+  "Staff": "number or null",
+  "Outlets": "number or null",
+  "Verified": "boolean or null",
+  "Trusted_Seller": "boolean or null"
+}
+
+EXAMPLES:
+Query: "food franchise under 1 lakh in delhi with high rating"
+Output: {"Industry": "Food & Beverage", "Category": null, "Subcategory": null, "Location": "Delhi", "Minimum_Investment": null, "Maximum_Investment": "1L", "Area_Requirement": null, "ROI": null, "Rating": 4.5, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
+
+Query: "education business between 10 to 20 lakh verified"
+Output: {"Industry": "Education", "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": "10L", "Maximum_Investment": "20L", "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": true, "Trusted_Seller": null}
+
+Query: "` + q + `"
+Output:`
 }
 
 // ftModelOutput - Fine-tuned model ka exact output schema
@@ -74,6 +118,11 @@ type ftModelOutput struct {
 	MaximumInvestment interface{} `json:"Maximum_Investment"`
 	AreaRequirement   interface{} `json:"Area_Requirement"`
 	ROI               interface{} `json:"ROI"`
+	Rating            interface{} `json:"Rating"`
+	Staff             interface{} `json:"Staff"`
+	Outlets           interface{} `json:"Outlets"`
+	Verified          interface{} `json:"Verified"`
+	TrustedSeller     interface{} `json:"Trusted_Seller"`
 }
 
 // ============================================================
@@ -132,6 +181,7 @@ var industryNormalizationMap = map[string]string{
 	"distributors":                     "Dealers & Distributors",
 	"agriculture":                      "Agriculture",
 	"agriculture & sustainability":     "Agriculture",
+	"food":                             "Food & Beverage",
 }
 
 // industrySlugMap - ES exact slugs from industries.csv
@@ -275,6 +325,14 @@ var (
 	// User signals: where they ARE
 	userLocMarkers = `(mujhe|mera|currently\s+in|based\s+in|hailing\s+from|from|live\s+in|stay\s+in|staying\s+in|living\s+in|residing\s+in|based\s+out\s+of)`
 	userLocRegex   = regexp.MustCompile(`(?i)\b` + userLocMarkers + `\b`)
+
+	// Investment Regexes
+	// Pattern: [under/below/...] [number] [L/Lakh/Cr/...]
+	maxInvRegex = regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|within|budget\s+(?:of|is)|limit\s+(?:of|is))\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	// Pattern: [above/starting/...] [number] [L/Lakh/Cr/...]
+	minInvRegex = regexp.MustCompile(`(?i)\b(above|more\s+than|greater\s+than|starting\s+from|from|starts?\s+at|at\s+least|min|minimum)\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	// Pattern: [number] [L/Lakh/Cr/...] [to/-] [number] [L/Lakh/Cr/...]
+	rangeInvRegex = regexp.MustCompile(`(?i)\b([0-9.]+)\s*(lakhs?|l|cr|crores?)?\s*(to|and|-)\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
 )
 
 func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) string {
@@ -579,6 +637,35 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 		params.ROI = &RangeFilter{Min: roiVal, Max: roiVal + 10}
 	}
 
+	ratingVal := toFloat64(ftOut.Rating)
+	if ratingVal > 0 {
+		params.Rating = &ratingVal
+	}
+
+	staffVal := toFloat64(ftOut.Staff)
+	if staffVal > 0 {
+		params.Staff = &RangeFilter{Min: staffVal, Max: staffVal * 3}
+	}
+
+	outletsVal := int(toFloat64(ftOut.Outlets))
+	if outletsVal > 0 {
+		params.Outlets = &outletsVal
+	}
+
+	if v, ok := ftOut.Verified.(bool); ok && v {
+		params.Verified = &v
+	} else if vStr, ok := ftOut.Verified.(string); ok && strings.ToLower(vStr) == "true" {
+		t := true
+		params.Verified = &t
+	}
+
+	if v, ok := ftOut.TrustedSeller.(bool); ok && v {
+		params.TrustedSeller = &v
+	} else if vStr, ok := ftOut.TrustedSeller.(string); ok && strings.ToLower(vStr) == "true" {
+		t := true
+		params.TrustedSeller = &t
+	}
+
 	if err := pe.normalizeParameters(params); err != nil {
 		return nil, fmt.Errorf("normalization failed: %w", err)
 	}
@@ -604,6 +691,28 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	}
 
 	queryLower := strings.ToLower(originalQuery)
+
+	// FIX 0: Investment Fallback from query
+	if params.Investment == nil {
+		inv := pe.extractInvestmentFromQuery(queryLower)
+		if inv != nil {
+			params.Investment = inv
+			fmt.Printf("💰 Investment from query: Min=%v, Max=%v\n", inv.Min, inv.Max)
+		}
+	}
+
+	// FIX 0.1: Industry Fallback from query
+	if params.Industry == "" {
+		for kw, normalized := range industryNormalizationMap {
+			// Only match full words for industry
+			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+			if re.MatchString(queryLower) {
+				params.Industry = normalized
+				fmt.Printf("🏭 Industry from query: %s (via %s)\n", normalized, kw)
+				break
+			}
+		}
+	}
 
 	// FIX 1: HQ Location
 	if params.Location != nil && params.Location.City != "" {
@@ -668,6 +777,68 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	}
 
 	return params
+}
+
+func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *InvestmentFilter {
+	// 1. Range Check (e.g., "5 to 10 lakh")
+	if matches := rangeInvRegex.FindStringSubmatch(query); len(matches) >= 6 {
+		val1 := parseNumericValue(matches[1], matches[2])
+		val2 := parseNumericValue(matches[4], matches[5])
+		if val1 == 0 && matches[2] == "" && matches[5] != "" {
+			// Handles "5 to 10 lakh" where first unit is missing
+			val1 = parseNumericValue(matches[1], matches[5])
+		}
+		if val1 > 0 && val2 > 0 {
+			if val1 > val2 {
+				val1, val2 = val2, val1
+			}
+			return &InvestmentFilter{Min: val1, Max: val2}
+		}
+	}
+
+	// 2. Max Check (e.g., "under 10 lakh")
+	if matches := maxInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
+		val := parseNumericValue(matches[2], matches[3])
+		if val > 0 {
+			return &InvestmentFilter{Min: val / 10, Max: val}
+		}
+	}
+
+	// 3. Min Check (e.g., "above 5 lakh")
+	if matches := minInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
+		val := parseNumericValue(matches[2], matches[3])
+		if val > 0 {
+			return &InvestmentFilter{Min: val, Max: val * 5}
+		}
+	}
+
+	// 4. Generic Check (e.g., "10 lakh budget")
+	genericRegex := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	if matches := genericRegex.FindStringSubmatch(query); len(matches) >= 3 {
+		val := parseNumericValue(matches[1], matches[2])
+		if val > 0 {
+			return &InvestmentFilter{Min: val * 0.5, Max: val * 1.5}
+		}
+	}
+
+	return nil
+}
+
+func parseNumericValue(valStr, unitStr string) float64 {
+	val, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	unit := strings.ToLower(unitStr)
+	multiplier := 1.0
+	if strings.HasPrefix(unit, "l") {
+		multiplier = 100000
+	} else if strings.HasPrefix(unit, "c") {
+		multiplier = 10000000
+	}
+
+	return val * multiplier
 }
 
 func (pe *ParameterExtractor) ParseWithFallback(llmResponse string) *ExtractedParameters {

@@ -443,16 +443,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Industry match
 	if params.Industry != "" {
-		industrySlug := strings.ToLower(params.Industry)
-		industrySlug = strings.ReplaceAll(industrySlug, " & ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, " / ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, "&", "")
-		industrySlug = strings.ReplaceAll(industrySlug, "/", "")
-		industrySlug = strings.ReplaceAll(industrySlug, ",", "")
-		industrySlug = strings.ReplaceAll(industrySlug, " ", "-")
-		for strings.Contains(industrySlug, "--") {
-			industrySlug = strings.ReplaceAll(industrySlug, "--", "-")
-		}
+		industrySlug := GetIndustrySlug(params.Industry)
 
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
@@ -875,17 +866,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	// }
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
-		slug := strings.ToLower(params.Industry)
-		slug = strings.ReplaceAll(slug, " & ", "-")
-		slug = strings.ReplaceAll(slug, " / ", "-")
-		slug = strings.ReplaceAll(slug, "&", "")
-		slug = strings.ReplaceAll(slug, "/", "")
-		slug = strings.ReplaceAll(slug, ",", "")
-		slug = strings.ReplaceAll(slug, " ", "-")
-		for strings.Contains(slug, "--") {
-			slug = strings.ReplaceAll(slug, "--", "-")
-		}
-		extractedParams["industrySlug"] = slug
+		extractedParams["industrySlug"] = GetIndustrySlug(params.Industry)
 	}
 
 	if params.Category != "" {
@@ -925,6 +906,15 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 
 	if params.ROI != nil {
 		extractedParams["roi"] = params.ROI.Min
+	}
+
+	if params.Staff != nil {
+		extractedParams["minStaff"] = params.Staff.Min
+		extractedParams["maxStaff"] = params.Staff.Max
+	}
+
+	if params.Outlets != nil {
+		extractedParams["minOutlets"] = *params.Outlets
 	}
 
 	if params.Rating != nil {

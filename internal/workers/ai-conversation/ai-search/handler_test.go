@@ -67,17 +67,17 @@ func TestParameterExtractor_BuildPrompt(t *testing.T) {
 			query: "ice cream franchise in kolkata",
 			wantContains: []string{
 				"TAXONOMY:", "Industry → Category → Subcategory",
-				"Return ONLY valid JSON:", "ice cream franchise in kolkata",
+				"Return ONLY valid JSON", "ice cream franchise in kolkata",
 			},
 		},
 		{
 			name:  "Prompt includes all parameter fields",
 			query: "test",
 			wantContains: []string{
-				`"industry":`, `"category":`, `"subcategory":`,
-				`"location":`, `"investment":`, `"rating":`,
-				`"space":`, `"staff":`, `"outlets":`, `"roi":`,
-				`"verified":`, `"trusted_seller":`,
+				`"Industry":`, `"Category":`, `"Subcategory":`,
+				`"Location":`, `"Minimum_Investment":`, `"Maximum_Investment":`,
+				`"Area_Requirement":`, `"ROI":`, `"Rating":`, `"Staff":`, 
+				`"Outlets":`, `"Verified":`, `"Trusted_Seller":`,
 			},
 		},
 	}
@@ -684,6 +684,24 @@ func TestParameterExtractor_StressTest(t *testing.T) {
 			llmResp: `{"ROI": "25", "Location": "Indore"}`,
 			expected: map[string]interface{}{"ROIMin": 25.0, "City": "Indore"},
 		},
+		{
+			name:    "Under 1 Lakh Fallback",
+			query:   "franchise under 1 lakh",
+			llmResp: `{"Industry": null, "Category": null, "Minimum_Investment": null, "Maximum_Investment": null}`,
+			expected: map[string]interface{}{"MaxInv": 100000.0, "MinInv": 10000.0},
+		},
+		{
+			name:    "Industry Fallback: Food",
+			query:   "food franchise under 5 lakh",
+			llmResp: `{"Industry": null, "Category": null, "Maximum_Investment": null}`,
+			expected: map[string]interface{}{"Industry": "Food & Beverage", "MaxInv": 500000.0},
+		},
+		{
+			name:    "Range Investment Fallback",
+			query:   "budget between 5 to 10 lakh",
+			llmResp: `{"Industry": null, "Maximum_Investment": null}`,
+			expected: map[string]interface{}{"MinInv": 500000.0, "MaxInv": 1000000.0},
+		},
 	}
 
 	for _, sc := range scenarios {
@@ -726,6 +744,10 @@ func TestParameterExtractor_StressTest(t *testing.T) {
 				if assert.NotNil(t, params.Space) {
 					assert.Equal(t, expectedSpaceMin, params.Space.Min)
 				}
+			}
+
+			if expectedIndustry, ok := sc.expected["Industry"].(string); ok {
+				assert.Equal(t, expectedIndustry, params.Industry)
 			}
 		})
 	}
