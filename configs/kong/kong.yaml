@@ -210,10 +210,6 @@ services:
           - /operate/ws
         strip_path: false
         preserve_host: true
-        protocols:
-          - ws
-          - wss
-
       - name: auth-callback
         hosts:
           - us-dev-api.lemici.com
