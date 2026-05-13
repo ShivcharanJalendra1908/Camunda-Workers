@@ -320,7 +320,6 @@ services:
             - "Mozilla/5.0"
             - "PostmanRuntime"
           deny:
-            - "curl"
             - "wget"
             - "python-requests"
 
