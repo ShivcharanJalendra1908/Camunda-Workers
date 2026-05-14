@@ -300,9 +300,7 @@ services:
 # ============================================================================
 
   api-gateway:
-    build:
-      context: ../..
-      dockerfile: deployments/docker/Dockerfile.gateway
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-dev:latest
     container_name: api-gateway
     # ports:
     #   - "8080:8080"
@@ -354,9 +352,7 @@ services:
 # ============================================================================
 
   camunda-workers:
-    build: 
-      context: ../..
-      dockerfile: deployments/docker/Dockerfile.worker
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-dev:latest
     container_name: camunda-workers
     # ports:
       # - "8080:8080"
