@@ -21,6 +21,7 @@ frontend/node_modules/
 .opencode-context/
 .qoder/
 .kintesh-local/
+.kintesh-kong/
 
 # Ollama / models
 deployments/docker/ollama/*.gguf
