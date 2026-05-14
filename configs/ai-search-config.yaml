@@ -7,7 +7,7 @@ ai_search_worker:
 
 llm:
   provider: "ollama"
-  model: "qwen-franchise-extractor"
+  model: "franchise-extractor"
   endpoint: "http://ollama:11434"
   timeout: "35s"              
   max_tokens: 300              

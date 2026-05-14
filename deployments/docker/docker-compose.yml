@@ -289,7 +289,7 @@ services:
       - |
         sleep 20 &&
         echo 'Registering model...' &&
-        OLLAMA_HOST=http://ollama:11434 ollama create qwen-franchise-extractor -f /models/Modelfile &&
+        OLLAMA_HOST=http://ollama:11434 ollama create franchise-extractor -f /models/Modelfile &&
         echo 'Done!'
     volumes:
       - ./ollama/Modelfile:/models/Modelfile

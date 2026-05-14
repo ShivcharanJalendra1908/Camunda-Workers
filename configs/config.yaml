@@ -297,7 +297,7 @@ workers:
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen-franchise-extractor"
+      model: "franchise-extractor"
       endpoint: "http://ollama:11434"  
       timeout: 35000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
       max_tokens: 300
