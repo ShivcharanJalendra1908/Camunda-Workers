@@ -20,6 +20,8 @@ frontend/node_modules/
 .kilo/
 .opencode-context/
 .qoder/
+.kintesh-local/
+.kintesh-kong/
 
 # Ollama / models
 deployments/docker/ollama/*.gguf
