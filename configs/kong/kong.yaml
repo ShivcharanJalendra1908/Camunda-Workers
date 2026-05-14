@@ -185,10 +185,6 @@ services:
               hide_client_headers: false
 
       - name: health-routes
-        hosts:
-          - us-dev-api.lemici.com
-          - localhost
-          - 127.0.0.1
         paths:
           - /health
           - /metrics

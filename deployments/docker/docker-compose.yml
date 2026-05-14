@@ -468,6 +468,11 @@ services:
         KONG_REAL_IP_HEADER: X-Forwarded-For
         KONG_REAL_IP_RECURSIVE: "on"
         KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
+        KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "512k"
+        KONG_NGINX_PROXY_PROXY_BUFFERS: "8 512k"
+        KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "512k"
+        KONG_NGINX_PROXY_CLIENT_HEADER_BUFFER_SIZE: "512k"
+        KONG_NGINX_PROXY_LARGE_CLIENT_HEADER_BUFFERS: "4 512k"
 
     ports:
       - "80:8000"
