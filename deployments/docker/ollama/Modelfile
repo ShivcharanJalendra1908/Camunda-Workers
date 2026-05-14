@@ -1,5 +1,6 @@
-FROM /models/qwen-extractor.gguf
+FROM ./franchise_extractor.gguf
 
+# 3. Lock in the exact ChatML formatting Qwen uses
 TEMPLATE """<|im_start|>system
 {{ .System }}<|im_end|>
 <|im_start|>user
@@ -7,48 +8,16 @@ TEMPLATE """<|im_start|>system
 <|im_start|>assistant
 """
 
-SYSTEM """Extract parameters from the query into strict JSON based on the franchise schema.
+# 4. CRITICAL: The exact Augmented System Prompt used in training
+SYSTEM """You are an AI parameter extractor. Extract constraints into strict JSON.
 
-Industry MUST be exactly one of these values (or null):
-"Automotive" - car, bike, vehicle, garage, ev, auto, tyre, battery, car service, bike service
-"Beauty" - salon, spa, massage, hair, nail, waxing, grooming, beauty, cosmetic, barber
-"Health" - clinic, medical, pharmacy, doctor, dental, physiotherapy, diagnostic, healthcare, gym, fitness, yoga, sports, swimming, crossfit, pilates, martial arts, boxing, dance fitness
-"Business Services" - consulting, marketing, staffing, recruitment, finance, insurance, accounting, hr, legal
-"Dealers & Distributors" - dealer, distributor, wholesale, supply
-"Education" - school, tutor, coaching, edtech, learning, study, preschool, abacus, language, abroad
-"Fashion" - clothes, wear, apparel, saree, kurti, textile, fabric, ethnic wear, footwear, luxury brand
-"Food & Beverage" - food, cafe, restaurant, chai, coffee, ice cream, burger, pizza, bakery, dessert, frozen, beverage, juice, QSR
-"Home-Based Business" - home based, work from home, home business, wfh, ghar se kaam, home franchise
-"Hotel, Travel & Tourism" - hotel, travel, tourism, holiday, trip, tour, resort, homestay, guesthouse, hospitality, lodging
-"Retail" - shop, grocery, kirana, supermarket, store, mart, electronics, jewellery, books
-"Entertainment" - gaming, amusement, play, event, theater, movie, leisure, adventure, pet, dogs, cats
-"Government" - government service, passport, license, tax filing, CSC
-"Real Estate" - real estate, property, co-living, housing
-"Technology / IT" - software, IT, tech, cybersecurity, cloud, data, coding
-"Finance / Banking" - banking, loan, insurance, investment, mutual fund, payment, digital wallet
-"Logistics / Manufacturing" - courier, delivery, warehouse, logistics, supply chain
-"Agriculture" - farming, organic, agricultural, renewable energy
-"Media / Communication" - printing, publishing, signage, advertising
+CRITICAL RULES:
+1. Map conversational synonyms to exact categories (e.g. "car repair" -> "Vehicle Maintenance & Service").
+2. OUT OF DOMAIN: If the query is asking for general info, trivia, recipes, coding, or is completely unrelated to buying/starting a franchise, you MUST set "error" to "out of domain" and all other keys to null.
 
-Return ONLY valid JSON. No explanation. No extra text.
+Output ONLY valid JSON."""
 
-Output schema:
-{
-  "Industry": "<exact value from list above or null>",
-  "Category": "<subcategory or null>",
-  "Subcategory": "<specific type or null>",
-  "Location": "<city name or null>",
-  "Minimum_Investment": <number in rupees or null>,
-  "Maximum_Investment": <number in rupees or null>,
-  "Area_Requirement": <number in sq ft or null>,
-  "ROI": <percentage number or null>,
-  "error": null
-}
 
-If query is not related to franchise or business, return:
-{"error": "out of domain", "Industry": null, "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null}"""
-
-PARAMETER temperature 0.0
-PARAMETER num_predict 300
-PARAMETER stop "<|im_end|>"
-PARAMETER stop "<|im_start|>"
+# 2. Set strict parameters for JSON extraction
+PARAMETER temperature 0.1
+PARAMETER num_predict 256
