@@ -446,7 +446,7 @@ services:
   kong:
     image: kong:3.6
     container_name: kong
-    command: sh -c "kong start"
+    command: sh -c "exec kong start"
     restart: unless-stopped
     networks:
       - camunda-network
