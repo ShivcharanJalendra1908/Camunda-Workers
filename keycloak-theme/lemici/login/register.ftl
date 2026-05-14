@@ -14,7 +14,7 @@
                     <label for="username">Username</label>
                     <div class="input-wrapper">
                         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                        <input type="text" id="username" class="pf-c-form-control" name="username" value="${(register.formData.username?html!'')}" autocomplete="username" placeholder="Type username here" />
+                        <input type="text" id="username" class="pf-c-form-control" name="username" value="${(register.formData.username!'')}" autocomplete="username" placeholder="Type username here" />
                     </div>
                 </div>
             </#if>
@@ -24,7 +24,7 @@
                 <label for="firstName">First Name</label>
                 <div class="input-wrapper">
                     <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                     <input type="text" id="firstName" class="pf-c-form-control" name="firstName" value="${(register.formData.firstName?html!'')}" placeholder="Type first name here" />
+                    <input type="text" id="firstName" class="pf-c-form-control" name="firstName" value="${(register.formData.firstName!'')}" placeholder="Type first name here" />
                 </div>
             </div>
 
@@ -33,7 +33,7 @@
                 <label for="lastName">Last Name</label>
                 <div class="input-wrapper">
                     <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                     <input type="text" id="lastName" class="pf-c-form-control" name="lastName" value="${(register.formData.lastName?html!'')}" placeholder="Type last name here" />
+                    <input type="text" id="lastName" class="pf-c-form-control" name="lastName" value="${(register.formData.lastName!'')}" placeholder="Type last name here" />
                 </div>
             </div>
 
@@ -42,68 +42,25 @@
                 <label for="email">Email</label>
                 <div class="input-wrapper">
                     <svg fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                     <input type="text" id="email" class="pf-c-form-control" name="email" value="${(register.formData.email?html!'')}" autocomplete="email" placeholder="example@gmail.com" />
+                    <input type="text" id="email" class="pf-c-form-control" name="email" value="${(register.formData.email!'')}" autocomplete="email" placeholder="example@gmail.com" />
+                </div>
+            </div>
+
+            <#-- Password -->
+            <#if passwordRequired??>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper password-wrapper">
+                        <svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                        <input type="password" id="password" class="pf-c-form-control" name="password" autocomplete="new-password" placeholder="At least 8 characters" />
+                        <button type="button" class="eye-toggle" onclick="togglePassword('password', this)" tabindex="-1" aria-label="Toggle password visibility">
+                            <svg class="eye-icon eye-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            <svg class="eye-icon eye-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
                     </div>
                 </div>
 
-                <#-- Password strength indicator -->
                 <div class="form-group">
-                  <label>&nbsp;</label>
-                  <div id="password-strength" style="
-                    height: 4px; margin-top: 6px; border-radius: 2px; transition: all 0.3s ease;
-                    background: #e5e7eb; width: 100%; position: relative;
-                  ">
-                    <div id="password-strength-bar" style="
-                      height: 100%; border-radius: 2px; transition: all 0.3s ease;
-                      background: #ef4444; width: 0%;
-                    "></div>
-                  </div>
-                  <div class="requirements-list" style="
-                    font-size: 12px; color: #6b7280; margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap;
-                  ">
-                    <span id="req-length" style="transition: color 0.2s;">8+ chars</span>
-                    <span id="req-upper" style="transition: color 0.2s;">Uppercase</span>
-                    <span id="req-lower" style="transition: color 0.2s;">Lowercase</span>
-                    <span id="req-digit" style="transition: color 0.2s;">Digit</span>
-                    <span id="req-special" style="transition: color 0.2s;">Special</span>
-                  </div>
-                </div>
-
-                <script>
-                  (function() {
-                    const passwordInput = document.getElementById('password');
-                    const strengthBar = document.getElementById('password-strength-bar');
-                    const reqs = {
-                      length: document.getElementById('req-length'),
-                      upper: document.getElementById('req-upper'),
-                      lower: document.getElementById('req-lower'),
-                      digit: document.getElementById('req-digit'),
-                      special: document.getElementById('req-special')
-                    };
-
-                    function updateStrength() {
-                      if (!passwordInput) return;
-                      const p = passwordInput.value;
-                      let score = 0;
-                      if (p.length >= 8) { score++; reqs.length.style.color = '#22c55e'; } else reqs.length.style.color = '#6b7280';
-                      if (/[A-Z]/.test(p)) { score++; reqs.upper.style.color = '#22c55e'; } else reqs.upper.style.color = '#6b7280';
-                      if (/[a-z]/.test(p)) { score++; reqs.lower.style.color = '#22c55e'; } else reqs.lower.style.color = '#6b7280';
-                      if (/\d/.test(p)) { score++; reqs.digit.style.color = '#22c55e'; } else reqs.digit.style.color = '#6b7280';
-                      if (/[^A-Za-z0-9]/.test(p)) { score++; reqs.special.style.color = '#22c55e'; } else reqs.special.style.color = '#6b7280';
-                      strengthBar.style.width = (Math.max(0, score) * 20) + '%';
-                      if (score <= 1) strengthBar.style.background = '#ef4444';
-                      else if (score <= 3) strengthBar.style.background = '#f97316';
-                      else if (score <= 4) strengthBar.style.background = '#eab308';
-                      else strengthBar.style.background = '#22c55e';
-                    }
-
-                    passwordInput?.addEventListener('input', updateStrength);
-                    if (passwordInput) updateStrength();
-                  })();
-                </script>
-
-            <#-- Confirm Password -->
-            <div class="form-group">
                     <label for="password-confirm">Confirm Password</label>
                     <div class="input-wrapper password-wrapper">
                         <svg fill="currentColor" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
