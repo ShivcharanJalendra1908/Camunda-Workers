@@ -344,8 +344,6 @@ services:
         paths:
           - /realms
           - /admin
-          - /resources
-          - /js
           - /.well-known
         strip_path: false
         preserve_host: true
@@ -382,6 +380,18 @@ services:
                 - Content-Type
                 - Authorization
               credentials: true
+
+      - name: keycloak-assets
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /resources
+          - /js
+        strip_path: false
+        preserve_host: true
+        plugins:
           - name: proxy-cache
             config:
               content_type:
