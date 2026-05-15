@@ -1526,11 +1526,6 @@
     "fromDisplayName": "LeMiCi Support",
     "user": "a8ea4d001@smtp-brevo.com"
   },
-  "_commented_smtpServer": {
-    "host": "email-smtp.us-east-1.amazonaws.com",
-    "user": "AKIASS3JXDPVWDZXP5P7",
-    "port": "587"
-  },
   "loginTheme": "lemici",
   "accountTheme": "keycloak.v2",
   "adminTheme": "keycloak.v2",
