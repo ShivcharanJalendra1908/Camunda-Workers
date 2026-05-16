@@ -288,8 +288,13 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		params = &ExtractedParameters{}
 	}
 
+	hasExtractedParams := params.Industry != "" || params.Category != "" || params.Subcategory != "" ||
+		params.Location != nil || params.Investment != nil || params.ROI != nil ||
+		params.Space != nil || params.Staff != nil || params.Outlets != nil ||
+		params.Rating != nil || params.Verified != nil || params.TrustedSeller != nil
+
 	var finalResults *SearchResults
-	if params.Industry != "" || params.Category != "" || params.Location != nil || params.Investment != nil {
+	if hasExtractedParams {
 		refinedQuery, err := h.buildElasticsearchQuery(params)
 		if err != nil {
 			h.logger.Warn("Refined query failed, using basic", map[string]interface{}{"error": err.Error()})
@@ -332,7 +337,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		"job_key":       job.Key,
 		"total_results": finalResults.Total,
 		"took_ms":       duration.Milliseconds(),
-		"llm_used":      params.Industry != "" || params.Category != "" || params.Location != nil,
+		"llm_used":      hasExtractedParams,
 	})
 }
 

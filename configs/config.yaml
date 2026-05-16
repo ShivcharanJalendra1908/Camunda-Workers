@@ -170,12 +170,21 @@ integrations:
       default_sms_sender_id: "FranchiseHub"
       region: "us-east-1"
   
-  # SMTP (Fallback/Development)
+  # SMTP (Fallback/Development) - Commented out old AWS SES SMTP
+  # smtp:
+  #   host: "email-smtp.us-east-1.amazonaws.com"
+  #   port: 587
+  #   username: "AKIASS3JXDPVWDZXP5P7"
+  #   password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+  #   use_tls: true
+  #   default_from: "noreply@lemici.com"
+
+  # Brevo SMTP Configuration
   smtp:
-    host: "email-smtp.us-east-1.amazonaws.com"
+    host: "smtp-relay.brevo.com"
     port: 587
-    username: "AKIASS3JXDPVWDZXP5P7"
-    password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+    username: "a8ea4d001@smtp-brevo.com"
+    password: "b7KR9F00hUXtcgNw"
     use_tls: true
     default_from: "noreply@lemici.com"
 
@@ -297,7 +306,7 @@ workers:
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen-franchise-extractor"
+      model: "franchise-extractor"
       endpoint: "http://ollama:11434"  
       timeout: 35000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
       max_tokens: 300

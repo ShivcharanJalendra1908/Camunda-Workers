@@ -1518,13 +1518,13 @@
     "auth": "true",
     "envelopeFrom": "",
     "ssl": "false",
-    "password": "**********",
+    "password": "b7KR9F00hUXtcgNw",
     "port": "587",
-    "host": "email-smtp.us-east-1.amazonaws.com",
+    "host": "smtp-relay.brevo.com",
     "replyTo": "shivcharan.jalendra@lemici.com",
     "from": "noreply@lemici.com",
     "fromDisplayName": "LeMiCi Support",
-    "user": "AKIASS3JXDPVWDZXP5P7"
+    "user": "a8ea4d001@smtp-brevo.com"
   },
   "loginTheme": "lemici",
   "accountTheme": "keycloak.v2",

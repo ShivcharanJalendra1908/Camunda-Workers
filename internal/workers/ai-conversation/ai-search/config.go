@@ -44,7 +44,7 @@ func NewDefaultConfig() *Config {
 		RequestTimeout:  40 * time.Second,
 		LLMProvider:     "ollama",
 		//LLMModel:        "qwen2.5:0.5b",
-		LLMModel: "qwen-franchise-extractor",
+		LLMModel: "franchise-extractor",
 		LLMEndpoint:     ollamaURL,
 		LLMTimeout:      35 * time.Second,
 		LLMMaxTokens:    300,

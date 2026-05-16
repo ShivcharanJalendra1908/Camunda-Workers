@@ -56,11 +56,19 @@ apis:
     engine_id: "dev-engine-id"
 
 integrations:
+  # smtp:
+  #   host: "email-smtp.us-east-1.amazonaws.com"
+  #   port: 587
+  #   username: "AKIASS3JXDPVWDZXP5P7"
+  #   password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+  #   use_tls: true
+  #   default_from: "noreply@lemici.com"
+
   smtp:
-    host: "email-smtp.us-east-1.amazonaws.com"
+    host: "smtp-relay.brevo.com"
     port: 587
-    username: "AKIASS3JXDPVWDZXP5P7"
-    password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+    username: "a8ea4d001@smtp-brevo.com"
+    password: "b7KR9F00hUXtcgNw"
     use_tls: true
     default_from: "noreply@lemici.com"
 
