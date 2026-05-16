@@ -184,7 +184,7 @@ integrations:
     host: "smtp-relay.brevo.com"
     port: 587
     username: "a8ea4d001@smtp-brevo.com"
-    password: "b7KR9F00hUXtcgNw"
+    password: "b7KR9FO0hUXtcgNw"
     use_tls: true
     default_from: "noreply@lemici.com"
 

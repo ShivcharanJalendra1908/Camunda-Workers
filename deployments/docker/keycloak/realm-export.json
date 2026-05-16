@@ -1518,7 +1518,7 @@
     "auth": "true",
     "envelopeFrom": "",
     "ssl": "false",
-    "password": "b7KR9F00hUXtcgNw",
+    "password": "b7KR9FO0hUXtcgNw",
     "port": "587",
     "host": "smtp-relay.brevo.com",
     "replyTo": "shivcharan.jalendra@lemici.com",
