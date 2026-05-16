@@ -1,8 +1,9 @@
 <#import "template.ftl" as layout>
 
-<#-- ✅ Fix 1: loginTimeout flash suppress karo - user ko blank page dikhega briefly
-     instead of Keycloak ka raw "loginTimeout" error banner -->
-<#if message?has_content && message.type == "error">
+<#-- Hide page flash ONLY for session-timeout/expired-code errors on login-actions URLs.
+     Do NOT hide for auth errors (wrong password etc.) — those need to show the form + alert. -->
+<#if message?has_content && message.type == "error" &&
+     (message.summary?contains("timed out") || message.summary?contains("expired"))>
 <script>
 (function() {
     if (window.location.pathname.indexOf('login-actions') !== -1) {

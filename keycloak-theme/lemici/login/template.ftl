@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
-    <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236D3E93'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Inter,sans-serif' font-weight='700' font-size='18'%3EL%3C/text%3E%3C/svg%3E" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -83,7 +83,7 @@
             outline: none !important;
             background-color: white !important;
         }
-        .pf-c-form-control:focus { border-color: #6D3E93 !important; ring: 2px solid rgba(109, 62, 147, 0.2) !important; }
+        .pf-c-form-control:focus { border-color: #6D3E93 !important; box-shadow: 0 0 0 2px rgba(109, 62, 147, 0.2) !important; }
         
         .forgot-password-link { display: block; text-align: right; font-size: 13px; color: #3b82f6; text-decoration: none; margin-top: 4px; }
         
