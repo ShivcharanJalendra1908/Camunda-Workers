@@ -43,7 +43,7 @@
     "waitIncrementSeconds": 30,
     "quickLoginCheckMilliSeconds": 1000,
     "maxDeltaTimeSeconds": 30,
-    "failureFactor": 10,
+    "failureFactor": 5,
   "roles": {
     "realm": [
       {
