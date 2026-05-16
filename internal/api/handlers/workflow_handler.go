@@ -434,7 +434,27 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 		"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
+	workflowID := "public-form-submission"
+	if formType == "buyer-registration" {
+		workflowID = "franchise-enquiry-submission"
+		
+		// Extract userId from context (set by session/cookie middleware)
+		userID := c.GetString("userId")
+		if userID != "" {
+			variables["userId"] = userID
+		}
+
+		// Extract franchiseId from payload (required by enquiry workflow)
+		if fid, ok := payload["franchiseId"].(string); ok {
+			variables["franchiseId"] = fid
+		}
+
+		// Map formData to enquiryFormData for compatibility
+		variables["enquiryFormData"] = payload
+		variables["operation"] = "franchise_enquiry"
+	}
+
+	response := h.startWorkflow(c.Request.Context(), workflowID, variables)
 	c.JSON(http.StatusOK, response)
 }
 
