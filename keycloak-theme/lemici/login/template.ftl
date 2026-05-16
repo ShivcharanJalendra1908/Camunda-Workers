@@ -193,6 +193,40 @@
         .eye-toggle:hover { color: #6D3E93 !important; }
         .eye-icon { width: 20px; height: 20px; pointer-events: none; }
 
+        /* Password Strength Meter */
+        .password-strength {
+            margin-top: 6px;
+            display: none;
+        }
+        .strength-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .strength-fill {
+            height: 100%;
+            width: 0;
+            border-radius: 4px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .strength-label {
+            display: block;
+            font-size: 12px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* Password Match Indicator */
+        .password-match {
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            display: none;
+        }
+        .password-match.match { color: #16a34a; display: block; }
+        .password-match.no-match { color: #dc2626; display: block; }
+
         @media (max-width: 768px) {
             .login-form-side { width: 100%; }
             .login-image-side { display: none; }

@@ -58,6 +58,10 @@
                             <svg class="eye-icon eye-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
+                    <div class="password-strength" id="password-strength">
+                        <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+                        <span class="strength-label" id="strength-label"></span>
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -70,6 +74,7 @@
                             <svg class="eye-icon eye-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
+                    <div class="password-match" id="password-match"></div>
                 </div>
             </#if>
 
@@ -77,6 +82,75 @@
                 <input class="pf-c-button pf-m-primary" type="submit" value="Sign Up" id="kc-login"/>
             </div>
         </form>
+        <script>
+            (function() {
+                var pwInput = document.getElementById('password');
+                var confirmInput = document.getElementById('password-confirm');
+                var strengthDiv = document.getElementById('password-strength');
+                var strengthFill = document.getElementById('strength-fill');
+                var strengthLabel = document.getElementById('strength-label');
+                var matchDiv = document.getElementById('password-match');
+
+                if (!pwInput || !confirmInput) return;
+
+                var levels = [
+                    { label: 'Weak', color: '#dc2626', width: '20%' },
+                    { label: 'Weak', color: '#dc2626', width: '40%' },
+                    { label: 'Fair', color: '#f59e0b', width: '60%' },
+                    { label: 'Good', color: '#3b82f6', width: '80%' },
+                    { label: 'Strong', color: '#16a34a', width: '100%' }
+                ];
+
+                function scorePassword(pw) {
+                    var s = 0;
+                    if (pw.length >= 8) s++;
+                    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+                    if (/[0-9]/.test(pw)) s++;
+                    if (/[^a-zA-Z0-9]/.test(pw)) s++;
+                    if (pw.length >= 12) s++;
+                    return s;
+                }
+
+                function updateStrength() {
+                    var pw = pwInput.value;
+                    if (!pw) {
+                        strengthDiv.style.display = 'none';
+                        return;
+                    }
+                    var s = Math.min(scorePassword(pw), 5);
+                    var lvl = levels[s > 0 ? s - 1 : 0];
+                    strengthDiv.style.display = 'block';
+                    strengthFill.style.width = s === 0 ? '20%' : lvl.width;
+                    strengthFill.style.backgroundColor = s === 0 ? '#e5e7eb' : lvl.color;
+                    strengthLabel.textContent = s === 0 ? 'Too short' : lvl.label;
+                    strengthLabel.style.color = s === 0 ? '#9ca3af' : lvl.color;
+                }
+
+                function updateMatch() {
+                    var pw = pwInput.value;
+                    var confirm = confirmInput.value;
+                    if (!confirm) {
+                        matchDiv.style.display = 'none';
+                        matchDiv.className = 'password-match';
+                        return;
+                    }
+                    matchDiv.style.display = 'block';
+                    if (pw === confirm) {
+                        matchDiv.className = 'password-match match';
+                        matchDiv.textContent = 'Passwords match';
+                    } else {
+                        matchDiv.className = 'password-match no-match';
+                        matchDiv.textContent = 'Passwords do not match';
+                    }
+                }
+
+                pwInput.addEventListener('input', function() {
+                    updateStrength();
+                    updateMatch();
+                });
+                confirmInput.addEventListener('input', updateMatch);
+            })();
+        </script>
     <#elseif section = "info" >
         <div class="text-center mt-6" style="text-align:center; font-size: 14px; margin-top:20px; color:#6b7280;">
             Already have an account? <a href="${url.loginUrl}" style="color: #3b82f6; text-decoration: none;">Sign in</a>
