@@ -53,7 +53,7 @@
         <div id="kc-form">
             <div id="kc-form-wrapper">
                 <#if realm.password>
-                    <form id="kc-form-login" onsubmit="login.classList.add('loading'); login.disabled = true; return true;" action="${url.loginAction}" method="post">
+                    <form id="kc-form-login" onsubmit="if(!this.querySelector('#kc-login').disabled){this.querySelector('#kc-login').classList.add('loading'); return true;} return false;" action="${url.loginAction}" method="post">
                         <div class="form-group">
                             <label for="username">Email</label>
                             <div class="input-wrapper">
@@ -77,7 +77,7 @@
                         </div>
 
                         <div id="kc-form-buttons">
-                            <button tabindex="4" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit">
+                            <button tabindex="4" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit" disabled>
                                 <span class="btn-text">Sign in</span>
                                 <span class="btn-spinner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.42" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg></span>
                             </button>
@@ -104,6 +104,24 @@
             </#if></#list>
             </#if>
         </div>
+        <script>
+            (function() {
+                var usernameInput = document.getElementById('username');
+                var passwordInput = document.getElementById('password');
+                var submitBtn = document.getElementById('kc-login');
+
+                if (!usernameInput || !passwordInput || !submitBtn) return;
+
+                function validateForm() {
+                    var email = usernameInput.value.trim();
+                    var password = passwordInput.value;
+                    submitBtn.disabled = !(email && password);
+                }
+
+                usernameInput.addEventListener('input', validateForm);
+                passwordInput.addEventListener('input', validateForm);
+            })();
+        </script>
     <#elseif section = "info" >
         <div class="text-center mt-6" style="text-align:center; font-size: 14px; margin-top:20px; color:#6b7280;">
             or <a href="${url.registrationUrl!'#'}" style="color: #3b82f6; text-decoration: none;">create an account</a> if you don't have one yet
