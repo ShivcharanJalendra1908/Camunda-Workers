@@ -6,7 +6,7 @@
             <p>Join us and start your journey today.</p>
         </div>
     <#elseif section = "form">
-        <form id="kc-register-form" action="${url.registrationAction}" method="post">
+        <form id="kc-register-form" action="${url.registrationAction}" method="post" onsubmit="var btn=document.getElementById('kc-login'); if(!btn.disabled){btn.classList.add('loading'); btn.disabled=true; return true;} return false;">
             
             <#-- Show Username ONLY if 'Email as Username' is OFF in Keycloak -->
             <#if !realm.registrationEmailAsUsername>
@@ -78,8 +78,18 @@
                 </div>
             </#if>
 
+            <div class="terms-group">
+                <input type="checkbox" id="terms-agree" name="terms-agree" />
+                <label for="terms-agree">
+                    I agree to the <a href="${url.resourcesPath}/pages/terms.html" target="_blank">Terms of Service</a> and <a href="${url.resourcesPath}/pages/privacy.html" target="_blank">Privacy Policy</a>
+                </label>
+            </div>
+
             <div id="kc-form-buttons">
-                <input class="pf-c-button pf-m-primary" type="submit" value="Sign Up" id="kc-login"/>
+                <button class="pf-c-button pf-m-primary" type="submit" id="kc-login" disabled>
+                    <span class="btn-text">Sign Up</span>
+                    <span class="btn-spinner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.42" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg></span>
+                </button>
             </div>
         </form>
         <script>
@@ -90,8 +100,33 @@
                 var strengthFill = document.getElementById('strength-fill');
                 var strengthLabel = document.getElementById('strength-label');
                 var matchDiv = document.getElementById('password-match');
+                var termsCheckbox = document.getElementById('terms-agree');
+                var submitBtn = document.getElementById('kc-login');
+                var firstNameInput = document.getElementById('firstName');
+                var lastNameInput = document.getElementById('lastName');
+                var emailInput = document.getElementById('email');
 
                 if (!pwInput || !confirmInput) return;
+
+                function validateForm() {
+                    var firstName = firstNameInput ? firstNameInput.value.trim() : '';
+                    var lastName = lastNameInput ? lastNameInput.value.trim() : '';
+                    var email = emailInput ? emailInput.value.trim() : '';
+                    var password = pwInput.value;
+                    var confirm = confirmInput.value;
+                    var termsChecked = termsCheckbox ? termsCheckbox.checked : false;
+
+                    var allFilled = firstName && lastName && email && password.length >= 8 && confirm;
+                    var passwordsMatch = password === confirm;
+                    var isValid = allFilled && passwordsMatch && termsChecked;
+
+                    submitBtn.disabled = !isValid;
+                }
+
+                if (firstNameInput) firstNameInput.addEventListener('input', validateForm);
+                if (lastNameInput) lastNameInput.addEventListener('input', validateForm);
+                if (emailInput) emailInput.addEventListener('input', validateForm);
+                if (termsCheckbox) termsCheckbox.addEventListener('change', validateForm);
 
                 var levels = [
                     { label: 'Weak', color: '#dc2626', width: '20%' },
@@ -147,8 +182,12 @@
                 pwInput.addEventListener('input', function() {
                     updateStrength();
                     updateMatch();
+                    validateForm();
                 });
-                confirmInput.addEventListener('input', updateMatch);
+                confirmInput.addEventListener('input', function() {
+                    updateMatch();
+                    validateForm();
+                });
             })();
         </script>
     <#elseif section = "info" >

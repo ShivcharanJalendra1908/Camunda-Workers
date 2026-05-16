@@ -53,7 +53,7 @@
         <div id="kc-form">
             <div id="kc-form-wrapper">
                 <#if realm.password>
-                    <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
+                    <form id="kc-form-login" onsubmit="login.classList.add('loading'); login.disabled = true; return true;" action="${url.loginAction}" method="post">
                         <div class="form-group">
                             <label for="username">Email</label>
                             <div class="input-wrapper">
@@ -77,7 +77,10 @@
                         </div>
 
                         <div id="kc-form-buttons">
-                            <input tabindex="4" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit" value="Sign in"/>
+                            <button tabindex="4" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit">
+                                <span class="btn-text">Sign in</span>
+                                <span class="btn-spinner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.42" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg></span>
+                            </button>
                         </div>
                     </form>
                 </#if>

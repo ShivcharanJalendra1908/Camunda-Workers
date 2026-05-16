@@ -99,8 +99,28 @@
             font-size: 15px !important;
             cursor: pointer !important;
             margin-top: 15px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
         }
-        
+
+        /* Button Loading State */
+        .pf-c-button .btn-spinner { display: none; }
+        .pf-c-button.loading .btn-text { display: none; }
+        .pf-c-button.loading .btn-spinner { display: inline-flex; }
+        .pf-c-button.loading { opacity: 0.8; cursor: not-allowed; }
+        .pf-c-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #9ca3af !important; }
+
+        /* Terms Checkbox */
+        .terms-group { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; }
+        .terms-group input[type="checkbox"] {
+            width: 18px; height: 18px; margin-top: 2px; accent-color: #6D3E93;
+            cursor: pointer; flex-shrink: 0;
+        }
+        .terms-group label { font-size: 13px; color: #4b5563; cursor: pointer; line-height: 1.4; }
+        .terms-group label a { color: #6D3E93; text-decoration: underline; font-weight: 500; }
+
         /* Divider */
         .divider { display: flex; align-items: center; margin: 25px 0; color: #9ca3af; }
         .divider hr { flex: 1; border: 0; border-top: 1px solid #e5e7eb; }
