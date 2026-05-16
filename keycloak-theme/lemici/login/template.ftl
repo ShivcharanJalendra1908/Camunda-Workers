@@ -108,10 +108,11 @@
         
         /* Social */
         #kc-social-providers ul { display: flex; justify-content: center; gap: 15px; list-style: none; padding: 0; margin: 0; }
-        .social-btn { 
-            display: flex; align-items: center; justify-content: center; 
-            width: 42px; height: 42px; border: 1px solid #e5e7eb; 
-            border-radius: 8px; text-decoration: none; 
+        .social-btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%; padding: 10px 16px; border: 1px solid #e5e7eb;
+            border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;
+            color: #374151; background: white;
         }
         .social-btn:hover { background: #f9fafb; }
         .social-btn svg { width: 20px; height: 20px; }

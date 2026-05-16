@@ -27,3 +27,6 @@ frontend/node_modules/
 deployments/docker/ollama/*.gguf
 /arms_cache/api-gateway
 api-gateway*
+
+# docs
+/KEYCLOAK-THEME-AUDIT.md
