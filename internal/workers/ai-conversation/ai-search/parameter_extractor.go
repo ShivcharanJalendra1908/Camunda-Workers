@@ -77,7 +77,7 @@ RULES:
 5. Area_Requirement should be in numbers (sq ft).
 6. ROI should be just the percentage number (e.g., 20).
 7. Rating should be a number between 0 and 5.
-8. Verified and Trusted_Seller should be boolean true/false.
+8. Only set Verified or Trusted_Seller to true if the words "verified" or "trusted" are explicitly used in the user's query. Otherwise, they must be null.
 
 DATA STRUCTURE (Return ONLY valid JSON matching this):
 {
@@ -100,7 +100,10 @@ EXAMPLES:
 Query: "food franchise under 1 lakh in delhi with high rating"
 Output: {"Industry": "Food & Beverage", "Category": null, "Subcategory": null, "Location": "Delhi", "Minimum_Investment": null, "Maximum_Investment": "1L", "Area_Requirement": null, "ROI": null, "Rating": 4.5, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
 
-Query: "education business between 10 to 20 lakh verified"
+Query: "pizza business in mumbai"
+Output: {"Industry": "Food & Beverage", "Category": "Pizza", "Subcategory": null, "Location": "Mumbai", "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
+
+Query: "verified education business between 10 to 20 lakh"
 Output: {"Industry": "Education", "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": "10L", "Maximum_Investment": "20L", "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": true, "Trusted_Seller": null}
 
 Query: "` + q + `"
@@ -683,8 +686,9 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	params, err := pe.Parse(llmResponse)
 	if err != nil {
 		fmt.Printf("⚠️  Parse error: %v\n", err)
-		return &ExtractedParameters{}
+		return &ExtractedParameters{OriginalQuery: originalQuery}
 	}
+	params.OriginalQuery = originalQuery
 
 	if originalQuery == "" {
 		return params

@@ -446,6 +446,27 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	mustClauses := []interface{}{}
 
+	// Always enforce a text match on the user's raw query (minus location) 
+	// This acts as a safety net if the LLM categorizes "pizza" as F&B but drops "pizza" from Category
+	if params.OriginalQuery != "" {
+		cleanQuery := location.StripLocationFromQuery(params.OriginalQuery)
+		// Strip common filler words that might ruin strict matches
+		cleanQuery = strings.ReplaceAll(cleanQuery, "franchise", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "business", "")
+		cleanQuery = strings.TrimSpace(cleanQuery)
+
+		if cleanQuery != "" {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query": cleanQuery,
+					"fields": []string{"name^5", "tags^3", "description", "industry.name"},
+					"fuzziness": "AUTO",
+					// By default operator is OR, so it won't break if it contains "under 10 lakh"
+				},
+			})
+		}
+	}
+
 	// Industry match
 	if params.Industry != "" {
 		industrySlug := GetIndustrySlug(params.Industry)
