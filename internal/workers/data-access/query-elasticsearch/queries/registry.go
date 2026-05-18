@@ -1299,20 +1299,40 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		})
 	}
 
-	// Location filter
+	// Location filter (supports comma-separated multiple locations)
 	if loc, ok := filters["location"].(string); ok && loc != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"terms": map[string]interface{}{
-							"location": location.BuildLocationTerms(loc),
+		cities := strings.Split(loc, ",")
+		seen := make(map[string]bool)
+		var allTerms []string
+		
+		for _, city := range cities {
+			cityStr := strings.TrimSpace(city)
+			if cityStr == "" {
+				continue
+			}
+			terms := location.BuildLocationTerms(cityStr)
+			for _, t := range terms {
+				if !seen[t] {
+					seen[t] = true
+					allTerms = append(allTerms, t)
+				}
+			}
+		}
+
+		if len(allTerms) > 0 {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						map[string]interface{}{
+							"terms": map[string]interface{}{
+								"location": allTerms,
+							},
 						},
 					},
+					"minimum_should_match": 1,
 				},
-				"minimum_should_match": 1,
-			},
-		})
+			})
+		}
 	}
 
 	// Investment range filter
