@@ -196,6 +196,15 @@ integrations:
     marketing_alert_name: "Lemici Marketing Team"
 
 # ============================================================================
+# FLAGSMITH FEATURE FLAGS CONFIGURATION
+# ============================================================================
+flagsmith:
+  enabled: true
+  environment_key: "ser.4ivHnLSGQ347Tu2V96WDNg"
+  enable_local_evaluation: true
+  environment_refresh_ttl: 60
+
+# ============================================================================
 # EXTERNAL APIs
 # ============================================================================
 apis:

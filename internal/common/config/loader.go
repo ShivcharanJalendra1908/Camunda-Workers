@@ -518,6 +518,14 @@ func overrideEmptyConfig(cfg *Config) {
 	if val := os.Getenv("API_CORS_ALLOW_CREDENTIALS"); val != "" {
 		cfg.API.CORS.AllowCredentials = (strings.ToLower(val) == "true")
 	}
+
+	// Flagsmith Key override
+	if val := os.Getenv("FLAGSMITH_SERVER_KEY"); val != "" {
+		cfg.Flagsmith.EnvironmentKey = val
+	}
+	if val := os.Getenv("FLAGSMITH_ENABLED"); val != "" {
+		cfg.Flagsmith.Enabled = (strings.ToLower(val) == "true")
+	}
 }
 
 // LoadFromFile loads configuration from a specific file path
@@ -711,6 +719,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Workflows.ContextStorage.TTL = 3600
 	}
 
+	// Flagsmith defaults
+	if cfg.Flagsmith.EnvironmentRefreshTTL == 0 {
+		cfg.Flagsmith.EnvironmentRefreshTTL = 60
+	}
 }
 
 // validateConfig validates critical configuration fields

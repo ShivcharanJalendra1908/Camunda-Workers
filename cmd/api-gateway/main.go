@@ -16,6 +16,7 @@ import (
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/database"
+	"camunda-workers/internal/common/flagsmith"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
 
@@ -38,6 +39,9 @@ func main() {
 
 	// Initialize logger
 	log := logger.NewStructured(cfg.Logging.Level, cfg.Logging.Format)
+
+	// Initialize Flagsmith Client
+	flagsmith.Init(cfg, log)
 
 	tracingConfig := observability.TracingConfig{
 		Enabled:       cfg.Monitoring.Tracing.Enabled,
