@@ -1220,6 +1220,9 @@ func SearchIndustries(ctx context.Context, esClient *elasticsearch.Client, param
 func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	mustClauses := []map[string]interface{}{}
 	filterClauses := []map[string]interface{}{}
+	shouldClauses := []map[string]interface{}{}
+
+	isAiSearch, _ := filters["isAiSearch"].(bool)
 
 	// Text search
 	if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
@@ -1258,7 +1261,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		category = i
 	}
 	if category != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
+		clause := map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -1273,21 +1276,23 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 					},
 					map[string]interface{}{
 						"term": map[string]interface{}{
-							// "industry.slug": strings.ToLower(
-							// 	strings.ReplaceAll(
-							// 		strings.ReplaceAll(category, " & ", "-"),
-							// 		" ", "-")), // "food-beverage" slug fallback
 							"industry.slug": buildIndustrySlug(category),
 						},
 					},
 				},
 				"minimum_should_match": 1,
 			},
-		})
+		}
+
+		if isAiSearch {
+			shouldClauses = append(shouldClauses, clause)
+		} else {
+			filterClauses = append(filterClauses, clause)
+		}
 	}
 
 	if subCat, ok := filters["subCategory"].(string); ok && subCat != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
+		clause := map[string]interface{}{
 			"nested": map[string]interface{}{
 				"path": "sub_categories",
 				"query": map[string]interface{}{
@@ -1296,7 +1301,13 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 					},
 				},
 			},
-		})
+		}
+
+		if isAiSearch {
+			shouldClauses = append(shouldClauses, clause)
+		} else {
+			filterClauses = append(filterClauses, clause)
+		}
 	}
 
 	// Location filter (supports comma-separated multiple locations)
@@ -1401,12 +1412,17 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			}
 		}
 		if len(tagShoulds) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
+			clause := map[string]interface{}{
 				"bool": map[string]interface{}{
 					"should":               tagShoulds,
 					"minimum_should_match": 1,
 				},
-			})
+			}
+			if isAiSearch {
+				shouldClauses = append(shouldClauses, clause)
+			} else {
+				filterClauses = append(filterClauses, clause)
+			}
 		}
 	}
 
@@ -1432,6 +1448,10 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 
 	if len(filterClauses) > 0 {
 		boolQuery["filter"] = filterClauses
+	}
+
+	if len(shouldClauses) > 0 {
+		boolQuery["should"] = shouldClauses
 	}
 
 	return map[string]interface{}{

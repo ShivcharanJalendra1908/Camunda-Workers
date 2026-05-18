@@ -444,6 +444,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	mustClauses := []interface{}{}
+	shouldClauses := []interface{}{}
 
 	// Always enforce a text match on the user's raw query (minus location) 
 	// This acts as a safety net if the LLM categorizes "pizza" as F&B but drops "pizza" from Category
@@ -466,11 +467,11 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Industry match
+	// Industry match (boost instead of strict filter to allow multiple industries in text search)
 	if params.Industry != "" {
 		industrySlug := GetIndustrySlug(params.Industry)
 
-		mustClauses = append(mustClauses, map[string]interface{}{
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -498,7 +499,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// industry.name, tags aur name pe match karo
 	// should use karo taaki industry already match ho toh ye boost kare
 	if params.Category != "" {
-		mustClauses = append(mustClauses, map[string]interface{}{
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -533,7 +534,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Subcategory match
 	if params.Subcategory != "" {
-		mustClauses = append(mustClauses, map[string]interface{}{
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -558,11 +559,17 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
+	boolQuery := map[string]interface{}{}
 	if len(mustClauses) > 0 {
+		boolQuery["must"] = mustClauses
+	}
+	if len(shouldClauses) > 0 {
+		boolQuery["should"] = shouldClauses
+	}
+
+	if len(boolQuery) > 0 {
 		esQuery["query"] = map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": mustClauses,
-			},
+			"bool": boolQuery,
 		}
 	} else {
 		esQuery["query"] = map[string]interface{}{
@@ -885,6 +892,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"verified":      false,
 		"trustedSeller": false,
 		"tags":          []string{},
+		"isAiSearch":    true,
 	}
 
 	// if params.Industry != "" {
