@@ -146,13 +146,12 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		Model:     s.model,
 		Prompt:    prompt,
 		Stream:    false,
-		Format:    "json",
 		KeepAlive: -1, // Indefinite load for maximum performance
 		Options: map[string]interface{}{
 			"temperature": 0.0,
 			"num_predict": 128,
 			"num_ctx":     1024,
-			"num_thread":  4,
+			"num_thread":  2,
 			"num_batch":   512,
 			"stop":        []string{"<|im_end|>", "<|im_start|>"},
 		},
