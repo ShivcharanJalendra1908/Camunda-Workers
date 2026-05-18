@@ -150,9 +150,9 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		KeepAlive: -1, // Indefinite load for maximum performance
 		Options: map[string]interface{}{
 			"temperature": 0.0,
-			"num_predict": 300,
-			"num_ctx":     2048,
-			"num_thread":  0,
+			"num_predict": 128,
+			"num_ctx":     1024,
+			"num_thread":  4,
 			"num_batch":   512,
 			"stop":        []string{"<|im_end|>", "<|im_start|>"},
 		},
