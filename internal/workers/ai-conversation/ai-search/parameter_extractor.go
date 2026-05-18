@@ -383,6 +383,28 @@ func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) s
 	return ""
 }
 
+func (pe *ParameterExtractor) extractAllTargetCities(query string, skipCity string) []string {
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	
+	candidates := location.DetectAllCitiesFromQuery(queryLower)
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	var results []string
+	for _, c := range candidates {
+		cLower := strings.ToLower(c)
+		if cLower == strings.ToLower(skipCity) || isHQOnlyLocation(queryLower, cLower) {
+			continue
+		}
+		if !pe.isCityUserLocation(queryLower, cLower) {
+			results = append(results, c)
+		}
+	}
+
+	return results
+}
+
 func isHQOnlyLocation(queryLower, cityLower string) bool {
 	// Markers that indicate the city is the BRAND'S location, not the USER'S target
 	hqMarkers := []string{
@@ -747,35 +769,55 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 
 	// FIX 3: Zone/State/City Fallback from query (Deterministic Order)
 	if params.Location == nil || params.Location.City == "" {
-		// 1. Zone (Longest First)
+		var foundLocations []string
+
+		// 1. Check for Zones
 		for _, zone := range pe.sortedZones {
 			if strings.Contains(queryLower, zone) {
 				if !pe.isCityUserLocation(queryLower, zone) {
-					zoneTitled := titleCase(zone)
-					params.Location = pe.parseLocationString(zoneTitled)
-					fmt.Printf("🗺️  Zone from query: %s\n", zone)
-					break
+					foundLocations = append(foundLocations, titleCase(zone))
 				}
 			}
 		}
-		// 2. State (Longest First)
-		if params.Location == nil || params.Location.City == "" {
-			for _, entry := range pe.sortedStates {
-				if strings.Contains(queryLower, entry.lower) {
-					if !pe.isCityUserLocation(queryLower, entry.lower) {
-						params.Location = pe.parseLocationString(entry.proper)
-						fmt.Printf("🗺️  State from query: %s\n", entry.proper)
-						break
-					}
+
+		// 2. Check for States
+		for _, entry := range pe.sortedStates {
+			if strings.Contains(queryLower, entry.lower) {
+				if !pe.isCityUserLocation(queryLower, entry.lower) {
+					foundLocations = append(foundLocations, entry.proper)
 				}
 			}
 		}
-		// 3. City (The robust fix)
-		if params.Location == nil || params.Location.City == "" {
-			targetCity := pe.extractTargetCity(originalQuery, "")
-			if targetCity != "" {
-				params.Location = pe.parseLocationString(targetCity)
-				fmt.Printf("🏙️  City from query: %s\n", targetCity)
+
+		// 3. Check for Cities
+		targetCities := pe.extractAllTargetCities(originalQuery, "")
+		for _, city := range targetCities {
+			foundLocations = append(foundLocations, city)
+		}
+
+		if len(foundLocations) > 0 {
+			// Dedup foundLocations
+			seen := make(map[string]bool)
+			var uniqueLocations []string
+			for _, loc := range foundLocations {
+				locTitled := titleCase(loc)
+				// E.g. "Delhi NCR" and "Delhi" are same, let's treat "Delhi NCR" as standard
+				if locTitled == "Delhi" {
+					locTitled = "Delhi NCR"
+				}
+				if !seen[strings.ToLower(locTitled)] {
+					seen[strings.ToLower(locTitled)] = true
+					uniqueLocations = append(uniqueLocations, locTitled)
+				}
+			}
+
+			if len(uniqueLocations) > 0 {
+				joinedCities := strings.Join(uniqueLocations, ", ")
+				params.Location = &LocationFilter{
+					City:    joinedCities,
+					Country: "India",
+				}
+				fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
 			}
 		}
 	}

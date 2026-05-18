@@ -572,11 +572,17 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	filterClauses := []interface{}{}
 
-	// Location filter — cityAliases map se automatic variant expansion
+	// Location filter — cityAliases map se automatic variant expansion (supports comma-separated multiple locations)
 	if params.Location != nil && params.Location.City != "" {
+		cities := strings.Split(params.Location.City, ",")
+		var allTerms []string
+		for _, city := range cities {
+			allTerms = append(allTerms, location.BuildLocationTerms(strings.TrimSpace(city))...)
+		}
+		
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"terms": map[string]interface{}{
-				"location": location.BuildLocationTerms(params.Location.City),
+				"location": dedupLocationTerms(allTerms),
 			},
 		})
 	}
@@ -999,4 +1005,17 @@ func (h *Handler) handleError(client worker.JobClient, job entities.Job, err err
 		Retries(job.Retries - 1).
 		ErrorMessage(fmt.Sprintf("%s: %v", errorCode, err)).
 		Send(ctx)
+}
+
+func dedupLocationTerms(terms []string) []string {
+	seen := make(map[string]bool)
+	var unique []string
+	for _, t := range terms {
+		tLower := strings.ToLower(strings.TrimSpace(t))
+		if tLower != "" && !seen[tLower] {
+			seen[tLower] = true
+			unique = append(unique, t)
+		}
+	}
+	return unique
 }
