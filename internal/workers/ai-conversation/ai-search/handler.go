@@ -907,6 +907,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"minSpace":      0,
 		"maxSpace":      0,
 		"roi":           0.0,
+		"maxRoi":        0.0,
 		"minRating":     0.0,
 		"verified":      false,
 		"trustedSeller": false,
@@ -969,6 +970,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 
 	if params.ROI != nil {
 		extractedParams["roi"] = params.ROI.Min
+		extractedParams["maxRoi"] = params.ROI.Max
 	}
 
 	if params.Staff != nil {
