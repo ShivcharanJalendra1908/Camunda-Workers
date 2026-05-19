@@ -285,10 +285,13 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 	industrySlug, _ := params["industrySlug"].(string)
 	extracted, hasExtracted := params["extractedParams"].(map[string]interface{})
 
-	// Effective slug — extractedParams se override karo agar available ho
+	// Effective slug — prefer industrySlugAll (multi-slug) from extractedParams if available
 	effectiveSlug := industrySlug
 	if hasExtracted {
-		if s, ok := extracted["industrySlug"].(string); ok && s != "" {
+		// First try the full multi-slug (e.g. "food-beverage, fashion")
+		if s, ok := extracted["industrySlugAll"].(string); ok && s != "" {
+			effectiveSlug = s
+		} else if s, ok := extracted["industrySlug"].(string); ok && s != "" {
 			effectiveSlug = s
 		}
 	}

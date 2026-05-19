@@ -924,7 +924,12 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	// }
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
-		extractedParams["industrySlug"] = GetIndustrySlug(params.Industry)
+		fullSlug := GetIndustrySlug(params.Industry) // may be "food-beverage, fashion"
+		// BPMN INDUSTRY_BY_SLUG query needs a single clean slug for heading
+		firstSlug := strings.Split(fullSlug, ",")[0]
+		extractedParams["industrySlug"] = strings.TrimSpace(firstSlug)
+		// Store full comma-separated slugs for multi-industry ES queries (RECOMMENDED_BY_INDUSTRY etc.)
+		extractedParams["industrySlugAll"] = fullSlug
 	}
 
 	if params.Category != "" {
