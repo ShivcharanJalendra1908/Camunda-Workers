@@ -631,16 +631,18 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	if params.ROI != nil {
-		roiRange := map[string]interface{}{}
 		if params.ROI.Min > 0 {
-			roiRange["gte"] = params.ROI.Min
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"roi.max": map[string]interface{}{"gte": params.ROI.Min},
+				},
+			})
 		}
 		if params.ROI.Max > 0 {
-			roiRange["lte"] = params.ROI.Max
-		}
-		if len(roiRange) > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{"roi": roiRange},
+				"range": map[string]interface{}{
+					"roi.min": map[string]interface{}{"lte": params.ROI.Max},
+				},
 			})
 		}
 	}

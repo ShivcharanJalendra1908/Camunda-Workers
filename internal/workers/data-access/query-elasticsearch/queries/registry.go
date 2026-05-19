@@ -302,13 +302,33 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			industryName, _ = extracted["industry"].(string)
 		}
 
-		shouldClauses := []interface{}{
-			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
-		}
-		if industryName != "" {
+		var shouldClauses []interface{}
+
+		// Support multiple comma-separated slugs/names
+		slugs := strings.Split(effectiveSlug, ",")
+		for _, slug := range slugs {
+			slugTrimmed := strings.TrimSpace(slug)
+			if slugTrimmed == "" {
+				continue
+			}
 			shouldClauses = append(shouldClauses,
-				map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": industryName}},
+				map[string]interface{}{"term": map[string]interface{}{"industry.slug": slugTrimmed}},
+				map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": slugTrimmed}},
+				map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": "*" + slugTrimmed + "*"}},
 			)
+		}
+
+		if industryName != "" {
+			names := strings.Split(industryName, ",")
+			for _, name := range names {
+				nameTrimmed := strings.TrimSpace(name)
+				if nameTrimmed == "" {
+					continue
+				}
+				shouldClauses = append(shouldClauses,
+					map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": nameTrimmed}},
+				)
+			}
 		}
 
 		query := map[string]interface{}{
@@ -584,23 +604,32 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			"size": 1,
 		}
 	} else if hasSlug && industrySlug != "" {
-		slugPrefix := strings.Split(industrySlug, "-")[0]
+		var shouldClauses []interface{}
+		parts := strings.Split(industrySlug, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			slugPrefix := strings.Split(partTrimmed, "-")[0]
+			shouldClauses = append(shouldClauses,
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"industry_slug": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"prefix": map[string]interface{}{
+						"industry_slug": slugPrefix,
+					},
+				},
+			)
+		}
 
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should": []interface{}{
-						map[string]interface{}{
-							"term": map[string]interface{}{
-								"industry_slug": industrySlug,
-							},
-						},
-						map[string]interface{}{
-							"prefix": map[string]interface{}{
-								"industry_slug": slugPrefix,
-							},
-						},
-					},
+					"should":               shouldClauses,
 					"minimum_should_match": 1,
 				},
 			},
@@ -969,15 +998,24 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 			},
 		}
 	} else if industrySlug != "" {
-		// ✅ CASE 3: Industry filter — existing logic unchanged
+		// ✅ CASE 3: Industry filter — support comma-separated multiple industries
+		var shouldClauses []interface{}
+		parts := strings.Split(industrySlug, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			shouldClauses = append(shouldClauses,
+				map[string]interface{}{"term": map[string]interface{}{"industry.slug": partTrimmed}},
+				map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": partTrimmed}},
+				map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": map[string]interface{}{"value": "*" + partTrimmed + "*"}}},
+				map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": partTrimmed, "fuzziness": "AUTO"}}},
+			)
+		}
 		query["query"] = map[string]interface{}{
 			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"industry.slug": industrySlug}},
-					map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": industrySlug}},
-					map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": map[string]interface{}{"value": "*" + industrySlug + "*"}}},
-					map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": industrySlug, "fuzziness": "AUTO"}}},
-				},
+				"should":               shouldClauses,
 				"minimum_should_match": 1,
 			},
 		}

@@ -211,11 +211,7 @@ var industrySlugMap = map[string]string{
 	"Media / Communication":     "media-communication",
 }
 
-// GetIndustrySlug - direct slug lookup, no string manipulation
-func GetIndustrySlug(industryName string) string {
-	if slug, ok := industrySlugMap[industryName]; ok {
-		return slug
-	}
+func getSlugFallback(industryName string) string {
 	slug := strings.ToLower(industryName)
 	slug = strings.ReplaceAll(slug, " & ", "-")
 	slug = strings.ReplaceAll(slug, " / ", "-")
@@ -227,6 +223,33 @@ func GetIndustrySlug(industryName string) string {
 		slug = strings.ReplaceAll(slug, "--", "-")
 	}
 	return slug
+}
+
+// GetIndustrySlug - direct slug lookup, supporting comma-separated multiple industry names
+func GetIndustrySlug(industryName string) string {
+	if strings.Contains(industryName, ",") {
+		parts := strings.Split(industryName, ",")
+		var slugs []string
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			if slug, ok := industrySlugMap[partTrimmed]; ok {
+				slugs = append(slugs, slug)
+			} else {
+				slugs = append(slugs, getSlugFallback(partTrimmed))
+			}
+		}
+		if len(slugs) > 0 {
+			return strings.Join(slugs, ",")
+		}
+	}
+
+	if slug, ok := industrySlugMap[industryName]; ok {
+		return slug
+	}
+	return getSlugFallback(industryName)
 }
 
 func normalizeIndustry(industry string, category string) string {
@@ -727,17 +750,42 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 		}
 	}
 
-	// FIX 0.1: Industry Fallback from query
-	if params.Industry == "" {
-		for kw, normalized := range industryNormalizationMap {
-			// Only match full words for industry
-			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
-			if re.MatchString(queryLower) {
-				params.Industry = normalized
-				fmt.Printf("🏭 Industry from query: %s (via %s)\n", normalized, kw)
-				break
+	// Always scan original query for all mentioned industries to support multi-industry search
+	var allIndustries []string
+	seenInd := make(map[string]bool)
+
+	// Add LLM industry if present
+	if params.Industry != "" {
+		if !seenInd[params.Industry] {
+			seenInd[params.Industry] = true
+			allIndustries = append(allIndustries, params.Industry)
+		}
+	}
+
+	// Scan query and match all industries
+	// Sort keywords by length descending to match longest first
+	var kws []string
+	for kw := range industryNormalizationMap {
+		kws = append(kws, kw)
+	}
+	sort.Slice(kws, func(i, j int) bool {
+		return len(kws[i]) > len(kws[j])
+	})
+
+	for _, kw := range kws {
+		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+		if re.MatchString(queryLower) {
+			normalized := industryNormalizationMap[kw]
+			if !seenInd[normalized] {
+				seenInd[normalized] = true
+				allIndustries = append(allIndustries, normalized)
 			}
 		}
+	}
+
+	if len(allIndustries) > 0 {
+		params.Industry = strings.Join(allIndustries, ", ")
+		fmt.Printf("🏭 Merged Industries: %s\n", params.Industry)
 	}
 
 	// FIX 1: HQ Location

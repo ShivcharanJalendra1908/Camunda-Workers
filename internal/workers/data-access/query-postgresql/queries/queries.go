@@ -191,7 +191,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			FROM categories c
 			INNER JOIN industries i ON c.industry_id = i.id
 			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
-			WHERE i.slug = $1 AND c.is_active = true
+			WHERE i.slug = ANY(string_to_array($1, ',')) AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
@@ -792,6 +792,7 @@ func CategoryQuestionsByIndustry(
 	if v, ok := params["industryId"].(string); ok && v != "" {
 		referenceID = v
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
+		firstSlug := strings.Split(v, ",")[0]
 		err := db.QueryRowContext(ctx, `
             SELECT id FROM industries
             WHERE (
@@ -806,7 +807,7 @@ func CategoryQuestionsByIndustry(
                      WHEN slug LIKE $1 || '%' THEN 2
                      ELSE 3
                 END
-            LIMIT 1`, v,
+            LIMIT 1`, firstSlug,
 		).Scan(&referenceID)
 		if err != nil {
 			referenceID = "00000000-0000-0000-0000-000000000000"
