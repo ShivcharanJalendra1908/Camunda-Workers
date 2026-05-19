@@ -606,7 +606,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			},
 			"size": 1,
 		}
-	} else if hasSlug && industrySlug != "" {
+	} else if hasSlug && industrySlug != "" && !strings.Contains(industrySlug, ",") {
 		var shouldClauses []interface{}
 		parts := strings.Split(industrySlug, ",")
 		for _, part := range parts {

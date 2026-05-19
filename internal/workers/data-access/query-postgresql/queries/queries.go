@@ -792,26 +792,32 @@ func CategoryQuestionsByIndustry(
 	if v, ok := params["industryId"].(string); ok && v != "" {
 		referenceID = v
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
-		firstSlug := strings.Split(v, ",")[0]
-		err := db.QueryRowContext(ctx, `
-            SELECT id FROM industries
-            WHERE (
-                slug = $1
-                OR slug LIKE $1 || '%'
-                OR slug LIKE '%' || $1 || '%'
-                OR name ILIKE '%' || $1 || '%'
-            )
-            AND is_active = true
-            ORDER BY
-                CASE WHEN slug = $1 THEN 1
-                     WHEN slug LIKE $1 || '%' THEN 2
-                     ELSE 3
-                END
-            LIMIT 1`, firstSlug,
-		).Scan(&referenceID)
-		if err != nil {
+		if strings.Contains(v, ",") {
+			// Multi-industry slug: fallback to general questions
 			referenceID = "00000000-0000-0000-0000-000000000000"
 			intentTag = detectIntentTag(searchQuery)
+		} else {
+			firstSlug := strings.Split(v, ",")[0]
+			err := db.QueryRowContext(ctx, `
+				SELECT id FROM industries
+				WHERE (
+					slug = $1
+					OR slug LIKE $1 || '%'
+					OR slug LIKE '%' || $1 || '%'
+					OR name ILIKE '%' || $1 || '%'
+				)
+				AND is_active = true
+				ORDER BY
+					CASE WHEN slug = $1 THEN 1
+						 WHEN slug LIKE $1 || '%' THEN 2
+						 ELSE 3
+					END
+				LIMIT 1`, firstSlug,
+			).Scan(&referenceID)
+			if err != nil {
+				referenceID = "00000000-0000-0000-0000-000000000000"
+				intentTag = detectIntentTag(searchQuery)
+			}
 		}
 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
 		referenceID = v

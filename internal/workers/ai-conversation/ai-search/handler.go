@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -18,6 +19,11 @@ import (
 	"camunda-workers/internal/common/location"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/metrics"
+)
+
+var (
+	llmCacheMu sync.RWMutex
+	llmCache   = make(map[string]*ExtractedParameters)
 )
 
 // ============================================================
@@ -767,6 +773,18 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		return &ExtractedParameters{}
 	}
 
+	cacheKey := strings.ToLower(strings.TrimSpace(input.Query))
+	llmCacheMu.RLock()
+	cached, exists := llmCache[cacheKey]
+	llmCacheMu.RUnlock()
+	if exists {
+		h.logger.Info("LLM parameter extraction cache hit", map[string]interface{}{
+			"query":    input.Query,
+			"industry": cached.Industry,
+		})
+		return cached
+	}
+
 	prompt := h.paramExtractor.BuildPrompt(input.Query)
 
 	response, err := h.llmService.Extract(ctx, prompt)
@@ -799,6 +817,13 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		"has_investment": params.Investment != nil,
 		"has_roi":        params.ROI != nil,
 	})
+
+	llmCacheMu.Lock()
+	if len(llmCache) > 1000 {
+		llmCache = make(map[string]*ExtractedParameters)
+	}
+	llmCache[cacheKey] = params
+	llmCacheMu.Unlock()
 
 	return params
 }
@@ -926,9 +951,8 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
 		fullSlug := GetIndustrySlug(params.Industry) // may be "food-beverage, fashion"
-		// BPMN INDUSTRY_BY_SLUG query needs a single clean slug for heading
-		firstSlug := strings.Split(fullSlug, ",")[0]
-		extractedParams["industrySlug"] = strings.TrimSpace(firstSlug)
+		// Support multi-industry featured categories, queries, recommended
+		extractedParams["industrySlug"] = fullSlug
 		// Store full comma-separated slugs for multi-industry ES queries (RECOMMENDED_BY_INDUSTRY etc.)
 		extractedParams["industrySlugAll"] = fullSlug
 	}
