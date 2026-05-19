@@ -212,6 +212,9 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
+	if searchQuery == "" {
+		searchQuery = c.Query("query")
+	}
 	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
 	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
 	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // ← NEW
@@ -370,6 +373,9 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("query")
+	if searchQuery == "" {
+		searchQuery = c.Query("q")
+	}
 
 	var filters models.FranchiseSearchFilters
 	if err := c.ShouldBindQuery(&filters); err != nil {
