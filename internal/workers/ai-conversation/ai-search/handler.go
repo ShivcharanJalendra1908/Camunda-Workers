@@ -578,15 +578,17 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	filterClauses := []interface{}{}
+	// softBoosts: Investment & ROI are soft boosts (should), not hard filters.
+	// This ensures results are not cut to near-zero when combining multiple criteria.
+	softBoosts := []interface{}{}
 
-	// Location filter — cityAliases map se automatic variant expansion (supports comma-separated multiple locations)
+	// Location filter — HARD filter (user explicitly wants these cities)
 	if params.Location != nil && params.Location.City != "" {
 		cities := strings.Split(params.Location.City, ",")
 		var allTerms []string
 		for _, city := range cities {
 			allTerms = append(allTerms, location.BuildLocationTerms(strings.TrimSpace(city))...)
 		}
-		
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"terms": map[string]interface{}{
 				"location": dedupLocationTerms(allTerms),
@@ -594,20 +596,21 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
+	// Investment — SOFT boost (prefer matching, not exclude)
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
 			maxLakhs := params.Investment.Max / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
+					"investment.min_investment": map[string]interface{}{"lte": maxLakhs, "boost": 2},
 				},
 			})
 		}
 		if params.Investment.Min > 0 {
 			minLakhs := params.Investment.Min / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{"gte": minLakhs},
+					"investment.max_investment": map[string]interface{}{"gte": minLakhs, "boost": 2},
 				},
 			})
 		}
@@ -630,18 +633,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
+	// ROI — SOFT boost (prefer matching, not exclude)
 	if params.ROI != nil {
 		if params.ROI.Min > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.max": map[string]interface{}{"gte": params.ROI.Min},
+					"roi.max": map[string]interface{}{"gte": params.ROI.Min, "boost": 3},
 				},
 			})
 		}
 		if params.ROI.Max > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.min": map[string]interface{}{"lte": params.ROI.Max},
+					"roi.min": map[string]interface{}{"lte": params.ROI.Max, "boost": 3},
 				},
 			})
 		}
@@ -690,18 +694,31 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	if len(filterClauses) > 0 {
-		currentQuery := esQuery["query"].(map[string]interface{})
-		if boolQuery, hasBool := currentQuery["bool"].(map[string]interface{}); hasBool {
+	// Apply hard filters and soft boosts
+	currentQuery := esQuery["query"].(map[string]interface{})
+	if boolQuery, hasBool := currentQuery["bool"].(map[string]interface{}); hasBool {
+		if len(filterClauses) > 0 {
 			boolQuery["filter"] = filterClauses
-		} else {
-			esQuery["query"] = map[string]interface{}{
-				"bool": map[string]interface{}{
-					"must":   []interface{}{currentQuery},
-					"filter": filterClauses,
-				},
+		}
+		if len(softBoosts) > 0 {
+			// Merge with existing should or create new
+			if existingShould, ok := boolQuery["should"].([]interface{}); ok {
+				boolQuery["should"] = append(existingShould, softBoosts...)
+			} else {
+				boolQuery["should"] = softBoosts
 			}
 		}
+	} else if len(filterClauses) > 0 || len(softBoosts) > 0 {
+		newBool := map[string]interface{}{
+			"must": []interface{}{currentQuery},
+		}
+		if len(filterClauses) > 0 {
+			newBool["filter"] = filterClauses
+		}
+		if len(softBoosts) > 0 {
+			newBool["should"] = softBoosts
+		}
+		esQuery["query"] = map[string]interface{}{"bool": newBool}
 	}
 
 	return esQuery, nil
