@@ -439,6 +439,10 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 }
 
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
+	if params == nil {
+		params = &ExtractedParameters{}
+	}
+
 	esQuery := map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"from": 0,

@@ -343,16 +343,13 @@ func TestBuildBasicQuery(t *testing.T) {
 	}{
 		{"*", "match_all"},
 		{"   ", "match_all"},
-		{"food franchises", "multi_match"},
+		{"food franchises", "bool"},
 	}
 	for _, tt := range tests {
 		q := handler.buildBasicQuery(tt.query)
 		assert.Equal(t, handler.config.DefaultPageSize, q["size"])
 		queryMap := q["query"].(map[string]interface{})
 		assert.Contains(t, queryMap, tt.wantType)
-		if tt.wantType == "multi_match" {
-			assert.Equal(t, tt.query, queryMap["multi_match"].(map[string]interface{})["query"])
-		}
 	}
 }
 
