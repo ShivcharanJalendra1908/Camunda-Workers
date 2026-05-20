@@ -73,7 +73,7 @@
                                 </button>
                             </div>
                             <#-- Forgot Password -->
-                            <a tabindex="5" href="${url.loginResetPasswordUrl!'/realms/${realm.name}/login-actions/reset-credentials'}" class="forgot-password-link" style="position: relative; z-index: 999; cursor: pointer;">Forgot password?</a>
+                            <a tabindex="5" href="${url.loginResetCredentialsUrl}" class="forgot-password-link" style="position: relative; z-index: 999; cursor: pointer;">Forgot password?</a>
                         </div>
 
                         <div id="kc-form-buttons">
