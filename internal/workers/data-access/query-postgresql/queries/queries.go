@@ -830,27 +830,74 @@ func CategoryQuestionsByIndustry(
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	refIDsStr := strings.Join(referenceIDs, ",")
-
-	rows, err := db.QueryContext(queryCtx, `
-        SELECT question
-        FROM category_questions
-        WHERE reference_id = ANY(string_to_array($1, ',')::uuid[])
-          AND (intent_tag = $2 OR intent_tag = 'general')
-        ORDER BY
-            CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
-            created_at
-        LIMIT 8
-    `, refIDsStr, intentTag)
-	if err != nil {
-		return []string{}, 0, time.Since(start).Milliseconds(), nil
-	}
-	defer rows.Close()
 	var questions []string
-	for rows.Next() {
-		var q string
-		if err := rows.Scan(&q); err == nil && q != "" {
-			questions = append(questions, q)
+	if len(referenceIDs) > 1 {
+		var lists [][]string
+		for _, refID := range referenceIDs {
+			subRows, err := db.QueryContext(queryCtx, `
+				SELECT question
+				FROM category_questions
+				WHERE reference_id = $1::uuid
+				  AND (intent_tag = $2 OR intent_tag = 'general')
+				ORDER BY
+					CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
+					created_at
+				LIMIT 8
+			`, refID, intentTag)
+			if err == nil {
+				var subList []string
+				for subRows.Next() {
+					var q string
+					if err := subRows.Scan(&q); err == nil && q != "" {
+						subList = append(subList, q)
+					}
+				}
+				subRows.Close()
+				if len(subList) > 0 {
+					lists = append(lists, subList)
+				}
+			}
+		}
+
+		maxLen := 0
+		for _, list := range lists {
+			if len(list) > maxLen {
+				maxLen = len(list)
+			}
+		}
+
+		for i := 0; i < maxLen; i++ {
+			for _, list := range lists {
+				if i < len(list) {
+					questions = append(questions, list[i])
+				}
+			}
+		}
+
+		if len(questions) > 8 {
+			questions = questions[:8]
+		}
+	} else {
+		refIDsStr := strings.Join(referenceIDs, ",")
+		rows, err := db.QueryContext(queryCtx, `
+			SELECT question
+			FROM category_questions
+			WHERE reference_id = ANY(string_to_array($1, ',')::uuid[])
+			  AND (intent_tag = $2 OR intent_tag = 'general')
+			ORDER BY
+				CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
+				created_at
+			LIMIT 8
+		`, refIDsStr, intentTag)
+		if err != nil {
+			return []string{}, 0, time.Since(start).Milliseconds(), nil
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var q string
+			if err := rows.Scan(&q); err == nil && q != "" {
+				questions = append(questions, q)
+			}
 		}
 	}
 	return questions, len(questions), time.Since(start).Milliseconds(), nil
