@@ -5,6 +5,7 @@ on:
     branches:
       - prod
       - mvp
+      - demo
 
 permissions:
   contents: read
