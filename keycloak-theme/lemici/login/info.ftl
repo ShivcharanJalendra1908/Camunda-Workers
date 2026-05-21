@@ -1,0 +1,89 @@
+<#import "template.ftl" as layout>
+
+<@layout.registrationLayout displayMessage=false; section>
+    <#if section = "header">
+        <div class="login-header">
+            <h1>Status Update</h1>
+        </div>
+    <#elseif section = "form">
+        <div id="kc-info-message" style="text-align: center; padding: 20px 0;">
+            <#-- Icon based on message type -->
+            <#if message.type = "success">
+                <div style="width: 64px; height: 64px; background: rgba(22, 163, 74, 0.1); color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+                </div>
+            <#elseif message.type = "warning">
+                <div style="width: 64px; height: 64px; background: rgba(217, 119, 6, 0.1); color: #d97706; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                </div>
+            <#elseif message.type = "error">
+                <div style="width: 64px; height: 64px; background: rgba(220, 38, 38, 0.1); color: #dc2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+                </div>
+            <#else>
+                <div style="width: 64px; height: 64px; background: rgba(37, 99, 235, 0.1); color: #2563eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063.854l-.512 1.453-.041.02a.75.75 0 01-1.063-.854l.512-1.453zM12 7.5a.75.75 0 110-1.5.75.75 0 010 1.5zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </#if>
+
+            <p style="font-size: 16px; font-weight: 500; color: #374151; margin-bottom: 24px; line-height: 1.6;">
+                ${kcSanitize(message.summary)?no_esc}
+            </p>
+
+            <#-- Redirect Info or Countdown -->
+            <#if pageRedirectUri?has_content>
+                <#if message.summary?contains("updated") || message.summary?contains("password") || message.summary?contains("success") || message.summary?contains("changed") || message.summary?contains("sent")>
+                    <div id="redirect-counter" style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">
+                        Redirecting to login in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">5</span> seconds...
+                    </div>
+                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        Go to Login Page
+                    </a>
+                    <script>
+                        (function() {
+                            var sec = 5;
+                            var timer = setInterval(function() {
+                                sec--;
+                                var el = document.getElementById('countdown-sec');
+                                if (el) el.innerText = sec;
+                                if (sec <= 0) {
+                                    clearInterval(timer);
+                                    window.location.href = "${url.loginUrl}";
+                                }
+                            }, 1000);
+                        })();
+                    </script>
+                <#else>
+                    <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        ${kcSanitize(msg("backToApplication"))?no_esc}
+                    </a>
+                </#if>
+            <#elseif actionUri?has_content>
+                <a href="${actionUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                    ${kcSanitize(msg("proceedWithAction"))?no_esc}
+                </a>
+            <#else>
+                <div id="redirect-counter" style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">
+                    Redirecting to login in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">5</span> seconds...
+                </div>
+                <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                    ${kcSanitize(msg("backToLogin"))?no_esc}
+                </a>
+                <script>
+                    (function() {
+                        var sec = 5;
+                        var timer = setInterval(function() {
+                            sec--;
+                            var el = document.getElementById('countdown-sec');
+                            if (el) el.innerText = sec;
+                            if (sec <= 0) {
+                                clearInterval(timer);
+                                window.location.href = "${url.loginUrl}";
+                            }
+                        }, 1000);
+                    })();
+                </script>
+            </#if>
+        </div>
+    </#if>
+</@layout.registrationLayout>
