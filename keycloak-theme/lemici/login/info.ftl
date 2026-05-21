@@ -31,46 +31,56 @@
             </p>
 
             <#-- Redirect Info or Countdown -->
-            <#if pageRedirectUri?has_content>
-                <#if message.summary?contains("updated") || message.summary?contains("password") || message.summary?contains("success") || message.summary?contains("changed") || message.summary?contains("sent")>
-                    <div id="redirect-counter" style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">
-                        Redirecting to login in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">5</span> seconds...
-                    </div>
-                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                        Go to Login Page
-                    </a>
-                    <script>
-                        (function() {
-                            var sec = 5;
-                            var timer = setInterval(function() {
-                                sec--;
-                                var el = document.getElementById('countdown-sec');
-                                if (el) el.innerText = sec;
-                                if (sec <= 0) {
-                                    clearInterval(timer);
-                                    window.location.href = "${url.loginUrl}";
-                                }
-                            }, 1000);
-                        })();
-                    </script>
-                <#else>
+            <#if message.summary?contains("receive") || message.summary?contains("email") || message.summary?contains("instruction") || message.summary?contains("sent")>
+                <#-- Email Sent page: Listen for success event from other tabs (via localStorage) -->
+                <#if pageRedirectUri?has_content>
                     <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
                         ${kcSanitize(msg("backToApplication"))?no_esc}
                     </a>
+                <#else>
+                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        ${kcSanitize(msg("backToLogin"))?no_esc}
+                    </a>
                 </#if>
-            <#elseif actionUri?has_content>
-                <a href="${actionUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                    ${kcSanitize(msg("proceedWithAction"))?no_esc}
-                </a>
+                <script>
+                    (function() {
+                        // Clear any old success flag first
+                        localStorage.removeItem('password_reset_success');
+                        
+                        function handleResetSuccess() {
+                            localStorage.removeItem('password_reset_success');
+                            window.location.href = "${url.loginUrl}";
+                        }
+                        
+                        // Listen for storage event (triggered when password is changed in Tab C)
+                        window.addEventListener('storage', function(e) {
+                            if (e.key === 'password_reset_success' && e.newValue === 'true') {
+                                handleResetSuccess();
+                            }
+                        });
+                        
+                        // Periodic polling check in case storage events are not supported/blocked
+                        var checkTimer = setInterval(function() {
+                            if (localStorage.getItem('password_reset_success') === 'true') {
+                                clearInterval(checkTimer);
+                                handleResetSuccess();
+                            }
+                        }, 1000);
+                    })();
+                </script>
             <#else>
+                <#-- Success / Already Logged In Page: Trigger storage event and auto-redirect to login -->
                 <div id="redirect-counter" style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">
                     Redirecting to login in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">5</span> seconds...
                 </div>
                 <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                    ${kcSanitize(msg("backToLogin"))?no_esc}
+                    Go to Login Page
                 </a>
                 <script>
                     (function() {
+                        // Set the success flag to notify Tab A
+                        localStorage.setItem('password_reset_success', 'true');
+                        
                         var sec = 5;
                         var timer = setInterval(function() {
                             sec--;

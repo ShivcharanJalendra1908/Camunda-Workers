@@ -3,8 +3,8 @@
 <@layout.registrationLayout displayInfo=true; section>
     <#if section = "header">
         <div class="login-header">
-            <h1>Update Password</h1>
-            <p>Please enter your new password below.</p>
+            <h1>Reset Password</h1>
+            <p>Please enter your new password below to reset your credentials.</p>
         </div>
     <#elseif section = "form">
         <div id="kc-form">
@@ -39,20 +39,18 @@
                         </div>
                     </div>
 
-                    <#if isAppInitiatedAction??>
-                        <div class="terms-group">
-                            <input type="checkbox" id="logout-sessions" name="logout-sessions" value="on" checked>
-                            <label for="logout-sessions">
-                                Logout other sessions
-                            </label>
-                        </div>
-                    </#if>
+                    <div class="terms-group">
+                        <input type="checkbox" id="logout-sessions" name="logout-sessions" value="on" checked>
+                        <label for="logout-sessions">
+                            Sign out from other devices
+                        </label>
+                    </div>
 
                     <div id="kc-form-buttons">
                         <#if isAppInitiatedAction??>
                             <div style="display: flex; gap: 10px;">
                                 <button tabindex="3" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit" disabled style="flex: 1; margin-top: 15px !important;">
-                                    <span class="btn-text">Submit</span>
+                                    <span class="btn-text">Reset Password</span>
                                     <span class="btn-spinner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.42" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg></span>
                                 </button>
                                 <button tabindex="4" class="pf-c-button pf-m-secondary" name="cancel-aia" value="true" type="submit" style="flex: 1; background: #e5e7eb !important; color: #374151 !important; border: 1px solid #d1d5db !important; border-radius: 8px !important; padding: 10px !important; font-weight: 600 !important; font-size: 15px !important; cursor: pointer !important; margin-top: 15px !important;">
@@ -61,7 +59,7 @@
                             </div>
                         <#else>
                             <button tabindex="3" class="pf-c-button pf-m-primary" name="login" id="kc-login" type="submit" disabled>
-                                <span class="btn-text">Update Password</span>
+                                <span class="btn-text">Reset Password</span>
                                 <span class="btn-spinner"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="31.42" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg></span>
                             </button>
                         </#if>

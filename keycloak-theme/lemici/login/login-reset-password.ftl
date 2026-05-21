@@ -9,7 +9,8 @@
     <#elseif section = "form">
         <div id="kc-form">
             <div id="kc-form-wrapper">
-                <form id="kc-reset-password-form" onsubmit="if(!this.querySelector('#kc-login').disabled){this.querySelector('#kc-login').classList.add('loading'); return true;} return false;" action="${url.loginAction}" method="post">
+                <div id="custom-alert-container" class="alert-error" style="display:none; margin-bottom: 20px;"></div>
+                <form id="kc-reset-password-form" action="${url.loginAction}" method="post">
                     <div class="form-group">
                         <label for="username"><#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if></label>
                         <div class="input-wrapper">
@@ -29,18 +30,115 @@
         </div>
         <script>
             (function() {
+                var form = document.getElementById('kc-reset-password-form');
                 var usernameInput = document.getElementById('username');
                 var submitBtn = document.getElementById('kc-login');
+                var alertContainer = document.getElementById('custom-alert-container');
 
-                if (!usernameInput || !submitBtn) return;
+                if (!usernameInput || !submitBtn || !form) return;
+
+                // Load failed attempts from sessionStorage so it persists across refreshes
+                var failedAttempts = parseInt(sessionStorage.getItem('reset_failed_attempts') || '0', 10);
 
                 function validateForm() {
+                    // If they have already reached 3 failures, keep input and button disabled
+                    if (failedAttempts >= 3) {
+                        submitBtn.disabled = true;
+                        usernameInput.disabled = true;
+                        return;
+                    }
                     submitBtn.disabled = !(usernameInput.value.trim());
                 }
 
-                usernameInput.addEventListener('input', validateForm);
+                usernameInput.addEventListener('input', function() {
+                    if (alertContainer) {
+                        alertContainer.style.display = 'none';
+                    }
+                    validateForm();
+                });
+
+                // Check on initial load if they already exhausted trials
+                if (failedAttempts >= 3) {
+                    usernameInput.disabled = true;
+                    submitBtn.disabled = true;
+                    if (alertContainer) {
+                        alertContainer.innerText = 'Too many failed attempts. Please register a new account.';
+                        alertContainer.style.display = 'flex';
+                    }
+                    setTimeout(function() {
+                        sessionStorage.removeItem('reset_failed_attempts');
+                        window.location.href = '${url.registrationUrl!url.loginUrl}';
+                    }, 3000);
+                    return;
+                }
+
                 // Validate on load in case browser autofills
                 setTimeout(validateForm, 100);
+
+                form.addEventListener('submit', function(e) {
+                    if (form.dataset.verified === 'true') {
+                        return;
+                    }
+
+                    e.preventDefault();
+
+                    var email = usernameInput.value.trim();
+                    if (!email) return;
+
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('loading');
+                    if (alertContainer) {
+                        alertContainer.style.display = 'none';
+                    }
+
+                    fetch('/api/v1/auth/check-email?email=' + encodeURIComponent(email))
+                        .then(function(res) {
+                            if (!res.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            return res.json();
+                        })
+                        .then(function(data) {
+                            if (data.success && data.exists) {
+                                sessionStorage.removeItem('reset_failed_attempts');
+                                form.dataset.verified = 'true';
+                                form.submit();
+                            } else {
+                                failedAttempts++;
+                                sessionStorage.setItem('reset_failed_attempts', failedAttempts);
+
+                                if (failedAttempts >= 3) {
+                                    submitBtn.disabled = true;
+                                    usernameInput.disabled = true;
+                                    submitBtn.classList.remove('loading');
+                                    if (alertContainer) {
+                                        alertContainer.innerText = 'Too many failed attempts. Redirecting to register...';
+                                        alertContainer.style.display = 'flex';
+                                    }
+                                    sessionStorage.removeItem('reset_failed_attempts');
+                                    setTimeout(function() {
+                                        window.location.href = '${url.registrationUrl!url.loginUrl}';
+                                    }, 3000);
+                                } else {
+                                    submitBtn.disabled = false;
+                                    submitBtn.classList.remove('loading');
+                                    if (alertContainer) {
+                                        alertContainer.innerText = 'This email is not registered in our system. Please enter a valid email.';
+                                        alertContainer.style.display = 'flex';
+                                    }
+                                }
+                            }
+                        })
+                        .catch(function(err) {
+                            console.error('Email check error:', err);
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('loading');
+                            if (alertContainer) {
+                                alertContainer.innerText = 'Unable to verify email. Please try again later.';
+                                alertContainer.style.display = 'flex';
+                            }
+                        });
+                });
             })();
         </script>
     <#elseif section = "info" >
