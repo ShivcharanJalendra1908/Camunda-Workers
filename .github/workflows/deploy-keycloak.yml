@@ -5,6 +5,8 @@ on:
     branches:
       - mvp
       - prod
+      - demo 
+      
     paths:
       - 'keycloak-theme/**'
       - '.github/workflows/deploy-keycloak.yml'
