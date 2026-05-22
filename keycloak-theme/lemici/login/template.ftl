@@ -128,6 +128,7 @@
         
         /* Social */
         #kc-social-providers ul { display: flex; justify-content: center; gap: 15px; list-style: none; padding: 0; margin: 0; }
+        #kc-social-providers ul li { width: 100%; }
         .social-btn {
             display: flex; align-items: center; justify-content: center; gap: 10px;
             width: 100%; padding: 10px 16px; border: 1px solid #e5e7eb;
