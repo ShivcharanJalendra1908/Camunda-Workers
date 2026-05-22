@@ -134,6 +134,7 @@
             width: 100%; padding: 10px 16px; border: 1px solid #e5e7eb;
             border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;
             color: #374151; background: white;
+            box-sizing: border-box;
         }
         .social-btn:hover { background: #f9fafb; }
         .social-btn svg { width: 20px; height: 20px; }
