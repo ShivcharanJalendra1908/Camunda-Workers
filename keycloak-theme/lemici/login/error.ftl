@@ -15,7 +15,7 @@
                 </div>
             <#else>
                 <div style="text-align: center; margin-top: 20px;">
-                    <a href="${properties.loginUrl!'/'}" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Login</a>
+                    <a href="${url.loginUrl}" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Login</a>
                 </div>
             </#if>
         </div>
