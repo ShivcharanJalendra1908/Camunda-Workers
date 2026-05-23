@@ -15,7 +15,9 @@
             
             <p style="font-size: 16px; line-height: 1.6; color: #374151; margin-bottom: 24px;">
                 An email with instructions to verify your email address has been sent to:<br>
-                <strong style="color: #0f172a; font-size: 17px; word-break: break-all;">${user.email}</strong>
+                <span style="display: inline-block; background: rgba(109, 62, 147, 0.08); color: #6D3E93; padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 15px; margin-top: 10px; border: 1px solid rgba(109, 62, 147, 0.15); word-break: break-all;">
+                    ${user.email}
+                </span>
             </p>
             
             <p style="font-size: 14px; color: #6b7280; margin-bottom: 32px; line-height: 1.5;">
