@@ -31,7 +31,26 @@
             </p>
 
             <#-- Redirect Info or Countdown -->
-            <#if message.summary?contains("receive") || message.summary?contains("email") || message.summary?contains("instruction") || message.summary?contains("sent")>
+            <#if message.summary?contains("verified") || message.summary?contains("activation")>
+                <#-- Email Verified Success page: Notify original tab (via localStorage) -->
+                <script>
+                    (function() {
+                        localStorage.setItem('email_verified_success', 'true');
+                    })();
+                </script>
+                <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
+                    You can safely close this window now. The original registration tab will automatically proceed.
+                </p>
+                <#if pageRedirectUri?has_content>
+                    <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        ${kcSanitize(msg("backToApplication"))?no_esc}
+                    </a>
+                <#else>
+                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        ${kcSanitize(msg("backToLogin"))?no_esc}
+                    </a>
+                </#if>
+            <#elseif message.summary?contains("receive") || message.summary?contains("instruction") || message.summary?contains("sent")>
                 <#-- Email Sent page: Listen for success event from other tabs (via localStorage) -->
                 <#if pageRedirectUri?has_content>
                     <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
