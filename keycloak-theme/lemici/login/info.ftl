@@ -7,6 +7,20 @@
         </div>
     <#elseif section = "form">
         <div id="kc-info-message" style="text-align: center; padding: 20px 0;">
+            <script>
+                function handleReturnToLogin() {
+                    var host = window.location.hostname;
+                    if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
+                        window.location.href = 'https://dev.lemici.com/login';
+                    } else if (host.indexOf('lemici.com') !== -1) {
+                        window.location.href = 'https://www.lemici.com/login';
+                    } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
+                        window.location.href = 'http://localhost:3000/login';
+                    } else {
+                        window.location.href = '${url.loginUrl}';
+                    }
+                }
+            </script>
             <#-- Icon based on message type -->
             <#if message.type = "success">
                 <div style="width: 64px; height: 64px; background: rgba(22, 163, 74, 0.1); color: #16a34a; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto;">
@@ -46,7 +60,7 @@
                         ${kcSanitize(msg("backToApplication"))?no_esc}
                     </a>
                 <#else>
-                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
                         ${kcSanitize(msg("backToLogin"))?no_esc}
                     </a>
                 </#if>
@@ -57,7 +71,7 @@
                         ${kcSanitize(msg("backToApplication"))?no_esc}
                     </a>
                 <#else>
-                    <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
                         ${kcSanitize(msg("backToLogin"))?no_esc}
                     </a>
                 </#if>
@@ -68,7 +82,7 @@
                         
                         function handleResetSuccess() {
                             localStorage.removeItem('password_reset_success');
-                            window.location.href = "${url.loginUrl}";
+                            handleReturnToLogin();
                         }
                         
                         // Listen for storage event (triggered when password is changed in Tab C)
@@ -92,7 +106,7 @@
                 <div id="redirect-counter" style="font-size: 13px; color: #6b7280; margin-bottom: 20px;">
                     Redirecting to login in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">5</span> seconds...
                 </div>
-                <a href="${url.loginUrl}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
                     Go to Login Page
                 </a>
                 <script>
@@ -107,7 +121,7 @@
                             if (el) el.innerText = sec;
                             if (sec <= 0) {
                                 clearInterval(timer);
-                                window.location.href = "${url.loginUrl}";
+                                handleReturnToLogin();
                             }
                         }, 1000);
                     })();

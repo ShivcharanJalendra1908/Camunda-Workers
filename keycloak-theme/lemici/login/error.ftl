@@ -15,8 +15,22 @@
                 </div>
             <#else>
                 <div style="text-align: center; margin-top: 20px;">
-                    <a href="${url.loginUrl}" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Login</a>
+                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToLogin();" style="color: #6D3E93; font-weight: 600; text-decoration: none;">Return to Login</a>
                 </div>
+                <script>
+                    function handleReturnToLogin() {
+                        var host = window.location.hostname;
+                        if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
+                            window.location.href = 'https://dev.lemici.com/login';
+                        } else if (host.indexOf('lemici.com') !== -1) {
+                            window.location.href = 'https://www.lemici.com/login';
+                        } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
+                            window.location.href = 'http://localhost:3000/login';
+                        } else {
+                            window.location.href = '${url.loginUrl}';
+                        }
+                    }
+                </script>
             </#if>
         </div>
     </#if>
