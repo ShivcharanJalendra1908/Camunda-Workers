@@ -213,7 +213,7 @@ services:
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: 8080
-      KC_HOSTNAME: us-dev-api.lemici.com
+      KC_HOSTNAME: demo-api.lemici.com
       KC_PROXY: edge
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "true"
@@ -300,14 +300,14 @@ services:
 # ============================================================================
 
   api-gateway:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-dev:latest
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-demo:latest
     container_name: api-gateway
     # ports:
     #   - "8080:8080"
     #   - "9090:9090"
     environment:
       APP_NAME: api-gateway
-      APP_ENVIRONMENT: development
+      APP_ENVIRONMENT: demo
       API_PORT: 8080
       ZEEBE_ADDRESS: zeebe:26500
       POSTGRES_HOST: postgres
@@ -352,13 +352,13 @@ services:
 # ============================================================================
 
   camunda-workers:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-dev:latest
+    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-demo:latest
     container_name: camunda-workers
     # ports:
       # - "8080:8080"
     environment:
       APP_NAME: camunda-workers
-      APP_ENVIRONMENT: development
+      APP_ENVIRONMENT: demo
       ZEEBE_ADDRESS: zeebe:26500
       ZEEBE_CLIENT_MODE: plain
       ZEEBE_CLIENT_REQUEST_TIMEOUT: 45s
