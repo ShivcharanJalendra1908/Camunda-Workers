@@ -32,6 +32,8 @@ api:
       - "http://34.224.27.158:3005"
       - "https://dev-api.lemici.com"
       - "https://us-dev-api.lemici.com"
+      - "https://demo.lemici.com"
+      - "https://demo-api.lemici.com"
     allowMethods:
       - "GET"
       - "POST"
