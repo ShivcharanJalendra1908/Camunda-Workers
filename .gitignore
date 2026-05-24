@@ -21,12 +21,9 @@ frontend/node_modules/
 .opencode-context/
 .qoder/
 .kintesh-local/
-.kintesh-kong/
 
 # Ollama / models
 deployments/docker/ollama/*.gguf
 /arms_cache/api-gateway
-api-gateway*
-
-# docs
-/KEYCLOAK-THEME-AUDIT.md
+/api-gateway
+/api-gateway-security
