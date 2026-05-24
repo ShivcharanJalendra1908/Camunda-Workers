@@ -1,0 +1,79 @@
+
+app:
+  environment: demo
+
+camunda:
+  oauth:
+    enabled: true
+    client_id: "worker-client"
+    client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+    token_url: "https://demo-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
+    audience: "zeebe-api"
+
+  auth:
+    keycloak:
+      url: "https://demo-api.lemici.com"
+      realm: "camunda-platform"
+      issuer: "https://demo-api.lemici.com/realms/camunda-platform"
+      clientId: "lemici-frontend"
+      admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+      publicBaseUrl: "https://demo-api.lemici.com"
+      redirectUrl: "https://demo-api.lemici.com/api/v1/auth/callback"
+      post_login_redirect_uri: "https://demo.lemici.com"
+      login_redirect_uri: "https://demo.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
+      post_logout_redirect_uri: "https://demo.lemici.com/"
+      callback_redirect_uri: "https://demo.lemici.com/" # where backend redirects after successful callback
+
+  session:
+    secure: true
+    sameSite: "Lax"
+
+logging:
+  level: info
+  format: console
+
+database:
+  postgres:
+    host: postgres
+    port: 5432
+    database: franchises
+    user: postgres
+    password: postgres
+    max_connections: 20
+    max_idle: 5
+  elasticsearch:
+    addresses: ["http://elasticsearch:9200"]
+    username: ""
+    password: ""
+  redis:
+    address: redis:6379
+
+apis:
+  genai:
+    base_url: "http://localhost:8080"
+  web_search:
+    api_key: "dev-api-key"
+    engine_id: "dev-engine-id"
+
+integrations:
+  # smtp:
+  #   host: "email-smtp.us-east-1.amazonaws.com"
+  #   port: 587
+  #   username: "AKIASS3JXDPVWDZXP5P7"
+  #   password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+  #   use_tls: true
+  #   default_from: "noreply@lemici.com"
+
+  smtp:
+    host: "smtp-relay.brevo.com"
+    port: 587
+    username: "a8ea4d001@smtp-brevo.com"
+    password: "b7KR9FO0hUXtcgNw"
+    use_tls: true
+    default_from: "noreply@lemici.com"
+
+  internal: 
+    operations_alert_email: "shivcharan.jalendra@lemici.com"   # "Operations@lemici.com"  
+    operations_alert_name: "Lemici Operations Team"
+    marketing_alert_email: "shivcharan.jalendra@lemici.com"   # "marketing@lemici.com" 
+    marketing_alert_name: "Lemici Marketing Team"
