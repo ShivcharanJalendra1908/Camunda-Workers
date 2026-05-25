@@ -298,6 +298,9 @@ func main() {
 
 			// Password Reset workflow (keep if needed)
 			authGroup.POST("/password/reset", workflowHandler.StartPasswordReset)
+
+			// ✅ CHECK EMAIL EXISTS (For forgot password template validation)
+			authGroup.GET("/check-email", userHandler.CheckEmailExists)
 		}
 
 		// ========================================================================

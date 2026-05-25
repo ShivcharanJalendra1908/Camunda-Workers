@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236D3E93'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Inter,sans-serif' font-weight='700' font-size='18'%3EL%3C/text%3E%3C/svg%3E" />
+    <link rel="icon" type="image/png" href="${url.resourcesPath}/img/cube.png" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -128,11 +128,13 @@
         
         /* Social */
         #kc-social-providers ul { display: flex; justify-content: center; gap: 15px; list-style: none; padding: 0; margin: 0; }
+        #kc-social-providers ul li { width: 100%; }
         .social-btn {
             display: flex; align-items: center; justify-content: center; gap: 10px;
             width: 100%; padding: 10px 16px; border: 1px solid #e5e7eb;
             border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;
             color: #374151; background: white;
+            box-sizing: border-box;
         }
         .social-btn:hover { background: #f9fafb; }
         .social-btn svg { width: 20px; height: 20px; }

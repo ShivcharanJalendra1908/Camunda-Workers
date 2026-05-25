@@ -31,7 +31,7 @@
     "registrationAllowed": true,
     "registrationEmailAsUsername": true,
     "rememberMe": false,
-    "verifyEmail": false,
+    "verifyEmail": true,
     "loginWithEmailAllowed": true,
     "duplicateEmailsAllowed": false,
     "resetPasswordAllowed": true,
@@ -1529,7 +1529,7 @@
   "loginTheme": "lemici",
   "accountTheme": "keycloak.v2",
   "adminTheme": "keycloak.v2",
-  "emailTheme": "",
+  "emailTheme": "lemici",
    "eventsEnabled": true,
    "eventsListeners": [
      "jboss-logging"

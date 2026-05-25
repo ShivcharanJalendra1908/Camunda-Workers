@@ -131,5 +131,40 @@ func (h *UserHandler) ValidateSession(c *gin.Context) {
 	})
 }
 
+func (h *UserHandler) CheckEmailExists(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "EMAIL_REQUIRED",
+			"message": "Email is required",
+		})
+		return
+	}
+
+	var exists bool
+	err := h.db.QueryRowContext(c.Request.Context(), `
+		SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER($1))`, email).Scan(&exists)
+
+	if err != nil {
+		h.log.Error("Failed to check if email exists", map[string]interface{}{
+			"email": email,
+			"error": err.Error(),
+		})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "DB_ERROR",
+			"message": "Internal server error checking email",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"exists":  exists,
+	})
+}
+
 // suppress unused import warning during review
 var _ = json.Marshal
+
