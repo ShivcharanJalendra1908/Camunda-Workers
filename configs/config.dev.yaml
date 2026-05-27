@@ -10,50 +10,21 @@ camunda:
     token_url: "https://us-dev-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
     audience: "zeebe-api"
 
-  auth:
-    keycloak:
-      url: "https://us-dev-api.lemici.com"
-      realm: "camunda-platform"
-      issuer: "https://us-dev-api.lemici.com/realms/camunda-platform"
-      clientId: "lemici-frontend"
-      admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
-      publicBaseUrl: "https://us-dev-api.lemici.com"
-      redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"
-      post_login_redirect_uri: "https://dev.lemici.com"
-      login_redirect_uri: "https://dev.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
-      post_logout_redirect_uri: "https://dev.lemici.com/"
-      callback_redirect_uri: "https://dev.lemici.com/" # where backend redirects after successful callback
-
-  session:
-    secure: true
-    sameSite: "Lax"
-
-logging:
-  level: debug
-  format: console
-
-database:
-  postgres:
-    host: postgres
-    port: 5432
-    database: franchises
-    user: postgres
-    password: postgres
-    max_connections: 20
-    max_idle: 5
-  elasticsearch:
-    addresses: ["http://elasticsearch:9200"]
-    username: ""
-    password: ""
-  redis:
-    address: redis:6379
-
-apis:
-  genai:
-    base_url: "http://localhost:8080"
-  web_search:
-    api_key: "dev-api-key"
-    engine_id: "dev-engine-id"
+auth:
+  keycloak:
+    url: "https://us-dev-api.lemici.com"
+    realm: "camunda-platform"
+    issuer: "https://us-dev-api.lemici.com/realms/camunda-platform"
+    clientId: "lemici-frontend"
+    client_secret: "client-secret"
+    admin_client_id: "worker-client"   
+    admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+    publicBaseUrl: "https://us-dev-api.lemici.com"
+    redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"
+    post_login_redirect_uri: "https://dev.lemici.com"
+    login_redirect_uri: "https://dev.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
+    post_logout_redirect_uri: "https://dev.lemici.com/"
+    callback_redirect_uri: "https://dev.lemici.com/" # where backend redirects after successful callback
 
 integrations:
   # smtp:
@@ -73,8 +44,7 @@ integrations:
     default_from: "noreply@lemici.com"
 
   internal: 
-    operations_alert_email: "shivcharan.jalendra@lemici.com"   # "Operations@lemici.com"  
+    operations_alert_email: "shivcharan.jalendra@lemici.com"
     operations_alert_name: "Lemici Operations Team"
-    marketing_alert_email: "shivcharan.jalendra@lemici.com"   # "marketing@lemici.com" 
+    marketing_alert_email: "shivcharan.jalendra@lemici.com"
     marketing_alert_name: "Lemici Marketing Team"
-

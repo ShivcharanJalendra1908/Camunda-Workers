@@ -1,0 +1,42 @@
+# configs/config.demo.yaml
+app:
+  environment: demo
+
+camunda:
+  oauth:
+    enabled: true
+    client_id: "worker-client"
+    client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+    token_url: "https://demo-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
+    audience: "zeebe-api"
+
+auth:
+  keycloak:
+    url: "https://demo-api.lemici.com"
+    realm: "camunda-platform"
+    issuer: "https://demo-api.lemici.com/realms/camunda-platform"
+    clientId: "lemici-frontend"
+    client_secret: "client-secret"
+    admin_client_id: "worker-client"  
+    admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+    publicBaseUrl: "https://demo-api.lemici.com"
+    redirectUrl: "https://demo-api.lemici.com/api/v1/auth/callback"
+    post_login_redirect_uri: "https://demo.lemici.com"
+    login_redirect_uri: "https://demo.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
+    post_logout_redirect_uri: "https://demo.lemici.com/"
+    callback_redirect_uri: "https://demo.lemici.com/" # where backend redirects after successful callback
+
+integrations:
+  smtp:
+    host: "smtp-relay.brevo.com"
+    port: 587
+    username: "a8ea4d001@smtp-brevo.com"
+    password: "b7KR9FO0hUXtcgNw"
+    use_tls: true
+    default_from: "noreply@lemici.com"
+
+  internal: 
+    operations_alert_email: "Operations@lemici.com"
+    operations_alert_name: "Lemici Operations Team"
+    marketing_alert_email: "marketing@lemici.com"
+    marketing_alert_name: "Lemici Marketing Team"

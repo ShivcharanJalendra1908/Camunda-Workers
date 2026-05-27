@@ -26,8 +26,14 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 
 	env := os.Getenv("APP_ENVIRONMENT")
-	if env == "" {
-		env = "development"
+	if env == "" || env == "development" || env == "dev" {
+		env = "dev"
+		os.Setenv("APP_ENVIRONMENT", "development")
+	} else if env == "production" || env == "prod" {
+		env = "prod"
+		os.Setenv("APP_ENVIRONMENT", "production")
+	} else if env == "demo" {
+		os.Setenv("APP_ENVIRONMENT", "demo")
 	}
 
 	// 1️⃣ LOAD BASE CONFIG

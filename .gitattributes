@@ -1,7 +1,7 @@
-configs/api-config.yaml merge=ours
-configs/config.yaml merge=ours
-configs/config.dev.yaml merge=ours
-configs/config.prod.yaml merge=ours
+# configs/api-config.yaml merge=ours
+# configs/config.yaml merge=ours
+# configs/config.dev.yaml merge=ours
+# configs/config.prod.yaml merge=ours
 # configs/kong/kong.yaml merge=ours
 
 deployments/docker/docker-compose.yml merge=ours
