@@ -69,17 +69,17 @@ auth:
     algorithm: "HS256"
   
   keycloak:
-    url: "https://us-dev-api.lemici.com"
+    url: "https://demo-api.lemici.com"
     realm: "camunda-platform"
     client_id: "lemici-frontend"
     client_secret: "client-secret"
-    admin_client_id: "worker-client"                     
+    admin_client_id: "worker-client"
     admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
-    publicBaseUrl: "https://us-dev-api.lemici.com"
-    redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"
-    post_login_redirect_uri: "https://dev.lemici.com/"
-    login_redirect_uri: "https://dev.lemici.com/login"
-    post_logout_redirect_uri: "https://dev.lemici.com/"
+    publicBaseUrl: "https://demo-api.lemici.com"
+    redirectUrl: "https://demo-api.lemici.com/api/v1/auth/callback"
+    post_login_redirect_uri: "https://demo.lemici.com/"
+    login_redirect_uri: "https://demo.lemici.com/login"
+    post_logout_redirect_uri: "https://demo.lemici.com/"
   
   # Session Configuration
   session:
