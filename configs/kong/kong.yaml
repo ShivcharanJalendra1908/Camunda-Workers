@@ -1,4 +1,4 @@
-_format_version: "3.0"
+﻿_format_version: "3.0"
 _transform: true
 
 services:
@@ -9,8 +9,6 @@ services:
       - name: block-admin-public
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
         paths:
           - /api/admin
           - ~/api/v[0-9]+/admin(/.*)?$
@@ -24,8 +22,6 @@ services:
       - name: oauth-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -47,8 +43,6 @@ services:
       - name: ai-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -67,8 +61,6 @@ services:
       - name: contact-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -87,8 +79,6 @@ services:
       - name: forms-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -107,8 +97,6 @@ services:
       - name: auth-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -127,8 +115,6 @@ services:
       - name: franchise-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -147,8 +133,6 @@ services:
       - name: user-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -167,8 +151,6 @@ services:
       - name: application-routes
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -187,8 +169,6 @@ services:
       - name: api-v1-fallback
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -220,8 +200,6 @@ services:
       - name: operate-ws
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -231,8 +209,6 @@ services:
       - name: auth-callback
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -298,8 +274,6 @@ services:
             - "https://d595hydlunw5u.cloudfront.net"
             - "http://34.224.27.158:3005"
             - "https://dev-api.lemici.com"
-            - "https://demo.lemici.com"
-            - "https://demo-api.lemici.com"
           methods:
             - GET
             - POST
@@ -361,8 +335,6 @@ services:
       - name: keycloak-auth
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -395,8 +367,6 @@ services:
                 - "https://d595hydlunw5u.cloudfront.net"
                 - "http://34.224.27.158:3005"
                 - "https://dev-api.lemici.com"
-                - "https://demo.lemici.com"
-                - "https://demo-api.lemici.com"
               methods:
                 - GET
                 - POST
@@ -410,8 +380,6 @@ services:
       - name: keycloak-assets
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -434,8 +402,6 @@ services:
       - name: keycloak-token
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -454,8 +420,6 @@ services:
       - name: keycloak-oidc-auth
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -474,8 +438,6 @@ services:
       - name: keycloak-oidc-logout
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -494,8 +456,6 @@ services:
       - name: keycloak-oidc-userinfo
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -514,8 +474,6 @@ services:
       - name: keycloak-oidc-certs
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
@@ -546,8 +504,6 @@ services:
       - name: meeting-notes-api
         hosts:
           - us-dev-api.lemici.com
-          - dev-api.lemici.com
-          - demo-api.lemici.com
           - localhost
           - 127.0.0.1
         paths:
