@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -18,6 +19,11 @@ import (
 	"camunda-workers/internal/common/location"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/metrics"
+)
+
+var (
+	llmCacheMu sync.RWMutex
+	llmCache   = make(map[string]*ExtractedParameters)
 )
 
 // ============================================================
@@ -119,6 +125,10 @@ func (s *OllamaService) Preload() {
 	jsonData, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequestWithContext(ctx, "POST", s.endpoint+"/api/generate", bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
+	// Propagate X-Request-ID for end-to-end tracing
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -142,13 +152,12 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		Model:     s.model,
 		Prompt:    prompt,
 		Stream:    false,
-		Format:    "json",
 		KeepAlive: -1, // Indefinite load for maximum performance
 		Options: map[string]interface{}{
 			"temperature": 0.0,
-			"num_predict": 300,
-			"num_ctx":     2048,
-			"num_thread":  0,
+			"num_predict": 128,
+			"num_ctx":     1024,
+			"num_thread":  2,
 			"num_batch":   512,
 			"stop":        []string{"<|im_end|>", "<|im_start|>"},
 		},
@@ -164,6 +173,9 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 		return "", fmt.Errorf("request creation failed: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -208,6 +220,13 @@ func (s *OllamaService) Extract(ctx context.Context, prompt string) (string, err
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	ctx := context.Background()
 	startTime := time.Now()
+
+	var jobVars map[string]interface{}
+	if err := json.Unmarshal([]byte(job.Variables), &jobVars); err == nil {
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
+	}
 
 	h.logger.Info("AI search job started", map[string]interface{}{
 		"job_key":    job.Key,
@@ -274,8 +293,13 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		params = &ExtractedParameters{}
 	}
 
+	hasExtractedParams := params.Industry != "" || params.Category != "" || params.Subcategory != "" ||
+		params.Location != nil || params.Investment != nil || params.ROI != nil ||
+		params.Space != nil || params.Staff != nil || params.Outlets != nil ||
+		params.Rating != nil || params.Verified != nil || params.TrustedSeller != nil
+
 	var finalResults *SearchResults
-	if params.Industry != "" || params.Category != "" || params.Location != nil || params.Investment != nil {
+	if hasExtractedParams {
 		refinedQuery, err := h.buildElasticsearchQuery(params)
 		if err != nil {
 			h.logger.Warn("Refined query failed, using basic", map[string]interface{}{"error": err.Error()})
@@ -318,7 +342,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		"job_key":       job.Key,
 		"total_results": finalResults.Total,
 		"took_ms":       duration.Milliseconds(),
-		"llm_used":      params.Industry != "" || params.Category != "" || params.Location != nil,
+		"llm_used":      hasExtractedParams,
 	})
 }
 
@@ -415,6 +439,10 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 }
 
 func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
+	if params == nil {
+		params = &ExtractedParameters{}
+	}
+
 	esQuery := map[string]interface{}{
 		"size": h.config.DefaultPageSize,
 		"from": 0,
@@ -426,21 +454,34 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	mustClauses := []interface{}{}
+	shouldClauses := []interface{}{}
 
-	// Industry match
-	if params.Industry != "" {
-		industrySlug := strings.ToLower(params.Industry)
-		industrySlug = strings.ReplaceAll(industrySlug, " & ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, " / ", "-")
-		industrySlug = strings.ReplaceAll(industrySlug, "&", "")
-		industrySlug = strings.ReplaceAll(industrySlug, "/", "")
-		industrySlug = strings.ReplaceAll(industrySlug, ",", "")
-		industrySlug = strings.ReplaceAll(industrySlug, " ", "-")
-		for strings.Contains(industrySlug, "--") {
-			industrySlug = strings.ReplaceAll(industrySlug, "--", "-")
+	// Always enforce a text match on the user's raw query (minus location) 
+	// This acts as a safety net if the LLM categorizes "pizza" as F&B but drops "pizza" from Category
+	if params.OriginalQuery != "" {
+		cleanQuery := location.StripLocationFromQuery(params.OriginalQuery)
+		// Strip common filler words that might ruin strict matches
+		cleanQuery = strings.ReplaceAll(cleanQuery, "franchise", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "business", "")
+		cleanQuery = strings.TrimSpace(cleanQuery)
+
+		if cleanQuery != "" {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query": cleanQuery,
+					"fields": []string{"name^5", "tags^3", "description", "industry.name"},
+					"fuzziness": "AUTO",
+					// By default operator is OR, so it won't break if it contains "under 10 lakh"
+				},
+			})
 		}
+	}
 
-		mustClauses = append(mustClauses, map[string]interface{}{
+	// Industry match (boost instead of strict filter to allow multiple industries in text search)
+	if params.Industry != "" {
+		industrySlug := GetIndustrySlug(params.Industry)
+
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -468,7 +509,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// industry.name, tags aur name pe match karo
 	// should use karo taaki industry already match ho toh ye boost kare
 	if params.Category != "" {
-		mustClauses = append(mustClauses, map[string]interface{}{
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -503,7 +544,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Subcategory match
 	if params.Subcategory != "" {
-		mustClauses = append(mustClauses, map[string]interface{}{
+		shouldClauses = append(shouldClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -528,11 +569,17 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
+	boolQuery := map[string]interface{}{}
 	if len(mustClauses) > 0 {
+		boolQuery["must"] = mustClauses
+	}
+	if len(shouldClauses) > 0 {
+		boolQuery["should"] = shouldClauses
+	}
+
+	if len(boolQuery) > 0 {
 		esQuery["query"] = map[string]interface{}{
-			"bool": map[string]interface{}{
-				"must": mustClauses,
-			},
+			"bool": boolQuery,
 		}
 	} else {
 		esQuery["query"] = map[string]interface{}{
@@ -541,30 +588,39 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	}
 
 	filterClauses := []interface{}{}
+	// softBoosts: Investment & ROI are soft boosts (should), not hard filters.
+	// This ensures results are not cut to near-zero when combining multiple criteria.
+	softBoosts := []interface{}{}
 
-	// Location filter — cityAliases map se automatic variant expansion
+	// Location filter — HARD filter (user explicitly wants these cities)
 	if params.Location != nil && params.Location.City != "" {
+		cities := strings.Split(params.Location.City, ",")
+		var allTerms []string
+		for _, city := range cities {
+			allTerms = append(allTerms, location.BuildLocationTerms(strings.TrimSpace(city))...)
+		}
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"terms": map[string]interface{}{
-				"location": location.BuildLocationTerms(params.Location.City),
+				"location": dedupLocationTerms(allTerms),
 			},
 		})
 	}
 
+	// Investment — SOFT boost (prefer matching, not exclude)
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
 			maxLakhs := params.Investment.Max / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
+					"investment.min_investment": map[string]interface{}{"lte": maxLakhs, "boost": 2},
 				},
 			})
 		}
 		if params.Investment.Min > 0 {
 			minLakhs := params.Investment.Min / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
+			softBoosts = append(softBoosts, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{"gte": minLakhs},
+					"investment.max_investment": map[string]interface{}{"gte": minLakhs, "boost": 2},
 				},
 			})
 		}
@@ -587,17 +643,20 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
+	// ROI — SOFT boost (prefer matching, not exclude)
 	if params.ROI != nil {
-		roiRange := map[string]interface{}{}
 		if params.ROI.Min > 0 {
-			roiRange["gte"] = params.ROI.Min
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"range": map[string]interface{}{
+					"roi.max": map[string]interface{}{"gte": params.ROI.Min, "boost": 3},
+				},
+			})
 		}
 		if params.ROI.Max > 0 {
-			roiRange["lte"] = params.ROI.Max
-		}
-		if len(roiRange) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{"roi": roiRange},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"range": map[string]interface{}{
+					"roi.min": map[string]interface{}{"lte": params.ROI.Max, "boost": 3},
+				},
 			})
 		}
 	}
@@ -633,30 +692,48 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	if params.Verified != nil && *params.Verified {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"term": map[string]interface{}{"verified": true},
-		})
-	}
+	// if params.Verified != nil && *params.Verified {
+	// 	filterClauses = append(filterClauses, map[string]interface{}{
+	// 		"term": map[string]interface{}{"verified": true},
+	// 	})
+	// }
 
 	if params.TrustedSeller != nil && *params.TrustedSeller {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"term": map[string]interface{}{"trusted_seller": true},
+		softBoosts = append(softBoosts, map[string]interface{}{
+			"term": map[string]interface{}{
+				"trusted_seller": map[string]interface{}{
+					"value": true,
+					"boost": 5.0,
+				},
+			},
 		})
 	}
 
-	if len(filterClauses) > 0 {
-		currentQuery := esQuery["query"].(map[string]interface{})
-		if boolQuery, hasBool := currentQuery["bool"].(map[string]interface{}); hasBool {
+	// Apply hard filters and soft boosts
+	currentQuery := esQuery["query"].(map[string]interface{})
+	if boolQuery, hasBool := currentQuery["bool"].(map[string]interface{}); hasBool {
+		if len(filterClauses) > 0 {
 			boolQuery["filter"] = filterClauses
-		} else {
-			esQuery["query"] = map[string]interface{}{
-				"bool": map[string]interface{}{
-					"must":   []interface{}{currentQuery},
-					"filter": filterClauses,
-				},
+		}
+		if len(softBoosts) > 0 {
+			// Merge with existing should or create new
+			if existingShould, ok := boolQuery["should"].([]interface{}); ok {
+				boolQuery["should"] = append(existingShould, softBoosts...)
+			} else {
+				boolQuery["should"] = softBoosts
 			}
 		}
+	} else if len(filterClauses) > 0 || len(softBoosts) > 0 {
+		newBool := map[string]interface{}{
+			"must": []interface{}{currentQuery},
+		}
+		if len(filterClauses) > 0 {
+			newBool["filter"] = filterClauses
+		}
+		if len(softBoosts) > 0 {
+			newBool["should"] = softBoosts
+		}
+		esQuery["query"] = map[string]interface{}{"bool": newBool}
 	}
 
 	return esQuery, nil
@@ -705,6 +782,18 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		return &ExtractedParameters{}
 	}
 
+	cacheKey := strings.ToLower(strings.TrimSpace(input.Query))
+	llmCacheMu.RLock()
+	cached, exists := llmCache[cacheKey]
+	llmCacheMu.RUnlock()
+	if exists {
+		h.logger.Info("LLM parameter extraction cache hit", map[string]interface{}{
+			"query":    input.Query,
+			"industry": cached.Industry,
+		})
+		return cached
+	}
+
 	prompt := h.paramExtractor.BuildPrompt(input.Query)
 
 	response, err := h.llmService.Extract(ctx, prompt)
@@ -737,6 +826,13 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		"has_investment": params.Investment != nil,
 		"has_roi":        params.ROI != nil,
 	})
+
+	llmCacheMu.Lock()
+	if len(llmCache) > 1000 {
+		llmCache = make(map[string]*ExtractedParameters)
+	}
+	llmCache[cacheKey] = params
+	llmCacheMu.Unlock()
 
 	return params
 }
@@ -845,10 +941,12 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"minSpace":      0,
 		"maxSpace":      0,
 		"roi":           0.0,
+		"maxRoi":        0.0,
 		"minRating":     0.0,
 		"verified":      false,
 		"trustedSeller": false,
 		"tags":          []string{},
+		"isAiSearch":    true,
 	}
 
 	// if params.Industry != "" {
@@ -861,17 +959,11 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	// }
 	if params.Industry != "" {
 		extractedParams["industry"] = params.Industry
-		slug := strings.ToLower(params.Industry)
-		slug = strings.ReplaceAll(slug, " & ", "-")
-		slug = strings.ReplaceAll(slug, " / ", "-")
-		slug = strings.ReplaceAll(slug, "&", "")
-		slug = strings.ReplaceAll(slug, "/", "")
-		slug = strings.ReplaceAll(slug, ",", "")
-		slug = strings.ReplaceAll(slug, " ", "-")
-		for strings.Contains(slug, "--") {
-			slug = strings.ReplaceAll(slug, "--", "-")
-		}
-		extractedParams["industrySlug"] = slug
+		fullSlug := GetIndustrySlug(params.Industry) // may be "food-beverage, fashion"
+		// Support multi-industry featured categories, queries, recommended
+		extractedParams["industrySlug"] = fullSlug
+		// Store full comma-separated slugs for multi-industry ES queries (RECOMMENDED_BY_INDUSTRY etc.)
+		extractedParams["industrySlugAll"] = fullSlug
 	}
 
 	if params.Category != "" {
@@ -911,6 +1003,16 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 
 	if params.ROI != nil {
 		extractedParams["roi"] = params.ROI.Min
+		extractedParams["maxRoi"] = params.ROI.Max
+	}
+
+	if params.Staff != nil {
+		extractedParams["minStaff"] = params.Staff.Min
+		extractedParams["maxStaff"] = params.Staff.Max
+	}
+
+	if params.Outlets != nil {
+		extractedParams["minOutlets"] = *params.Outlets
 	}
 
 	if params.Rating != nil {
@@ -970,4 +1072,17 @@ func (h *Handler) handleError(client worker.JobClient, job entities.Job, err err
 		Retries(job.Retries - 1).
 		ErrorMessage(fmt.Sprintf("%s: %v", errorCode, err)).
 		Send(ctx)
+}
+
+func dedupLocationTerms(terms []string) []string {
+	seen := make(map[string]bool)
+	var unique []string
+	for _, t := range terms {
+		tLower := strings.ToLower(strings.TrimSpace(t))
+		if tLower != "" && !seen[tLower] {
+			seen[tLower] = true
+			unique = append(unique, t)
+		}
+	}
+	return unique
 }

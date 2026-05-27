@@ -97,7 +97,7 @@ func (h *OAuthHandler) OAuthLogout(c *gin.Context) {
 
 				req, _ := http.NewRequest("POST", logoutURL, strings.NewReader(data.Encode()))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				
+
 				// Fire and forget server-side logout request
 				_, _ = http.DefaultClient.Do(req)
 			}(refreshToken)
@@ -243,7 +243,7 @@ func (h *OAuthHandler) clearSessionCookie(c *gin.Context) {
 		h.config.Auth.Session.CookieSecure,
 		h.config.Auth.Session.CookieHTTPOnly,
 	)
-	
+
 	// Also clear the legacy session_id cookie just in case
 	c.SetCookie(
 		"session_id",

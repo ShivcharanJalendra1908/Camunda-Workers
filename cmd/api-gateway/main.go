@@ -16,6 +16,7 @@ import (
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/database"
+	"camunda-workers/internal/common/flagsmith"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
 
@@ -24,6 +25,7 @@ import (
 	operatews "camunda-workers/internal/workers/operate/ws"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -37,6 +39,9 @@ func main() {
 
 	// Initialize logger
 	log := logger.NewStructured(cfg.Logging.Level, cfg.Logging.Format)
+
+	// Initialize Flagsmith Client
+	flagsmith.Init(cfg, log)
 
 	tracingConfig := observability.TracingConfig{
 		Enabled:       cfg.Monitoring.Tracing.Enabled,
@@ -173,13 +178,11 @@ func main() {
 	router.Use(middleware.TracingMiddleware())
 
 	// 4. CORS (handle cross-origin requests)
-	router.Use(middleware.CORS(cfg.API.CORS))
 
 	// 4.1 CSRF Token Issuer (issue CSRF token for each request)
 	// router.Use(middleware.CSRFTokenIssuer(redisClient.GetClient()))
 
 	// 5. Security Headers
-	router.Use(middleware.SecurityHeaders())
 
 	// 6. Input Validation (basic validation)
 	router.Use(middleware.InputValidation())
@@ -295,6 +298,9 @@ func main() {
 
 			// Password Reset workflow (keep if needed)
 			authGroup.POST("/password/reset", workflowHandler.StartPasswordReset)
+
+			// ✅ CHECK EMAIL EXISTS (For forgot password template validation)
+			authGroup.GET("/check-email", userHandler.CheckEmailExists)
 		}
 
 		// ========================================================================
@@ -343,9 +349,6 @@ func main() {
 	// ============================================================================
 	protectedAPI := router.Group("/api/v1")
 	// Rate limiter middleware - check if config has enabled flag
-	if cfg.API.RateLimit.Enabled {
-		protectedAPI.Use(middleware.RateLimiter(cfg.API.RateLimit))
-	}
 	//protectedAPI.Use(middleware.JWTAuth(cfg.Auth.JWT))
 	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	// protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
@@ -427,34 +430,6 @@ func main() {
 		}
 
 		// ========================================================================
-		// CRM WORKFLOWS
-		// ========================================================================
-		crmGroup := protectedAPI.Group("/crm")
-		{
-			crmGroup.POST("/sync", workflowHandler.StartCRMSync)
-		}
-
-		// ========================================================================
-		// EMAIL WORKFLOWS
-		// ========================================================================
-		emailGroup := protectedAPI.Group("/email")
-		{
-			emailGroup.POST("/campaign", workflowHandler.StartEmailCampaign)
-			emailGroup.POST("/welcome-series", workflowHandler.StartWelcomeSeries)
-		}
-
-		// ========================================================================
-		// SOCIAL AUTH ORCHESTRATION WORKFLOW
-		// ========================================================================
-		socialGroup := protectedAPI.Group("/social")
-		{
-			socialGroup.POST("/auth", workflowHandler.StartSocialAuthOrchestration)
-		}
-
-		// ========================================================================
-		// ERROR HANDLING WORKFLOW
-		// ========================================================================
-		protectedAPI.POST("/error/handle", workflowHandler.StartErrorHandling)
 
 		// ========================================================================
 		// OAUTH ME ENDPOINT (Get current user info)
@@ -476,14 +451,7 @@ func main() {
 	// ============================================================================
 	// ADMIN ROUTES (JWT + Admin Role Required)
 	// ============================================================================
-	adminAPI := router.Group("/api/admin")
-	// Rate limiter for admin - always enabled but stricter
-	adminRateLimit := config.RateLimitConfig{
-		Enabled:           true,
-		RequestsPerSecond: 30,
-		Burst:             50,
-	}
-	adminAPI.Use(middleware.RateLimiter(adminRateLimit))
+	adminAPI := router.Group("/internal")
 	adminAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	adminAPI.Use(middleware.RequireRole("admin"))
 	// adminAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
@@ -501,6 +469,35 @@ func main() {
 		adminAPI.GET("/users", placeholderHandler("GET /admin/users"))
 		adminAPI.GET("/system/health", placeholderHandler("GET /admin/system/health"))
 	}
+
+	// ============================================================================
+	// NO ROUTE / NO METHOD HANDLERS (catch-all for unmatched routes)
+	// ============================================================================
+	router.NoRoute(func(c *gin.Context) {
+		requestID := c.GetString("requestId")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":   false,
+			"error":     http.StatusText(http.StatusNotFound),
+			"message":   "Route not found",
+			"requestId": requestID,
+		})
+	})
+
+	router.NoMethod(func(c *gin.Context) {
+		requestID := c.GetString("requestId")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+		c.JSON(http.StatusMethodNotAllowed, gin.H{
+			"success":   false,
+			"error":     http.StatusText(http.StatusMethodNotAllowed),
+			"message":   "Method not allowed",
+			"requestId": requestID,
+		})
+	})
 
 	// Start HTTP server
 	srv := &http.Server{
@@ -607,10 +604,15 @@ func metricsHandler() gin.HandlerFunc {
 
 func placeholderHandler(endpoint string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		requestID := c.GetString("requestId")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
 		c.JSON(http.StatusNotImplemented, gin.H{
-			"message": fmt.Sprintf("%s - Handler not implemented yet", endpoint),
-			"status":  "not_implemented",
-			"note":    "Create the corresponding handler to implement this endpoint",
+			"message":   fmt.Sprintf("%s - Handler not implemented yet", endpoint),
+			"status":    "not_implemented",
+			"note":      "Create the corresponding handler to implement this endpoint",
+			"requestId": requestID,
 		})
 	}
 }
@@ -686,10 +688,10 @@ func printRoutesSummary(_ logger.Logger, port int) {
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/email/campaign", port),
 		fmt.Sprintf("    POST http://localhost:%d/api/v1/email/welcome-series", port),
 		"",
-		"🛡️  ADMIN ROUTES (JWT + admin role):",
-		fmt.Sprintf("    GET  http://localhost:%d/api/admin/workflows", port),
-		fmt.Sprintf("    GET  http://localhost:%d/api/admin/workflows/:id/status", port),
-		fmt.Sprintf("    POST http://localhost:%d/api/admin/workflows/:id/cancel", port),
+		"🛡️  ADMIN ROUTES (JWT + admin role, IP-restricted via Kong):",
+		fmt.Sprintf("    GET  http://localhost:%d/internal/workflows", port),
+		fmt.Sprintf("    GET  http://localhost:%d/internal/workflows/:id/status", port),
+		fmt.Sprintf("    POST http://localhost:%d/internal/workflows/:id/cancel", port),
 		"",
 		"❤️  HEALTH & METRICS:",
 		fmt.Sprintf("    GET  http://localhost:%d/health", port),

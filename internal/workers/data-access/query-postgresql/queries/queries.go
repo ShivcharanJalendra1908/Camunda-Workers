@@ -191,7 +191,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			FROM categories c
 			INNER JOIN industries i ON c.industry_id = i.id
 			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
-			WHERE i.slug = $1 AND c.is_active = true
+			WHERE i.slug = ANY(string_to_array($1, ',')) AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
@@ -785,69 +785,119 @@ func CategoryQuestionsByIndustry(
 	params map[string]interface{},
 ) (interface{}, int, int64, error) {
 	start := time.Now()
-	var referenceID string
+	var referenceIDs []string
 	searchQuery, _ := params["searchQuery"].(string)
 	intentTag := "general"
 
 	if v, ok := params["industryId"].(string); ok && v != "" {
-		referenceID = v
+		referenceIDs = []string{v}
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
-		err := db.QueryRowContext(ctx, `
-            SELECT id FROM industries
-            WHERE (
-                slug = $1
-                OR slug LIKE $1 || '%'
-                OR slug LIKE '%' || $1 || '%'
-                OR name ILIKE '%' || $1 || '%'
-            )
-            AND is_active = true
-            ORDER BY
-                CASE WHEN slug = $1 THEN 1
-                     WHEN slug LIKE $1 || '%' THEN 2
-                     ELSE 3
-                END
-            LIMIT 1`, v,
-		).Scan(&referenceID)
-		if err != nil {
-			referenceID = "00000000-0000-0000-0000-000000000000"
+		rows, err := db.QueryContext(ctx, `
+			SELECT id FROM industries
+			WHERE slug = ANY(string_to_array($1, ','))
+			  AND is_active = true
+		`, v)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var id string
+				if err := rows.Scan(&id); err == nil && id != "" {
+					referenceIDs = append(referenceIDs, id)
+				}
+			}
+		}
+		if len(referenceIDs) == 0 {
+			referenceIDs = []string{"00000000-0000-0000-0000-000000000000"}
 			intentTag = detectIntentTag(searchQuery)
 		}
 	} else if v, ok := params["categoryId"].(string); ok && v != "" {
-		referenceID = v
+		referenceIDs = []string{v}
 	} else if v, ok := params["categorySlug"].(string); ok && v != "" {
+		var id string
 		err := db.QueryRowContext(ctx,
 			"SELECT id FROM categories WHERE slug = $1 AND is_active = true", v,
-		).Scan(&referenceID)
-		if err != nil {
+		).Scan(&id)
+		if err == nil {
+			referenceIDs = []string{id}
+		} else {
 			return []string{}, 0, time.Since(start).Milliseconds(), nil
 		}
 	} else {
-		referenceID = "00000000-0000-0000-0000-000000000000"
+		referenceIDs = []string{"00000000-0000-0000-0000-000000000000"}
 		intentTag = detectIntentTag(searchQuery)
 	}
 
 	queryCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	rows, err := db.QueryContext(queryCtx, `
-        SELECT question
-        FROM category_questions
-        WHERE reference_id = $1
-          AND (intent_tag = $2 OR intent_tag = 'general')
-        ORDER BY
-            CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
-            created_at
-        LIMIT 8
-    `, referenceID, intentTag)
-	if err != nil {
-		return []string{}, 0, time.Since(start).Milliseconds(), nil
-	}
-	defer rows.Close()
 	var questions []string
-	for rows.Next() {
-		var q string
-		if err := rows.Scan(&q); err == nil && q != "" {
-			questions = append(questions, q)
+	if len(referenceIDs) > 1 {
+		var lists [][]string
+		for _, refID := range referenceIDs {
+			subRows, err := db.QueryContext(queryCtx, `
+				SELECT question
+				FROM category_questions
+				WHERE reference_id = $1::uuid
+				  AND (intent_tag = $2 OR intent_tag = 'general')
+				ORDER BY
+					CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
+					created_at
+				LIMIT 8
+			`, refID, intentTag)
+			if err == nil {
+				var subList []string
+				for subRows.Next() {
+					var q string
+					if err := subRows.Scan(&q); err == nil && q != "" {
+						subList = append(subList, q)
+					}
+				}
+				subRows.Close()
+				if len(subList) > 0 {
+					lists = append(lists, subList)
+				}
+			}
+		}
+
+		maxLen := 0
+		for _, list := range lists {
+			if len(list) > maxLen {
+				maxLen = len(list)
+			}
+		}
+
+		for i := 0; i < maxLen; i++ {
+			for _, list := range lists {
+				if i < len(list) {
+					questions = append(questions, list[i])
+				}
+			}
+		}
+
+		if len(questions) > 8 {
+			questions = questions[:8]
+		}
+	} else {
+		refIDsStr := strings.Join(referenceIDs, ",")
+		rows, err := db.QueryContext(queryCtx, `
+			SELECT question
+			FROM category_questions
+			WHERE reference_id = ANY(string_to_array($1, ',')::uuid[])
+			  AND (intent_tag = $2 OR intent_tag = 'general')
+			ORDER BY
+				CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
+				created_at
+			LIMIT 8
+		`, refIDsStr, intentTag)
+		if err != nil {
+			return []string{}, 0, time.Since(start).Milliseconds(), nil
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var q string
+			if err := rows.Scan(&q); err == nil && q != "" {
+				questions = append(questions, q)
+			}
 		}
 	}
 	return questions, len(questions), time.Since(start).Milliseconds(), nil

@@ -10,10 +10,10 @@ api:
   writeTimeout: 30
   idleTimeout: 120
   
-  rateLimit:
-    enabled: true
-    requestsPerSecond: 100
-    burst: 200
+  # rateLimit:
+  #   enabled: true
+  #   requestsPerSecond: 100
+  #   burst: 200
   
   cors:
     allowOrigins:
@@ -159,9 +159,9 @@ security:
     certFile: ""
     keyFile: ""
   
-  requestValidation:
-    maxBodySize: 5242880 # 5MB in bytes
-    maxHeaderSize: 1048576 # 1MB in bytes
+  # requestValidation:
+  #   maxBodySize: 5242880 # 5MB in bytes
+  #   maxHeaderSize: 1048576 # 1MB in bytes
   
   ipWhitelist:
     enabled: false

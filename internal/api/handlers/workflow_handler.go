@@ -3,10 +3,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -66,6 +68,13 @@ type WorkflowResponse struct {
 	Status              string                 `json:"status"`
 	Message             string                 `json:"message"`
 	Variables           map[string]interface{} `json:"variables,omitempty"`
+}
+
+func (h *WorkflowHandler) getRequestID(c *gin.Context) string {
+	if requestID := c.GetString("requestId"); requestID != "" {
+		return requestID
+	}
+	return uuid.New().String()
 }
 
 // ===== VALIDATION & SANITIZATION HELPERS =====
@@ -181,7 +190,7 @@ func (h *WorkflowHandler) StartAIQuery(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	if input.Context != nil {
@@ -224,7 +233,7 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	if input.Filters != nil {
@@ -236,320 +245,8 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 }
 
 // ============================================================================
-// AUTHENTICATION WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartGoogleSignup(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		Email       string                 `json:"email" binding:"required,email"`
-		RedirectURI string                 `json:"redirectUri"`
-		FirstName   string                 `json:"firstName"`
-		LastName    string                 `json:"lastName"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate names if provided
-	if input.FirstName != "" {
-		if err := h.validateString(input.FirstName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-			return
-		}
-		input.FirstName = h.sanitizeInput(input.FirstName)
-	}
-
-	if input.LastName != "" {
-		if err := h.validateString(input.LastName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-			return
-		}
-		input.LastName = h.sanitizeInput(input.LastName)
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"email":        input.Email,
-		"redirectUri":  input.RedirectURI,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "google",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartLinkedInSignup(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		Email       string                 `json:"email" binding:"required,email"`
-		RedirectURI string                 `json:"redirectUri"`
-		FirstName   string                 `json:"firstName"`
-		LastName    string                 `json:"lastName"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate names if provided
-	if input.FirstName != "" {
-		if err := h.validateString(input.FirstName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-			return
-		}
-		input.FirstName = h.sanitizeInput(input.FirstName)
-	}
-
-	if input.LastName != "" {
-		if err := h.validateString(input.LastName, 1, 100); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-			return
-		}
-		input.LastName = h.sanitizeInput(input.LastName)
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"email":        input.Email,
-		"redirectUri":  input.RedirectURI,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "linkedin",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartGoogleSignin(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		State       string                 `json:"state"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"state":        input.State,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "google",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartLinkedInSignin(c *gin.Context) {
-	var input struct {
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		State       string                 `json:"state"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"state":        input.State,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"provider":     "linkedin",
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "signin-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartUserSignin(c *gin.Context) {
-	var input struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate password
-	if err := h.validateString(input.Password, 8, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"email":        input.Email,
-		"password":     input.Password,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-login-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
 // USER MANAGEMENT WORKFLOWS
 // ============================================================================
-
-func (h *WorkflowHandler) StartUserSignup(c *gin.Context) {
-	var input struct {
-		Email     string `json:"email" binding:"required,email"`
-		Password  string `json:"password" binding:"required,min=8"`
-		FirstName string `json:"firstName" binding:"required"`
-		LastName  string `json:"lastName" binding:"required"`
-		Phone     string `json:"phone"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	// Validate password
-	if err := h.validateString(input.Password, 8, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password: " + err.Error()})
-		return
-	}
-
-	// Validate names
-	if err := h.validateString(input.FirstName, 1, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid first name: " + err.Error()})
-		return
-	}
-
-	if err := h.validateString(input.LastName, 1, 100); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid last name: " + err.Error()})
-		return
-	}
-
-	// Validate phone if provided
-	if input.Phone != "" {
-		if err := h.validatePhone(input.Phone); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid phone number: " + err.Error()})
-			return
-		}
-	}
-
-	// Sanitize inputs
-	input.FirstName = h.sanitizeInput(input.FirstName)
-	input.LastName = h.sanitizeInput(input.LastName)
-	input.Phone = h.sanitizeInput(input.Phone)
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"email":        input.Email,
-		"password":     input.Password,
-		"firstName":    input.FirstName,
-		"lastName":     input.LastName,
-		"phone":        input.Phone,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "user-signup-process", variables)
-	c.JSON(http.StatusOK, response)
-}
 
 func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	var input struct {
@@ -572,7 +269,7 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 		"profileData":  input.ProfileData,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "user-profile-update", variables)
@@ -604,7 +301,7 @@ func (h *WorkflowHandler) StartPasswordReset(c *gin.Context) {
 		"email":        input.Email,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "password-reset-workflow", variables)
@@ -632,7 +329,7 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 		"reason":       input.Reason,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "account-deletion-workflow", variables)
@@ -737,7 +434,27 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 		"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "public-form-submission", variables)
+	workflowID := "public-form-submission"
+	if formType == "buyer-registration" {
+		workflowID = "franchise-enquiry-submission"
+		
+		// Extract userId from context (set by session/cookie middleware)
+		userID := c.GetString("userId")
+		if userID != "" {
+			variables["userId"] = userID
+		}
+
+		// Extract franchiseId from payload (required by enquiry workflow)
+		if fid, ok := payload["franchiseId"].(string); ok {
+			variables["franchiseId"] = fid
+		}
+
+		// Map formData to enquiryFormData for compatibility
+		variables["enquiryFormData"] = payload
+		variables["operation"] = "franchise_enquiry"
+	}
+
+	response := h.startWorkflow(c.Request.Context(), workflowID, variables)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -782,7 +499,7 @@ func (h *WorkflowHandler) StartApplicationProcessing(c *gin.Context) {
 		"applicationData": input.ApplicationData,
 		"sessionId":       claims.SessionID,
 		"sourceSystem":    claims.SourceSystem,
-		"requestId":       uuid.New().String(),
+		"requestId":       h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "application_processing", variables)
@@ -820,7 +537,7 @@ func (h *WorkflowHandler) StartActivityApproval(c *gin.Context) {
 		"data":         input.Data,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "activity-approval-workflow", variables)
@@ -860,7 +577,7 @@ func (h *WorkflowHandler) StartFranchiseSearch(c *gin.Context) {
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
 		"subscriptionTier": claims.SubscriptionTier,
-		"requestId":        uuid.New().String(),
+		"requestId":        h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "franchise_detail", variables)
@@ -890,7 +607,7 @@ func (h *WorkflowHandler) GetFranchiseDetails(c *gin.Context) {
 		"userId":       claims.UserID,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
+		"requestId":    h.getRequestID(c),
 	}
 
 	response := h.startWorkflow(c.Request.Context(), "franchise_detail", variables)
@@ -1326,227 +1043,8 @@ func (h *WorkflowHandler) GetFullFranchise(c *gin.Context) {
 	})
 }
 
+// AUTHENTICATION WORKFLOWS
 // ============================================================================
-// CRM WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartCRMSync(c *gin.Context) {
-	var input struct {
-		UserID   string                 `json:"userId"`
-		SyncType string                 `json:"syncType" binding:"required"`
-		Data     map[string]interface{} `json:"data"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate sync type
-	if err := h.validateString(input.SyncType, 1, 50); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sync type: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"syncType":     input.SyncType,
-		"data":         input.Data,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "crm-user-sync", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// EMAIL WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartEmailCampaign(c *gin.Context) {
-	var input struct {
-		CampaignID string   `json:"campaignId" binding:"required"`
-		Recipients []string `json:"recipients" binding:"required"`
-		TemplateID string   `json:"templateId" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate campaign ID
-	if err := h.validateUUID(input.CampaignID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid campaign ID: " + err.Error()})
-		return
-	}
-
-	// Validate template ID
-	if err := h.validateUUID(input.TemplateID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid template ID: " + err.Error()})
-		return
-	}
-
-	// Validate recipients
-	if len(input.Recipients) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one recipient is required"})
-		return
-	}
-
-	for i, recipient := range input.Recipients {
-		if err := h.validateEmail(recipient); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid recipient at position %d: %s", i, err.Error())})
-			return
-		}
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"campaignId":   input.CampaignID,
-		"recipients":   input.Recipients,
-		"templateId":   input.TemplateID,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "email-campaign-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *WorkflowHandler) StartWelcomeSeries(c *gin.Context) {
-	var input struct {
-		UserID string `json:"userId"`
-		Email  string `json:"email" binding:"required,email"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate email
-	if err := h.validateEmail(input.Email); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email: " + err.Error()})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"email":        input.Email,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "welcome-email-series", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// SOCIAL AUTH WORKFLOWS
-// ============================================================================
-
-func (h *WorkflowHandler) StartSocialAuthOrchestration(c *gin.Context) {
-	var input struct {
-		Provider    string                 `json:"provider" binding:"required"`
-		AuthCode    string                 `json:"authCode" binding:"required"`
-		RedirectURI string                 `json:"redirectUri"`
-		Metadata    map[string]interface{} `json:"metadata"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Validate provider
-	validProviders := map[string]bool{
-		"google":   true,
-		"linkedin": true,
-		"facebook": true,
-		"github":   true,
-	}
-
-	if !validProviders[input.Provider] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid provider. Must be one of: google, linkedin, facebook, github"})
-		return
-	}
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"provider":     input.Provider,
-		"authCode":     input.AuthCode,
-		"redirectUri":  input.RedirectURI,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	if input.Metadata != nil {
-		variables["metadata"] = input.Metadata
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "social-auth-orchestration", variables)
-	c.JSON(http.StatusOK, response)
-}
-
-// ============================================================================
-// ERROR HANDLING WORKFLOW
-// ============================================================================
-
-func (h *WorkflowHandler) StartErrorHandling(c *gin.Context) {
-	var input struct {
-		ErrorCode    string                 `json:"errorCode" binding:"required"`
-		ErrorMessage string                 `json:"errorMessage" binding:"required"`
-		Context      map[string]interface{} `json:"context"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Sanitize error message
-	input.ErrorMessage = h.sanitizeInput(input.ErrorMessage)
-
-	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
-	}
-
-	variables := map[string]interface{}{
-		"errorCode":    input.ErrorCode,
-		"errorMessage": input.ErrorMessage,
-		"context":      input.Context,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    uuid.New().String(),
-	}
-
-	response := h.startWorkflow(c.Request.Context(), "error-handling-workflow", variables)
-	c.JSON(http.StatusOK, response)
-}
 
 func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	var input struct {
@@ -1589,7 +1087,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 	variables := map[string]interface{}{
 		"sessionId":            claims.SessionID,
 		"sourceSystem":         claims.SourceSystem,
-		"requestId":            uuid.New().String(),
+		"requestId":            h.getRequestID(c),
 		"correlationKey":       correlationKey,
 		"postLoginRedirectUri": h.config.Auth.Keycloak.PostLoginRedirectURI,
 	}
@@ -1647,7 +1145,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 			}
 			response["authorizationUrl"] = authURL
 		}
-		// Initiate flow — authorizationUrl return karo
+		// Initiate flow - authorizationUrl return karo
 
 		if sessionID, ok := response["sessionId"].(string); ok && sessionID != "" {
 			h.completeLoginFlow(c, ctx, sessionID, userAgent, response)
@@ -1658,7 +1156,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 		// silently fresh login initiate karo - Amazon/Flipkart style
 		isCallback := c.Query("code") != ""
 		if isCallback {
-			h.initiateFreshLogin(c, false) // Silent redirect on callback error
+			h.initiateFreshLogin(c) // Silent redirect on callback error
 			return
 		}
 		c.JSON(http.StatusOK, response)
@@ -1683,7 +1181,7 @@ func (h *WorkflowHandler) StartKeycloakLogin(c *gin.Context) {
 				// Callback error - initiate fresh login
 				isCallbackCache := c.Query("code") != ""
 				if isCallbackCache {
-					h.initiateFreshLogin(c, false) // Silent redirect on callback error
+					h.initiateFreshLogin(c) // Silent redirect on callback error
 					return
 				}
 				if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
@@ -2001,11 +1499,46 @@ func (h *WorkflowHandler) completeLoginFlow(
 			sess.UserAgent = userAgent
 			sess.IP = c.ClientIP()
 
+			// Assign tokens from payload to session for persistence
+			if idToken, ok := responsePayload["idToken"].(string); ok && idToken != "" {
+				sess.IDToken = idToken
+			}
+			if accessToken, ok := responsePayload["accessToken"].(string); ok && accessToken != "" {
+				sess.AccessToken = accessToken
+			}
+			if refreshToken, ok := responsePayload["refreshToken"].(string); ok && refreshToken != "" {
+				sess.RefreshToken = refreshToken
+			}
+			if kcUserID, ok := responsePayload["keycloakUserId"].(string); ok && kcUserID != "" {
+				sess.KeycloakUserID = kcUserID
+			}
+
 			if err := store.Update(ctx, *sess); err != nil {
 				h.logger.Error("Failed to update session during login", map[string]interface{}{
 					"sessionId": sessionID,
 					"error":     err.Error(),
 				})
+			}
+
+			// Robust Keycloak identification (User ID + Session ID)
+			keycloakUserID := ""
+			keycloakSessionID := ""
+
+			if sess.IDToken != "" {
+				keycloakUserID, keycloakSessionID = extractClaimsFromJWT(sess.IDToken)
+			}
+
+			// Fallback to AccessToken if IDToken failed
+			if keycloakUserID == "" && sess.AccessToken != "" {
+				keycloakUserID, keycloakSessionID = extractClaimsFromJWT(sess.AccessToken)
+			}
+
+			if keycloakUserID != "" {
+				h.logger.Info("Triggering targeted session cleanup", map[string]interface{}{
+					"keycloakUserId":     keycloakUserID,
+					"currentKeycloakSid": keycloakSessionID,
+				})
+				go h.revokeUserPreviousKeycloakSessions(context.Background(), keycloakUserID, keycloakSessionID)
 			}
 		} else {
 			h.logger.Warn("Session not found during login flow", map[string]interface{}{
@@ -2057,15 +1590,16 @@ func (h *WorkflowHandler) completeLoginFlow(
 }
 
 func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
-
 	code := c.Query("code")
 	state := c.Query("state")
+	errParam := c.Query("error") // Keycloak error capture karo
 
 	h.logger.Info("OAuth callback received", map[string]interface{}{
 		"requestId": c.GetString("requestId"),
 		"traceId":   c.GetString("traceId"),
 		"hasCode":   code != "",
 		"hasState":  state != "",
+		"error":     errParam,
 	})
 
 	// No code = Keycloak error (session expired, auth failed, user cancelled)
@@ -2074,9 +1608,10 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	if code == "" || state == "" {
 		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
+			"error":     errParam,
 		})
-		
-		h.initiateFreshLogin(c, false) // Silent redirect
+
+		h.initiateFreshLogin(c) // Silent redirect
 		return
 	}
 
@@ -2091,7 +1626,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 
 // initiateFreshLogin starts a new login workflow and redirects the user
 // directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
-func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
+func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	correlationKey := uuid.New().String()
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
@@ -2132,6 +1667,45 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 		}
 		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
 			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
+				// NUCLEAR COOKIE DELETION (Internal Logout Bypass)
+				// We forcefully clear Keycloak cookies from the browser to prevent "Account Collision".
+				kcURL, err := url.Parse(h.config.Auth.Keycloak.URL)
+				kcDomain := ""
+				if err == nil {
+					kcDomain = kcURL.Hostname()
+				}
+
+				kcPath := fmt.Sprintf("/realms/%s/", h.config.Auth.Keycloak.Realm)
+				kcPathNoSlash := fmt.Sprintf("/realms/%s", h.config.Auth.Keycloak.Realm)
+
+				cookieNames := []string{
+					"KEYCLOAK_SESSION", "KEYCLOAK_IDENTITY",
+					"KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY_LEGACY",
+					"KEYCLOAK_REMEMBER_ME", "KC_RESTART",
+					"AUTH_SESSION_ID", "AUTH_SESSION_ID_LEGACY",
+				}
+
+				for _, name := range cookieNames {
+					clearCookie := func(domain, path string) {
+						http.SetCookie(c.Writer, &http.Cookie{
+							Name:     name,
+							Value:    "",
+							Path:     path,
+							Domain:   domain,
+							MaxAge:   -1,
+							Secure:   true,
+							HttpOnly: true,
+							SameSite: http.SameSiteNoneMode,
+						})
+					}
+					clearCookie(kcDomain, kcPath)
+					clearCookie(kcDomain, kcPathNoSlash)
+					clearCookie(kcDomain, "/")
+					clearCookie("", kcPath)
+					clearCookie("", kcPathNoSlash)
+					clearCookie("", "/")
+				}
+
 				// Force login screen by adding prompt=login and max_age=0
 				if strings.Contains(authURL, "?") {
 					authURL += "&prompt=login&max_age=0"
@@ -2139,19 +1713,36 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context, showBridge bool) {
 					authURL += "?prompt=login&max_age=0"
 				}
 
-				if showBridge {
-					// Show bridge page with message before redirecting to fresh login
-					h.renderRedirectPage(c, authURL, "Login Timeout", "Your session has expired for security. Redirecting you to the login page...")
-				} else {
-					// Silent redirect
-					c.Redirect(http.StatusFound, authURL)
-				}
+				// ✅ Timeout cookie set karo
+				http.SetCookie(c.Writer, &http.Cookie{
+					Name:     "session_timeout",
+					Value:    "true",
+					Path:     "/",
+					MaxAge:   300,
+					HttpOnly: false,
+					Secure:   true,
+					SameSite: http.SameSiteLaxMode,
+				})
+
+				// Silent redirect
+				c.Redirect(http.StatusFound, authURL)
 				return
 			}
 		}
 	case <-time.After(10 * time.Second):
 		h.logger.Warn("initiateFreshLogin: timed out waiting for auth URL", map[string]interface{}{"correlationKey": correlationKey})
 	}
+
+	// ✅ Fallback cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "session_timeout",
+		Value:    "true",
+		Path:     "/",
+		MaxAge:   300,
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 
 	// Final fallback — home page (config driven, no hardcoding)
 	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
@@ -2300,4 +1891,161 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 </body>
 </html>`, title, message, redirectURL, redirectURL)
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
+}
+
+// extractClaimsFromJWT — JWT se sub (User UUID) aur sid (Session ID) nikalta hai
+func extractClaimsFromJWT(token string) (string, string) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", ""
+	}
+	var claims struct {
+		Sub string `json:"sub"`
+		Sid string `json:"sid"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", ""
+	}
+	return claims.Sub, claims.Sid
+}
+
+// revokeUserPreviousKeycloakSessions — successful login ke baad user ke purane sessions hatao
+func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context, keycloakUserID string, currentKeycloakSid string) {
+	cfg := h.config.Auth.Keycloak
+
+	adminToken := h.getKeycloakAdminToken()
+	if adminToken == "" {
+		h.logger.Error("revokeUserPreviousKeycloakSessions: failed to get admin token", nil)
+		return
+	}
+
+	// User ke saare sessions lo
+	sessionsURL := fmt.Sprintf("%s/admin/realms/%s/users/%s/sessions",
+		cfg.URL, cfg.Realm, keycloakUserID)
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, sessionsURL, nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		h.logger.Error("revokeUserPreviousKeycloakSessions: failed to fetch sessions from Keycloak", map[string]interface{}{
+			"status": resp.StatusCode,
+			"err":    err,
+		})
+		return
+	}
+	defer resp.Body.Close()
+
+	var sessions []struct {
+		ID    string `json:"id"`
+		Start int64  `json:"start"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		return
+	}
+
+	h.logger.Info("revokeUserPreviousKeycloakSessions: scanning sessions", map[string]interface{}{
+		"keycloakUserId": keycloakUserID,
+		"foundCount":     len(sessions),
+		"currentSid":     currentKeycloakSid,
+	})
+
+	if len(sessions) == 0 {
+		return
+	}
+
+	// Case A: sid available hai — delete everything EXCEPT sid
+	if currentKeycloakSid != "" {
+		for _, s := range sessions {
+			if s.ID == currentKeycloakSid {
+				continue // Current session ko mat chhuo
+			}
+			h.revokeSingleKeycloakSession(ctx, adminToken, s.ID)
+		}
+		return
+	}
+
+	// Case B: sid missing hai (fallback) — keep latest start time
+	if len(sessions) <= 1 {
+		return
+	}
+
+	latestIdx := 0
+	for i, s := range sessions {
+		if s.Start > sessions[latestIdx].Start {
+			latestIdx = i
+		}
+	}
+
+	for i, s := range sessions {
+		if i == latestIdx {
+			continue
+		}
+		h.revokeSingleKeycloakSession(ctx, adminToken, s.ID)
+	}
+}
+
+// revokeSingleKeycloakSession — individual session deletion helper
+func (h *WorkflowHandler) revokeSingleKeycloakSession(ctx context.Context, adminToken string, sessionID string) {
+	cfg := h.config.Auth.Keycloak
+	delURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s", cfg.URL, cfg.Realm, sessionID)
+
+	delReq, _ := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+	delReq.Header.Set("Authorization", "Bearer "+adminToken)
+
+	delResp, err := http.DefaultClient.Do(delReq)
+	if err != nil {
+		h.logger.Warn("Failed to delete Keycloak session", map[string]interface{}{"sid": sessionID, "err": err})
+		return
+	}
+	defer delResp.Body.Close()
+
+	if delResp.StatusCode == http.StatusNoContent || delResp.StatusCode == http.StatusOK {
+		h.logger.Info("Keycloak orphaned session revoked", map[string]interface{}{"sid": sessionID})
+	} else {
+		h.logger.Warn("Keycloak session revocation returned unexpected status", map[string]interface{}{"sid": sessionID, "status": delResp.StatusCode})
+	}
+}
+
+// getKeycloakAdminToken — shared helper, admin credentials se token lao
+func (h *WorkflowHandler) getKeycloakAdminToken() string {
+	cfg := h.config.Auth.Keycloak
+
+	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
+		cfg.URL, cfg.Realm)
+
+	data := url.Values{}
+	data.Set("grant_type", "client_credentials")
+	data.Set("client_id", cfg.AdminClientID)
+	data.Set("client_secret", cfg.AdminClientSecret)
+
+	resp, err := http.PostForm(tokenURL, data)
+	if err != nil {
+		h.logger.Error("getKeycloakAdminToken: network error", map[string]interface{}{"error": err.Error()})
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		h.logger.Warn("getKeycloakAdminToken: auth rejected by Keycloak", map[string]interface{}{
+			"status":   resp.StatusCode,
+			"response": string(body),
+			"clientId": cfg.AdminClientID,
+		})
+		return ""
+	}
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		h.logger.Error("getKeycloakAdminToken: decode failed", map[string]interface{}{"error": err.Error()})
+		return ""
+	}
+	return result.AccessToken
 }

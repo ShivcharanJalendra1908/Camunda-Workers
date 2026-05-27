@@ -140,6 +140,11 @@ func NewKeycloakClient(baseURL, realm, clientID, clientSecret, adminClientID, ad
 }
 
 func (k *KeycloakClient) doRequest(req *http.Request) (*http.Response, error) {
+	// Propagate X-Request-ID from context to header for end-to-end tracing
+	if reqID, ok := req.Context().Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+
 	result, err := k.cb.Execute(func() (interface{}, error) {
 		resp, err := k.httpClient.Do(req)
 		if err != nil {

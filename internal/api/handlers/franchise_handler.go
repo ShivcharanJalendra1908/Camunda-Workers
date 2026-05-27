@@ -191,7 +191,7 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 		"countryCode":    c.GetHeader("X-Country-Code"),
 		"traceId":        c.GetString("traceId"),
 		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
+		"requestId":      c.GetString("requestId"),
 		"userAgent":      c.Request.UserAgent(),
 		"ipAddress":      c.ClientIP(),
 	}
@@ -212,6 +212,9 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("q")
+	if searchQuery == "" {
+		searchQuery = c.Query("query")
+	}
 	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
 	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
 	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // ← NEW
@@ -299,7 +302,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		"lang":            c.GetHeader("X-Lang"),
 		"traceId":         c.GetString("traceId"),
 		"spanId":          c.GetString("spanId"),
-		"requestId":       c.GetString("X-Request-ID"),
+		"requestId":       c.GetString("requestId"),
 		"userAgent":       c.Request.UserAgent(),
 		"ipAddress":       c.ClientIP(),
 	}
@@ -349,7 +352,7 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 		"lang":           c.GetHeader("X-Lang"),
 		"traceId":        c.GetString("traceId"),
 		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
+		"requestId":      c.GetString("requestId"),
 		"userAgent":      c.Request.UserAgent(),
 		"ipAddress":      c.ClientIP(),
 	}
@@ -370,6 +373,9 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 	ctx := c.Request.Context()
 	searchQuery := c.Query("query")
+	if searchQuery == "" {
+		searchQuery = c.Query("q")
+	}
 
 	var filters models.FranchiseSearchFilters
 	if err := c.ShouldBindQuery(&filters); err != nil {
@@ -430,7 +436,7 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 		"searchType": "advanced",
 		"traceId":    c.GetString("traceId"),
 		"spanId":     c.GetString("spanId"),
-		"requestId":  c.GetString("X-Request-ID"),
+		"requestId":  c.GetString("requestId"),
 		"userAgent":  c.Request.UserAgent(),
 		"ipAddress":  c.ClientIP(),
 	}
@@ -507,7 +513,7 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 	variables["operation"] = operation
 	variables["traceId"] = c.GetString("traceId")
 	variables["spanId"] = c.GetString("spanId")
-	variables["requestId"] = c.GetString("X-Request-ID")
+	variables["requestId"] = c.GetString("requestId")
 	variables["userAgent"] = c.Request.UserAgent()
 	variables["ipAddress"] = c.ClientIP()
 
@@ -656,7 +662,7 @@ func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 		"userId":         c.GetString("userId"),
 		"traceId":        c.GetString("traceId"),
 		"spanId":         c.GetString("spanId"),
-		"requestId":      c.GetString("X-Request-ID"),
+		"requestId":      c.GetString("requestId"),
 		"userAgent":      c.Request.UserAgent(),
 		"ipAddress":      c.ClientIP(),
 	}
@@ -1039,7 +1045,7 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 		"enquiryFormData":    enquiryFormData,
 		"traceId":            c.GetString("traceId"),
 		"spanId":             c.GetString("spanId"),
-		"requestId":          c.GetString("X-Request-ID"),
+		"requestId":          c.GetString("requestId"),
 		"userAgent":          c.Request.UserAgent(),
 		"ipAddress":          c.ClientIP(),
 		"operationsEmail": h.internalAlertEmail,
@@ -1469,7 +1475,7 @@ func (h *FranchiseHandler) executeUserActionWorkflow(
 	variables["action"] = action
 	variables["traceId"] = c.GetString("traceId")
 	variables["spanId"] = c.GetString("spanId")
-	variables["requestId"] = c.GetString("X-Request-ID")
+	variables["requestId"] = c.GetString("requestId")
 	variables["userAgent"] = c.Request.UserAgent()
 	variables["ipAddress"] = c.ClientIP()
 
@@ -1503,21 +1509,24 @@ func (h *FranchiseHandler) HealthCheck(c *gin.Context) {
 
 func (h *FranchiseHandler) validationError(c *gin.Context, message string) {
 	c.JSON(http.StatusBadRequest, gin.H{
-		"success": false,
-		"error":   "Validation error",
-		"message": message,
+		"success":   false,
+		"error":     "Validation error",
+		"message":   message,
+		"requestId": c.GetString("requestId"),
 	})
 }
 
 func (h *FranchiseHandler) internalError(c *gin.Context, message string, err error) {
 	h.logger.Error(message, map[string]interface{}{
-		"error": err.Error(),
-		"path":  c.Request.URL.Path,
+		"error":     err.Error(),
+		"path":      c.Request.URL.Path,
+		"requestId": c.GetString("requestId"),
 	})
 	c.JSON(http.StatusInternalServerError, gin.H{
-		"success": false,
-		"error":   "Internal server error",
-		"message": message,
+		"success":   false,
+		"error":     "Internal server error",
+		"message":   message,
+		"requestId": c.GetString("requestId"),
 	})
 }
 

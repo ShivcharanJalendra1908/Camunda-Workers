@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
@@ -54,6 +55,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	tracer := otel.Tracer("worker-manager")
@@ -68,6 +72,10 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		),
 	)
 	defer span.End()
+
+	if reqID, ok := ctx.Value("requestId").(string); ok && reqID != "" {
+		span.SetAttributes(attribute.String("http.request_id", reqID))
+	}
 
 	h.logger.Info("processing job",
 		map[string]interface{}{
@@ -621,6 +629,15 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	heroTitle := "Franchise Opportunities in India"
 	heroDescription := "Explore top franchise opportunities in India"
 
+	// Check searchParams for AI-extracted industry names (multi-industry support)
+	searchParams := h.extractMap(data, "searchParams")
+	multiIndustryTitle := ""
+	if len(searchParams) > 0 {
+		if ind, ok := searchParams["industry"].(string); ok && ind != "" {
+			multiIndustryTitle = ind
+		}
+	}
+
 	if len(industryInfo) > 0 {
 		// Name se default title/description banao
 		name := ""
@@ -630,18 +647,54 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			name = n
 		}
 
-		if name != "" {
-			heroTitle = fmt.Sprintf("%s Franchise Opportunities in India", name)
-			heroDescription = fmt.Sprintf("Explore top %s franchise opportunities in India", name)
+		// If multi-industry search, combine: "Food & Beverage & Fashion"
+		if multiIndustryTitle != "" && strings.Contains(multiIndustryTitle, ",") {
+			// Format: "Food & Beverage, Fashion" → "Food & Beverage and Fashion"
+			parts := strings.Split(multiIndustryTitle, ",")
+			cleanParts := []string{}
+			for _, p := range parts {
+				cleaned := strings.TrimSpace(p)
+				if cleaned != "" {
+					cleanParts = append(cleanParts, cleaned)
+				}
+			}
+			if len(cleanParts) > 1 {
+				name = strings.Join(cleanParts[:len(cleanParts)-1], ", ") + " & " + cleanParts[len(cleanParts)-1]
+			}
 		}
 
-		// DB mein stored hai toh override karo
-		if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
-			heroTitle = t
+		if name != "" {
+			heroTitle = fmt.Sprintf("%s Franchises", name)
+			heroDescription = fmt.Sprintf("Search results for %s franchise opportunities across India", name)
 		}
-		if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
-			heroDescription = d
+
+		// DB mein stored hai toh override karo (single industry page pe)
+		if !strings.Contains(multiIndustryTitle, ",") {
+			if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
+				heroTitle = t
+			}
+			if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
+				heroDescription = d
+			}
 		}
+	} else if multiIndustryTitle != "" {
+		// No industryInfo from DB, but AI extracted industry name(s)
+		parts := strings.Split(multiIndustryTitle, ",")
+		cleanParts := []string{}
+		for _, p := range parts {
+			cleaned := strings.TrimSpace(p)
+			if cleaned != "" {
+				cleanParts = append(cleanParts, cleaned)
+			}
+		}
+		var combined string
+		if len(cleanParts) > 1 {
+			combined = strings.Join(cleanParts[:len(cleanParts)-1], ", ") + " & " + cleanParts[len(cleanParts)-1]
+		} else {
+			combined = cleanParts[0]
+		}
+		heroTitle = fmt.Sprintf("%s Franchises", combined)
+		heroDescription = fmt.Sprintf("Search results for %s franchise opportunities across India", combined)
 	}
 
 	sections = append(sections, map[string]interface{}{

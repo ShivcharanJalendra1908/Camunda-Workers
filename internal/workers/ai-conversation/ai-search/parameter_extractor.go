@@ -58,9 +58,56 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 func (pe *ParameterExtractor) BuildPrompt(query string) string {
 	q := strings.TrimSpace(query)
 	if len(strings.Fields(q)) == 1 {
-		return q + " franchise"
+		q = q + " franchise"
 	}
-	return q
+
+	return `You are a highly accurate entity extraction AI for a franchise search engine. Extract search parameters from the user's query and output them EXACTLY in the specified JSON format.
+
+TAXONOMY:
+Industry → Category → Subcategory
+
+RULES:
+1. Return ONLY valid JSON. No markdown, no conversational text.
+2. If a value is missing, use null. DO NOT use empty strings.
+3. For investments, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
+4. Determine Min/Max Investment carefully: 
+   - "under", "below", "budget of", "max" -> Maximum_Investment
+   - "above", "starting from", "min" -> Minimum_Investment
+   - "between X to Y" -> Minimum_Investment = X, Maximum_Investment = Y
+5. Area_Requirement should be in numbers (sq ft).
+6. ROI should be just the percentage number (e.g., 20).
+7. Rating should be a number between 0 and 5.
+8. Only set Verified or Trusted_Seller to true if the words "verified" or "trusted" are explicitly used in the user's query. Otherwise, they must be null.
+
+DATA STRUCTURE (Return ONLY valid JSON matching this):
+{
+  "Industry": "string or null",
+  "Category": "string or null",
+  "Subcategory": "string or null",
+  "Location": "string (City/State) or null",
+  "Minimum_Investment": "string (e.g., '1L', '50L', '1Cr') or null",
+  "Maximum_Investment": "string (e.g., '10L', '2Cr') or null",
+  "Area_Requirement": "string (e.g., '500') or null",
+  "ROI": "string (e.g., '20') or null",
+  "Rating": "number or null",
+  "Staff": "number or null",
+  "Outlets": "number or null",
+  "Verified": "boolean or null",
+  "Trusted_Seller": "boolean or null"
+}
+
+EXAMPLES:
+Query: "food franchise under 1 lakh in delhi with high rating"
+Output: {"Industry": "Food & Beverage", "Category": null, "Subcategory": null, "Location": "Delhi", "Minimum_Investment": null, "Maximum_Investment": "1L", "Area_Requirement": null, "ROI": null, "Rating": 4.5, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
+
+Query: "pizza business in mumbai"
+Output: {"Industry": "Food & Beverage", "Category": "Pizza", "Subcategory": null, "Location": "Mumbai", "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
+
+Query: "verified education business between 10 to 20 lakh"
+Output: {"Industry": "Education", "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": "10L", "Maximum_Investment": "20L", "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": true, "Trusted_Seller": null}
+
+Query: "` + q + `"
+Output:`
 }
 
 // ftModelOutput - Fine-tuned model ka exact output schema
@@ -74,6 +121,11 @@ type ftModelOutput struct {
 	MaximumInvestment interface{} `json:"Maximum_Investment"`
 	AreaRequirement   interface{} `json:"Area_Requirement"`
 	ROI               interface{} `json:"ROI"`
+	Rating            interface{} `json:"Rating"`
+	Staff             interface{} `json:"Staff"`
+	Outlets           interface{} `json:"Outlets"`
+	Verified          interface{} `json:"Verified"`
+	TrustedSeller     interface{} `json:"Trusted_Seller"`
 }
 
 // ============================================================
@@ -132,6 +184,7 @@ var industryNormalizationMap = map[string]string{
 	"distributors":                     "Dealers & Distributors",
 	"agriculture":                      "Agriculture",
 	"agriculture & sustainability":     "Agriculture",
+	"food":                             "Food & Beverage",
 }
 
 // industrySlugMap - ES exact slugs from industries.csv
@@ -158,11 +211,7 @@ var industrySlugMap = map[string]string{
 	"Media / Communication":     "media-communication",
 }
 
-// GetIndustrySlug - direct slug lookup, no string manipulation
-func GetIndustrySlug(industryName string) string {
-	if slug, ok := industrySlugMap[industryName]; ok {
-		return slug
-	}
+func getSlugFallback(industryName string) string {
 	slug := strings.ToLower(industryName)
 	slug = strings.ReplaceAll(slug, " & ", "-")
 	slug = strings.ReplaceAll(slug, " / ", "-")
@@ -174,6 +223,33 @@ func GetIndustrySlug(industryName string) string {
 		slug = strings.ReplaceAll(slug, "--", "-")
 	}
 	return slug
+}
+
+// GetIndustrySlug - direct slug lookup, supporting comma-separated multiple industry names
+func GetIndustrySlug(industryName string) string {
+	if strings.Contains(industryName, ",") {
+		parts := strings.Split(industryName, ",")
+		var slugs []string
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			if slug, ok := industrySlugMap[partTrimmed]; ok {
+				slugs = append(slugs, slug)
+			} else {
+				slugs = append(slugs, getSlugFallback(partTrimmed))
+			}
+		}
+		if len(slugs) > 0 {
+			return strings.Join(slugs, ",")
+		}
+	}
+
+	if slug, ok := industrySlugMap[industryName]; ok {
+		return slug
+	}
+	return getSlugFallback(industryName)
 }
 
 func normalizeIndustry(industry string, category string) string {
@@ -275,6 +351,14 @@ var (
 	// User signals: where they ARE
 	userLocMarkers = `(mujhe|mera|currently\s+in|based\s+in|hailing\s+from|from|live\s+in|stay\s+in|staying\s+in|living\s+in|residing\s+in|based\s+out\s+of)`
 	userLocRegex   = regexp.MustCompile(`(?i)\b` + userLocMarkers + `\b`)
+
+	// Investment Regexes
+	// Pattern: [under/below/...] [number] [L/Lakh/Cr/...]
+	maxInvRegex = regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|within|budget\s+(?:of|is)|limit\s+(?:of|is))\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	// Pattern: [above/starting/...] [number] [L/Lakh/Cr/...]
+	minInvRegex = regexp.MustCompile(`(?i)\b(above|more\s+than|greater\s+than|starting\s+from|from|starts?\s+at|at\s+least|min|minimum)\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	// Pattern: [number] [L/Lakh/Cr/...] [to/-] [number] [L/Lakh/Cr/...]
+	rangeInvRegex = regexp.MustCompile(`(?i)\b([0-9.]+)\s*(lakhs?|l|cr|crores?)?\s*(to|and|-)\s*([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
 )
 
 func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) string {
@@ -320,6 +404,28 @@ func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) s
 	}
 
 	return ""
+}
+
+func (pe *ParameterExtractor) extractAllTargetCities(query string, skipCity string) []string {
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+	
+	candidates := location.DetectAllCitiesFromQuery(queryLower)
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	var results []string
+	for _, c := range candidates {
+		cLower := strings.ToLower(c)
+		if cLower == strings.ToLower(skipCity) || isHQOnlyLocation(queryLower, cLower) {
+			continue
+		}
+		if !pe.isCityUserLocation(queryLower, cLower) {
+			results = append(results, c)
+		}
+	}
+
+	return results
 }
 
 func isHQOnlyLocation(queryLower, cityLower string) bool {
@@ -579,6 +685,35 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 		params.ROI = &RangeFilter{Min: roiVal, Max: roiVal + 10}
 	}
 
+	ratingVal := toFloat64(ftOut.Rating)
+	if ratingVal > 0 {
+		params.Rating = &ratingVal
+	}
+
+	staffVal := toFloat64(ftOut.Staff)
+	if staffVal > 0 {
+		params.Staff = &RangeFilter{Min: staffVal, Max: staffVal * 3}
+	}
+
+	outletsVal := int(toFloat64(ftOut.Outlets))
+	if outletsVal > 0 {
+		params.Outlets = &outletsVal
+	}
+
+	if v, ok := ftOut.Verified.(bool); ok && v {
+		params.Verified = &v
+	} else if vStr, ok := ftOut.Verified.(string); ok && strings.ToLower(vStr) == "true" {
+		t := true
+		params.Verified = &t
+	}
+
+	if v, ok := ftOut.TrustedSeller.(bool); ok && v {
+		params.TrustedSeller = &v
+	} else if vStr, ok := ftOut.TrustedSeller.(string); ok && strings.ToLower(vStr) == "true" {
+		t := true
+		params.TrustedSeller = &t
+	}
+
 	if err := pe.normalizeParameters(params); err != nil {
 		return nil, fmt.Errorf("normalization failed: %w", err)
 	}
@@ -596,14 +731,62 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	params, err := pe.Parse(llmResponse)
 	if err != nil {
 		fmt.Printf("⚠️  Parse error: %v\n", err)
-		return &ExtractedParameters{}
+		return &ExtractedParameters{OriginalQuery: originalQuery}
 	}
+	params.OriginalQuery = originalQuery
 
 	if originalQuery == "" {
 		return params
 	}
 
 	queryLower := strings.ToLower(originalQuery)
+
+	// FIX 0: Investment Fallback from query
+	if params.Investment == nil {
+		inv := pe.extractInvestmentFromQuery(queryLower)
+		if inv != nil {
+			params.Investment = inv
+			fmt.Printf("💰 Investment from query: Min=%v, Max=%v\n", inv.Min, inv.Max)
+		}
+	}
+
+	// Always scan original query for all mentioned industries to support multi-industry search
+	var allIndustries []string
+	seenInd := make(map[string]bool)
+
+	// Add LLM industry if present
+	if params.Industry != "" {
+		if !seenInd[params.Industry] {
+			seenInd[params.Industry] = true
+			allIndustries = append(allIndustries, params.Industry)
+		}
+	}
+
+	// Scan query and match all industries
+	// Sort keywords by length descending to match longest first
+	var kws []string
+	for kw := range industryNormalizationMap {
+		kws = append(kws, kw)
+	}
+	sort.Slice(kws, func(i, j int) bool {
+		return len(kws[i]) > len(kws[j])
+	})
+
+	for _, kw := range kws {
+		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(kw) + `\b`)
+		if re.MatchString(queryLower) {
+			normalized := industryNormalizationMap[kw]
+			if !seenInd[normalized] {
+				seenInd[normalized] = true
+				allIndustries = append(allIndustries, normalized)
+			}
+		}
+	}
+
+	if len(allIndustries) > 0 {
+		params.Industry = strings.Join(allIndustries, ", ")
+		fmt.Printf("🏭 Merged Industries: %s\n", params.Industry)
+	}
 
 	// FIX 1: HQ Location
 	if params.Location != nil && params.Location.City != "" {
@@ -634,40 +817,122 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 
 	// FIX 3: Zone/State/City Fallback from query (Deterministic Order)
 	if params.Location == nil || params.Location.City == "" {
-		// 1. Zone (Longest First)
+		var foundLocations []string
+
+		// 1. Check for Zones
 		for _, zone := range pe.sortedZones {
 			if strings.Contains(queryLower, zone) {
 				if !pe.isCityUserLocation(queryLower, zone) {
-					zoneTitled := titleCase(zone)
-					params.Location = pe.parseLocationString(zoneTitled)
-					fmt.Printf("🗺️  Zone from query: %s\n", zone)
-					break
+					foundLocations = append(foundLocations, titleCase(zone))
 				}
 			}
 		}
-		// 2. State (Longest First)
-		if params.Location == nil || params.Location.City == "" {
-			for _, entry := range pe.sortedStates {
-				if strings.Contains(queryLower, entry.lower) {
-					if !pe.isCityUserLocation(queryLower, entry.lower) {
-						params.Location = pe.parseLocationString(entry.proper)
-						fmt.Printf("🗺️  State from query: %s\n", entry.proper)
-						break
-					}
+
+		// 2. Check for States
+		for _, entry := range pe.sortedStates {
+			if strings.Contains(queryLower, entry.lower) {
+				if !pe.isCityUserLocation(queryLower, entry.lower) {
+					foundLocations = append(foundLocations, entry.proper)
 				}
 			}
 		}
-		// 3. City (The robust fix)
-		if params.Location == nil || params.Location.City == "" {
-			targetCity := pe.extractTargetCity(originalQuery, "")
-			if targetCity != "" {
-				params.Location = pe.parseLocationString(targetCity)
-				fmt.Printf("🏙️  City from query: %s\n", targetCity)
+
+		// 3. Check for Cities
+		targetCities := pe.extractAllTargetCities(originalQuery, "")
+		for _, city := range targetCities {
+			foundLocations = append(foundLocations, city)
+		}
+
+		if len(foundLocations) > 0 {
+			// Dedup foundLocations
+			seen := make(map[string]bool)
+			var uniqueLocations []string
+			for _, loc := range foundLocations {
+				locTitled := titleCase(loc)
+				// E.g. "Delhi NCR" and "Delhi" are same, let's treat "Delhi NCR" as standard
+				if locTitled == "Delhi" {
+					locTitled = "Delhi NCR"
+				}
+				if !seen[strings.ToLower(locTitled)] {
+					seen[strings.ToLower(locTitled)] = true
+					uniqueLocations = append(uniqueLocations, locTitled)
+				}
+			}
+
+			if len(uniqueLocations) > 0 {
+				joinedCities := strings.Join(uniqueLocations, ", ")
+				params.Location = &LocationFilter{
+					City:    joinedCities,
+					Country: "India",
+				}
+				fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
 			}
 		}
 	}
 
 	return params
+}
+
+func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *InvestmentFilter {
+	// 1. Range Check (e.g., "5 to 10 lakh")
+	if matches := rangeInvRegex.FindStringSubmatch(query); len(matches) >= 6 {
+		val1 := parseNumericValue(matches[1], matches[2])
+		val2 := parseNumericValue(matches[4], matches[5])
+		if val1 == 0 && matches[2] == "" && matches[5] != "" {
+			// Handles "5 to 10 lakh" where first unit is missing
+			val1 = parseNumericValue(matches[1], matches[5])
+		}
+		if val1 > 0 && val2 > 0 {
+			if val1 > val2 {
+				val1, val2 = val2, val1
+			}
+			return &InvestmentFilter{Min: val1, Max: val2}
+		}
+	}
+
+	// 2. Max Check (e.g., "under 10 lakh")
+	if matches := maxInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
+		val := parseNumericValue(matches[2], matches[3])
+		if val > 0 {
+			return &InvestmentFilter{Min: val / 10, Max: val}
+		}
+	}
+
+	// 3. Min Check (e.g., "above 5 lakh")
+	if matches := minInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
+		val := parseNumericValue(matches[2], matches[3])
+		if val > 0 {
+			return &InvestmentFilter{Min: val, Max: val * 5}
+		}
+	}
+
+	// 4. Generic Check (e.g., "10 lakh budget")
+	genericRegex := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(lakhs?|l|cr|crores?)\b`)
+	if matches := genericRegex.FindStringSubmatch(query); len(matches) >= 3 {
+		val := parseNumericValue(matches[1], matches[2])
+		if val > 0 {
+			return &InvestmentFilter{Min: val * 0.5, Max: val * 1.5}
+		}
+	}
+
+	return nil
+}
+
+func parseNumericValue(valStr, unitStr string) float64 {
+	val, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	unit := strings.ToLower(unitStr)
+	multiplier := 1.0
+	if strings.HasPrefix(unit, "l") {
+		multiplier = 100000
+	} else if strings.HasPrefix(unit, "c") {
+		multiplier = 10000000
+	}
+
+	return val * multiplier
 }
 
 func (pe *ParameterExtractor) ParseWithFallback(llmResponse string) *ExtractedParameters {

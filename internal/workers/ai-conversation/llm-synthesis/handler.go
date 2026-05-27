@@ -117,6 +117,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	tracer := otel.Tracer("worker-manager")
@@ -485,10 +488,13 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	// ✅ IMPROVED: Build prompt with better truncation
 	prompt := h.buildPrompt(input)
 
-	// ✅ NEW: Add request ID
-	requestID := uuid.New().String()
+	// ✅ NEW: Add request ID from context (propagated from Kong via Zeebe)
+	requestID, _ := ctx.Value("requestId").(string)
+	if requestID == "" {
+		requestID = uuid.New().String()
+	}
 	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(attribute.String("request.id", requestID))
+	span.SetAttributes(attribute.String("http.request_id", requestID))
 
 	requestBody := map[string]interface{}{
 		"prompt": prompt,

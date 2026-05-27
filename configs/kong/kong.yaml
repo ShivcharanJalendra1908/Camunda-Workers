@@ -1,0 +1,523 @@
+﻿_format_version: "3.0"
+_transform: true
+
+services:
+  - name: api-gateway
+    url: http://api-gateway:8080
+
+    routes:
+      - name: block-admin-public
+        hosts:
+          - us-dev-api.lemici.com
+        paths:
+          - /api/admin
+          - ~/api/v[0-9]+/admin(/.*)?$
+        regex_priority: 100
+        plugins:
+          - name: request-termination
+            config:
+              status_code: 404
+              message: "Not Found"
+
+      - name: oauth-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - ~/api/v1/oauth(/.*)?$
+        strip_path: false
+        preserve_host: true
+        regex_priority: 200
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 300
+              policy: local
+              limit_by: ip
+          - name: request-size-limiting
+            config:
+              allowed_payload_size: 1
+              size_unit: megabytes
+
+      - name: ai-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/ai
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 3
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: contact-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/contact
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              hour: 6
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: forms-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/forms
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              hour: 6
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: auth-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/auth
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: franchise-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/franchises
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 100
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: user-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/user
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 30
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: application-routes
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/applications
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 20
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: api-v1-fallback
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip
+              fault_tolerant: true
+              hide_client_headers: false
+
+      - name: health-routes
+        paths:
+          - /health
+          - /metrics
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 1000
+              policy: local
+              limit_by: ip
+
+      - name: operate-ws
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /operate/ws
+        strip_path: false
+        preserve_host: true
+      - name: auth-callback
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/v1/auth/callback
+        methods:
+          - GET
+          - POST
+        strip_path: false
+        preserve_host: true
+
+      - name: admin-routes
+        paths:
+          - /internal
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: ip-restriction
+            config:
+              allow:
+                - "127.0.0.1/32"
+                - "10.0.0.0/8"
+                - "172.16.0.0/12"
+                - "172.31.0.0/16"
+              status: 403
+              message: "Access Denied: Internal API"
+          - name: rate-limiting
+            config:
+              minute: 10
+              policy: local
+              limit_by: ip
+
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Proto: https"
+
+      - name: correlation-id
+        config:
+          header_name: X-Request-ID
+          generator: uuid
+          echo_downstream: true
+
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+          limit_by: ip
+          fault_tolerant: true
+          hide_client_headers: false
+
+      - name: cors
+        config:
+          origins:
+            - "https://dev.lemici.com"
+            - "http://localhost:3000"
+            - "http://localhost:5173"
+            - "https://us-dev-api.lemici.com"
+            - "https://lemici.com"
+            - "https://www.lemici.com"
+            - "https://d3c34598mt7qdx.cloudfront.net"
+            - "https://d595hydlunw5u.cloudfront.net"
+            - "http://34.224.27.158:3005"
+            - "https://dev-api.lemici.com"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Origin
+            - Content-Type
+            - Accept
+            - Authorization
+            - X-Request-ID
+            - X-Session-ID
+          exposed_headers:
+            - X-Request-ID
+            - X-RateLimit-Limit
+            - X-RateLimit-Remaining
+          credentials: true
+          max_age: 86400
+
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 5
+          size_unit: megabytes
+
+      - name: response-transformer
+        config:
+          add:
+            headers:
+              - "X-Frame-Options: DENY"
+              - "X-Content-Type-Options: nosniff"
+              - "Referrer-Policy: strict-origin-when-cross-origin"
+              - "X-XSS-Protection: 1; mode=block"
+              - "Content-Security-Policy: default-src 'self'"
+
+      - name: bot-detection
+        config:
+          allow:
+            - "Mozilla/5.0"
+            - "PostmanRuntime"
+          deny:
+            - "wget"
+            - "python-requests"
+
+      - name: opentelemetry
+        config:
+          endpoint: http://jaeger:4318/v1/traces
+          sampling_rate: 0.1
+          resource_attributes:
+             service.name: kong-api-gateway
+             deployment.environment: development
+
+  # ── Keycloak Service ──────────────────────────────────────────────────
+  - name: keycloak
+    url: http://keycloak:8080
+
+    routes:
+      - name: keycloak-auth
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms
+          - /admin
+          - /.well-known
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+          - name: cors
+            config:
+              origins:
+                - "https://dev.lemici.com"
+                - "http://localhost:3000"
+                - "http://localhost:5173"
+                - "https://us-dev-api.lemici.com"
+                - "https://lemici.com"
+                - "https://www.lemici.com"
+                - "https://d3c34598mt7qdx.cloudfront.net"
+                - "https://d595hydlunw5u.cloudfront.net"
+                - "http://34.224.27.158:3005"
+                - "https://dev-api.lemici.com"
+              methods:
+                - GET
+                - POST
+                - OPTIONS
+              headers:
+                - Origin
+                - Content-Type
+                - Authorization
+              credentials: true
+
+      - name: keycloak-assets
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /resources
+          - /js
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: proxy-cache
+            config:
+              content_type:
+                - text/css
+                - application/javascript
+                - image/png
+                - image/jpeg
+                - image/svg+xml
+              cache_ttl: 3600
+              strategy: memory
+
+      - name: keycloak-token
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/token
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-auth
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/auth
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-logout
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/logout
+        methods:
+          - POST
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-userinfo
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/userinfo
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
+
+      - name: keycloak-oidc-certs
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /realms/camunda-platform/protocol/openid-connect/certs
+        methods:
+          - GET
+        strip_path: false
+        preserve_host: true
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 120
+              policy: local
+              limit_by: ip
+
+    plugins:
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-Forwarded-Proto: https"
+
+  # ── Meeting Notes Service ────────────────────────────────────────────
+  - name: meeting-notes
+    url: http://host.docker.internal:8010
+
+    routes:
+      - name: meeting-notes-api
+        hosts:
+          - us-dev-api.lemici.com
+          - localhost
+          - 127.0.0.1
+        paths:
+          - /api/meeting-notes
+        strip_path: true
+        preserve_host: true
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip

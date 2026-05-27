@@ -1,5 +1,5 @@
 package types
-
+ 
 // Identity represents a normalized external authentication identity
 // returned by an OAuth provider. It contains facts only, no decisions.
 type Identity struct {
@@ -10,5 +10,6 @@ type Identity struct {
 	FirstName      string // user's first name
 	LastName       string // user's last name
 	IDToken        string // raw id_token for OIDC logout hint
+	AccessToken    string // raw access_token for API calls
 	RefreshToken   string // refresh token for backend-initiated logout
 }

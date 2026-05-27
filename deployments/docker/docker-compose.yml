@@ -14,9 +14,9 @@ volumes:
 
 services:
 
-  # ============================================================================
-  # CAMUNDA 8 - MOVED TO TOP FOR PRIORITY
-  # ============================================================================
+# ============================================================================
+# CAMUNDA 8
+# ============================================================================
 
   zeebe:
     image: camunda/zeebe:8.3.9
@@ -66,9 +66,9 @@ services:
       start_period: 180s
     restart: on-failure:5
 
-  # ============================================================================
-  # INFRASTRUCTURE
-  # ============================================================================
+# ============================================================================
+# INFRASTRUCTURE
+# ============================================================================
 
   postgres:
     image: postgres:15-alpine
@@ -91,7 +91,6 @@ services:
       - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
       - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
       - ./postgres/30-schema.sql:/docker-entrypoint-initdb.d/30-schema.sql:ro
-      #- ./postgres/load-csv-data.sql:/docker-entrypoint-initdb.d/load-csv-data.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
       - camunda-network
@@ -148,6 +147,11 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:1.52
     container_name: jaeger
+    command:
+      - --collector.otlp.enabled=true
+      - --collector.otlp.grpc.host-port=:4317
+      - --collector.otlp.http.host-port=:4318
+      - --log-level=info
     ports:
       - "16686:16686"
       - "14268:14268"
@@ -156,9 +160,7 @@ services:
       - "4317:4317"
       - "4318:4318"
     environment:
-      COLLECTOR_OTLP_ENABLED: "true"
       SPAN_STORAGE_TYPE: memory
-      LOG_LEVEL: info
     networks:
       - camunda-network
     healthcheck:
@@ -180,7 +182,6 @@ services:
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_URL: http://elasticsearch:9200
       CAMUNDA_OPERATE_ZEEBEELASTICSEARCH_PREFIX: zeebe
       SPRING_PROFILES_ACTIVE: dev
-
       CAMUNDA_OPERATE_IMPORTER_STARTLOADINGDATAFROMSCRATCH: "false"
       CAMUNDA_OPERATE_IMPORTER_READERBACKOFF: 100
       CAMUNDA_OPERATE_IMPORTER_QUEUESIZE: 1000
@@ -205,14 +206,14 @@ services:
     command:
       - start-dev
       - --import-realm
-    ports:
-      - "8180:8080"
+    # ports:
+    #   - "8180:8080"
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       KC_HTTP_ENABLED: "true"
       KC_HTTP_PORT: 8080
-      KC_HOSTNAME: dev-api.lemici.com
+      KC_HOSTNAME: us-dev-api.lemici.com
       KC_PROXY: edge
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "true"
@@ -229,7 +230,7 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
-      - /home/ubuntu/Workflow-and-Workers/keycloak-theme/lemici:/opt/keycloak/themes/lemici
+      - ../../keycloak-theme:/opt/keycloak/themes:ro
 
     depends_on:
       postgres:
@@ -288,28 +289,27 @@ services:
       - |
         sleep 20 &&
         echo 'Registering model...' &&
-        OLLAMA_HOST=http://ollama:11434 ollama create qwen-franchise-extractor -f /models/Modelfile &&
+        OLLAMA_HOST=http://ollama:11434 ollama create franchise-extractor -f /models/Modelfile &&
         echo 'Done!'
     volumes:
       - ./ollama/Modelfile:/models/Modelfile
       - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
 
-  # ============================================================================
-  # APPLICATION
-  # ============================================================================
+# ============================================================================
+# API GATEWAY (HTTP Handler)
+# ============================================================================
 
   api-gateway:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway:latest
     container_name: api-gateway
-    ports:
-      - "8080:8080"
-      - "9090:9090"
+    # ports:
+    #   - "8080:8080"
+    #   - "9090:9090"
     environment:
       APP_NAME: api-gateway
       APP_ENVIRONMENT: development
       API_PORT: 8080
       ZEEBE_ADDRESS: zeebe:26500
-      ZEEBE_CLIENT_REQUEST_TIMEOUT: 45s
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: franchises
@@ -319,15 +319,11 @@ services:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_ADDRESS: redis:6379
       KEYCLOAK_REALM: camunda-platform
-      KEYCLOAK_CLIENT_ID: worker-client
-      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
-      KEYCLOAK_ADMIN_CLIENT_ID: worker-client
-      KEYCLOAK_ADMIN_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
-      LOG_LEVEL: debug
+      LOG_LEVEL: info
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_EXPORTER_JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_SERVICE_NAME: api-gateway
-      ALLOWED_ORIGINS: https://d3r20osyd7sq76.cloudfront.net
+      # ALLOWED_ORIGINS: https://d3r20osyd7sq76.cloudfront.net
     depends_on:
       postgres:
         condition: service_healthy
@@ -350,10 +346,16 @@ services:
       retries: 3
       start_period: 60s
     restart: on-failure:3
+    
+# ============================================================================
+# WORKERS 
+# ============================================================================
 
   camunda-workers:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker:latest
     container_name: camunda-workers
+    # ports:
+      # - "8080:8080"
     environment:
       APP_NAME: camunda-workers
       APP_ENVIRONMENT: development
@@ -376,9 +378,9 @@ services:
       REDIS_ADDRESS: redis:6379
       KEYCLOAK_REALM: camunda-platform
       KEYCLOAK_CLIENT_ID: worker-client
-      KEYCLOAK_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      KEYCLOAK_CLIENT_SECRET: AxgPPsstY5YDst15rDvfz64KsslQUorz
       KEYCLOAK_ADMIN_CLIENT_ID: worker-client
-      KEYCLOAK_ADMIN_CLIENT_SECRET: yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS
+      KEYCLOAK_ADMIN_CLIENT_SECRET: AxgPPsstY5YDst15rDvfz64KsslQUorz
       OLLAMA_URL: http://ollama:11434
       LLM_ENDPOINT: http://ollama:11434
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
@@ -397,7 +399,6 @@ services:
       jaeger:
         condition: service_healthy
       keycloak:
-        # ✅ ADD THIS
         condition: service_healthy
     volumes:
       - ../../configs:/app/configs:ro
@@ -421,19 +422,64 @@ services:
     networks:
       - camunda-network
 
-  operate-ui:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/operate-ui:latest
-    container_name: operate-ui
-    ports:
-      - "3005:80"
-    depends_on:
-      api-gateway:
-        condition: service_healthy
+  # operate-ui:
+  #   image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/operate-ui:latest
+  #   container_name: operate-ui
+  #   ports:
+  #     - "3005:80"
+  #   depends_on:
+  #     api-gateway:
+  #       condition: service_healthy
+  #   networks:
+  #     - camunda-network
+  #   restart: on-failure:3
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+
+# ============================================================================
+# KONG API GATEWAY (ONLY GATEWAY)
+# ============================================================================
+
+  kong:
+    image: kong:3.6
+    container_name: kong
+    command: sh -c "exec kong start"
+    restart: unless-stopped
     networks:
       - camunda-network
-    restart: on-failure:3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../configs/kong/kong.yaml:/kong/declarative/kong.yml:ro
+    environment:
+        KONG_DATABASE: "off"
+        KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+        KONG_PROXY_ACCESS_LOG: /dev/stdout
+        KONG_ADMIN_ACCESS_LOG: /dev/stdout
+        KONG_PROXY_ERROR_LOG: /dev/stderr
+        KONG_ADMIN_ERROR_LOG: /dev/stderr
+        KONG_ADMIN_LISTEN: 127.0.0.1:8001
+        KONG_LOG_LEVEL: info
+        KONG_SLASHING_MODE: "escaped"
+        KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
+        KONG_REAL_IP_HEADER: X-Forwarded-For
+        KONG_REAL_IP_RECURSIVE: "on"
+        KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
+        KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "512k"
+        KONG_NGINX_PROXY_PROXY_BUFFERS: "8 512k"
+        KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "512k"
+        KONG_NGINX_PROXY_CLIENT_HEADER_BUFFER_SIZE: "512k"
+        KONG_NGINX_PROXY_LARGE_CLIENT_HEADER_BUFFERS: "4 512k"
+
+    ports:
+      - "80:8000"
+      # - "8001:8001"
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health" ]
+      test: ["CMD", "kong", "health"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      start_period: 60s

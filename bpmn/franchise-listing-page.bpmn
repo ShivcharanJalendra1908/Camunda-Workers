@@ -132,7 +132,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=&#34;listing&#34;" target="pageType" />
-          <zeebe:input source="=if (industrySlug != null and industrySlug != &quot;&quot;) or (extractedParams != null and extractedParams.industrySlug != null and extractedParams.industrySlug != &quot;&quot;) then {&quot;industryInfo&quot;: industryInfo} else {}" target="data" />
+          <zeebe:input source="={&#34;industryInfo&#34;: (if industryInfo != null then industryInfo else null), &#34;searchParams&#34;: (if searchQuery != null and searchQuery != &#34;&#34; then filters else null)}" target="data" />
           <zeebe:input source="=franchises" target="franchiseListings" />
           <zeebe:input source="=categories" target="featuredCategories" />
           <zeebe:input source="=categoryQuestions" target="understandingCategory" />

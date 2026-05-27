@@ -20,27 +20,27 @@ All workers share common utilities for logging, configuration, error handling, a
 
 camunda-workers/
 ├── cmd/
-│   ├── worker-manager/     # Main entry point
-│   └── tools/              # CLI utilities (registry, scaffolding)
+│ ├── worker-manager/ # Main entry point
+│ └── tools/ # CLI utilities (registry, scaffolding)
 ├── internal/
-│   ├── workers/            # All 17 workers (grouped by domain)
-│   ├── common/             # Shared utilities (logging, config, DB clients)
-│   └── models/             # Shared data models
+│ ├── workers/ # All 17 workers (grouped by domain)
+│ ├── common/ # Shared utilities (logging, config, DB clients)
+│ └── models/ # Shared data models
 ├── pkg/
-│   └── registry/           # Activity registry loader
-├── configs/                # YAML configs + activity registry
-├── deployments/            # Docker Compose + Kubernetes manifests
-├── scripts/                # Build, test, deploy helpers
-└── docs/                   # Architecture, development, and worker guides
+│ └── registry/ # Activity registry loader
+├── configs/ # YAML configs + activity registry
+├── deployments/ # Docker Compose + Kubernetes manifests
+├── scripts/ # Build, test, deploy helpers
+└── docs/ # Architecture, development, and worker guides
 
 Each worker follows a standardized structure:
 
 worker-name/
-├── handler.go       # Camunda job handler
-├── handler_test.go  # Unit tests (≥80% coverage)
-├── config.go        # Worker-specific config
-├── models.go        # Input/output structs
-└── README.md        # Worker-specific documentation 
+├── handler.go # Camunda job handler
+├── handler_test.go # Unit tests (≥80% coverage)
+├── config.go # Worker-specific config
+├── models.go # Input/output structs
+└── README.md # Worker-specific documentation
 
 🚀 Quick Start (Local Development)
 Prerequisites
@@ -48,25 +48,25 @@ Go 1.21+
 Docker + Docker Compose
 
 1. Start Dependencies
-bash
-  docker-compose -f deployments/docker/docker-compose.yml up -d
+   bash
+   docker-compose -f deployments/docker/docker-compose.yml up -d
 
 Services launched:
-  Zeebe (Camunda engine) on :26500
-  Operate (workflow UI) on :8081
-  PostgreSQL, Elasticsearch, Redis
+Zeebe (Camunda engine) on :26500
+Operate (workflow UI) on :8081
+PostgreSQL, Elasticsearch, Redis
 
 2. Build & Run Workers
-bash
-  go run cmd/worker-manager/main.go
+   bash
+   go run cmd/worker-manager/main.go
 
 Workers will:
-  Connect to Zeebe
-  Register all 17 task handlers
-  Expose health endpoints on :8080 (/health, /ready, /metrics)
+Connect to Zeebe
+Register all 17 task handlers
+Expose health endpoints on :8080 (/health, /ready, /metrics)
 
 3. Deploy & Test Workflows
-  Use Operate UI (http://localhost:8081) to:
+   Use Operate UI (http://localhost:8081) to:
 
 Deploy BPMN workflows
 Start process instances with sample variables
@@ -76,30 +76,29 @@ Monitor job execution and errors
 
 Kubernetes
 bash
-  kubectl apply -f deployments/kubernetes/
+kubectl apply -f deployments/kubernetes/
 
 Includes:
-  Deployment (3 replicas, resource limits)
-  ConfigMap (non-sensitive config)
-  Secrets (database passwords, API keys)
-  Service (health/metrics endpoints)
-  Liveness/Readiness Probes
-  Configuration
-  All settings are managed via configs/config.yaml with environment overrides:
+Deployment (3 replicas, resource limits)
+ConfigMap (non-sensitive config)
+Secrets (database passwords, API keys)
+Service (health/metrics endpoints)
+Liveness/Readiness Probes
+Configuration
+All settings are managed via configs/config.yaml with environment overrides:
 
 yaml
 
 workers:
-  validate-subscription:
-    enabled: true
-    max_jobs_active: 5
-    timeout: 10s
+validate-subscription:
+enabled: true
+max_jobs_active: 5
+timeout: 10s
 
 database:
-  postgres:
-    host: ${DB_HOST}
-    password: ${DB_PASSWORD}  # ← from env or secret
-
+postgres:
+host: ${DB_HOST}
+password: ${DB_PASSWORD} # ← from env or secret
 
 🔒 Security & Compliance
 Secrets: Never stored in code — injected via environment or Kubernetes Secrets
@@ -107,7 +106,6 @@ TLS: Enforced for all external communication (DB, Elasticsearch, APIs)
 Input Validation: All user inputs sanitized and validated to prevent injection
 PII Handling: Sensitive data (emails, phone numbers) encrypted at rest
 Least Privilege: Database users and AWS roles follow minimal permissions
-
 
 📊 Observability
 
@@ -125,40 +123,39 @@ Structured JSON logs with context:
 json
 
 {
-  "level": "info",
-  "msg": "processing job",
-  "taskType": "validate-subscription",
-  "jobKey": 12345,
-  "workflowKey": 67890
+"level": "info",
+"msg": "processing job",
+"taskType": "validate-subscription",
+"jobKey": 12345,
+"workflowKey": 67890
 }
 
 Health Checks
 GET /health → Liveness (Camunda + DB connectivity)
 GET /ready → Readiness (safe to receive traffic)
 
-
 🛠️ Developer Tools
 CLI Utilities
 bash
 
 # Update activity registry
-  go run cmd/tools/registry-updater/main.go --id validate-subscription --status completed
+
+go run cmd/tools/registry-updater/main.go --id validate-subscription --status completed
 
 # Scaffold new worker
-  go run cmd/tools/worker-generator/main.go --activity my-new-worker
+
+go run cmd/tools/worker-generator/main.go --activity my-new-worker
 
 Testing
-  Unit Tests: go test ./... (mocked dependencies, ≥80% coverage)
+Unit Tests: go test ./... (mocked dependencies, ≥80% coverage)
 
 Integration Tests: go test -tags=integration ./... (real dependencies via Testcontainers)
-
 
 📚 Documentation
 Architecture: docs/architecture.md
 Development Guide: docs/development-guide.md
 Deployment Guide: docs/deployment-guide.md
 Worker Specs: docs/workers/ (per-worker READMEs)
-
 
 🤝 Support
 For issues or enhancements, please open a GitHub issue with:
@@ -168,11 +165,7 @@ Job variables (sanitized)
 Worker logs (with jobKey)
 Expected vs actual behavior
 
-
 Ready to power your franchise platform with event-driven workflows. 🚀
-
-
-
 
 # Camunda Workflow API Gateway
 
@@ -242,6 +235,7 @@ make docker-compose-down
 ```
 
 **Services Started:**
+
 - API Gateway: `http://localhost:8080`
 - Worker Manager: (background service)
 - PostgreSQL: `localhost:5432`
@@ -301,77 +295,77 @@ curl -X POST http://localhost:8080/api/v1/ai/query \
 
 ### AI & Conversational
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/ai/query` | POST | Start AI query workflow |
-| `/api/v1/ai/discovery` | POST | Start franchise discovery workflow |
+| Endpoint               | Method | Description                        |
+| ---------------------- | ------ | ---------------------------------- |
+| `/api/v1/ai/query`     | POST   | Start AI query workflow            |
+| `/api/v1/ai/discovery` | POST   | Start franchise discovery workflow |
 
 ### Authentication
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/auth/signup/google` | POST | Google OAuth signup |
-| `/api/v1/auth/signup/linkedin` | POST | LinkedIn OAuth signup |
-| `/api/v1/auth/signin/google` | POST | Google OAuth signin |
-| `/api/v1/auth/signin/linkedin` | POST | LinkedIn OAuth signin |
-| `/api/v1/auth/signin` | POST | Email/password signin |
-| `/api/v1/auth/logout` | POST | User logout |
+| Endpoint                       | Method | Description           |
+| ------------------------------ | ------ | --------------------- |
+| `/api/v1/auth/signup/google`   | POST   | Google OAuth signup   |
+| `/api/v1/auth/signup/linkedin` | POST   | LinkedIn OAuth signup |
+| `/api/v1/auth/signin/google`   | POST   | Google OAuth signin   |
+| `/api/v1/auth/signin/linkedin` | POST   | LinkedIn OAuth signin |
+| `/api/v1/auth/signin`          | POST   | Email/password signin |
+| `/api/v1/auth/logout`          | POST   | User logout           |
 
 ### User Management
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/user/signup` | POST | Traditional signup |
-| `/api/v1/user/profile/update` | POST | Update user profile |
-| `/api/v1/user/password/reset` | POST | Password reset |
-| `/api/v1/user/account` | DELETE | Delete account |
+| Endpoint                      | Method | Description         |
+| ----------------------------- | ------ | ------------------- |
+| `/api/v1/user/signup`         | POST   | Traditional signup  |
+| `/api/v1/user/profile/update` | POST   | Update user profile |
+| `/api/v1/user/password/reset` | POST   | Password reset      |
+| `/api/v1/user/account`        | DELETE | Delete account      |
 
 ### Franchise
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/franchise/search` | POST | Search franchises |
-| `/api/v1/franchise/details/:id` | GET | Get franchise details |
+| Endpoint                        | Method | Description           |
+| ------------------------------- | ------ | --------------------- |
+| `/api/v1/franchise/search`      | POST   | Search franchises     |
+| `/api/v1/franchise/details/:id` | GET    | Get franchise details |
 
 ### Applications
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/application/submit` | POST | Submit franchise application |
-| `/api/v1/application/approve` | POST | Approve activity |
+| Endpoint                      | Method | Description                  |
+| ----------------------------- | ------ | ---------------------------- |
+| `/api/v1/application/submit`  | POST   | Submit franchise application |
+| `/api/v1/application/approve` | POST   | Approve activity             |
 
 ### CRM
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/crm/sync` | POST | Sync CRM user data |
+| Endpoint           | Method | Description        |
+| ------------------ | ------ | ------------------ |
+| `/api/v1/crm/sync` | POST   | Sync CRM user data |
 
 ### Email Campaigns
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/email/campaign` | POST | Start email campaign |
-| `/api/v1/email/welcome-series` | POST | Start welcome email series |
+| Endpoint                       | Method | Description                |
+| ------------------------------ | ------ | -------------------------- |
+| `/api/v1/email/campaign`       | POST   | Start email campaign       |
+| `/api/v1/email/welcome-series` | POST   | Start welcome email series |
 
 ### Social Auth
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/social/auth` | POST | Social auth orchestration |
+| Endpoint              | Method | Description               |
+| --------------------- | ------ | ------------------------- |
+| `/api/v1/social/auth` | POST   | Social auth orchestration |
 
 ### Error Handling
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/error/handle` | POST | Trigger error handling workflow |
+| Endpoint               | Method | Description                     |
+| ---------------------- | ------ | ------------------------------- |
+| `/api/v1/error/handle` | POST   | Trigger error handling workflow |
 
 ### Admin (Requires admin role)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/admin/workflows` | GET | List active workflows |
-| `/api/admin/workflows/:id/status` | GET | Get workflow status |
-| `/api/admin/workflows/:id/cancel` | POST | Cancel workflow |
+| Endpoint                          | Method | Description           |
+| --------------------------------- | ------ | --------------------- |
+| `/api/admin/workflows`            | GET    | List active workflows |
+| `/api/admin/workflows/:id/status` | GET    | Get workflow status   |
+| `/api/admin/workflows/:id/cancel` | POST   | Cancel workflow       |
 
 Full API documentation: [API_DOCUMENTATION.md](./docs/API_DOCUMENTATION.md)
 
@@ -495,6 +489,7 @@ hey -n 1000 -c 50 -m POST \
 Access: `http://localhost:9091`
 
 **Available Metrics:**
+
 - `api_requests_total` - Total API requests
 - `api_request_duration_seconds` - Request latency
 - `workflow_starts_total` - Workflow initiations
@@ -505,6 +500,7 @@ Access: `http://localhost:9091`
 Access: `http://localhost:3000` (admin/admin)
 
 **Pre-configured Dashboards:**
+
 - API Performance
 - Workflow Metrics
 - Error Rates
@@ -548,6 +544,7 @@ security:
 ### Rate Limiting
 
 Current configuration:
+
 - 100 requests/second per IP
 - Burst capacity: 200 requests
 

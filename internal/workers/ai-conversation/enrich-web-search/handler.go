@@ -105,6 +105,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		if psid, ok := jobVars["spanId"].(string); ok {
 			parentSpanID = psid
 		}
+		if rid, ok := jobVars["requestId"].(string); ok && rid != "" {
+			ctx = context.WithValue(ctx, "requestId", rid)
+		}
 	}
 
 	// ✅ CREATE WORKER SPAN
@@ -347,6 +350,11 @@ func (h *Handler) validateInput(input *Input) error {
 }
 
 func (h *Handler) doRequest(req *http.Request) (*http.Response, error) {
+	// Propagate X-Request-ID from context to header for end-to-end tracing
+	if reqID, ok := req.Context().Value("requestId").(string); ok && reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+
 	result, err := h.cb.Execute(func() (interface{}, error) {
 		resp, err := h.client.Do(req)
 		if err != nil {

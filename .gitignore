@@ -1,6 +1,7 @@
 # Local dev / personal
 /docs/kintesh_plan/*
 /kintesh-local
+.kintesh-local/
 /local-testing/*.swp
 
 # Editors / IDE
@@ -19,8 +20,13 @@ frontend/node_modules/
 .kilo/
 .opencode-context/
 .qoder/
+.kintesh-local/
+.kintesh-kong/
 
 # Ollama / models
 deployments/docker/ollama/*.gguf
 /arms_cache/api-gateway
 api-gateway*
+
+# docs
+/KEYCLOAK-THEME-AUDIT.md

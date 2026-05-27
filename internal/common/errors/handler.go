@@ -28,6 +28,15 @@ func NewErrorHandler(logger Logger) *ErrorHandler {
 
 // HandleJobError handles any error in a worker job
 func (h *ErrorHandler) HandleJobError(ctx context.Context, client worker.JobClient, job entities.Job, err error) {
+	// Propagate requestId from job variables into context for tracing
+	var vars map[string]interface{}
+	json.Unmarshal([]byte(job.Variables), &vars)
+	if reqID, ok := vars["x_request_id"].(string); ok && reqID != "" {
+		ctx = context.WithValue(ctx, "requestId", reqID)
+	} else if reqID, ok := vars["requestId"].(string); ok && reqID != "" {
+		ctx = context.WithValue(ctx, "requestId", reqID)
+	}
+
 	// Normalize to StandardError
 	stdErr := h.normalizeError(err)
 

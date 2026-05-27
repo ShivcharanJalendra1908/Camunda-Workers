@@ -29,6 +29,7 @@ type Config struct {
 	FranchiseSearch FranchiseSearchConfig   `yaml:"franchise_search"`
 	Idempotency     IdempotencyConfig       `yaml:"idempotency"`
 	Pagination      PaginationConfig        `mapstructure:"pagination"`
+	Flagsmith       FlagsmithConfig         `mapstructure:"flagsmith"`
 }
 
 // ============================================================================
@@ -639,4 +640,14 @@ type IdempotencyConfig struct {
 	DefaultTTL      time.Duration            `yaml:"default_ttl"`
 	CleanupInterval time.Duration            `yaml:"cleanup_interval"`
 	TTLs            map[string]time.Duration `yaml:"ttls"`
+}
+
+// ============================================================================
+// FLAGSMITH FEATURE FLAG CONFIGURATION
+// ============================================================================
+type FlagsmithConfig struct {
+	Enabled               bool   `mapstructure:"enabled" yaml:"enabled"`
+	EnvironmentKey        string `mapstructure:"environment_key" yaml:"environment_key"`
+	EnableLocalEvaluation bool   `mapstructure:"enable_local_evaluation" yaml:"enable_local_evaluation"`
+	EnvironmentRefreshTTL int    `mapstructure:"environment_refresh_ttl" yaml:"environment_refresh_ttl"`
 }

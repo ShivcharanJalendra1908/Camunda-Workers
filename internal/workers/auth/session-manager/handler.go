@@ -246,6 +246,10 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.IDToken = idToken
 	}
 
+	if accessToken, ok := variables["accessToken"].(string); ok {
+		input.AccessToken = accessToken
+	}
+
 	if refreshToken, ok := variables["refreshToken"].(string); ok {
 		input.RefreshToken = refreshToken
 	}
@@ -291,6 +295,10 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 
 	if output.IDToken != "" {
 		variables["idToken"] = output.IDToken
+	}
+
+	if output.AccessToken != "" {
+		variables["accessToken"] = output.AccessToken
 	}
 
 	if output.RefreshToken != "" {

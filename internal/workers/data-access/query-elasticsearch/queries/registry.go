@@ -285,10 +285,13 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 	industrySlug, _ := params["industrySlug"].(string)
 	extracted, hasExtracted := params["extractedParams"].(map[string]interface{})
 
-	// Effective slug — extractedParams se override karo agar available ho
+	// Effective slug — prefer industrySlugAll (multi-slug) from extractedParams if available
 	effectiveSlug := industrySlug
 	if hasExtracted {
-		if s, ok := extracted["industrySlug"].(string); ok && s != "" {
+		// First try the full multi-slug (e.g. "food-beverage, fashion")
+		if s, ok := extracted["industrySlugAll"].(string); ok && s != "" {
+			effectiveSlug = s
+		} else if s, ok := extracted["industrySlug"].(string); ok && s != "" {
 			effectiveSlug = s
 		}
 	}
@@ -302,13 +305,33 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			industryName, _ = extracted["industry"].(string)
 		}
 
-		shouldClauses := []interface{}{
-			map[string]interface{}{"term": map[string]interface{}{"industry.slug": effectiveSlug}},
-		}
-		if industryName != "" {
+		var shouldClauses []interface{}
+
+		// Support multiple comma-separated slugs/names
+		slugs := strings.Split(effectiveSlug, ",")
+		for _, slug := range slugs {
+			slugTrimmed := strings.TrimSpace(slug)
+			if slugTrimmed == "" {
+				continue
+			}
 			shouldClauses = append(shouldClauses,
-				map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": industryName}},
+				map[string]interface{}{"term": map[string]interface{}{"industry.slug": slugTrimmed}},
+				map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": slugTrimmed}},
+				map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": "*" + slugTrimmed + "*"}},
 			)
+		}
+
+		if industryName != "" {
+			names := strings.Split(industryName, ",")
+			for _, name := range names {
+				nameTrimmed := strings.TrimSpace(name)
+				if nameTrimmed == "" {
+					continue
+				}
+				shouldClauses = append(shouldClauses,
+					map[string]interface{}{"term": map[string]interface{}{"industry.name.keyword": nameTrimmed}},
+				)
+			}
 		}
 
 		query := map[string]interface{}{
@@ -583,24 +606,33 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			},
 			"size": 1,
 		}
-	} else if hasSlug && industrySlug != "" {
-		slugPrefix := strings.Split(industrySlug, "-")[0]
+	} else if hasSlug && industrySlug != "" && !strings.Contains(industrySlug, ",") {
+		var shouldClauses []interface{}
+		parts := strings.Split(industrySlug, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			slugPrefix := strings.Split(partTrimmed, "-")[0]
+			shouldClauses = append(shouldClauses,
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"industry_slug": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"prefix": map[string]interface{}{
+						"industry_slug": slugPrefix,
+					},
+				},
+			)
+		}
 
 		query = map[string]interface{}{
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should": []interface{}{
-						map[string]interface{}{
-							"term": map[string]interface{}{
-								"industry_slug": industrySlug,
-							},
-						},
-						map[string]interface{}{
-							"prefix": map[string]interface{}{
-								"industry_slug": slugPrefix,
-							},
-						},
-					},
+					"should":               shouldClauses,
 					"minimum_should_match": 1,
 				},
 			},
@@ -969,15 +1001,24 @@ func FranchiseListing(ctx context.Context, esClient *elasticsearch.Client, param
 			},
 		}
 	} else if industrySlug != "" {
-		// ✅ CASE 3: Industry filter — existing logic unchanged
+		// ✅ CASE 3: Industry filter — support comma-separated multiple industries
+		var shouldClauses []interface{}
+		parts := strings.Split(industrySlug, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			shouldClauses = append(shouldClauses,
+				map[string]interface{}{"term": map[string]interface{}{"industry.slug": partTrimmed}},
+				map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": partTrimmed}},
+				map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": map[string]interface{}{"value": "*" + partTrimmed + "*"}}},
+				map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": partTrimmed, "fuzziness": "AUTO"}}},
+			)
+		}
 		query["query"] = map[string]interface{}{
 			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"industry.slug": industrySlug}},
-					map[string]interface{}{"prefix": map[string]interface{}{"industry.slug": industrySlug}},
-					map[string]interface{}{"wildcard": map[string]interface{}{"industry.slug": map[string]interface{}{"value": "*" + industrySlug + "*"}}},
-					map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{"query": industrySlug, "fuzziness": "AUTO"}}},
-				},
+				"should":               shouldClauses,
 				"minimum_should_match": 1,
 			},
 		}
@@ -1220,6 +1261,9 @@ func SearchIndustries(ctx context.Context, esClient *elasticsearch.Client, param
 func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	mustClauses := []map[string]interface{}{}
 	filterClauses := []map[string]interface{}{}
+	shouldClauses := []map[string]interface{}{}
+
+	isAiSearch, _ := filters["isAiSearch"].(bool)
 
 	// Text search
 	if searchQuery, ok := filters["query"].(string); ok && searchQuery != "" {
@@ -1238,85 +1282,242 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		isQueryJustLocation := hasLocation &&
 			strings.EqualFold(strings.TrimSpace(cleanQuery), strings.TrimSpace(locationVal))
 
-		if !isQueryJustLocation && cleanQuery != "" {
-			mustClauses = append(mustClauses, map[string]interface{}{
+		// Skip generic noise words that won't match any franchise name
+		noiseWords := []string{"franchise", "franchises", "business", "businesses"}
+		isNoise := false
+		cleanLower := strings.ToLower(cleanQuery)
+		for _, nw := range noiseWords {
+			if strings.TrimSpace(cleanLower) == nw {
+				isNoise = true
+				break
+			}
+		}
+
+		if !isQueryJustLocation && cleanQuery != "" && !isNoise {
+			textClause := map[string]interface{}{
 				"multi_match": map[string]interface{}{
 					"query":     cleanQuery,
 					"fields":    []string{"name^3", "description^2", "tags", "industry.name"},
 					"type":      "best_fields",
 					"fuzziness": "AUTO",
 				},
+			}
+
+			if isAiSearch {
+				// For AI search: text query is an optional relevance boost, not a hard filter.
+				// The AI has already extracted structured filters (industry, location, investment, etc.)
+				// so forcing a text match on "food and fashion franchise" would eliminate valid results.
+				shouldClauses = append(shouldClauses, textClause)
+			} else {
+				mustClauses = append(mustClauses, textClause)
+			}
+		}
+	}
+
+	// 1. Industry filter
+	var industryVal string
+	if ind, ok := filters["industry"].(string); ok && ind != "" {
+		industryVal = ind
+	} else if ind, ok := filters["industrySlug"].(string); ok && ind != "" {
+		industryVal = ind
+	} else if ind, ok := filters["industrySlugAll"].(string); ok && ind != "" {
+		industryVal = ind
+	}
+
+	if industryVal != "" {
+		var shouldClausesInner []interface{}
+		parts := strings.Split(industryVal, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			shouldClausesInner = append(shouldClausesInner,
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"industry.name.keyword": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"match": map[string]interface{}{
+						"industry.name": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"industry.slug": buildIndustrySlug(partTrimmed),
+					},
+				},
+			)
+		}
+		if len(shouldClausesInner) > 0 {
+			clause := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldClausesInner,
+					"minimum_should_match": 1,
+				},
+			}
+			filterClauses = append(filterClauses, clause)
+		}
+	}
+
+	// 2. Category filter
+	var categoryVal string
+	if cat, ok := filters["category"].(string); ok && cat != "" {
+		categoryVal = cat
+	} else if cat, ok := filters["categorySlug"].(string); ok && cat != "" {
+		categoryVal = cat
+	}
+
+	if categoryVal != "" {
+		var shouldClausesInner []interface{}
+		parts := strings.Split(categoryVal, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			shouldClausesInner = append(shouldClausesInner,
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"categories.slug": strings.ToLower(partTrimmed),
+					},
+				},
+				map[string]interface{}{
+					"match": map[string]interface{}{
+						"categories.name": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"categories.slug": buildIndustrySlug(partTrimmed),
+					},
+				},
+			)
+		}
+		if len(shouldClausesInner) > 0 {
+			clause := map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "categories",
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"should":               shouldClausesInner,
+							"minimum_should_match": 1,
+						},
+					},
+				},
+			}
+			filterClauses = append(filterClauses, clause)
+		}
+	}
+
+	// 3. Subcategory filter
+	var subCategoryVal string
+	if subCat, ok := filters["subcategory"].(string); ok && subCat != "" {
+		subCategoryVal = subCat
+	} else if subCat, ok := filters["subCategory"].(string); ok && subCat != "" {
+		subCategoryVal = subCat
+	} else if subCat, ok := filters["subCategorySlug"].(string); ok && subCat != "" {
+		subCategoryVal = subCat
+	}
+
+	if subCategoryVal != "" {
+		var shouldClausesInner []interface{}
+		parts := strings.Split(subCategoryVal, ",")
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			shouldClausesInner = append(shouldClausesInner,
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"sub_categories.slug": strings.ToLower(partTrimmed),
+					},
+				},
+				map[string]interface{}{
+					"match": map[string]interface{}{
+						"sub_categories.name": partTrimmed,
+					},
+				},
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"sub_categories.slug": buildIndustrySlug(partTrimmed),
+					},
+				},
+			)
+		}
+		if len(shouldClausesInner) > 0 {
+			clause := map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "sub_categories",
+					"query": map[string]interface{}{
+						"bool": map[string]interface{}{
+							"should":               shouldClausesInner,
+							"minimum_should_match": 1,
+						},
+					},
+				},
+			}
+			filterClauses = append(filterClauses, clause)
+		}
+	}
+
+	// Location filter (supports comma-separated multiple locations)
+	if loc, ok := filters["location"].(string); ok && loc != "" {
+		cities := strings.Split(loc, ",")
+		seen := make(map[string]bool)
+		var allTerms []string
+		
+		for _, city := range cities {
+			cityStr := strings.TrimSpace(city)
+			if cityStr == "" {
+				continue
+			}
+			terms := location.BuildLocationTerms(cityStr)
+			for _, t := range terms {
+				if !seen[t] {
+					seen[t] = true
+					allTerms = append(allTerms, t)
+				}
+			}
+		}
+
+		if len(allTerms) > 0 {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						map[string]interface{}{
+							"terms": map[string]interface{}{
+								"location": allTerms,
+							},
+						},
+					},
+					"minimum_should_match": 1,
+				},
 			})
 		}
 	}
 
-	// Category/Industry filter
-	category := ""
-	if c, ok := filters["category"].(string); ok && c != "" {
-		category = c
-	} else if i, ok := filters["industry"].(string); ok && i != "" {
-		category = i
-	}
-	if category != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.name.keyword": category, // "Food & Beverage" exact match
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.name": category, // fuzzy fallback
-						},
-					},
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							// "industry.slug": strings.ToLower(
-							// 	strings.ReplaceAll(
-							// 		strings.ReplaceAll(category, " & ", "-"),
-							// 		" ", "-")), // "food-beverage" slug fallback
-							"industry.slug": buildIndustrySlug(category),
-						},
-					},
-				},
-				"minimum_should_match": 1,
-			},
-		})
-	}
-
-	if subCat, ok := filters["subCategory"].(string); ok && subCat != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"nested": map[string]interface{}{
-				"path": "sub_categories",
-				"query": map[string]interface{}{
-					"term": map[string]interface{}{
-						"sub_categories.slug": subCat,
-					},
-				},
-			},
-		})
-	}
-
-	// Location filter
-	if loc, ok := filters["location"].(string); ok && loc != "" {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"terms": map[string]interface{}{
-							"location": location.BuildLocationTerms(loc),
-						},
-					},
-				},
-				"minimum_should_match": 1,
-			},
-		})
+	// Helper to extract float64 from various numeric types
+	toFloat64 := func(v interface{}) float64 {
+		if v == nil {
+			return 0
+		}
+		switch val := v.(type) {
+		case float64:
+			return val
+		case int:
+			return float64(val)
+		case int64:
+			return float64(val)
+		}
+		return 0
 	}
 
 	// Investment range filter
-	if minInv, minOk := filters["minInvestment"].(float64); minOk && minInv > 0 {
+	minInv := toFloat64(filters["minInvestment"])
+	if minInv > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
 				"investment.max_investment": map[string]interface{}{"gte": minInv / 100000},
@@ -1324,7 +1525,8 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		})
 	}
 
-	if maxInv, maxOk := filters["maxInvestment"].(float64); maxOk && maxInv > 0 {
+	maxInv := toFloat64(filters["maxInvestment"])
+	if maxInv > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
 				"investment.min_investment": map[string]interface{}{"lte": maxInv / 100000},
@@ -1333,7 +1535,8 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 	}
 
 	// Space range filter
-	if minSpace, ok := filters["minSpace"].(float64); ok && minSpace > 0 {
+	minSpace := toFloat64(filters["minSpace"])
+	if minSpace > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
 				"space.maxSpace": map[string]interface{}{"gte": minSpace},
@@ -1341,10 +1544,33 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		})
 	}
 
-	if maxSpace, ok := filters["maxSpace"].(float64); ok && maxSpace > 0 {
+	maxSpace := toFloat64(filters["maxSpace"])
+	if maxSpace > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
 				"space.minSpace": map[string]interface{}{"lte": maxSpace},
+			},
+		})
+	}
+
+	// ROI range filter
+	minRoi := toFloat64(filters["roi"])
+	if minRoi == 0 {
+		minRoi = toFloat64(filters["minRoi"])
+	}
+	maxRoi := toFloat64(filters["maxRoi"])
+
+	if minRoi > 0 {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"roi.max": map[string]interface{}{"gte": minRoi},
+			},
+		})
+	}
+	if maxRoi > 0 {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"roi.min": map[string]interface{}{"lte": maxRoi},
 			},
 		})
 	}
@@ -1381,17 +1607,23 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 			}
 		}
 		if len(tagShoulds) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
+			clause := map[string]interface{}{
 				"bool": map[string]interface{}{
 					"should":               tagShoulds,
 					"minimum_should_match": 1,
 				},
-			})
+			}
+			if isAiSearch {
+				shouldClauses = append(shouldClauses, clause)
+			} else {
+				filterClauses = append(filterClauses, clause)
+			}
 		}
 	}
 
 	// Min rating filter
-	if minRating, ok := filters["minRating"].(float64); ok && minRating > 0 {
+	minRating := toFloat64(filters["minRating"])
+	if minRating > 0 {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"range": map[string]interface{}{
 				"rating": map[string]interface{}{"gte": minRating},
@@ -1412,6 +1644,10 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 
 	if len(filterClauses) > 0 {
 		boolQuery["filter"] = filterClauses
+	}
+
+	if len(shouldClauses) > 0 {
+		boolQuery["should"] = shouldClauses
 	}
 
 	return map[string]interface{}{
@@ -1498,6 +1734,11 @@ func executeQuery(ctx context.Context, esClient *elasticsearch.Client, index str
 		for _, hit := range hitsList {
 			if hitMap, ok := hit.(map[string]interface{}); ok {
 				if source, ok := hitMap["_source"].(map[string]interface{}); ok {
+					// Add metadata back
+					source["_id"] = hitMap["_id"]
+					if score, ok := hitMap["_score"].(float64); ok {
+						source["_score"] = score
+					}
 					// ✅ APPLY TRANSFORMATION
 					transformed := transformFranchiseFields(source)
 					data = append(data, transformed)
@@ -1642,8 +1883,9 @@ func transformFranchiseFields(source map[string]interface{}) map[string]interfac
 		}
 	}
 
-	// ✅ FIX 7: Ensure investmentRange has unit
+	// ✅ FIX 7: Map investment range for listing cards
 	if invRange, ok := source["investmentRange"].(map[string]interface{}); ok {
+		// Ensure unit exists
 		if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
 			invRange["investmentUnit"] = "Lakhs"
 		}

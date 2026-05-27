@@ -5,7 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
-    <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
+    <link rel="shortcut icon" href="${url.resourcesPath}/img/cube.png?v=2" type="image/x-icon" />
+    <link rel="icon" type="image/png" href="${url.resourcesPath}/img/cube.png?v=2" />
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -83,7 +84,7 @@
             outline: none !important;
             background-color: white !important;
         }
-        .pf-c-form-control:focus { border-color: #6D3E93 !important; ring: 2px solid rgba(109, 62, 147, 0.2) !important; }
+        .pf-c-form-control:focus { border-color: #6D3E93 !important; box-shadow: 0 0 0 2px rgba(109, 62, 147, 0.2) !important; }
         
         .forgot-password-link { display: block; text-align: right; font-size: 13px; color: #3b82f6; text-decoration: none; margin-top: 4px; }
         
@@ -99,8 +100,28 @@
             font-size: 15px !important;
             cursor: pointer !important;
             margin-top: 15px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
         }
-        
+
+        /* Button Loading State */
+        .pf-c-button .btn-spinner { display: none; }
+        .pf-c-button.loading .btn-text { display: none; }
+        .pf-c-button.loading .btn-spinner { display: inline-flex; }
+        .pf-c-button.loading { opacity: 0.8; cursor: not-allowed; }
+        .pf-c-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #9ca3af !important; }
+
+        /* Terms Checkbox */
+        .terms-group { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; }
+        .terms-group input[type="checkbox"] {
+            width: 18px; height: 18px; margin-top: 2px; accent-color: #6D3E93;
+            cursor: pointer; flex-shrink: 0;
+        }
+        .terms-group label { font-size: 13px; color: #4b5563; cursor: pointer; line-height: 1.4; }
+        .terms-group label a { color: #6D3E93; text-decoration: underline; font-weight: 500; }
+
         /* Divider */
         .divider { display: flex; align-items: center; margin: 25px 0; color: #9ca3af; }
         .divider hr { flex: 1; border: 0; border-top: 1px solid #e5e7eb; }
@@ -108,10 +129,13 @@
         
         /* Social */
         #kc-social-providers ul { display: flex; justify-content: center; gap: 15px; list-style: none; padding: 0; margin: 0; }
-        .social-btn { 
-            display: flex; align-items: center; justify-content: center; 
-            width: 42px; height: 42px; border: 1px solid #e5e7eb; 
-            border-radius: 8px; text-decoration: none; 
+        #kc-social-providers ul li { width: 100%; }
+        .social-btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            width: 100%; padding: 10px 16px; border: 1px solid #e5e7eb;
+            border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 500;
+            color: #374151; background: white;
+            box-sizing: border-box;
         }
         .social-btn:hover { background: #f9fafb; }
         .social-btn svg { width: 20px; height: 20px; }
@@ -192,6 +216,40 @@
         }
         .eye-toggle:hover { color: #6D3E93 !important; }
         .eye-icon { width: 20px; height: 20px; pointer-events: none; }
+
+        /* Password Strength Meter */
+        .password-strength {
+            margin-top: 6px;
+            display: none;
+        }
+        .strength-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .strength-fill {
+            height: 100%;
+            width: 0;
+            border-radius: 4px;
+            transition: width 0.3s ease, background-color 0.3s ease;
+        }
+        .strength-label {
+            display: block;
+            font-size: 12px;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        /* Password Match Indicator */
+        .password-match {
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            display: none;
+        }
+        .password-match.match { color: #16a34a; display: block; }
+        .password-match.no-match { color: #dc2626; display: block; }
 
         @media (max-width: 768px) {
             .login-form-side { width: 100%; }

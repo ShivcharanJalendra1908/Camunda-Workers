@@ -67,17 +67,17 @@ auth:
     algorithm: "HS256"
   
   keycloak:
-    url: "https://dev-api.lemici.com"
+    url: "https://us-dev-api.lemici.com"
     realm: "camunda-platform"
     client_id: "lemici-frontend"
     client_secret: "client-secret"
     admin_client_id: "worker-client"                     
-    admin_client_secret: "yNHfb6FR4ZGIsUyi27pSpfsAbxEfquhS"
-    publicBaseUrl: "https://dev-api.lemici.com"
-    redirectUrl: "https://dev-api.lemici.com/api/v1/auth/callback"
-    post_login_redirect_uri: "https://lemici.com/"
-    login_redirect_uri: "https://lemici.com/login"
-    post_logout_redirect_uri: "https://lemici.com/"
+    admin_client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
+    publicBaseUrl: "https://us-dev-api.lemici.com"
+    redirectUrl: "https://us-dev-api.lemici.com/api/v1/auth/callback"
+    post_login_redirect_uri: "https://dev.lemici.com/"
+    login_redirect_uri: "https://dev.lemici.com/login"
+    post_logout_redirect_uri: "https://dev.lemici.com/"
   
   # Session Configuration
   session:
@@ -113,7 +113,7 @@ camunda:
   oauth:
     enabled: false
     client_id: "worker-client"
-    client_secret: "worker-secret"
+    client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
     token_url: "http://localhost:18080/auth/realms/camunda-platform/protocol/openid-connect/token"
     audience: "zeebe-api"
 
@@ -170,12 +170,21 @@ integrations:
       default_sms_sender_id: "FranchiseHub"
       region: "us-east-1"
   
-  # SMTP (Fallback/Development)
+  # SMTP (Fallback/Development) - Commented out old AWS SES SMTP
+  # smtp:
+  #   host: "email-smtp.us-east-1.amazonaws.com"
+  #   port: 587
+  #   username: "AKIASS3JXDPVWDZXP5P7"
+  #   password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+  #   use_tls: true
+  #   default_from: "noreply@lemici.com"
+
+  # Brevo SMTP Configuration
   smtp:
-    host: "email-smtp.us-east-1.amazonaws.com"
+    host: "smtp-relay.brevo.com"
     port: 587
-    username: "AKIASS3JXDPVWDZXP5P7"
-    password: "BN+mVdSkLw2+aws3SxJijza7mCZJEvp4h0DqP56cmZms"
+    username: "a8ea4d001@smtp-brevo.com"
+    password: "b7KR9FO0hUXtcgNw"
     use_tls: true
     default_from: "noreply@lemici.com"
 
@@ -185,6 +194,15 @@ integrations:
     operations_alert_name: "Lemici Operations Team"
     marketing_alert_email: "marketing@lemici.com"
     marketing_alert_name: "Lemici Marketing Team"
+
+# ============================================================================
+# FLAGSMITH FEATURE FLAGS CONFIGURATION
+# ============================================================================
+flagsmith:
+  enabled: true
+  environment_key: "ser.4ivHnLSGQ347Tu2V96WDNg"
+  enable_local_evaluation: true
+  environment_refresh_ttl: 60
 
 # ============================================================================
 # EXTERNAL APIs
@@ -297,7 +315,7 @@ workers:
     concurrency: 5               # ✅ CHANGE: 10 se 5 (CPU ke liye better)
     llm:
       provider: "ollama"
-      model: "qwen-franchise-extractor"
+      model: "franchise-extractor"
       endpoint: "http://ollama:11434"  
       timeout: 35000             # ✅ CHANGE: 20000 se 25000 (25 seconds)
       max_tokens: 300

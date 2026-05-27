@@ -11,11 +11,9 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	apierrors "camunda-workers/internal/api/errors"
-	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 
@@ -26,7 +24,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/time/rate"
 )
 
 // ============================================================================
@@ -159,162 +156,6 @@ func Recovery(log logger.Logger) gin.HandlerFunc {
 				c.Abort()
 			}
 		}()
-		c.Next()
-	}
-}
-
-// ============================================================================
-// CORS MIDDLEWARE
-// ============================================================================
-
-func CORS(corsConfig config.CORSConfig) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-
-		originAllowed := false
-		if len(corsConfig.AllowOrigins) > 0 {
-			cleanOrigin := strings.TrimSuffix(origin, "/")
-			for _, allowedOrigin := range corsConfig.AllowOrigins {
-				cleanAllowed := strings.TrimSuffix(allowedOrigin, "/")
-				if cleanAllowed == cleanOrigin || allowedOrigin == "*" {
-					if origin != "" {
-						c.Header("Access-Control-Allow-Origin", origin)
-					} else if allowedOrigin == "*" {
-						c.Header("Access-Control-Allow-Origin", "*")
-					}
-					originAllowed = true
-					break
-				}
-			}
-		}
-
-		// Only set other CORS headers if the origin is allowed
-		if originAllowed {
-			if len(corsConfig.AllowMethods) > 0 {
-				c.Header("Access-Control-Allow-Methods", strings.Join(corsConfig.AllowMethods, ", "))
-			}
-
-			if len(corsConfig.AllowHeaders) > 0 {
-				c.Header("Access-Control-Allow-Headers", strings.Join(corsConfig.AllowHeaders, ", "))
-			}
-
-			if len(corsConfig.ExposeHeaders) > 0 {
-				c.Header("Access-Control-Expose-Headers", strings.Join(corsConfig.ExposeHeaders, ", "))
-			}
-
-			if corsConfig.AllowCredentials && origin != "" {
-				c.Header("Access-Control-Allow-Credentials", "true")
-			}
-
-			if corsConfig.MaxAge > 0 {
-				c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", corsConfig.MaxAge))
-			}
-		}
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// ============================================================================
-// RATE LIMITER MIDDLEWARE
-// ============================================================================
-
-type visitor struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-type RateLimiterImpl struct {
-	visitors map[string]*visitor
-	mu       sync.RWMutex
-	rps      int
-	burst    int
-}
-
-func NewRateLimiter(rps, burst int) *RateLimiterImpl {
-	rl := &RateLimiterImpl{
-		visitors: make(map[string]*visitor),
-		rps:      rps,
-		burst:    burst,
-	}
-
-	go rl.cleanupVisitors()
-
-	return rl
-}
-
-func (rl *RateLimiterImpl) getVisitor(ip string) *rate.Limiter {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
-	v, exists := rl.visitors[ip]
-	if !exists {
-		limiter := rate.NewLimiter(rate.Limit(rl.rps), rl.burst)
-		rl.visitors[ip] = &visitor{limiter, time.Now()}
-		return limiter
-	}
-
-	v.lastSeen = time.Now()
-	return v.limiter
-}
-
-func (rl *RateLimiterImpl) cleanupVisitors() {
-	for {
-		time.Sleep(5 * time.Minute)
-
-		rl.mu.Lock()
-		for ip, v := range rl.visitors {
-			if time.Since(v.lastSeen) > 10*time.Minute {
-				delete(rl.visitors, ip)
-			}
-		}
-		rl.mu.Unlock()
-	}
-}
-
-func RateLimiter(rateLimitConfig config.RateLimitConfig) gin.HandlerFunc {
-	if !rateLimitConfig.Enabled {
-		return func(c *gin.Context) {
-			c.Next()
-		}
-	}
-
-	limiter := NewRateLimiter(rateLimitConfig.RequestsPerSecond, rateLimitConfig.Burst)
-
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-
-		if !limiter.getVisitor(ip).Allow() {
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"success": false,
-				"error":   "rate limit exceeded",
-				"code":    "RATE_LIMIT_EXCEEDED",
-				"message": fmt.Sprintf("Maximum %d requests per second allowed", rateLimitConfig.RequestsPerSecond),
-			})
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// ============================================================================
-// SECURITY HEADERS MIDDLEWARE
-// ============================================================================
-
-func SecurityHeaders() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("X-Content-Type-Options", "nosniff")
-		c.Header("X-Frame-Options", "DENY")
-		c.Header("X-XSS-Protection", "1; mode=block")
-		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-		c.Header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://*.lenici.com https://lenici.com;")
 		c.Next()
 	}
 }
