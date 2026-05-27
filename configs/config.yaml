@@ -190,9 +190,9 @@ integrations:
 
   # Email id for Enquiry 
   internal: 
-    operations_alert_email: "Operations@lemici.com"
+    operations_alert_email: "shivcharan.jalendra@lemici.com"   # "Operations@lemici.com"  
     operations_alert_name: "Lemici Operations Team"
-    marketing_alert_email: "marketing@lemici.com"
+    marketing_alert_email: "shivcharan.jalendra@lemici.com"   # "marketing@lemici.com" 
     marketing_alert_name: "Lemici Marketing Team"
 
 # ============================================================================
