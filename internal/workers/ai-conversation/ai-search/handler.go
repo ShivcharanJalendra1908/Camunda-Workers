@@ -692,15 +692,20 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	if params.Verified != nil && *params.Verified {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"term": map[string]interface{}{"verified": true},
-		})
-	}
+	// if params.Verified != nil && *params.Verified {
+	// 	filterClauses = append(filterClauses, map[string]interface{}{
+	// 		"term": map[string]interface{}{"verified": true},
+	// 	})
+	// }
 
 	if params.TrustedSeller != nil && *params.TrustedSeller {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"term": map[string]interface{}{"trusted_seller": true},
+		softBoosts = append(softBoosts, map[string]interface{}{
+			"term": map[string]interface{}{
+				"trusted_seller": map[string]interface{}{
+					"value": true,
+					"boost": 5.0,
+				},
+			},
 		})
 	}
 
