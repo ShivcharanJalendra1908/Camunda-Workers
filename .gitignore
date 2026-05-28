@@ -27,3 +27,6 @@ deployments/docker/ollama/*.gguf
 /arms_cache/api-gateway
 /api-gateway
 /api-gateway-security
+
+#keycloak
+/deployments/docker/keycloak/old-version
