@@ -1526,7 +1526,7 @@
     "password": "b7KR9FO0hUXtcgNw",
     "port": "587",
     "host": "smtp-relay.brevo.com",
-    "replyTo": "shivcharan.jalendra@lemici.com",
+    "replyTo": "",
     "from": "noreply@lemici.com",
     "fromDisplayName": "LeMiCi Support",
     "user": "a8ea4d001@smtp-brevo.com"
