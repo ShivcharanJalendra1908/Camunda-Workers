@@ -10,12 +10,14 @@
             <script>
                 function handleReturnToLogin() {
                     var host = window.location.hostname;
-                    if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
-                        window.location.href = 'https://dev.lemici.com/login';
-                    } else if (host.indexOf('lemici.com') !== -1) {
-                        window.location.href = 'https://www.lemici.com/login';
+                    if (host === 'us-dev-api.lemici.com') {
+                        window.location.href = 'https://dev.lemici.com/';
+                    } else if (host === 'dev-api.lemici.com') {
+                        window.location.href = 'https://lemici.com/';
+                    } else if (host.indexOf('demo-api') !== -1) {
+                        window.location.href = 'https://demo.lemici.com/';
                     } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
-                        window.location.href = 'http://localhost:3000/login';
+                        window.location.href = 'http://localhost:3000/';
                     } else {
                         window.location.href = '${url.loginUrl}';
                     }
