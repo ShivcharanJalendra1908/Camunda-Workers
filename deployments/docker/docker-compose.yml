@@ -300,7 +300,9 @@ services:
 # ============================================================================
 
   api-gateway:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-demo:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.gateway
     container_name: api-gateway
     # ports:
     #   - "8080:8080"
@@ -308,6 +310,7 @@ services:
     environment:
       APP_NAME: api-gateway
       APP_ENVIRONMENT: demo
+      CAMUNDA_INSECURE: "true"
       API_PORT: 8080
       ZEEBE_ADDRESS: zeebe:26500
       POSTGRES_HOST: postgres
@@ -352,7 +355,9 @@ services:
 # ============================================================================
 
   camunda-workers:
-    image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-demo:latest
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile.worker
     container_name: camunda-workers
     # ports:
       # - "8080:8080"

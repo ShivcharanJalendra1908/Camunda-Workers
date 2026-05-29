@@ -4,7 +4,7 @@ app:
 
 camunda:
   oauth:
-    enabled: true
+    enabled: false
     client_id: "worker-client"
     client_secret: "AxgPPsstY5YDst15rDvfz64KsslQUorz"
     token_url: "https://demo-api.lemici.com/realms/camunda-platform/protocol/openid-connect/token"
