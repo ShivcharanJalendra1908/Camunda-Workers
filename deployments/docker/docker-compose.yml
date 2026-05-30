@@ -226,11 +226,19 @@ services:
       KC_DB_PASSWORD: postgres
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
+      QUARKUS_LOG_CONSOLE_JSON: "true"
+      JAVA_OPTS_APPEND: "-javaagent:/opt/keycloak/opentelemetry-javaagent.jar"
+      OTEL_SERVICE_NAME: "keycloak"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_TRACES_EXPORTER: "otlp"
+      OTEL_METRICS_EXPORTER: "none"
+      OTEL_LOGS_EXPORTER: "none"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       - keycloak-data:/opt/keycloak/data
       - ../../keycloak-theme:/opt/keycloak/themes:ro
+      - ./keycloak/opentelemetry-javaagent.jar:/opt/keycloak/opentelemetry-javaagent.jar:ro
 
     depends_on:
       postgres:

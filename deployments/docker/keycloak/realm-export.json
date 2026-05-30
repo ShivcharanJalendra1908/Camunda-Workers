@@ -27,6 +27,10 @@
     "oauth2DeviceCodeLifespan": 600,
     "oauth2DevicePollingInterval": 5,
     "enabled": true,
+    "eventsEnabled": true,
+    "eventsListeners": ["jboss-logging"],
+    "adminEventsEnabled": true,
+    "adminEventsDetailsEnabled": true,
     "sslRequired": "external",
     "registrationAllowed": true,
     "registrationEmailAsUsername": true,
@@ -78,6 +82,39 @@
             "account": [
               "view-profile",
               "manage-account"
+            ]
+          }
+        },
+        "clientRole": false,
+        "containerId": "b774afd9-530b-485d-b24f-7b4389fe2af2",
+        "attributes": {}
+      },
+      {
+        "id": "c7d8e9f0-1a2b-3c4d-5e6f-7a8b9c0d1e2f",
+        "name": "lemici-admin",
+        "description": "LeMiCi platform administrator — includes manage-users for regular user ops, excludes realm-admin",
+        "composite": true,
+        "composites": {
+          "client": {
+            "realm-management": [
+              "create-client",
+              "view-identity-providers",
+              "query-users",
+              "manage-users",
+              "manage-identity-providers",
+              "query-clients",
+              "query-groups",
+              "query-realms",
+              "view-clients",
+              "view-users",
+              "manage-authorization",
+              "manage-realm",
+              "manage-clients",
+              "view-events",
+              "impersonation",
+              "view-authorization",
+              "view-realm",
+              "manage-events"
             ]
           }
         },
@@ -405,7 +442,19 @@
       ]
     }
   },
-  "groups": [],
+  "groups": [
+    {
+      "id": "d8e9f0a1-2b3c-4d5e-6f7a-8b9c0d1e2f3a",
+      "name": "engineering-team",
+      "path": "/engineering-team",
+      "attributes": {
+        "displayName": ["Engineering Team"]
+      },
+      "realmRoles": ["default-roles-camunda-platform"],
+      "clientRoles": {},
+      "subGroups": []
+    }
+  ],
   "defaultRole": {
     "id": "fab0ab8a-0539-4bf1-bed1-7efb9c01cd1e",
     "name": "default-roles-camunda-platform",
@@ -479,6 +528,86 @@
       },
       "notBefore": 0,
       "groups": []
+    },
+    {
+      "id": "e9f0a1b2-3c4d-5e6f-7a8b-9c0d1e2f3a4b",
+      "createdTimestamp": 1763901566824,
+      "username": "kintesh",
+      "enabled": true,
+      "totp": false,
+      "disableableCredentialTypes": [],
+      "requiredActions": ["UPDATE_PASSWORD"],
+      "notBefore": 0,
+      "groups": ["/engineering-team"],
+      "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
+      "clientRoles": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test@1122",
+          "temporary": true
+        }
+      ]
+    },
+    {
+      "id": "f0a1b2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+      "createdTimestamp": 1763901566824,
+      "username": "shivcharan",
+      "enabled": true,
+      "totp": false,
+      "disableableCredentialTypes": [],
+      "requiredActions": ["UPDATE_PASSWORD"],
+      "notBefore": 0,
+      "groups": ["/engineering-team"],
+      "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
+      "clientRoles": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test@1122",
+          "temporary": true
+        }
+      ]
+    },
+    {
+      "id": "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+      "createdTimestamp": 1763901566824,
+      "username": "syed",
+      "enabled": true,
+      "totp": false,
+      "disableableCredentialTypes": [],
+      "requiredActions": ["UPDATE_PASSWORD"],
+      "notBefore": 0,
+      "groups": ["/engineering-team"],
+      "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
+      "clientRoles": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test@1122",
+          "temporary": true
+        }
+      ]
+    },
+    {
+      "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "createdTimestamp": 1763901566824,
+      "username": "arslaan",
+      "enabled": true,
+      "totp": false,
+      "disableableCredentialTypes": [],
+      "requiredActions": ["UPDATE_PASSWORD"],
+      "notBefore": 0,
+      "groups": ["/engineering-team"],
+      "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
+      "clientRoles": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Test@1122",
+          "temporary": true
+        }
+      ]
     }
   ],
   "scopeMappings": [
