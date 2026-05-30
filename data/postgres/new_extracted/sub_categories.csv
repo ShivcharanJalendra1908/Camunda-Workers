@@ -1,4 +1,4 @@
-id,category_id,name,slug,description,display_order,is_active,created_at,updated_at
+﻿id,category_id,name,slug,description,display_order,is_active,created_at,updated_at
 aa2ac8a6-12e0-4e15-8fc6-3ce47a710a51,138bec94-c996-4510-895c-6c0af0f6a6fc,Burger chains,burger-chains,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
 b4ecba59-626f-4494-9b9c-6d691e35b839,138bec94-c996-4510-895c-6c0af0f6a6fc,Sandwich/Sub shops,sandwich-sub-shops,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
 a01eb0c3-5e2f-4b62-abc6-c59b24233509,138bec94-c996-4510-895c-6c0af0f6a6fc,Chicken/Meat specialties,chicken-meat,NULL,3,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
@@ -285,8 +285,6 @@ f7bee021-72af-4c14-b27b-101bb1aa1106,8fb154e8-39fd-474e-b3d3-2c16d78ee53b,Sports
 9589db36-c0b8-4b0e-8876-d64c0bae3331,7c844539-83eb-4880-b86c-dd05973f0e0a,IT & Software Services,it-software-services,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
 b309c1d2-6ec2-45b4-b1d9-397c766a095b,e5fcf8a7-cb34-4278-8082-a63b9d1856a9,Automotive & Fleet Services,automotive-fleet-services,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
 50cb101d-2786-442f-855e-b3fe290435b1,8d009eb0-2234-4ba9-9768-f922672929f0,Home Interiors,Home Improvement & Renovation-home-interiors,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
-d7ecb162-bda4-41d6-a676-19978d199d50,8d009eb0-2234-4ba9-9768-f922672929f0,Home Interiors,Home Improvement & Renovation-home-interiors,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
 fe49c59a-9710-4a55-a824-e19741ef4d95,456e1a68-37c2-454d-948f-a46294d6ba3a,E-commerce & Retail Services,e-commerce-retail-services,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
 30653f39-fa90-49b8-b540-577c4ec6d473,dc6c211b-19b9-4eed-9e3e-9d10792b6f55,Marketing & Education,marketing-education,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
 cbc5e279-ba37-4da1-9728-e8eca69d1543,a3b7ded9-682f-45b4-b286-182dbd36a9b9,Fashion & Rentals,fashion-rentals,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
-d1b5ed34-f915-492c-a143-6199d2ec0eab,8d009eb0-2234-4ba9-9768-f922672929f0,Home Interiors,Home Improvement & Renovation-home-interiors,Tag,100,TRUE,2026-04-08 19:47:25,2026-04-08 19:47:25
