@@ -366,9 +366,6 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		count++
-		if count%10 == 0 {
-			log.Printf("   Indexed %d franchises...", count)
-		}
 	}
 
 	log.Printf("   ✅ Total franchises indexed: %d", count)
