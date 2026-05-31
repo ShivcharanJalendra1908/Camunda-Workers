@@ -30,3 +30,7 @@ api-gateway*
 
 # docs
 /KEYCLOAK-THEME-AUDIT.md
+
+# Go workspace
+/go.work
+/go.work.sum
