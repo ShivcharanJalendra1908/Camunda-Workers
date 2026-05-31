@@ -816,6 +816,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		}
 
 		count++
+		log.Printf("   Indexed: %s (%d categories)", name, len(categories))
 	}
 
 	log.Printf("   ✅ Total industries indexed in browse: %d", count)
