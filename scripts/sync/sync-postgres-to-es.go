@@ -694,9 +694,6 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		}
 
 		count++
-		if count%5 == 0 {
-			log.Printf("   Indexed %d industry insights...", count)
-		}
 	}
 
 	log.Printf("   ✅ Total industry insights indexed: %d", count)
@@ -819,7 +816,6 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		}
 
 		count++
-		log.Printf("   Indexed: %s (%d categories)", name, len(categories))
 	}
 
 	log.Printf("   ✅ Total industries indexed in browse: %d", count)
