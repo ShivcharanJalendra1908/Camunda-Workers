@@ -254,3 +254,30 @@ eb979557-17dd-4e57-90ac-1854eece7765,e5fcf8a7-cb34-4278-8082-a63b9d1856a9,Tour O
 bb1ab741-8683-4a99-a406-7f164e667a19,e5fcf8a7-cb34-4278-8082-a63b9d1856a9,Visa Consultancy,visa-consultancy,NULL,0,TRUE,2025-01-01 09:08:00,2025-01-01 09:08:00
 af6fc388-8923-42f1-b89d-72c96cdfa8a5,e5fcf8a7-cb34-4278-8082-a63b9d1856a9,Airline Ticketing,airline-ticketing,NULL,0,TRUE,2025-01-01 09:08:00,2025-01-01 09:08:00
 183b53c1-251e-4d71-84ff-9744261a917e,e5fcf8a7-cb34-4278-8082-a63b9d1856a9,Hotel Booking Services,hotel-booking-services,NULL,0,TRUE,2025-01-01 09:08:00,2025-01-01 09:08:00
+7aca039e-d723-43a5-b97d-b54b07fc5373,197fcbc8-7a73-40b5-802f-fa829cd49329,Dealerships,dealerships,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+0a5a4564-ac4f-45d8-b488-d4b721b1daf6,197fcbc8-7a73-40b5-802f-fa829cd49329,Resellers,resellers,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+ba4abcf4-736f-4506-ae63-aad198da3468,197fcbc8-7a73-40b5-802f-fa829cd49329,Imported Products,imported-products,NULL,3,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+e8bcbcab-5c6d-44cb-aeeb-8632016ca3cd,197fcbc8-7a73-40b5-802f-fa829cd49329,C&F Agents,c-and-f-agents,NULL,4,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+f265a9bb-d130-41ba-a98b-66fa2b9bbc81,a3b7ded9-682f-45b4-b286-182dbd36a9b9,Specialized Category Outlets,specialized-category-outlets,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+8b71db12-ffdc-45c5-a26d-7edf569bed1a,8fb154e8-39fd-474e-b3d3-2c16d78ee53b,Turf Services & Stores,turf-services-stores,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+01142f8e-82d9-40f3-af4c-6d9b20a078a5,7c844539-83eb-4880-b86c-dd05973f0e0a,Managed IT Services,managed-it-services,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+55f0e264-bbac-49d2-a0ed-46ed38a6de6b,dc6c211b-19b9-4eed-9e3e-9d10792b6f55,Marketing Services & Stores,marketing-services-stores,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+12328925-dd54-469f-bb65-f8d66ee8c7f5,8d009eb0-2234-4ba9-9768-f922672929f0,Limited Services & Stores,limited-services-stores,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+54cdf582-aa6a-48fc-b524-f75f15aa7475,8d009eb0-2234-4ba9-9768-f922672929f0,Ltd. Services & Stores,ltd-services-stores,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+b8cbc705-1090-4947-8783-70ce2ee9df2a,7c844539-83eb-4880-b86c-dd05973f0e0a,Software & Web Development,software-web-development,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+91e5a9cf-e300-45c3-bd78-5a4d13bb8955,456e1a68-37c2-454d-948f-a46294d6ba3a,B2B Marketing & Support,b2b-marketing-support,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+0b36f32b-64d1-4f8e-be00-e757fe1ffb9d,5dbe61d1-daa6-4f30-acba-d9094a3f9de3,Traditional Gyms & Centres,traditional-gyms-centres,NULL,6,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+c75026f9-6eff-43bf-8fa3-700c0f983cde,5dbe61d1-daa6-4f30-acba-d9094a3f9de3,Fitness & Gym Franchises,fitness-gym-franchises,NULL,7,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+4851e333-befa-4ba3-8d43-216661d97bec,456e1a68-37c2-454d-948f-a46294d6ba3a,General Business Support,general-business-support,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+5998245d-af84-4a40-a4ca-75ab6b7272fe,456e1a68-37c2-454d-948f-a46294d6ba3a,Business Consulting & Strategy,business-consulting-strategy,NULL,3,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+fb96033c-bccd-44c5-a89d-8cdbdc7d822d,5dbe61d1-daa6-4f30-acba-d9094a3f9de3,Personal Training Studios,personal-training-studios,NULL,8,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+c1770239-c6ca-46d5-9b31-cfc57bcbf5d5,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Property Brokerage Services,property-brokerage-services,NULL,1,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+d7e752f6-5486-4456-8f64-fec87565d101,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Residential & Commercial,residential-commercial,NULL,2,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+44bbc135-209b-401b-bea5-384bd663155b,456e1a68-37c2-454d-948f-a46294d6ba3a,Co-working Office Spaces,co-working-office-spaces,NULL,4,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+08524641-c528-4cb4-9c11-f38b289595cf,7c844539-83eb-4880-b86c-dd05973f0e0a,IT Consulting Services,it-consulting-services,NULL,3,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+b6094e38-bc3f-414c-886b-c64d56c8a535,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Property Management Solutions,property-management-solutions,NULL,3,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+2f1177ff-5f3c-4895-adfe-14ea626a7ac4,7c844539-83eb-4880-b86c-dd05973f0e0a,Cloud & Hosting Solutions,cloud-hosting-solutions,NULL,4,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+08a2a1f3-d685-42b8-98ce-56296b83f1cf,7c844539-83eb-4880-b86c-dd05973f0e0a,Cybersecurity & Network,cybersecurity-network,NULL,5,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+10ca6b78-3b78-45e0-b611-61d3891033aa,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Real Estate Advisory &,real-estate-advisory,NULL,4,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+9b8d85ae-f431-4ae1-b331-dacb1de064c6,456e1a68-37c2-454d-948f-a46294d6ba3a,Financial & Legal Consulting,financial-legal-consulting,NULL,5,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+cf11d1fd-5d66-4a60-be05-d2caa70b8ebc,5dbe61d1-daa6-4f30-acba-d9094a3f9de3,Strength & CrossFit Gyms,strength-crossfit-gyms,NULL,9,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
