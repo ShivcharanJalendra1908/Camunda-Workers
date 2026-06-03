@@ -46,7 +46,15 @@ services:
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_SIZE: 1
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY: 1
       ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX_PREFIX: zeebe
-      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX_CREATETEMPLATE: "false"
+      ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_INDEX_CREATETEMPLATE: "true"
+      # Snapshot har 5 minute mein lo
+      ZEEBE_BROKER_DATA_SNAPSHOTPERIOD: "5m"
+      # Sirf last 3 snapshots ke baad ke logs rakho
+      ZEEBE_BROKER_DATA_LOGINDEXDENSITY: 100
+      # Max log size limit karo
+      ZEEBE_BROKER_DATA_LOGSEGMENTSIZE: 128MB
+      # ⭐ Yeh sabse important — purane logs delete karo snapshot ke baad
+      ZEEBE_BROKER_DATA_RECLAIMDISKSPACE: "true"
       ZEEBE_LOG_LEVEL: info
       JAVA_OPTS: "-Xms1g -Xmx1g -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/usr/local/zeebe/data/heapdump.hprof"
       ZEEBE_BROKER_DATA_DISKUSAGECOMMANDWATERMARK: 0.85
