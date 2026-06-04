@@ -23,12 +23,13 @@ info() { echo "    $*"; }
 ok()   { echo "    OK"; }
 
 get_token() {
-  curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+  curl -s --connect-timeout 5 --max-time 10 \
+    -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
     -H "Content-Type: application/x-www-form-urlencoded" \
     -d "client_id=admin-cli" \
     -d "username=admin" \
     -d "password=admin" \
-    -d "grant_type=password" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4
+    -d "grant_type=password" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4 || echo ""
 }
 
 get_group_id() {
