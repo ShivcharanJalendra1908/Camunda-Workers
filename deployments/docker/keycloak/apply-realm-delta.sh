@@ -137,9 +137,9 @@ for USER in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
 
   # Group join is additive — safe to re-run
   if [ -n "$GROUP_ID" ] && [ "$GROUP_ID" != "[]" ]; then
-    $KCADM update users/"$USER_ID"/groups -r "$REALM" \
-      -b "{\"groupId\": \"$GROUP_ID\", \"realm\": \"$REALM\"}" \
-      -n 2>/dev/null || info "  Already in engineering-team group"
+    $KCADM update users/"$USER_ID"/groups/"$GROUP_ID" -r "$REALM" \
+      -b "{\"groupId\": \"$GROUP_ID\", \"realm\": \"$REALM\", \"userId\": \"$USER_ID\"}" \
+      2>/dev/null || info "  Already in engineering-team group"
   fi
 done
 
