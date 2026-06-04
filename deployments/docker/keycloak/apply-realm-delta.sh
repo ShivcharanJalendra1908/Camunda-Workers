@@ -3,6 +3,7 @@ set -euo pipefail
 
 REALM="camunda-platform"
 COMPOSE_DIR="$HOME/Workflow-and-Workers/deployments/docker"
+KEYCLOAK_URL="http://localhost:8080"
 KCADM="docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh"
 
 if [ ! -d "$COMPOSE_DIR" ]; then
@@ -20,6 +21,15 @@ cd "$COMPOSE_DIR"
 log()  { echo "==> $*"; }
 info() { echo "    $*"; }
 ok()   { echo "    OK"; }
+
+get_token() {
+  curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=admin-cli" \
+    -d "username=admin" \
+    -d "password=admin" \
+    -d "grant_type=password" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4
+}
 
 get_group_id() {
   $KCADM get groups -r "$REALM" -q "name=$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
@@ -52,15 +62,23 @@ wait_for_user_id() {
 }
 
 # ============================================================================
-# Step 0: Authenticate
+# Step 0: Authenticate + get admin token
 # ============================================================================
 log "Authenticating to Keycloak Admin CLI"
 $KCADM config credentials \
-  --server http://localhost:8080 \
+  --server "$KEYCLOAK_URL" \
   --realm master \
   --user admin \
   --password admin
 ok
+
+log "Getting admin Bearer token for REST API"
+TOKEN=$(get_token)
+if [ -z "$TOKEN" ]; then
+  echo "ERROR: Failed to obtain admin token"
+  exit 1
+fi
+info "Token acquired"
 
 # ============================================================================
 # Step 1: Create lemici-admin realm role (composite)
@@ -89,6 +107,11 @@ for ROLE in create-client view-identity-providers query-users manage-users \
 done
 ok
 
+# Get role ID for later curl calls
+LEMICI_ROLE_ID=$(curl -s "$KEYCLOAK_URL/admin/realms/$REALM/roles/lemici-admin" \
+  -H "Authorization: Bearer $TOKEN" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+info "lemici-admin role id: $LEMICI_ROLE_ID"
+
 # ============================================================================
 # Step 2: Create engineering-team group
 # ============================================================================
@@ -100,55 +123,61 @@ if [ -z "$GROUP_ID" ] || [ "$GROUP_ID" = "[]" ]; then
     -s name=engineering-team \
     -s 'attributes.displayName=["Engineering Team"]'
   GROUP_ID=$(get_group_id engineering-team)
-  info "Created engineering-team group"
+  info "Created engineering-team group (id: $GROUP_ID)"
 else
   info "engineering-team group already exists (id: $GROUP_ID)"
 fi
 
 # ============================================================================
 # Step 3: Create users + set password + assign role + join group
+# Uses curl instead of kcadm.sh (kcadm.sh create users has a bug
+# with -s key=value parsing on Keycloak 23)
 # ============================================================================
-log "Creating users"
+log "Creating users (via REST API)"
 
-for USER in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
+for UNAME in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
   echo ""
-  info "Processing user: $USER"
+  info "Processing user: $UNAME"
 
-  if user_exists "$USER"; then
-    info "  User $USER already exists, skipping creation"
-    USER_ID=$(get_user_id "$USER")
+  if user_exists "$UNAME"; then
+    info "  User $UNAME already exists, skipping creation"
+    USER_ID=$(get_user_id "$UNAME")
   else
-    $KCADM create users -r "$REALM" \
-      -s username="$USER" \
-      -s enabled=true \
-      -s 'requiredActions=["UPDATE_PASSWORD"]'
-    info "  User created, waiting for index..."
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM/users" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"username\": \"$UNAME\", \"enabled\": true, \"requiredActions\": [\"UPDATE_PASSWORD\"]}" \
+      -o /dev/null -w "%{http_code}" | grep -q 201 && info "  User created" || info "  Create returned non-201"
 
-    USER_ID=$(wait_for_user_id "$USER")
+    USER_ID=$(wait_for_user_id "$UNAME")
     if [ -z "$USER_ID" ]; then
-      echo "ERROR: Could not retrieve ID for $USER after 5 attempts. Aborting."
+      echo "ERROR: Could not retrieve ID for $UNAME after 5 attempts. Aborting."
       exit 1
     fi
-    info "  Created user $USER (id: $USER_ID)"
+    info "  Created user $UNAME (id: $USER_ID)"
 
-    $KCADM set-password -r "$REALM" \
-      --username "$USER" \
-      --password "Test@1122" \
-      --temporary
-    info "  Temporary password set"
+    curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/reset-password" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"type\": \"password\", \"value\": \"Test@1122\", \"temporary\": true}" \
+      -o /dev/null -w "%{http_code}" | grep -q 204 && info "  Temporary password set" || info "  Password set returned non-204"
   fi
 
-  $KCADM add-roles -r "$REALM" \
-    --uusername "$USER" \
-    --rolename lemici-admin 2>/dev/null || info "  lemici-admin role already assigned"
+  if [ -n "$LEMICI_ROLE_ID" ]; then
+    curl -s -X POST "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/role-mappings/realm" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "[{\"id\": \"$LEMICI_ROLE_ID\", \"name\": \"lemici-admin\"}]" \
+      -o /dev/null -w "%{http_code}" | grep -q 204 && info "  lemici-admin role assigned" || info "  Role assignment returned non-204"
+  fi
 
   if [ -n "$GROUP_ID" ] && [ "$GROUP_ID" != "[]" ]; then
-    $KCADM update users/"$USER_ID"/groups/"$GROUP_ID" -r "$REALM" \
-      -b "{\"groupId\": \"$GROUP_ID\", \"realm\": \"$REALM\", \"userId\": \"$USER_ID\"}" \
-      2>/dev/null || info "  Already in engineering-team group"
+    curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/groups/$GROUP_ID" \
+      -H "Authorization: Bearer $TOKEN" \
+      -o /dev/null -w "%{http_code}" | grep -q 204 && info "  Added to engineering-team group" || info "  Group join returned non-204"
   fi
 
-  info "  Done: $USER"
+  info "  Done: $UNAME"
 done
 
 # ============================================================================
