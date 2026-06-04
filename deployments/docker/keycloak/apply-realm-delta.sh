@@ -81,6 +81,17 @@ fi
 info "Token acquired"
 
 # ============================================================================
+# Step 0.5: Ensure username does not require email
+# ============================================================================
+log "Updating realm: registrationEmailAsUsername → false"
+curl -s -X PUT "$KEYCLOAK_URL/admin/realms/$REALM" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"registrationEmailAsUsername": false}' \
+  -o /dev/null -w "%{http_code}" | grep -q 204 && info "Realm updated" || info "Update returned non-204"
+ok
+
+# ============================================================================
 # Step 1: Create lemici-admin realm role (composite)
 # ============================================================================
 log "Creating realm role: lemici-admin"

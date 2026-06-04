@@ -34,7 +34,7 @@
     "adminEventsDetailsEnabled": true,
     "sslRequired": "external",
     "registrationAllowed": true,
-    "registrationEmailAsUsername": true,
+    "registrationEmailAsUsername": false,
     "rememberMe": false,
     "verifyEmail": true,
     "loginWithEmailAllowed": true,
