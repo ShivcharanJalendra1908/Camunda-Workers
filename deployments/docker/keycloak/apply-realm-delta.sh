@@ -1,24 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# =============================================================================
-# Keycloak Realm Delta Applier
-# Applies missing users, groups, roles, and clients to a running Keycloak
-# instance via kcadm.sh. Designed to be idempotent.
-#
-# Usage: on EC2 (or any host with docker compose running Keycloak):
-#   cd ~/Workflow-and-Workers/deployments/docker
-#   bash keycloak/apply-realm-delta.sh
-# =============================================================================
-
 REALM="camunda-platform"
 COMPOSE_DIR="$HOME/Workflow-and-Workers/deployments/docker"
 KCADM="docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh"
 
-# ---- Pre-flight checks ----
 if [ ! -d "$COMPOSE_DIR" ]; then
   echo "ERROR: Directory not found: $COMPOSE_DIR"
-  echo "Make sure the repository is cloned to \$HOME/Workflow-and-Workers"
   exit 1
 fi
 
@@ -33,7 +21,6 @@ log()  { echo "==> $*"; }
 info() { echo "    $*"; }
 ok()   { echo "    OK"; }
 
-# ---- Helper functions ----
 get_group_id() {
   $KCADM get groups -r "$REALM" -q name="$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
 }
@@ -46,6 +33,22 @@ user_exists() {
   local uid
   uid=$(get_user_id "$1")
   [ -n "$uid" ] && [ "$uid" != "[]" ]
+}
+
+wait_for_user_id() {
+  local USERNAME="$1"
+  local USER_ID=""
+  for i in 1 2 3 4 5; do
+    USER_ID=$(get_user_id "$USERNAME")
+    if [ -n "$USER_ID" ] && [ "$USER_ID" != "[]" ]; then
+      echo "$USER_ID"
+      return 0
+    fi
+    info "  Waiting for $USERNAME to be indexed (attempt $i/5)..."
+    sleep 2
+  done
+  echo ""
+  return 1
 }
 
 # ============================================================================
@@ -99,7 +102,7 @@ if [ -z "$GROUP_ID" ] || [ "$GROUP_ID" = "[]" ]; then
   GROUP_ID=$(get_group_id engineering-team)
   info "Created engineering-team group"
 else
-  info "engineering-team group already exists"
+  info "engineering-team group already exists (id: $GROUP_ID)"
 fi
 
 # ============================================================================
@@ -119,9 +122,14 @@ for USER in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
       -s username="$USER" \
       -s enabled=true \
       -s 'requiredActions=["UPDATE_PASSWORD"]'
+    info "  User created, waiting for index..."
 
-    USER_ID=$(get_user_id "$USER")
-    info "  Created user $USER"
+    USER_ID=$(wait_for_user_id "$USER")
+    if [ -z "$USER_ID" ]; then
+      echo "ERROR: Could not retrieve ID for $USER after 5 attempts. Aborting."
+      exit 1
+    fi
+    info "  Created user $USER (id: $USER_ID)"
 
     $KCADM set-password -r "$REALM" \
       --username "$USER" \
@@ -130,17 +138,17 @@ for USER in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
     info "  Temporary password set"
   fi
 
-  # Role assignment is additive — safe to re-run
   $KCADM add-roles -r "$REALM" \
     --uusername "$USER" \
     --rolename lemici-admin 2>/dev/null || info "  lemici-admin role already assigned"
 
-  # Group join is additive — safe to re-run
   if [ -n "$GROUP_ID" ] && [ "$GROUP_ID" != "[]" ]; then
     $KCADM update users/"$USER_ID"/groups/"$GROUP_ID" -r "$REALM" \
       -b "{\"groupId\": \"$GROUP_ID\", \"realm\": \"$REALM\", \"userId\": \"$USER_ID\"}" \
       2>/dev/null || info "  Already in engineering-team group"
   fi
+
+  info "  Done: $USER"
 done
 
 # ============================================================================
