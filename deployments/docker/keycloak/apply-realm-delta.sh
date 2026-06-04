@@ -6,28 +6,32 @@ set -euo pipefail
 # Applies missing users, groups, roles, and clients to a running Keycloak
 # instance via kcadm.sh. Designed to be idempotent.
 #
-# Usage: ssh into EC2, cd to docker-compose dir, then:
-#   bash /path/to/apply-realm-delta.sh
+# Usage: on EC2 (or any host with docker compose running Keycloak):
+#   cd ~/Workflow-and-Workers/deployments/docker
+#   bash keycloak/apply-realm-delta.sh
 # =============================================================================
 
 REALM="camunda-platform"
-COMPOSE_DIR="/home/kintesh/Workflow-and-Workers/deployments/docker"
+COMPOSE_DIR="$HOME/Workflow-and-Workers/deployments/docker"
 KCADM="docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh"
+
+# ---- Pre-flight checks ----
+if [ ! -d "$COMPOSE_DIR" ]; then
+  echo "ERROR: Directory not found: $COMPOSE_DIR"
+  echo "Make sure the repository is cloned to \$HOME/Workflow-and-Workers"
+  exit 1
+fi
+
+if ! docker compose version &>/dev/null; then
+  echo "ERROR: 'docker compose' not found. Install Docker Compose v2."
+  exit 1
+fi
 
 cd "$COMPOSE_DIR"
 
 log()  { echo "==> $*"; }
 info() { echo "    $*"; }
 ok()   { echo "    OK"; }
-
-# ---- Step 0: Authenticate ----
-log "Authenticating to Keycloak Admin CLI"
-$KCADM config credentials \
-  --server http://localhost:8080 \
-  --realm master \
-  --user admin \
-  --password admin
-ok
 
 # ---- Helper functions ----
 get_group_id() {
@@ -37,6 +41,23 @@ get_group_id() {
 get_user_id() {
   $KCADM get users -r "$REALM" -q username="$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
 }
+
+user_exists() {
+  local uid
+  uid=$(get_user_id "$1")
+  [ -n "$uid" ] && [ "$uid" != "[]" ]
+}
+
+# ============================================================================
+# Step 0: Authenticate
+# ============================================================================
+log "Authenticating to Keycloak Admin CLI"
+$KCADM config credentials \
+  --server http://localhost:8080 \
+  --realm master \
+  --user admin \
+  --password admin
+ok
 
 # ============================================================================
 # Step 1: Create lemici-admin realm role (composite)
@@ -88,30 +109,37 @@ log "Creating users"
 
 for USER in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
   echo ""
-  info "Creating user: $USER"
+  info "Processing user: $USER"
 
-  $KCADM create users -r "$REALM" \
-    -s username="$USER" \
-    -s enabled=true \
-    -s 'requiredActions=["UPDATE_PASSWORD"]'
+  if user_exists "$USER"; then
+    info "  User $USER already exists, skipping creation"
+    USER_ID=$(get_user_id "$USER")
+  else
+    $KCADM create users -r "$REALM" \
+      -s username="$USER" \
+      -s enabled=true \
+      -s 'requiredActions=["UPDATE_PASSWORD"]'
 
-  USER_ID=$(get_user_id "$USER")
+    USER_ID=$(get_user_id "$USER")
+    info "  Created user $USER"
 
-  $KCADM set-password -r "$REALM" \
-    --username "$USER" \
-    --password "Test@1122" \
-    --temporary
-  info "  Password set"
+    $KCADM set-password -r "$REALM" \
+      --username "$USER" \
+      --password "Test@1122" \
+      --temporary
+    info "  Temporary password set"
+  fi
 
+  # Role assignment is additive — safe to re-run
   $KCADM add-roles -r "$REALM" \
     --uusername "$USER" \
-    --rolename lemici-admin
-  info "  lemici-admin role assigned"
+    --rolename lemici-admin 2>/dev/null || info "  lemici-admin role already assigned"
 
+  # Group join is additive — safe to re-run
   if [ -n "$GROUP_ID" ] && [ "$GROUP_ID" != "[]" ]; then
     $KCADM update users/"$USER_ID"/groups -r "$REALM" \
       -b "{\"groupId\": \"$GROUP_ID\", \"realm\": \"$REALM\"}" \
-      -n || info "  Added to engineering-team group"
+      -n 2>/dev/null || info "  Already in engineering-team group"
   fi
 done
 
@@ -148,7 +176,7 @@ log "Assigning service account roles for backstage"
 
 SA_USER_ID=$(get_user_id service-account-backstage)
 if [ -z "$SA_USER_ID" ] || [ "$SA_USER_ID" = "[]" ]; then
-  info "service-account-backstage user not yet created (sometimes delayed)... waiting 3s"
+  info "service-account-backstage not yet visible, waiting 3s..."
   sleep 3
   SA_USER_ID=$(get_user_id service-account-backstage)
 fi
@@ -158,13 +186,14 @@ if [ -n "$SA_USER_ID" ] && [ "$SA_USER_ID" != "[]" ]; then
     $KCADM add-roles -r "$REALM" \
       --uusername service-account-backstage \
       --cclientid realm-management \
-      --rid "$ROLE" 2>/dev/null || info "Role $ROLE already assigned"
+      --rid "$ROLE" 2>/dev/null || info "  Role $ROLE already assigned"
   done
   ok
 else
   info "WARNING: Could not find service-account-backstage user"
-  info "After client creation, you can assign roles manually via Admin Console:"
-  info "  Clients → backstage → Service Account Roles → realm-management → view-users, query-users, view-groups, query-groups"
+  info "Assign manually via Admin Console:"
+  info "  Clients → backstage → Service Account Roles → realm-management"
+  info "  Roles: view-users, query-users, view-groups, query-groups"
 fi
 
 # ============================================================================
@@ -173,8 +202,8 @@ fi
 echo ""
 log "=== Apply complete ==="
 echo ""
-info "Next steps after verifying admin login:"
+info "Next steps:"
 info "  1. Regenerate backstage client secret:"
 info "     Admin Console → Clients → backstage → Credentials → Regenerate Secret"
 info "  2. Update .env BACKSTAGE_CLIENT_SECRET on EC2"
-info "  3. Verify event persistence: docker logs keycloak | grep -i 'event'"
+info "  3. Verify events: docker logs keycloak | grep -i 'event'"
