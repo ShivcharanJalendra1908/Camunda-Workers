@@ -10,7 +10,7 @@
   "accessTokenLifespanForImplicitFlow": 300,
     "ssoSessionIdleTimeout": 900,
     "ssoSessionMaxLifespan": 86400,
-    "ssoSessionIdleTimeoutRememberMe": 1800,
+    "ssoSessionIdleTimeoutRememberMe": 0,
     "ssoSessionMaxLifespanRememberMe": 86400,
     "offlineSessionIdleTimeout": 2592000,
     "offlineSessionMaxLifespanEnabled": true,
@@ -28,6 +28,7 @@
     "oauth2DevicePollingInterval": 5,
     "enabled": true,
     "eventsEnabled": true,
+    "eventsExpiration": 2592000,
     "eventsListeners": ["jboss-logging"],
     "adminEventsEnabled": true,
     "adminEventsDetailsEnabled": true,
@@ -608,6 +609,30 @@
           "temporary": true
         }
       ]
+    },
+    {
+      "id": "5a6b7c8d-9e0f-1a2b-3c4d-5e6f7a8b9c0d",
+      "createdTimestamp": 1763901566824,
+      "username": "service-account-backstage",
+      "enabled": true,
+      "totp": false,
+      "emailVerified": false,
+      "serviceAccountClientId": "backstage",
+      "disableableCredentialTypes": [],
+      "requiredActions": [],
+      "realmRoles": [
+        "default-roles-camunda-platform"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "view-groups",
+          "query-groups"
+        ]
+      },
+      "notBefore": 0,
+      "groups": []
     }
   ],
   "scopeMappings": [
@@ -734,7 +759,7 @@
       "clientId": "admin-cli",
       "name": "${client_admin-cli}",
       "surrogateAuthRequired": false,
-      "enabled": true,
+      "enabled": false,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [],
@@ -1071,6 +1096,59 @@
           }
         }
       ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "id": "4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d",
+      "clientId": "backstage",
+      "name": "Backstage",
+      "description": "OIDC client for Backstage developer portal — catalog import + auth",
+      "surrogateAuthRequired": false,
+      "enabled": true,
+      "alwaysDisplayInConsole": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "**********",
+      "redirectUris": [
+        "http://localhost:7007/api/auth/oidc/handler/frame",
+        "https://backstage.lemici.com/api/auth/oidc/handler/frame"
+      ],
+      "webOrigins": [
+        "http://localhost:7007",
+        "https://backstage.lemici.com"
+      ],
+      "notBefore": 0,
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "pkce.code.challenge.method": "S256",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "client.secret.creation.time": "1771415078",
+        "access.token.lifespan": "1800"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "fullScopeAllowed": false,
+      "nodeReRegistrationTimeout": -1,
       "defaultClientScopes": [
         "web-origins",
         "acr",
