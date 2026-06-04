@@ -533,7 +533,7 @@
     {
       "id": "e9f0a1b2-3c4d-5e6f-7a8b-9c0d1e2f3a4b",
       "createdTimestamp": 1763901566824,
-      "username": "kintesh",
+      "username": "kintesh.admin",
       "enabled": true,
       "totp": false,
       "disableableCredentialTypes": [],
@@ -553,7 +553,7 @@
     {
       "id": "f0a1b2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
       "createdTimestamp": 1763901566824,
-      "username": "shivcharan",
+      "username": "shivcharan.admin",
       "enabled": true,
       "totp": false,
       "disableableCredentialTypes": [],
@@ -573,7 +573,7 @@
     {
       "id": "0a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
       "createdTimestamp": 1763901566824,
-      "username": "syed",
+      "username": "syed.admin",
       "enabled": true,
       "totp": false,
       "disableableCredentialTypes": [],
@@ -593,7 +593,7 @@
     {
       "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
       "createdTimestamp": 1763901566824,
-      "username": "arslaan",
+      "username": "arslaan.admin",
       "enabled": true,
       "totp": false,
       "disableableCredentialTypes": [],
