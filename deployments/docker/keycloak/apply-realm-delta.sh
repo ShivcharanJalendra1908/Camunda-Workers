@@ -22,11 +22,11 @@ info() { echo "    $*"; }
 ok()   { echo "    OK"; }
 
 get_group_id() {
-  $KCADM get groups -r "$REALM" -q name="$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
+  $KCADM get groups -r "$REALM" -q "name=$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
 }
 
 get_user_id() {
-  $KCADM get users -r "$REALM" -q username="$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
+  $KCADM get users -r "$REALM" -q "username=$1" --fields id --format csv 2>/dev/null | tail -1 | tr -d '"'
 }
 
 user_exists() {
