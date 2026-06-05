@@ -127,7 +127,8 @@ for UNAME in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
     $KCADM create users -r "$REALM" \
       -s username="$UNAME" \
       -s enabled=true \
-      -s 'requiredActions=["UPDATE_PASSWORD"]'
+      -s 'requiredActions=["UPDATE_PASSWORD"]' \
+      -s 'credentials=[{"type":"password","value":"Test@1122","temporary":true}]'
     info "  User created, waiting for index..."
 
     USER_ID=$(wait_for_user_id "$UNAME")
@@ -136,12 +137,6 @@ for UNAME in kintesh.admin shivcharan.admin syed.admin arslaan.admin; do
       exit 1
     fi
     info "  Created user $UNAME (id: $USER_ID)"
-
-    $KCADM set-password -r "$REALM" \
-      --username "$UNAME" \
-      --password "Test@1122" \
-      --temporary
-    info "  Temporary password set"
   fi
 
   $KCADM add-roles -r "$REALM" \
