@@ -452,7 +452,11 @@
         "displayName": ["Engineering Team"]
       },
       "realmRoles": ["default-roles-camunda-platform"],
-      "clientRoles": {},
+      "clientRoles": {
+        "realm-management": [
+          "realm-admin"
+        ]
+      },
       "subGroups": []
     }
   ],
