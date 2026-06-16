@@ -632,7 +632,8 @@
           "view-users",
           "query-users",
           "view-groups",
-          "query-groups"
+          "query-groups",
+          "view-realm"
         ]
       },
       "notBefore": 0,
@@ -1126,11 +1127,11 @@
       "secret": "**********",
       "redirectUris": [
         "http://localhost:7007/api/auth/oidc/handler/frame",
-        "https://backstage.lemici.com/api/auth/oidc/handler/frame"
+        "https://us-dev-api.lemici.com/backstage/api/auth/oidc/handler/frame"
       ],
       "webOrigins": [
         "http://localhost:7007",
-        "https://backstage.lemici.com"
+        "https://us-dev-api.lemici.com"
       ],
       "notBefore": 0,
       "bearerOnly": false,
