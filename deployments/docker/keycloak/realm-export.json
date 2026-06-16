@@ -545,7 +545,20 @@
       "notBefore": 0,
       "groups": ["/engineering-team"],
       "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
-      "clientRoles": {},
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "query-groups",
+          "view-clients",
+          "query-clients",
+          "view-events",
+          "view-authorization"
+        ]
+      },
+      "email": "kintesh.patel@lemici.com",
+      "emailVerified": false,
       "credentials": [
         {
           "type": "password",
@@ -565,7 +578,20 @@
       "notBefore": 0,
       "groups": ["/engineering-team"],
       "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
-      "clientRoles": {},
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "query-groups",
+          "view-clients",
+          "query-clients",
+          "view-events",
+          "view-authorization"
+        ]
+      },
+      "email": "shivcharan.jalendra@lemici.com",
+      "emailVerified": false,
       "credentials": [
         {
           "type": "password",
@@ -585,7 +611,20 @@
       "notBefore": 0,
       "groups": ["/engineering-team"],
       "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
-      "clientRoles": {},
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "query-groups",
+          "view-clients",
+          "query-clients",
+          "view-events",
+          "view-authorization"
+        ]
+      },
+      "email": "syed.nasir@lemici.com",
+      "emailVerified": false,
       "credentials": [
         {
           "type": "password",
@@ -605,7 +644,20 @@
       "notBefore": 0,
       "groups": ["/engineering-team"],
       "realmRoles": ["default-roles-camunda-platform", "lemici-admin"],
-      "clientRoles": {},
+      "clientRoles": {
+        "realm-management": [
+          "view-realm",
+          "view-users",
+          "query-users",
+          "query-groups",
+          "view-clients",
+          "query-clients",
+          "view-events",
+          "view-authorization"
+        ]
+      },
+      "email": "arslaan.darwajkar@lemici.com",
+      "emailVerified": false,
       "credentials": [
         {
           "type": "password",
@@ -868,7 +920,7 @@
         "https://dev-api.lemici.com",
         "https://us-dev-api.lemici.com",
         "https://d3c34598mt7qdx.cloudfront.net",
-        "http://localhost:3000/",
+        "http://localhost:3000",
         "https://d595hydlunw5u.cloudfront.net"
       ],
       "notBefore": 0,
@@ -1723,7 +1775,16 @@
     "phone",
     "microprofile-jwt"
   ],
-  "browserSecurityHeaders": {},
+  "browserSecurityHeaders": {
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; default-src 'self';",
+    "contentSecurityPolicyReportOnly": "",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains",
+    "xContentTypeOptions": "nosniff",
+    "xFrameOptions": "SAMEORIGIN",
+    "xRobotsTag": "none",
+    "xXSSProtection": "1; mode=block",
+    "referrerPolicy": "no-referrer"
+  },
   "smtpServer": {
     "replyToDisplayName": "LeMiCi Team",
     "starttls": "true",
