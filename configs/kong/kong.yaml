@@ -630,3 +630,55 @@ services:
               add:
                 headers:
                   - "X-Forwarded-Proto: https"
+
+
+    # ── Backstage Service ────────────────────────────
+  - name: backstage
+    url: http://backstage-app:7007
+
+    routes:
+      - name: backstage-ui
+        hosts:
+          - us-dev-api.lemici.com
+
+        paths:
+          - /backstage
+
+        strip_path: true
+        preserve_host: true
+
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+
+  - name: vault
+    url: http://vault:8200
+
+    routes:
+      - name: vault-route
+        hosts:
+          - us-dev-api.lemici.com
+
+        paths:
+          - /vault
+          - /ui
+          - /v1
+
+        strip_path: false
+        preserve_host: true
+
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+
+          - name: rate-limiting
+            config:
+              minute: 60
+              policy: local
+              limit_by: ip
