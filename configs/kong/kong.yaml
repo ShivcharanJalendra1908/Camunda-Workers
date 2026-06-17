@@ -58,7 +58,7 @@ services:
         plugins:
           - name: rate-limiting
             config:
-              minute: 3
+              minute: 20
               policy: local
               limit_by: ip
               fault_tolerant: true
@@ -314,10 +314,22 @@ services:
             - Authorization
             - X-Request-ID
             - X-Session-ID
+            - X-Device-Token
+            - X-Device-Salt
+            - X-Guest-Session-ID
           exposed_headers:
             - X-Request-ID
             - X-RateLimit-Limit
             - X-RateLimit-Remaining
+            - X-Session-ID
+            - X-Session-Queries-Used
+            - X-Session-Queries-Remaining
+            - X-Session-Queries-Limit
+            - X-Session-Credits-Used
+            - X-Session-Credits-Remaining
+            - X-Session-Credits-Limit
+            - X-Session-Is-New
+            - X-Quota-Status
           credentials: true
           max_age: 86400
 

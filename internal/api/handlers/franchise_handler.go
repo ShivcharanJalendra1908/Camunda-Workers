@@ -1149,8 +1149,8 @@ func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
 // SubmitFranchiseEnquiry handles franchise enquiry submissions.
 // Works for BOTH logged-in and anonymous users.
 //
-// Anonymous users: Limited to 3 enquiries per 24h window (enforced by
-// AnonymousInquiryLimiter middleware upstream). No userId in context.
+// Anonymous users: No rate limiting currently applied.
+// userId is empty string for anonymous users.
 //
 // Logged-in users: Unlimited enquiries. userId set by SessionOrJWTAuth
 // middleware (if route is also in protectedAPI group) or optional.
@@ -1170,8 +1170,6 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 	}
 
 	// userId is OPTIONAL — empty string for anonymous users.
-	// AnonymousInquiryLimiter middleware already enforced the 3-inquiry
-	// limit before we reach here, so we just pass whatever we have.
 	userID := c.GetString("userId")
 	isAnonymous := userID == ""
 

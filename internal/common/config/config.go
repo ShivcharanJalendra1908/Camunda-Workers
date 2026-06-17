@@ -30,6 +30,7 @@ type Config struct {
 	Idempotency     IdempotencyConfig       `yaml:"idempotency"`
 	Pagination      PaginationConfig        `mapstructure:"pagination"`
 	Flagsmith       FlagsmithConfig         `mapstructure:"flagsmith"`
+	Guest           GuestQuotaConfig        `mapstructure:"guest"`
 }
 
 // ============================================================================
@@ -651,4 +652,48 @@ type FlagsmithConfig struct {
 	EnvironmentKey        string `mapstructure:"environment_key" yaml:"environment_key"`
 	EnableLocalEvaluation bool   `mapstructure:"enable_local_evaluation" yaml:"enable_local_evaluation"`
 	EnvironmentRefreshTTL int    `mapstructure:"environment_refresh_ttl" yaml:"environment_refresh_ttl"`
+}
+
+// ============================================================================
+// GUEST QUOTA CONFIGURATION
+// ============================================================================
+
+// GuestQuotaConfig is the top-level guest quota configuration.
+// Per-route-group limits are in RouteGroups (keyed by group name).
+type GuestQuotaConfig struct {
+	Enabled   bool                             `mapstructure:"enabled"`
+	RouteGroups map[string]GuestRouteGroupConfig `mapstructure:"route_groups"`
+	Anomaly   GuestAnomalyConfig               `mapstructure:"anomaly"`
+	Audit     GuestAuditConfig                 `mapstructure:"audit"`
+	Encryption GuestEncryptionConfig           `mapstructure:"encryption"`
+}
+
+// GuestRouteGroupConfig holds per-route-group quota limits.
+type GuestRouteGroupConfig struct {
+	CreditsPerWindow  int           `mapstructure:"credits_per_window"`
+	CreditWindowDays  int           `mapstructure:"credit_window_days"`
+	QueriesPerSession int           `mapstructure:"queries_per_session"`
+	SessionTTLSeconds int           `mapstructure:"session_ttl_seconds"`
+	CreditKeyTTL      time.Duration `mapstructure:"credit_key_ttl"`
+	SessionQueriesTTL time.Duration `mapstructure:"session_queries_ttl"`
+	ActiveSessionTTL  time.Duration `mapstructure:"active_session_ttl"`
+}
+
+type GuestAnomalyConfig struct {
+	Enabled                bool `mapstructure:"enabled"`
+	S1TokensPerIPThreshold int  `mapstructure:"s1_tokens_per_ip_threshold"`
+	S2IPsPerTokenThreshold int  `mapstructure:"s2_ips_per_token_threshold"`
+	S3BurstThreshold       int  `mapstructure:"s3_burst_threshold"`
+	S3BurstWindowSeconds   int  `mapstructure:"s3_burst_window_seconds"`
+	BlockTTLSeconds        int  `mapstructure:"block_ttl_seconds"`
+}
+
+type GuestAuditConfig struct {
+	Enabled    bool `mapstructure:"enabled"`
+	RetainDays int  `mapstructure:"retain_days"`
+	BufferSize int  `mapstructure:"buffer_size"`
+}
+
+type GuestEncryptionConfig struct {
+	KeyEnv string `mapstructure:"key_env"`
 }

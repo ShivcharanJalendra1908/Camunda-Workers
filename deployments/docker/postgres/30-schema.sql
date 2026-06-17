@@ -1034,6 +1034,7 @@ CREATE INDEX idx_public_form_submissions_email ON public_form_submissions(email)
 CREATE INDEX idx_public_form_submissions_created_at ON public_form_submissions(created_at DESC);
 
 -- ============================================================
+
 -- FEATURED ENGINE AUDIT LOG
 -- ============================================================
 CREATE TABLE entity_audit_log (
@@ -1274,6 +1275,42 @@ CREATE INDEX idx_associations_slug ON associations(slug);
 CREATE INDEX idx_associations_status ON associations(status);
 
 COMMENT ON TABLE associations IS 'Stores core data and extended JSON metadata for associations.';
+
+-- GUEST AUDIT LOG
+-- ============================================================
+CREATE TABLE IF NOT EXISTS guest_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL,
+    composite_key TEXT NOT NULL,
+    action VARCHAR(32) NOT NULL,
+    route_group VARCHAR(32) NOT NULL DEFAULT '',
+    queries_used INT DEFAULT 0,
+    credits_used INT DEFAULT 0,
+    anomaly_flags JSONB DEFAULT '[]',
+    blocked BOOLEAN DEFAULT FALSE,
+    block_reason TEXT DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    retain_until TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '30 days')
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_audit_session_id ON guest_audit_log(session_id);
+CREATE INDEX IF NOT EXISTS idx_guest_audit_created_at ON guest_audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_guest_audit_retain_until ON guest_audit_log(retain_until);
+CREATE INDEX IF NOT EXISTS idx_guest_audit_route_group ON guest_audit_log(route_group);
+
+-- ============================================================
+-- CLEANUP FUNCTION FOR EXPIRED GUEST AUDIT EVENTS
+-- ============================================================
+CREATE OR REPLACE FUNCTION cleanup_expired_guest_audit_events()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM guest_audit_log
+    WHERE retain_until < NOW();
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION cleanup_expired_guest_audit_events() IS
+    'Deletes guest audit events past their retention period. Run via cron job daily.';
 
 -- ============================================================
 -- END OF COMPLETE SCHEMA

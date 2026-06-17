@@ -361,3 +361,96 @@ func (c *RedisClient) GetCachedWorkflowResponse(ctx context.Context, correlation
 
 	return response, true, nil
 }
+
+// ============================================================================
+// GUEST AI QUOTA METHODS
+// ============================================================================
+
+// GetActiveSession returns the session ID stored for the given composite key.
+// Returns empty string and nil error if no session exists.
+func (c *RedisClient) GetActiveSession(ctx context.Context, compositeKey string) (string, error) {
+	key := fmt.Sprintf("guest:active_session:%s", compositeKey)
+	val, err := c.Client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return val, err
+}
+
+// SetActiveSession stores the session ID for the given composite key with TTL.
+func (c *RedisClient) SetActiveSession(ctx context.Context, compositeKey, sessionID string, ttl time.Duration) error {
+	key := fmt.Sprintf("guest:active_session:%s", compositeKey)
+	return c.Client.Set(ctx, key, sessionID, ttl).Err()
+}
+
+// DeleteActiveSession removes the active session pointer for the given composite key.
+func (c *RedisClient) DeleteActiveSession(ctx context.Context, compositeKey string) error {
+	key := fmt.Sprintf("guest:active_session:%s", compositeKey)
+	return c.Client.Del(ctx, key).Err()
+}
+
+// IncrQueryCount increments the query counter for a session and returns the new value.
+func (c *RedisClient) IncrQueryCount(ctx context.Context, sessionID string, ttl time.Duration) (int64, error) {
+	key := fmt.Sprintf("session:%s:queries", sessionID)
+	val, err := c.Client.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	// Set TTL only on first increment (val == 1)
+	if val == 1 {
+		c.Client.Expire(ctx, key, ttl)
+	}
+	return val, nil
+}
+
+// GetQueryCount returns the current query count for a session.
+func (c *RedisClient) GetQueryCount(ctx context.Context, sessionID string) (int64, error) {
+	key := fmt.Sprintf("session:%s:queries", sessionID)
+	val, err := c.Client.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return val, err
+}
+
+// GetKeyTTL returns the remaining time-to-live for a Redis key.
+// Returns 0, nil if the key has no TTL set.
+// Returns 0, error if the key does not exist.
+func (c *RedisClient) GetKeyTTL(ctx context.Context, key string) (time.Duration, error) {
+	ttl, err := c.Client.TTL(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	// TTL returns -2 if key does not exist, -1 if no expiry
+	if ttl < 0 {
+		return 0, nil
+	}
+	return ttl, nil
+}
+
+// SessionCreateAtomically creates a new session with query counter via Lua script.
+// Uses SET NX — returns (created bool, error). If created=false, caller should read existing session.
+func (c *RedisClient) SessionCreateAtomically(ctx context.Context, compositeKey, sessionID string, activeTTL, queryTTL time.Duration) (bool, error) {
+	sessionKey := fmt.Sprintf("guest:active_session:%s", compositeKey)
+	queryKey := fmt.Sprintf("session:%s:queries", sessionID)
+	scripts := NewQuotaScripts()
+	return scripts.SessionCreate(ctx, *c.Client, sessionKey, queryKey, sessionID, activeTTL, queryTTL)
+}
+
+// SessionResumeAtomically validates session ownership and increments query count via Lua script.
+func (c *RedisClient) SessionResumeAtomically(ctx context.Context, compositeKey, clientSessionID string, queriesLimit int, queryTTL time.Duration) (int64, bool, error) {
+	sessionKey := fmt.Sprintf("guest:active_session:%s", compositeKey)
+	queryKey := fmt.Sprintf("session:%s:queries", clientSessionID)
+	scripts := NewQuotaScripts()
+	result, err := scripts.SessionResume(ctx, *c.Client, sessionKey, queryKey, clientSessionID, queriesLimit)
+	if err != nil {
+		return 0, false, err
+	}
+
+	// Extend query counter TTL on successful resume
+	if result.Allowed {
+		c.Client.Expire(ctx, queryKey, queryTTL)
+	}
+
+	return result.QueriesUsed, result.Allowed, nil
+}

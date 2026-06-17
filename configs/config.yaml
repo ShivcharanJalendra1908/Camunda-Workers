@@ -47,10 +47,22 @@ api:
       - "X-Request-ID"
       - "X-Session-ID"
       - "X-CSRF-Token"
+      - "X-Device-Token"
+      - "X-Device-Salt"
+      - "X-AI-Session-ID"
     exposeHeaders:
       - "X-Request-ID"
       - "X-RateLimit-Limit"
       - "X-RateLimit-Remaining"
+      - "X-Session-ID"
+      - "X-Session-Queries-Used"
+      - "X-Session-Queries-Remaining"
+      - "X-Session-Queries-Limit"
+      - "X-Session-Credits-Used"
+      - "X-Session-Credits-Remaining"
+      - "X-Session-Credits-Limit"
+      - "X-Session-Is-New"
+      - "X-Quota-Status"
     allowCredentials: true
     maxAge: 86400
 
@@ -558,6 +570,45 @@ idempotency:
     user_signup: 1h
     user_signin: 15m
     crm_contact: 168h  # 7 days
+
+# ============================================================================
+# GUEST QUOTA CONFIGURATION
+# ============================================================================
+guest:
+  enabled: true
+  # Per-route-group limits. Each key is a route group name used in Redis keys
+  # and audit logs. The middleware reads limits from the matching group.
+  route_groups:
+    ai:
+      credits_per_window: 3
+      credit_window_days: 30
+      queries_per_session: 6
+      session_ttl_seconds: 86400
+      credit_key_ttl: "8760h"
+      session_queries_ttl: "24h"
+      active_session_ttl: "24h"
+    # Future route groups — add here when product decides limits:
+    # contact:
+    #   credits_per_window: 5
+    #   credit_window_days: 1
+    #   queries_per_session: 1
+    # forms:
+    #   credits_per_window: 10
+    #   credit_window_days: 7
+    #   queries_per_session: 1
+  anomaly:
+    enabled: true
+    s1_tokens_per_ip_threshold: 20
+    s2_ips_per_token_threshold: 3
+    s3_burst_threshold: 3
+    s3_burst_window_seconds: 60
+    block_ttl_seconds: 86400
+  audit:
+    enabled: true
+    retain_days: 30
+    buffer_size: 500
+  encryption:
+    key_env: "GUEST_AUDIT_ENCRYPTION_KEY"
 
 # ============================================================================
 # ERROR HANDLING CONFIGURATION (GAP #4)

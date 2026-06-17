@@ -124,6 +124,13 @@ func main() {
 	}
 	defer postgresDB.Close()
 
+	// Initialize Guest Audit Repo (async PG writer for guest audit logs)
+	var guestAuditRepo *database.GuestAuditRepo
+	if cfg.Guest.Audit.Enabled {
+		guestAuditRepo = database.NewGuestAuditRepo(postgresDB.DB, cfg.Guest.Audit.BufferSize)
+		defer guestAuditRepo.Close()
+	}
+
 	log.Info("Connected to PostgreSQL", map[string]interface{}{
 		"host": cfg.Database.Postgres.Host,
 		"db":   cfg.Database.Postgres.Database,
@@ -281,6 +288,31 @@ func main() {
 	publicAPI := router.Group("/api/v1/")
 	{
 		// ========================================================================
+		// GUEST QUOTA ROUTES (per-route-group middleware)
+		// ========================================================================
+		if cfg.Guest.Enabled {
+			// ── AI routes ────────────────────────────────────────────────────
+			aiGroup := publicAPI.Group("/ai")
+			aiGroup.Use(
+				middleware.GuestSignalMiddleware(cfg),
+				middleware.GuestAnomalyMiddleware(redisClient.GetClient(), cfg, guestAuditRepo),
+				middleware.GuestQuotaMiddleware(redisClient.GetClient(), cfg, "ai"),
+			)
+			{
+				aiGroup.POST("/query", workflowHandler.StartAIQuery)
+				aiGroup.POST("/discovery", workflowHandler.StartDiscovery)
+			}
+		} else {
+			// Guest quota disabled — AI routes have no quota middleware
+			publicAPI.POST("/ai/query", workflowHandler.StartAIQuery)
+			publicAPI.POST("/ai/discovery", workflowHandler.StartDiscovery)
+		}
+
+		// ── Contact & Forms routes (no guest quota — apply when product decides) ──
+		publicAPI.POST("/contact", workflowHandler.StartContactUs)
+		publicAPI.POST("/forms/:formType/submit", workflowHandler.StartFormSubmission)
+
+		// ========================================================================
 		// OAUTH/OIDC ROUTES - Direct OAuth flow (for future migration from Camunda)
 		// ========================================================================
 		oauthGroup := publicAPI.Group("/oauth")
@@ -337,9 +369,7 @@ func main() {
 		// ========================================================================
 		// CONTACT US ROUTE
 		// ========================================================================
-		publicAPI.POST("/contact",
-			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
-			workflowHandler.StartContactUs)
+		publicAPI.POST("/contact", workflowHandler.StartContactUs)
 
 		// ========================================================================
 		// UNIFIED ONBOARDING SUBMISSION (V2)
@@ -351,9 +381,7 @@ func main() {
 		// ========================================================================
 		// PUBLIC GENERIC FORMS (e.g., Buyer/Franchisor Registrations)
 		// ========================================================================
-		publicAPI.POST("/forms/:formType/submit",
-			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
-			workflowHandler.StartFormSubmission)
+		publicAPI.POST("/forms/:formType/submit", workflowHandler.StartFormSubmission)
 	}
 
 	// ============================================================================
@@ -365,15 +393,6 @@ func main() {
 	protectedAPI.Use(middleware.SessionOrJWTAuth(cfg.Auth.JWT, redisClient.GetClient()))
 	// protectedAPI.Use(middleware.CSRFProtection(redisClient.GetClient()))
 	{
-		// ========================================================================
-		// AI CONVERSATION WORKFLOWS
-		// ========================================================================
-		aiGroup := protectedAPI.Group("/ai")
-		{
-			aiGroup.POST("/query", workflowHandler.StartAIQuery)
-			aiGroup.POST("/discovery", workflowHandler.StartDiscovery)
-		}
-
 		// ========================================================================
 		// USER MANAGEMENT
 		// ========================================================================
