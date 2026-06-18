@@ -313,6 +313,9 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if state, ok := variables["state"].(string); ok {
 		input.State = state
 	}
+	if redirectURL, ok := variables["redirectUrl"].(string); ok {
+		input.RedirectURL = redirectURL
+	}
 	if metadata, ok := variables["metadata"].(map[string]interface{}); ok {
 		input.Metadata = metadata
 	}
@@ -486,6 +489,11 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 			if appConfig.Auth.Keycloak.RedirectURL != "" {
 				cfg.RedirectURL = appConfig.Auth.Keycloak.RedirectURL
 			}
+		}
+
+		// Allowed redirect domains
+		if domains := appConfig.Auth.Keycloak.AllowedRedirectDomains; len(domains) > 0 {
+			cfg.AllowedRedirectDomains = domains
 		}
 
 		// Worker config

@@ -25,6 +25,11 @@ auth:
     login_redirect_uri: "https://dev.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
     post_logout_redirect_uri: "https://dev.lemici.com/"
     callback_redirect_uri: "https://dev.lemici.com/" # where backend redirects after successful callback
+    allowed_redirect_domains:
+      - "lemici.com"
+      - "dev.lemici.com"
+      - "www.lemici.com"
+      - "localhost"
 
 integrations:
   # smtp:

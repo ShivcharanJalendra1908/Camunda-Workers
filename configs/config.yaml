@@ -78,6 +78,10 @@ auth:
     post_login_redirect_uri: "https://dev.lemici.com/"
     login_redirect_uri: "https://dev.lemici.com/login"
     post_logout_redirect_uri: "https://dev.lemici.com/"
+    allowed_redirect_domains:
+      - "lemici.com"
+      - "dev.lemici.com"
+      - "www.lemici.com"
   
   # Session Configuration
   session:

@@ -25,6 +25,9 @@ auth:
     login_redirect_uri: "https://lemici.com/login"
     post_logout_redirect_uri: "https://lemici.com/"
     callback_redirect_uri: "https://lemici.com/"
+    allowed_redirect_domains:
+      - "lemici.com"
+      - "www.lemici.com"
 integrations:
   smtp:
     host: "smtp-relay.brevo.com"

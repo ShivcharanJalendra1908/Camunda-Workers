@@ -5,7 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	cerrors "camunda-workers/internal/common/errors"
@@ -58,7 +61,7 @@ func (s *Service) Execute(ctx context.Context, input *Input) (*Output, error) {
 	}
 }
 
-func (s *Service) handleInitiate(ctx context.Context, _ *Input) (*Output, error) {
+func (s *Service) handleInitiate(ctx context.Context, input *Input) (*Output, error) {
 	// 1. Generate state
 	state, err := generateState()
 	if err != nil {
@@ -83,24 +86,62 @@ func (s *Service) handleInitiate(ctx context.Context, _ *Input) (*Output, error)
 		}
 	}
 
-	// 3. Store state + PKCE verifier in Redis
+	// 3. Validate redirectUrl at initiation time (reject early before OAuth flow)
+	if input.RedirectURL != "" && !isAllowedRedirectDomain(input.RedirectURL, s.config.AllowedRedirectDomains) {
+		return nil, &cerrors.StandardError{
+			Code:      "INVALID_REDIRECT_URL",
+			Message:   "The specified redirect URL is not allowed",
+			Details:   fmt.Sprintf("redirectUrl=%s", input.RedirectURL),
+			Retryable: false,
+			Timestamp: time.Now(),
+		}
+	}
+
+	// 4. Store state + PKCE verifier + redirectUrl in Redis
 	stateKey := fmt.Sprintf("oauth:state:%s", state)
-	if err := s.redis.Set(ctx, stateKey, pkce.Verifier, s.config.StateTTL).Err(); err != nil {
+	session := PKCESession{
+		Verifier: pkce.Verifier,
+	}
+	if input.RedirectURL != "" {
+		session.RedirectURL = input.RedirectURL
+	}
+	sessionJSON, err := json.Marshal(session)
+	if err != nil {
 		return nil, &cerrors.StandardError{
 			Code:      "STATE_STORAGE_FAILED",
-			Message:   "Failed to store OAuth state",
+			Message:   "Failed to serialize OAuth session",
 			Details:   err.Error(),
 			Retryable: true,
 			Timestamp: time.Now(),
 		}
 	}
+	if err := s.redis.Set(ctx, stateKey, sessionJSON, s.config.StateTTL).Err(); err != nil {
+		// Fail-open: losing the redirect destination is a UX degradation,
+		// not a correctness failure. Log WARN and proceed with static default.
+		s.logger.Warn("Failed to store OAuth state with redirectUrl, proceeding without it", map[string]interface{}{
+			"state":       state,
+			"redirectUrl": input.RedirectURL,
+			"error":       err.Error(),
+		})
+		// Fall back to plain verifier-only write
+		if fallbackErr := s.redis.Set(ctx, stateKey, pkce.Verifier, s.config.StateTTL).Err(); fallbackErr != nil {
+			return nil, &cerrors.StandardError{
+				Code:      "STATE_STORAGE_FAILED",
+				Message:   "Failed to store OAuth state",
+				Details:   fallbackErr.Error(),
+				Retryable: true,
+				Timestamp: time.Now(),
+			}
+		}
+	}
 
-	// 4. Build authorization URL
+	// 5. Build authorization URL
 	authURL := s.keycloak.AuthCodeURL(state, pkce.Challenge)
 
 	s.logger.Info("OAuth initiate successful", map[string]interface{}{
-		"state":   state,
-		"authUrl": authURL,
+		"state":       state,
+		"authUrl":     authURL,
+		"hasRedirect": input.RedirectURL != "",
 	})
 
 	return &Output{
@@ -132,7 +173,7 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
     redis.call('DEL', KEYS[1])
     return val
 `)
-	verifier, err := atomicGetDel.Run(ctx, s.redis, []string{stateKey}).Text()
+	sessionRaw, err := atomicGetDel.Run(ctx, s.redis, []string{stateKey}).Text()
 	if err != nil {
 		return nil, &cerrors.StandardError{
 			Code:      "INVALID_STATE",
@@ -143,8 +184,15 @@ func (s *Service) handleCallback(ctx context.Context, input *Input) (*Output, er
 		}
 	}
 
-	// 2. Delete state (one-time use)
-	s.redis.Del(ctx, stateKey)
+	// Parse PKCE session: try structured JSON first, fall back to plain verifier
+	var verifier string
+	var pkceSession PKCESession
+	if err := json.Unmarshal([]byte(sessionRaw), &pkceSession); err == nil && pkceSession.Verifier != "" {
+		verifier = pkceSession.Verifier
+	} else {
+		// Backward compatibility: old entries stored the verifier as a plain string
+		verifier = sessionRaw
+	}
 
 	// 3. Exchange authorization code for tokens
 	identity, err := s.keycloak.ExchangeCode(ctx, input.Code, verifier)
@@ -228,4 +276,24 @@ func generatePKCE() (*PKCEData, error) {
 		Verifier:  verifier,
 		Challenge: challenge,
 	}, nil
+}
+
+func isAllowedRedirectDomain(rawURL string, allowed []string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+
+	hostname := parsed.Hostname()
+
+	if parsed.Scheme != "https" && hostname != "localhost" {
+		return false
+	}
+
+	for _, domain := range allowed {
+		if hostname == domain || strings.HasSuffix(hostname, "."+domain) {
+			return true
+		}
+	}
+	return false
 }

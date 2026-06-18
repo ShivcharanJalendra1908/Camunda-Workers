@@ -25,7 +25,8 @@ auth:
     login_redirect_uri: "https://demo.lemici.com/login"    # ⚠️ CHANGE THIS WHEN DOMAIN CHANGES (error redirects)
     post_logout_redirect_uri: "https://demo.lemici.com/"
     callback_redirect_uri: "https://demo.lemici.com/" # where backend redirects after successful callback
-
+    allowed_redirect_domains:
+      - "demo.lemici.com"
 integrations:
   smtp:
     host: "smtp-relay.brevo.com"

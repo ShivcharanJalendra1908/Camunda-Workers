@@ -24,6 +24,9 @@ type Config struct {
 
 	// State/PKCE TTL
 	StateTTL time.Duration `yaml:"stateTtl"`
+
+	// Allowed redirect domains for post-login redirect (empty = disabled)
+	AllowedRedirectDomains []string `yaml:"allowedRedirectDomains"`
 }
 
 func DefaultConfig() *Config {

@@ -214,19 +214,20 @@ type AuthConfig struct {
 	OIDC           OIDCConfig           `mapstructure:"oidc"`
 
 	Keycloak struct {
-		URL                   string `mapstructure:"url"`
-		Realm                 string `mapstructure:"realm"`
-		ClientID              string `mapstructure:"client_id"`
-		ClientSecret          string `mapstructure:"client_secret"`
-		AdminClientID         string `mapstructure:"admin_client_id"`          // ← ADD
-		AdminClientSecret     string `mapstructure:"admin_client_secret"`      // ← ADD
-		Issuer                string `mapstructure:"issuer"`                   // ✅ ADD
-		RedirectURL           string `mapstructure:"redirectUrl"`              // ✅ ADD
-		PublicBaseURL         string `mapstructure:"publicBaseUrl"`            // ✅ ADD
-		PostLogoutRedirectURI string `mapstructure:"post_logout_redirect_uri"` // After logout
-		PostLoginRedirectURI  string `mapstructure:"post_login_redirect_uri"`  // After successful login
-		LoginRedirectURI      string `mapstructure:"login_redirect_uri"`       // Error redirects to login page
-		CallbackRedirectURI  string `mapstructure:"callback_redirect_uri"`      // Redirect after OAuth callback
+		URL                   string   `mapstructure:"url"`
+		Realm                 string   `mapstructure:"realm"`
+		ClientID              string   `mapstructure:"client_id"`
+		ClientSecret          string   `mapstructure:"client_secret"`
+		AdminClientID         string   `mapstructure:"admin_client_id"`
+		AdminClientSecret     string   `mapstructure:"admin_client_secret"`
+		Issuer                string   `mapstructure:"issuer"`
+		RedirectURL           string   `mapstructure:"redirectUrl"`
+		PublicBaseURL         string   `mapstructure:"publicBaseUrl"`
+		PostLogoutRedirectURI string   `mapstructure:"post_logout_redirect_uri"`
+		PostLoginRedirectURI  string   `mapstructure:"post_login_redirect_uri"`
+		LoginRedirectURI      string   `mapstructure:"login_redirect_uri"`
+		CallbackRedirectURI   string   `mapstructure:"callback_redirect_uri"`
+		AllowedRedirectDomains []string `mapstructure:"allowed_redirect_domains"`
 	} `mapstructure:"keycloak"`
 
 	OAuthProviders struct {

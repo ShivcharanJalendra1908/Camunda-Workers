@@ -6,11 +6,12 @@ import (
 )
 
 type Input struct {
-	Action   string                 `json:"action"`   // "initiate" or "callback"
-	Code     string                 `json:"code"`     // Authorization code (for callback)
-	State    string                 `json:"state"`    // State parameter (for callback)
-	Provider string                 `json:"provider"` // Always "keycloak"
-	Metadata map[string]interface{} `json:"metadata"`
+	Action      string                 `json:"action"`      // "initiate" or "callback"
+	Code        string                 `json:"code"`        // Authorization code (for callback)
+	State       string                 `json:"state"`       // State parameter (for callback)
+	Provider    string                 `json:"provider"`    // Always "keycloak"
+	RedirectURL string                 `json:"redirectUrl"` // Post-login redirect target
+	Metadata    map[string]interface{} `json:"metadata"`
 }
 
 func (i *Input) Sanitize() {
@@ -42,6 +43,11 @@ type Output struct {
 	KeycloakUserID  string    `json:"keycloakUserId,omitempty"`
 	IDToken         string    `json:"idToken,omitempty"`
 	AuthenticatedAt time.Time `json:"authenticatedAt,omitempty"`
+}
+
+type PKCESession struct {
+	Verifier    string `json:"v"`
+	RedirectURL string `json:"r,omitempty"`
 }
 
 type PKCEData struct {

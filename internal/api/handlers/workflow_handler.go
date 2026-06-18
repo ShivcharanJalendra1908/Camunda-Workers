@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -1574,6 +1575,16 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	if isCallback {
 		redirectURL := h.config.Auth.Keycloak.PostLoginRedirectURI
+
+		// Prefer runtime redirectUrl from gin.Context (set by HandleKeycloakCallback)
+		if runtimeURL, exists := c.Get("redirectUrl"); exists {
+			if rURL, ok := runtimeURL.(string); ok && rURL != "" {
+				if isAllowedRedirectDomain(rURL, h.config.Auth.Keycloak.AllowedRedirectDomains) {
+					redirectURL = rURL
+				}
+			}
+		}
+
 		if redirectURL == "" {
 			redirectURL = "https://lemici.com/"
 		}
@@ -1587,6 +1598,28 @@ func (h *WorkflowHandler) completeLoginFlow(
 
 	c.JSON(http.StatusOK, result)
 
+}
+
+func isAllowedRedirectDomain(rawURL string, allowed []string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return false
+	}
+
+	hostname := parsed.Hostname()
+
+	// Only https in real environments; localhost permitted for dev
+	if parsed.Scheme != "https" && hostname != "localhost" {
+		return false
+	}
+
+	for _, domain := range allowed {
+		// "."+domain prevents evil-lemici.com from matching lemici.com
+		if hostname == domain || strings.HasSuffix(hostname, "."+domain) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
@@ -1615,11 +1648,28 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 		return
 	}
 
+	// Read redirectUrl from the Redis session set during initiate
+	// This is a non-destructive read — the Zeebe worker atomically GETDELs it for PKCE
+	stateKey := fmt.Sprintf("oauth:state:%s", state)
+	sessionRaw, err := h.redisClient.Get(c.Request.Context(), stateKey).Result()
+	if err == nil {
+		var session struct {
+			RedirectURL string `json:"r"`
+		}
+		if json.Unmarshal([]byte(sessionRaw), &session) == nil && session.RedirectURL != "" {
+			c.Set("redirectUrl", session.RedirectURL)
+		}
+	}
+
 	// Reuse existing flow by simulating JSON input
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	body := fmt.Sprintf(`{"code":"%s","state":"%s","provider":"keycloak"}`, code, state)
-	c.Request.Body = io.NopCloser(strings.NewReader(body))
+	bodyBytes, _ := json.Marshal(map[string]string{
+		"code":     code,
+		"state":    state,
+		"provider": "keycloak",
+	})
+	c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
 
 	h.StartKeycloakLogin(c)
 }
