@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_SupplierOnboarding" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:process id="supplier-onboarding" name="V2 Unified Supplier Onboarding" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_Onboarding" name="Start Onboarding">
+      <bpmn:outgoing>Flow_Start_To_Validate</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_ValidateData" name="Validate Entity Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-entity-data" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=formData" target="formData" />
+          <zeebe:input source="=entityType" target="entityType" />
+          <zeebe:output source="=isValid" target="isValid" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Validate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Validate_To_Gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_IsValid" name="Is Valid?">
+      <bpmn:incoming>Flow_Validate_To_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Valid_To_CreatePending</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Invalid_To_End</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_CreatePendingEntity" name="Create Pending Entity (Postgres)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="operation" value="CREATE_PENDING_ENTITY" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:output source="=franchiseId" target="franchiseId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Valid_To_CreatePending</bpmn:incoming>
+      <bpmn:outgoing>Flow_CreatePending_To_BuildSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_BuildSuccess" name="Build Success Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=201" target="statusCode" />
+          <zeebe:input source="={franchiseId: franchiseId, message: &#34;Entity submitted and is pending review.&#34;, success: true}" target="data" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CreatePending_To_BuildSuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_BuildSuccess_To_SendSuccess</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendSuccess" name="Send Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=response" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_BuildSuccess_To_SendSuccess</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendSuccess_To_Alert</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_AlertLemici" name="Alert Lemici Team">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;admin@lemici.com&#34;" target="to" />
+          <zeebe:input source="=&#34;New &#34; + entityType + &#34; Registration Pending Review&#34;" target="subject" />
+          <zeebe:input source="=&#34;&#60;p&#62;A new &#34; + entityType + &#34; registration is pending review.&#60;/p&#62;&#34;" target="body" />
+          <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=requestId" target="requestId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendSuccess_To_Alert</bpmn:incoming>
+      <bpmn:outgoing>Flow_Alert_To_UserTask</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="UserTask_AdminReview" name="Admin Review">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="admin" candidateGroups="SYSTEM_ADMIN" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Alert_To_UserTask</bpmn:incoming>
+      <bpmn:outgoing>Flow_UserTask_To_DecisionGateway</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="Timer_SLA_Warning" name="72h SLA Warning" cancelActivity="false" attachedToRef="UserTask_AdminReview">
+      <bpmn:outgoing>Flow_SLA_To_Email</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_SLA">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT72H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Task_SendSLAEmail" name="Send SLA Warning Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="template" value="sla_warning" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="=operationsEmail" target="to" />
+          <zeebe:input source="=&#34;SLA Warning: Pending Review for &#34; + entityType" target="subject" />
+          <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=&#34;&#60;p&#62;A pending onboarding request has breached the 72-hour SLA limit and is awaiting admin review. Please check the dashboard.&#60;/p&#62;&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SLA_To_Email</bpmn:incoming>
+      <bpmn:outgoing>Flow_SLAEmail_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_SLA" name="SLA Warning Sent">
+      <bpmn:incoming>Flow_SLAEmail_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_AdminDecision" name="Approved?">
+      <bpmn:incoming>Flow_UserTask_To_DecisionGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved_To_UpdateStatus</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Rejected_To_UpdateStatus</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Task_UpdateStatusLive" name="Update Status: Live">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="operation" value="UPDATE_STATUS" />
+          <zeebe:header key="status" value="live" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approved_To_UpdateStatus</bpmn:incoming>
+      <bpmn:outgoing>Flow_UpdateLive_To_SyncES</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SyncES" name="Sync to Elasticsearch">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="sync-to-elasticsearch-v2" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UpdateLive_To_SyncES</bpmn:incoming>
+      <bpmn:outgoing>Flow_SyncES_To_Email</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send Approval Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="template" value="onboarding_approved" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="=formData.email" target="to" />
+          <zeebe:input source="=&#34;Congratulations! Your Onboarding is Approved&#34;" target="subject" />
+          <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=&#34;&#60;p&#62;Hello,&#60;/p&#62;&#60;p&#62;Your onboarding request has been approved. You are now live on Lemici!&#60;/p&#62;&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SyncES_To_Email</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovalEmail_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Approved" name="Approved">
+      <bpmn:incoming>Flow_ApprovalEmail_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_UpdateStatusRejected" name="Update Status: Rejected">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="franchise-postgres" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="operation" value="UPDATE_STATUS" />
+          <zeebe:header key="status" value="rejected" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="=franchiseId" target="franchiseId" />
+          <zeebe:input source="=rejectionReason" target="rejectionReason" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Rejected_To_UpdateStatus</bpmn:incoming>
+      <bpmn:outgoing>Flow_UpdateRejected_To_Email</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_SendRejectionEmail" name="Send Rejection Email">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="template" value="onboarding_rejected" />
+        </zeebe:taskHeaders>
+        <zeebe:ioMapping>
+          <zeebe:input source="=formData.email" target="to" />
+          <zeebe:input source="=&#34;Update on your Onboarding Request&#34;" target="subject" />
+          <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=&#34;&#60;p&#62;Hello,&#60;/p&#62;&#60;p&#62;Unfortunately, your onboarding request could not be approved at this time.&#60;/p&#62;&#60;p&#62;Reason: &#34; + rejectionReason + &#34;&#60;/p&#62;&#34;" target="body" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_UpdateRejected_To_Email</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectionEmail_To_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Rejected" name="Rejected">
+      <bpmn:incoming>Flow_RejectionEmail_To_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Task_Build422" name="Build 422 Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="requestId" />
+          <zeebe:input source="=422" target="statusCode" />
+          <zeebe:input source="=&#34;Validation failed. Please check your details.&#34;" target="message" />
+          <zeebe:input source="=validationErrors" target="errors" />
+          <zeebe:input source="={success: false}" target="data" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Invalid_To_End</bpmn:incoming>
+      <bpmn:outgoing>Flow_Build422_To_Send422</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Send422" name="Send Error Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=response" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Build422_To_Send422</bpmn:incoming>
+      <bpmn:outgoing>Flow_Send422_To_EndEventInvalid</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Invalid" name="Invalid Submission">
+      <bpmn:incoming>Flow_Send422_To_EndEventInvalid</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Validate" sourceRef="StartEvent_Onboarding" targetRef="Task_ValidateData" />
+    <bpmn:sequenceFlow id="Flow_Validate_To_Gateway" sourceRef="Task_ValidateData" targetRef="Gateway_IsValid" />
+    <bpmn:sequenceFlow id="Flow_Valid_To_CreatePending" name="Yes" sourceRef="Gateway_IsValid" targetRef="Task_CreatePendingEntity">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isValid = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Invalid_To_End" name="No" sourceRef="Gateway_IsValid" targetRef="Task_Build422">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=isValid = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_CreatePending_To_BuildSuccess" sourceRef="Task_CreatePendingEntity" targetRef="Task_BuildSuccess" />
+    <bpmn:sequenceFlow id="Flow_BuildSuccess_To_SendSuccess" sourceRef="Task_BuildSuccess" targetRef="Task_SendSuccess" />
+    <bpmn:sequenceFlow id="Flow_SendSuccess_To_Alert" sourceRef="Task_SendSuccess" targetRef="Task_AlertLemici" />
+    <bpmn:sequenceFlow id="Flow_Alert_To_UserTask" sourceRef="Task_AlertLemici" targetRef="UserTask_AdminReview" />
+    <bpmn:sequenceFlow id="Flow_Build422_To_Send422" sourceRef="Task_Build422" targetRef="Task_Send422" />
+    <bpmn:sequenceFlow id="Flow_Send422_To_EndEventInvalid" sourceRef="Task_Send422" targetRef="EndEvent_Invalid" />
+    <bpmn:sequenceFlow id="Flow_UserTask_To_DecisionGateway" sourceRef="UserTask_AdminReview" targetRef="Gateway_AdminDecision" />
+    <bpmn:sequenceFlow id="Flow_SLA_To_Email" sourceRef="Timer_SLA_Warning" targetRef="Task_SendSLAEmail" />
+    <bpmn:sequenceFlow id="Flow_SLAEmail_To_End" sourceRef="Task_SendSLAEmail" targetRef="EndEvent_SLA" />
+    <bpmn:sequenceFlow id="Flow_Approved_To_UpdateStatus" name="Approved" sourceRef="Gateway_AdminDecision" targetRef="Task_UpdateStatusLive">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=decision = "approved"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Rejected_To_UpdateStatus" name="Rejected" sourceRef="Gateway_AdminDecision" targetRef="Task_UpdateStatusRejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=decision = "rejected"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_UpdateLive_To_SyncES" sourceRef="Task_UpdateStatusLive" targetRef="Task_SyncES" />
+    <bpmn:sequenceFlow id="Flow_SyncES_To_Email" sourceRef="Task_SyncES" targetRef="Task_SendApprovalEmail" />
+    <bpmn:sequenceFlow id="Flow_ApprovalEmail_To_End" sourceRef="Task_SendApprovalEmail" targetRef="EndEvent_Approved" />
+    <bpmn:sequenceFlow id="Flow_UpdateRejected_To_Email" sourceRef="Task_UpdateStatusRejected" targetRef="Task_SendRejectionEmail" />
+    <bpmn:sequenceFlow id="Flow_RejectionEmail_To_End" sourceRef="Task_SendRejectionEmail" targetRef="EndEvent_Rejected" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="supplier-onboarding">
+      <bpmndi:BPMNShape id="StartEvent_Onboarding_di" bpmnElement="StartEvent_Onboarding">
+        <dc:Bounds x="180" y="200" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="157" y="236" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ValidateData_di" bpmnElement="Task_ValidateData">
+        <dc:Bounds x="280" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_IsValid_di" bpmnElement="Gateway_IsValid" isMarkerVisible="true">
+        <dc:Bounds x="430" y="193" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="435" y="243" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_CreatePendingEntity_di" bpmnElement="Task_CreatePendingEntity">
+        <dc:Bounds x="530" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_BuildSuccess_di" bpmnElement="Task_BuildSuccess">
+        <dc:Bounds x="680" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendSuccess_di" bpmnElement="Task_SendSuccess">
+        <dc:Bounds x="830" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AlertLemici_di" bpmnElement="Task_AlertLemici">
+        <dc:Bounds x="980" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="UserTask_AdminReview_di" bpmnElement="UserTask_AdminReview">
+        <dc:Bounds x="1130" y="178" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AdminDecision_di" bpmnElement="Gateway_AdminDecision" isMarkerVisible="true">
+        <dc:Bounds x="1280" y="193" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1333" y="211" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdateStatusLive_di" bpmnElement="Task_UpdateStatusLive">
+        <dc:Bounds x="1380" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SyncES_di" bpmnElement="Task_SyncES">
+        <dc:Bounds x="1530" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
+        <dc:Bounds x="1680" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
+        <dc:Bounds x="1830" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1824" y="158" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdateStatusRejected_di" bpmnElement="Task_UpdateStatusRejected">
+        <dc:Bounds x="1380" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendRejectionEmail_di" bpmnElement="Task_SendRejectionEmail">
+        <dc:Bounds x="1530" y="250" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
+        <dc:Bounds x="1680" y="272" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1677" y="308" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Build422_di" bpmnElement="Task_Build422">
+        <dc:Bounds x="405" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Send422_di" bpmnElement="Task_Send422">
+        <dc:Bounds x="530" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Invalid_di" bpmnElement="EndEvent_Invalid">
+        <dc:Bounds x="680" y="322" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="654" y="358" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendSLAEmail_di" bpmnElement="Task_SendSLAEmail">
+        <dc:Bounds x="1130" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_SLA_di" bpmnElement="EndEvent_SLA">
+        <dc:Bounds x="1287" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1261" y="383" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_SLA_Warning_di" bpmnElement="Timer_SLA_Warning">
+        <dc:Bounds x="1162" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1138" y="276" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Start_To_Validate_di" bpmnElement="Flow_Start_To_Validate">
+        <di:waypoint x="216" y="218" />
+        <di:waypoint x="280" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Validate_To_Gateway_di" bpmnElement="Flow_Validate_To_Gateway">
+        <di:waypoint x="380" y="218" />
+        <di:waypoint x="430" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Valid_To_CreatePending_di" bpmnElement="Flow_Valid_To_CreatePending">
+        <di:waypoint x="480" y="218" />
+        <di:waypoint x="530" y="218" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="496" y="193" width="19" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Invalid_To_End_di" bpmnElement="Flow_Invalid_To_End">
+        <di:waypoint x="455" y="243" />
+        <di:waypoint x="455" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="464" y="262" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CreatePending_To_BuildSuccess_di" bpmnElement="Flow_CreatePending_To_BuildSuccess">
+        <di:waypoint x="630" y="218" />
+        <di:waypoint x="680" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_BuildSuccess_To_SendSuccess_di" bpmnElement="Flow_BuildSuccess_To_SendSuccess">
+        <di:waypoint x="780" y="218" />
+        <di:waypoint x="830" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendSuccess_To_Alert_di" bpmnElement="Flow_SendSuccess_To_Alert">
+        <di:waypoint x="930" y="218" />
+        <di:waypoint x="980" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Alert_To_UserTask_di" bpmnElement="Flow_Alert_To_UserTask">
+        <di:waypoint x="1080" y="218" />
+        <di:waypoint x="1130" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Build422_To_Send422_di" bpmnElement="Flow_Build422_To_Send422">
+        <di:waypoint x="505" y="340" />
+        <di:waypoint x="530" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Send422_To_EndEventInvalid_di" bpmnElement="Flow_Send422_To_EndEventInvalid">
+        <di:waypoint x="630" y="340" />
+        <di:waypoint x="680" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_UserTask_To_DecisionGateway_di" bpmnElement="Flow_UserTask_To_DecisionGateway">
+        <di:waypoint x="1230" y="218" />
+        <di:waypoint x="1280" y="218" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SLA_To_Email_di" bpmnElement="Flow_SLA_To_Email">
+        <di:waypoint x="1180" y="276" />
+        <di:waypoint x="1180" y="320" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SLAEmail_To_End_di" bpmnElement="Flow_SLAEmail_To_End">
+        <di:waypoint x="1230" y="360" />
+        <di:waypoint x="1287" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approved_To_UpdateStatus_di" bpmnElement="Flow_Approved_To_UpdateStatus">
+        <di:waypoint x="1305" y="193" />
+        <di:waypoint x="1305" y="140" />
+        <di:waypoint x="1380" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1316" y="143" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Rejected_To_UpdateStatus_di" bpmnElement="Flow_Rejected_To_UpdateStatus">
+        <di:waypoint x="1305" y="243" />
+        <di:waypoint x="1305" y="290" />
+        <di:waypoint x="1380" y="290" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1319" y="276" width="42" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_UpdateLive_To_SyncES_di" bpmnElement="Flow_UpdateLive_To_SyncES">
+        <di:waypoint x="1480" y="140" />
+        <di:waypoint x="1530" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SyncES_To_Email_di" bpmnElement="Flow_SyncES_To_Email">
+        <di:waypoint x="1630" y="140" />
+        <di:waypoint x="1680" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ApprovalEmail_To_End_di" bpmnElement="Flow_ApprovalEmail_To_End">
+        <di:waypoint x="1780" y="140" />
+        <di:waypoint x="1830" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_UpdateRejected_To_Email_di" bpmnElement="Flow_UpdateRejected_To_Email">
+        <di:waypoint x="1480" y="290" />
+        <di:waypoint x="1530" y="290" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RejectionEmail_To_End_di" bpmnElement="Flow_RejectionEmail_To_End">
+        <di:waypoint x="1630" y="290" />
+        <di:waypoint x="1680" y="290" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

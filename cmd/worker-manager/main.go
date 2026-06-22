@@ -37,16 +37,19 @@ import (
 	td "camunda-workers/internal/workers/infrastructure/template-driven"
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
-	// Data Access Workers (3)
+	// Data Access Workers
 	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
+	s2es "camunda-workers/internal/workers/data-access/sync-to-elasticsearch-v2"
 
-	// Business Logic Workers (4 from franchise + 6 from application = 10)
+	// Business Logic Workers
+	vedv2 "camunda-workers/internal/workers/franchise/validate-entity-data"
 	arr "camunda-workers/internal/workers/franchise/apply-relevance-ranking"
 	cms "camunda-workers/internal/workers/franchise/calculate-match-score"
 	psf "camunda-workers/internal/workers/franchise/parse-search-filters"
 	sf "camunda-workers/internal/workers/franchise/search-franchises"
+	vw "camunda-workers/internal/workers/franchise/verify-website"
 
 	cpr "camunda-workers/internal/workers/application/check-priority-routing"
 	crs "camunda-workers/internal/workers/application/check-readiness-score"
@@ -457,6 +460,18 @@ func main() {
 		)
 	}
 
+	// Sync to Elasticsearch V2 Worker
+	{
+		handler := s2es.NewHandler(&s2es.Config{
+			Timeout: 10 * time.Second,
+		}, pg.DB, esClient.Client, log)
+		startWorker(zeebeClient, s2es.TaskType, config.WorkerConfig{
+			Enabled:       true,
+			MaxJobsActive: 10,
+			Timeout:       10000,
+		}, handler.Handle, zapLog)
+	}
+
 	// --- 3. Business Logic Workers (9) ---
 
 	// First check for search-franchises worker
@@ -507,6 +522,30 @@ func main() {
 			Timeout: time.Duration(cfg.Workers[ved.TaskType].Timeout) * time.Millisecond,
 		}, log)
 		startWorker(zeebeClient, ved.TaskType, cfg.Workers[ved.TaskType], handler.Handle, zapLog)
+	}
+
+	// Validate Entity Data V2 Worker
+	{
+		handler := vedv2.NewHandler(&vedv2.Config{
+			Timeout: 10,
+		}, log)
+		startWorker(zeebeClient, vedv2.TaskType, config.WorkerConfig{
+			Enabled:       true,
+			MaxJobsActive: 10,
+			Timeout:       10000,
+		}, handler.Handle, zapLog)
+	}
+
+	// Verify Website Worker
+	{
+		handler := vw.NewHandler(&vw.Config{
+			Timeout: 10,
+		}, log)
+		startWorker(zeebeClient, vw.TaskType, config.WorkerConfig{
+			Enabled:       true,
+			MaxJobsActive: 10,
+			Timeout:       10000,
+		}, handler.Handle, zapLog)
 	}
 
 	if cfg.Workers[vad.TaskType].Enabled {

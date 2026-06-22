@@ -37,6 +37,8 @@
           <zeebe:input source="=userProfile" target="userProfile" />
           <zeebe:input source="=enquiryFormData" target="enquiryFormData" />
           <zeebe:input source="=franchiseInfo" target="franchiseInfo" />
+          <zeebe:input source="=entityType" target="entityType" />
+          <zeebe:input source="=associationId" target="associationId" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-franchise-to-validate</incoming>

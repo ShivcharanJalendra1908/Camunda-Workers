@@ -252,14 +252,6 @@ func TestHandler_Execute_Success(t *testing.T) {
 			name:  "low qualification level",
 			input: createTestInput(testUserUUID004, createLowScoreApplicationData()),
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
-					WithArgs("franchise-123", "").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
-					WithArgs("franchise-123", "").
-					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
 				mock.ExpectQuery("SELECT qualification_required FROM franchise_operations").
 					WithArgs("franchise-123").
 					WillReturnRows(sqlmock.NewRows([]string{"qualification_required"}).AddRow("investor-only"))
@@ -763,20 +755,8 @@ func TestHandler_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("very large numbers", func(t *testing.T) {
-		db, mock := setupMockDB(t)
+		db, _ := setupMockDB(t)
 		defer db.Close()
-
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
-			WithArgs("franchise-123", sqlmock.AnyArg()).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
-			WithArgs("franchise-123", sqlmock.AnyArg()).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-		mock.ExpectQuery("SELECT qualification_required FROM franchise_operations").
-			WithArgs("franchise-123").
-			WillReturnRows(sqlmock.NewRows([]string{"qualification_required"}).AddRow(nil))
 
 		config := createTestConfig()
 		handler := NewHandler(config, db, newTestLogger(t))
@@ -791,25 +771,13 @@ func TestHandler_EdgeCases(t *testing.T) {
 
 		output, err := handler.Execute(context.Background(), input)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, output)
+		assert.Error(t, err)
+		assert.Nil(t, output)
 	})
 
 	t.Run("negative numbers", func(t *testing.T) {
-		db, mock := setupMockDB(t)
+		db, _ := setupMockDB(t)
 		defer db.Close()
-
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
-			WithArgs("franchise-123", sqlmock.AnyArg()).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
-			WithArgs("franchise-123", sqlmock.AnyArg()).
-			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-
-		mock.ExpectQuery("SELECT qualification_required FROM franchise_operations").
-			WithArgs("franchise-123").
-			WillReturnRows(sqlmock.NewRows([]string{"qualification_required"}).AddRow(nil))
 
 		config := createTestConfig()
 		handler := NewHandler(config, db, newTestLogger(t))
@@ -824,9 +792,8 @@ func TestHandler_EdgeCases(t *testing.T) {
 
 		output, err := handler.Execute(context.Background(), input)
 
-		assert.NoError(t, err)
-		assert.NotNil(t, output)
-		assert.Equal(t, "low", output.QualificationLevel)
+		assert.Error(t, err)
+		assert.Nil(t, output)
 	})
 
 	t.Run("empty user ID fails validation", func(t *testing.T) {

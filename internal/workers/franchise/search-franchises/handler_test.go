@@ -2,6 +2,7 @@ package searchfranchises
 
 import (
 	"camunda-workers/internal/common/database"
+	errors "camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
+	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -141,7 +144,13 @@ func TestHandler_ValidateInput(t *testing.T) {
 			if tt.expected == nil {
 				assert.NoError(t, err)
 			} else {
-				assert.Contains(t, err.Error(), tt.expected.Error())
+				if stdErr, ok := err.(*errors.StandardError); ok {
+					field, _ := stdErr.Metadata["field"].(string)
+					combinedErr := fmt.Sprintf("%s %s", field, stdErr.Details)
+					assert.Contains(t, combinedErr, tt.expected.Error())
+				} else {
+					assert.Contains(t, err.Error(), tt.expected.Error())
+				}
 			}
 		})
 	}
@@ -195,6 +204,84 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 		assert.Equal(t, 15, req.From) // (2-1) * 15 = 15
 		assert.Equal(t, 15, req.Size)
 		assert.NotNil(t, req.Aggregations)
+	})
+
+	t.Run("Master Franchise query with filters", func(t *testing.T) {
+		input := &Input{
+			Page:            1,
+			Limit:           10,
+			EntityType:      "master_franchise",
+			ExclusivityType: "State-wide exclusivity",
+			TerritoryScope:  "State-wide exclusivity",
+			MinUnits:        5,
+			LocalBrandsOnly: true,
+		}
+
+		req, err := handler.buildSearchRequest(input)
+		assert.NoError(t, err)
+		assert.NotNil(t, req)
+		assert.Equal(t, 0, req.From)
+		assert.Equal(t, 10, req.Size)
+
+		queryMap := req.Query
+		assert.NotNil(t, queryMap)
+
+		boolQuery, ok := queryMap["bool"].(map[string]interface{})
+		assert.True(t, ok)
+
+		mustArray, ok := boolQuery["must"].([]interface{})
+		if !ok {
+			// Try as []map[string]interface{}
+			mustArrayMap, ok2 := boolQuery["must"].([]map[string]interface{})
+			assert.True(t, ok2)
+			mustArray = make([]interface{}, len(mustArrayMap))
+			for i, v := range mustArrayMap {
+				mustArray[i] = v
+			}
+		}
+
+		foundEntityType := false
+		foundExclusivityType := false
+		foundTerritoryScope := false
+		foundMinUnits := false
+		foundLocalBrandsOnly := false
+
+		for _, clauseItem := range mustArray {
+			clause, ok := clauseItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if term, ok := clause["term"].(map[string]interface{}); ok {
+				if val, ok := term["entity_type"]; ok {
+					assert.Equal(t, "master_franchise", val)
+					foundEntityType = true
+				}
+				if val, ok := term["exclusivity_type"]; ok {
+					assert.Equal(t, "State-wide exclusivity", val)
+					foundExclusivityType = true
+				}
+				if val, ok := term["territory_scope"]; ok {
+					assert.Equal(t, "State-wide exclusivity", val)
+					foundTerritoryScope = true
+				}
+				if val, ok := term["country.keyword"]; ok {
+					assert.Equal(t, "India", val)
+					foundLocalBrandsOnly = true
+				}
+			}
+			if rangeQuery, ok := clause["range"].(map[string]interface{}); ok {
+				if totalOutlets, ok := rangeQuery["total_outlets"].(map[string]interface{}); ok {
+					assert.Equal(t, 5, totalOutlets["gte"])
+					foundMinUnits = true
+				}
+			}
+		}
+
+		assert.True(t, foundEntityType, "should filter by entity_type")
+		assert.True(t, foundExclusivityType, "should filter by exclusivity_type")
+		assert.True(t, foundTerritoryScope, "should filter by territory_scope")
+		assert.True(t, foundMinUnits, "should filter by total_outlets (minUnits)")
+		assert.True(t, foundLocalBrandsOnly, "should filter by country.keyword (localBrandsOnly)")
 	})
 
 	t.Run("Education franchise search", func(t *testing.T) {
@@ -635,4 +722,118 @@ func TestHandler_Performance(t *testing.T) {
 
 	assert.Less(t, elapsed.Milliseconds(), int64(1000),
 		"1000 operations should complete within 1 second")
+}
+
+func TestHandler_ParseInput_CamelCase(t *testing.T) {
+	handler := &Handler{config: createTestConfig()}
+
+	job := entities.Job{
+		ActivatedJob: &pb.ActivatedJob{
+			Variables: `{
+				"minInvestment": 100000,
+				"maxInvestment": 500000,
+				"minSpace": 200,
+				"maxSpace": 800,
+				"minRating": 4.5
+			}`,
+		},
+	}
+
+	input, err := handler.parseInput(job)
+	assert.NoError(t, err)
+	assert.Equal(t, 100000.0, input.MinInvestment)
+	assert.Equal(t, 500000.0, input.MaxInvestment)
+	assert.Equal(t, 200.0, input.MinSpace)
+	assert.Equal(t, 800.0, input.MaxSpace)
+	assert.Equal(t, 4.5, input.MinRating)
+}
+
+func TestHandler_LocationCountryFilter(t *testing.T) {
+	handler := &Handler{config: createTestConfig()}
+
+	input := &Input{
+		Page:     1,
+		Limit:    10,
+		Location: "India",
+	}
+
+	req, err := handler.buildSearchRequest(input)
+	assert.NoError(t, err)
+	assert.NotNil(t, req)
+
+	boolQuery, ok := req.Query["bool"].(map[string]interface{})
+	assert.True(t, ok)
+
+	mustArray, ok := boolQuery["must"].([]interface{})
+	if !ok {
+		mustArrayMap, ok2 := boolQuery["must"].([]map[string]interface{})
+		assert.True(t, ok2)
+		mustArray = make([]interface{}, len(mustArrayMap))
+		for i, v := range mustArrayMap {
+			mustArray[i] = v
+		}
+	}
+
+	foundLocationQuery := false
+	for _, clauseItem := range mustArray {
+		clause, ok := clauseItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if bq, ok := clause["bool"].(map[string]interface{}); ok {
+			var shoulds []map[string]interface{}
+			if sh, ok := bq["should"].([]map[string]interface{}); ok {
+				shoulds = sh
+			} else if sh, ok := bq["should"].([]interface{}); ok {
+				for _, sVal := range sh {
+					if sm, ok := sVal.(map[string]interface{}); ok {
+						shoulds = append(shoulds, sm)
+					}
+				}
+			}
+
+			if len(shoulds) > 0 {
+				hasLocationTerm := false
+				hasCountryMatch := false
+				for _, sh := range shoulds {
+					if term, ok := sh["term"].(map[string]interface{}); ok {
+						if _, ok := term["location"]; ok {
+							hasLocationTerm = true
+						}
+					}
+					if match, ok := sh["match"].(map[string]interface{}); ok {
+						if _, ok := match["country"]; ok {
+							hasCountryMatch = true
+						}
+					}
+				}
+				if hasLocationTerm && hasCountryMatch {
+					foundLocationQuery = true
+				}
+			}
+		}
+	}
+	assert.True(t, foundLocationQuery, "should construct location query using both location and country fields")
+}
+
+func TestHandler_ParseInput_SizeFee(t *testing.T) {
+	handler := &Handler{config: createTestConfig()}
+
+	job := entities.Job{
+		ActivatedJob: &pb.ActivatedJob{
+			Variables: `{
+				"minMembers": 10,
+				"maxMembers": 50,
+				"minFee": 1000,
+				"maxFee": 5000
+			}`,
+		},
+	}
+
+	input, err := handler.parseInput(job)
+	assert.NoError(t, err)
+	assert.Equal(t, 10.0, input.MinSize)
+	assert.Equal(t, 50.0, input.MaxSize)
+	assert.Equal(t, 1000.0, input.MinFee)
+	assert.Equal(t, 5000.0, input.MaxFee)
 }

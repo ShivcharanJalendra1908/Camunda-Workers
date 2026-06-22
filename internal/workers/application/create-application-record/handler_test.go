@@ -26,18 +26,18 @@ func createTestConfig() *Config {
 // "seeker-001", "franchise-001" etc. are NOT valid UUID v4 format → all tests fail.
 // All IDs must be valid UUID v4.
 const (
-	testSeekerUUID001  = "e5f6a7b8-c9d0-4123-cdef-000000000001"
-	testSeekerUUID002  = "e5f6a7b8-c9d0-4123-cdef-000000000002"
-	testSeekerUUID003  = "e5f6a7b8-c9d0-4123-cdef-000000000003"
-	testSeekerUUID004  = "e5f6a7b8-c9d0-4123-cdef-000000000004"
-	testSeekerUUID005  = "e5f6a7b8-c9d0-4123-cdef-000000000005"
-	testFranchiseUUID1 = "f6a7b8c9-d0e1-4234-def0-000000000001"
-	testFranchiseUUID2 = "f6a7b8c9-d0e1-4234-def0-000000000002"
-	testFranchiseUUID3 = "f6a7b8c9-d0e1-4234-def0-000000000003"
-	testFranchiseUUID4 = "f6a7b8c9-d0e1-4234-def0-000000000004"
-	testFranchiseUUID5 = "f6a7b8c9-d0e1-4234-def0-000000000005"
-	testSeekerUUIDFull = "e5f6a7b8-c9d0-4123-cdef-00000000000f"
-	testFranchUUIDFull = "f6a7b8c9-d0e1-4234-def0-00000000000f"
+	testSeekerUUID001  = "e5f6a7b8-c9d0-4123-adef-000000000001"
+	testSeekerUUID002  = "e5f6a7b8-c9d0-4123-adef-000000000002"
+	testSeekerUUID003  = "e5f6a7b8-c9d0-4123-adef-000000000003"
+	testSeekerUUID004  = "e5f6a7b8-c9d0-4123-adef-000000000004"
+	testSeekerUUID005  = "e5f6a7b8-c9d0-4123-adef-000000000005"
+	testFranchiseUUID1 = "f6a7b8c9-d0e1-4234-8ef0-000000000001"
+	testFranchiseUUID2 = "f6a7b8c9-d0e1-4234-8ef0-000000000002"
+	testFranchiseUUID3 = "f6a7b8c9-d0e1-4234-8ef0-000000000003"
+	testFranchiseUUID4 = "f6a7b8c9-d0e1-4234-8ef0-000000000004"
+	testFranchiseUUID5 = "f6a7b8c9-d0e1-4234-8ef0-000000000005"
+	testSeekerUUIDFull = "e5f6a7b8-c9d0-4123-adef-00000000000f"
+	testFranchUUIDFull = "f6a7b8c9-d0e1-4234-8ef0-00000000000f"
 )
 
 func createTestInput() *Input {
@@ -211,17 +211,18 @@ func TestHandler_Execute_ValidationOnly(t *testing.T) {
 		mock.ExpectQuery(`SELECT`).WillReturnError(errors.New("not found"))
 		// idempotencyChecker.MarkProcessing
 		mock.ExpectExec(`INSERT`).WillReturnResult(sqlmock.NewResult(1, 1))
-		// idempotencyChecker.CheckApplicationExists
-		mock.ExpectQuery(`SELECT`).WillReturnRows(sqlmock.NewRows([]string{"exists", "id"}).AddRow(false, ""))
+		// Check if active pending enquiry exists
+		mock.ExpectQuery(`SELECT id FROM enquiries`).WillReturnError(errors.New("sql: no rows in result set"))
+		// Check total count of enquiries
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM enquiries`).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 		// BeginTx
 		mock.ExpectBegin()
-		// INSERT INTO franchise_applications RETURNING id
-		mock.ExpectQuery(`INSERT INTO franchise_applications`).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(testSeekerUUID001))
+		// INSERT INTO enquiries
+		mock.ExpectExec(`INSERT INTO enquiries`).WillReturnResult(sqlmock.NewResult(1, 1))
 		// UPDATE franchise_stats
 		mock.ExpectExec(`UPDATE franchise_stats`).WillReturnResult(sqlmock.NewResult(1, 1))
-		// INSERT INTO application_history
-		mock.ExpectExec(`INSERT INTO application_history`).WillReturnResult(sqlmock.NewResult(1, 1))
+		// INSERT INTO enquiry_audit_log
+		mock.ExpectExec(`INSERT INTO enquiry_audit_log`).WillReturnResult(sqlmock.NewResult(1, 1))
 		// COMMIT
 		mock.ExpectCommit()
 		// MarkCompleted
@@ -240,7 +241,7 @@ func TestHandler_Execute_ValidationOnly(t *testing.T) {
 		} else {
 			assert.NotNil(t, output)
 			assert.NotEmpty(t, output.ApplicationID)
-			assert.Equal(t, "submitted", output.ApplicationStatus)
+			assert.Equal(t, "PENDING", output.ApplicationStatus)
 		}
 	})
 }

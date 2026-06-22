@@ -183,6 +183,20 @@ func (h *Handler) validateInput(input *Input) error {
 				}
 			}
 
+		case []string:
+			// Array validation for string slices
+			if len(v) > 100 {
+				return appErrs.NewArrayTooLargeError(fmt.Sprintf("rawFilters.%s", key), 100, len(v))
+			}
+			for i, item := range v {
+				if err := ozzo.Validate(item,
+					ozzo.Length(0, 200).Error("array item must not exceed 200 characters"),
+					validation.SafeSQLString,
+				); err != nil {
+					return appErrs.NewValidationError(fmt.Sprintf("rawFilters.%s[%d]", key, i), err.Error())
+				}
+			}
+
 		case map[string]interface{}:
 			// Nested object validation
 			if len(v) > 20 {
@@ -338,6 +352,36 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 					}
 				}
 			}
+		}
+	}
+
+	// Parse exclusivityType
+	if val, ok := input.RawFilters["exclusivityType"]; ok {
+		if s, ok := val.(string); ok {
+			parsed.ExclusivityType = strings.TrimSpace(s)
+		}
+	}
+
+	// Parse territoryScope
+	if val, ok := input.RawFilters["territoryScope"]; ok {
+		if s, ok := val.(string); ok {
+			parsed.TerritoryScope = strings.TrimSpace(s)
+		}
+	}
+
+	// Parse minUnits
+	if val, ok := input.RawFilters["minUnits"]; ok {
+		if i, err := h.parseInt(val); err == nil {
+			parsed.MinUnits = i
+		}
+	}
+
+	// Parse localBrandsOnly
+	if val, ok := input.RawFilters["localBrandsOnly"]; ok {
+		if b, ok := val.(bool); ok {
+			parsed.LocalBrandsOnly = b
+		} else if s, ok := val.(string); ok {
+			parsed.LocalBrandsOnly = (strings.ToLower(strings.TrimSpace(s)) == "true")
 		}
 	}
 

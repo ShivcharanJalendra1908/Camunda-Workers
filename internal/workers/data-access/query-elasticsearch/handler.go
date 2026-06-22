@@ -739,6 +739,28 @@ func (h *Handler) buildRegistryParams(input *Input) map[string]interface{} {
 		params["subCategorySlug"] = input.SubCategorySlug
 	}
 
+	if input.EntityType != "" && params["entityType"] == nil {
+		params["entityType"] = input.EntityType
+	}
+
+	if et, ok := params["entityType"].(string); ok && et != "" {
+		et = strings.ToLower(et)
+		switch et {
+		case "franchises":
+			et = "franchise"
+		case "associations":
+			et = "association"
+		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+			et = "master_franchise"
+		default:
+			et = strings.TrimSuffix(et, "s")
+			if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {
+				et = "master_franchise"
+			}
+		}
+		params["entityType"] = et
+	}
+
 	// ✅ CRITICAL: Extract slug from multiple possible sources
 	slug := ""
 	if input.FranchiseID != "" {

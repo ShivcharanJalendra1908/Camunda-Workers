@@ -338,8 +338,7 @@ func TestHandler_ParseInput(t *testing.T) {
 			variables: map[string]interface{}{
 				"refreshToken": "refresh-token-abc-123",
 			},
-			wantErr: true,
-			errCode: "VALIDATION_FAILED",
+			wantErr: false,
 		},
 		{
 			name: "userId not a valid UUID",
@@ -855,8 +854,7 @@ func TestGetInputSchema(t *testing.T) {
 	schema := GetInputSchema()
 
 	assert.Equal(t, "object", schema.Type)
-	assert.Contains(t, schema.Required, "userId")
-	assert.Len(t, schema.Required, 1)
+	assert.Empty(t, schema.Required)
 
 	assert.Contains(t, schema.Properties, "userId")
 	assert.Contains(t, schema.Properties, "refreshToken")

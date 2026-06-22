@@ -20,6 +20,7 @@ type Input struct {
 	IndustryID   string                 `json:"industryId,omitempty"`
 	Filters      map[string]interface{} `json:"filters,omitempty"`
 	Params       map[string]interface{} `json:"params,omitempty"` // Add this line
+	EntityType   string                 `json:"entityType,omitempty"`
 }
 
 type Output struct {
@@ -32,6 +33,7 @@ type Output struct {
 	IndustryID         string                 `json:"industryId,omitempty"`
 	Filters            map[string]interface{} `json:"filters,omitempty"`
 	Params             map[string]interface{} `json:"params,omitempty"` // Add this line for consistency
+	EntityType         string                 `json:"entityType,omitempty"`
 	Data               interface{}            `json:"data"`
 	RowCount           int                    `json:"rowCount"`
 	QueryExecutionTime int64                  `json:"queryExecutionTime"`
@@ -44,6 +46,7 @@ func (i *Input) Sanitize() {
 	i.Slug = strings.TrimSpace(i.Slug)
 	i.IndustrySlug = strings.TrimSpace(i.IndustrySlug)
 	i.IndustryID = validation.SanitizeString(i.IndustryID)
+	i.EntityType = strings.TrimSpace(i.EntityType)
 
 	for idx := range i.FranchiseIDs {
 		i.FranchiseIDs[idx] = strings.TrimSpace(i.FranchiseIDs[idx])

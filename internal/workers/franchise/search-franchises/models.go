@@ -10,14 +10,25 @@ type Input struct {
 	MaxInvestment float64  `json:"max_investment"`
 	MinSpace      float64  `json:"min_space"`
 	MaxSpace      float64  `json:"max_space"`
+	MinSize       float64  `json:"min_size"`
+	MaxSize       float64  `json:"max_size"`
+	MinFee        float64  `json:"min_fee"`
+	MaxFee        float64  `json:"max_fee"`
 	MinRating     float64  `json:"min_rating"`
 	Tags          []string `json:"tags"`
 	Page          int      `json:"page"`
 	Limit         int      `json:"limit"`
 	SortBy        string   `json:"sort_by"`
 	SortOrder     string   `json:"sort_order"`
-	UserId        string   `json:"user_id"`
-	SessionId     string   `json:"session_id"`
+	UserId          string   `json:"user_id"`
+	SessionId       string   `json:"session_id"`
+	EntityType      string   `json:"entityType"`
+	ExclusivityType string   `json:"exclusivityType"`
+	TerritoryScope  string   `json:"territoryScope"`
+	MinUnits        int      `json:"minUnits"`
+	LocalBrandsOnly bool     `json:"localBrandsOnly"`
+	IsFeaturedOnly  bool     `json:"isFeaturedOnly"`
+	IsSponsoredOnly bool     `json:"isSponsoredOnly"`
 }
 
 // SearchRequest represents the Elasticsearch query structure

@@ -55,15 +55,36 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	// ===== STEP 2: VALIDATE REQUIRED IDs =====
-	if input.FranchiseID == "" {
+	if input.FranchiseID == "" && input.AssociationID == "" && input.EntityID == "" {
 		h.errorHandler.HandleJobError(ctx, client, job,
-			appErrs.NewRequiredFieldError("franchiseId"))
+			appErrs.NewRequiredFieldError("franchiseId or associationId or entityId"))
 		return
 	}
 	if input.UserID == "" {
 		h.errorHandler.HandleJobError(ctx, client, job,
 			appErrs.NewRequiredFieldError("userId"))
 		return
+	}
+
+	entityType := strings.ToLower(strings.TrimSpace(input.EntityType))
+	switch entityType {
+	case "franchises":
+		entityType = "franchise"
+	case "associations":
+		entityType = "association"
+	case "master-franchise", "master_franchises", "master franchises", "masterfranchise", "master_franchise":
+		entityType = "master_franchise"
+	case "":
+		if input.AssociationID != "" {
+			entityType = "association"
+		} else {
+			entityType = "franchise"
+		}
+	default:
+		entityType = strings.TrimSuffix(entityType, "s")
+		if entityType == "master-franchise" || entityType == "master franchise" || entityType == "masterfranchise" {
+			entityType = "master_franchise"
+		}
 	}
 
 	// ===== STEP 3: MERGE profile + form data =====
@@ -75,7 +96,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	merged := h.mergeData(profile, input.EnquiryFormData)
 
 	// ===== STEP 4: VALIDATE MERGED DATA =====
-	errors := h.validateMergedData(merged)
+	errors := h.validateMergedData(merged, entityType)
 
 	if len(errors) > 0 {
 		h.logger.Info("enquiry validation failed", map[string]interface{}{
@@ -92,8 +113,11 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	h.logger.Info("enquiry validation passed", map[string]interface{}{
-		"franchiseId": input.FranchiseID,
-		"userId":      input.UserID,
+		"franchiseId":   input.FranchiseID,
+		"associationId": input.AssociationID,
+		"entityId":      input.EntityID,
+		"userId":        input.UserID,
+		"entityType":    entityType,
 	})
 
 	output := Output{
@@ -149,16 +173,18 @@ func (h *Handler) mergeData(profile, form map[string]interface{}) map[string]int
 }
 
 // validateMergedData: required fields check
-func (h *Handler) validateMergedData(data map[string]interface{}) []string {
+func (h *Handler) validateMergedData(data map[string]interface{}, entityType string) []string {
 	var errors []string
 
 	// Required fields
 	requiredFields := map[string]string{
-		"fullName":                    "Full name is required",
-		"email":                       "Email address is required",
-		"phone":                       "Phone number is required",
-		"preferredState":              "Preferred state is required",
-		"approximateInvestmentBudget": "Investment budget is required",
+		"fullName": "Full name is required",
+		"email":    "Email address is required",
+		"phone":    "Phone number is required",
+	}
+	if entityType != "association" {
+		requiredFields["preferredState"] = "Preferred state is required"
+		requiredFields["approximateInvestmentBudget"] = "Investment budget is required"
 	}
 
 	for field, msg := range requiredFields {
@@ -230,7 +256,27 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	_ = ctx
 	merged := h.mergeData(input.UserProfile, input.EnquiryFormData)
-	errors := h.validateMergedData(merged)
+	entityType := strings.ToLower(strings.TrimSpace(input.EntityType))
+	switch entityType {
+	case "franchises":
+		entityType = "franchise"
+	case "associations":
+		entityType = "association"
+	case "master-franchise", "master_franchises", "master franchises", "masterfranchise", "master_franchise":
+		entityType = "master_franchise"
+	case "":
+		if input.AssociationID != "" {
+			entityType = "association"
+		} else {
+			entityType = "franchise"
+		}
+	default:
+		entityType = strings.TrimSuffix(entityType, "s")
+		if entityType == "master-franchise" || entityType == "master franchise" || entityType == "masterfranchise" {
+			entityType = "master_franchise"
+		}
+	}
+	errors := h.validateMergedData(merged, entityType)
 
 	return &Output{
 		IsValid:          len(errors) == 0,
@@ -246,32 +292,45 @@ func GetFranchiseContactEmailQuery() string {
 	return "SELECT contact_email, name FROM franchises WHERE id = $1"
 }
 
-// RenderEnquiryEmailBody - franchisee ko bhejne wali email ka body
+func getEntityName(data map[string]interface{}) string {
+	if name, ok := data["entityName"].(string); ok && name != "" {
+		return name
+	}
+	if name, ok := data["franchiseName"].(string); ok && name != "" {
+		return name
+	}
+	if name, ok := data["associationName"].(string); ok && name != "" {
+		return name
+	}
+	return "the entity"
+}
+
+// RenderApplicantConfirmationEmail - applicant ko bhejne wali email ka body
 func RenderApplicantConfirmationEmail(data map[string]interface{}) (string, string) {
-	franchiseName := getStr(data, "franchiseName", "the franchise")
+	entityName := getEntityName(data)
 	applicantName := getStr(data, "fullName", "Applicant")
 	applicationID := getStr(data, "applicationId", "")
 
-	subject := fmt.Sprintf("Your enquiry for %s has been received — Ref #%s", franchiseName, applicationID)
+	subject := fmt.Sprintf("Your enquiry for %s has been received — Ref #%s", entityName, applicationID)
 	body := fmt.Sprintf(`
 <html><body>
 <h2>Hello %s,</h2>
 <p>Thank you for your interest in <strong>%s</strong>.</p>
-<p>We have received your enquiry. Our team will connect you with the franchise representative shortly.</p>
+<p>We have received your enquiry. Our team will connect you with the representative shortly.</p>
 <p><strong>Application Reference:</strong> %s</p>
 <p><strong>Next Steps:</strong></p>
 <ul>
-  <li>The franchise team will review your enquiry within 2-3 business days</li>
+  <li>The representative team will review your enquiry within 2-3 business days</li>
   <li>You may be contacted at the phone number you provided</li>
   <li>Keep your Application Reference handy for follow-ups</li>
 </ul>
 <p>Best regards,<br/>Team Lemici</p>
-</body></html>`, applicantName, franchiseName, applicationID)
+</body></html>`, applicantName, entityName, applicationID)
 
 	return subject, body
 }
 
-// RenderFranchiseeLeadEmail - franchisee owner ko bhejne wali email
+// RenderFranchiseeLeadEmail - lead recipient ko bhejne wali email
 func RenderFranchiseeLeadEmail(data map[string]interface{}) (string, string) {
 	applicantName := getStr(data, "fullName", "A user")
 	applicantCity := getStr(data, "city", "N/A")
@@ -283,13 +342,13 @@ func RenderFranchiseeLeadEmail(data map[string]interface{}) (string, string) {
 	applicantType := getStr(data, "applicantType", "N/A")
 	background := getStr(data, "background", "Not provided")
 	applicationID := getStr(data, "applicationId", "")
-	franchiseName := getStr(data, "franchiseName", "Your Franchise")
+	entityName := getEntityName(data)
 
 	subject := fmt.Sprintf("New Enquiry — %s from %s, %s | Budget: %s", applicantName, applicantCity, applicantState, budget)
 
 	body := fmt.Sprintf(`
 <html><body>
-<h2>New Franchise Enquiry for %s</h2>
+<h2>New Enquiry for %s</h2>
 <p>A new enquiry has been submitted via Lemici. Details below:</p>
 
 <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
@@ -308,7 +367,7 @@ func RenderFranchiseeLeadEmail(data map[string]interface{}) (string, string) {
 <p>Login to your Lemici dashboard to view and manage this lead.</p>
 <p>Best regards,<br/>Team Lemici</p>
 </body></html>`,
-		franchiseName,
+		entityName,
 		applicantName, applicantEmail, applicantPhone,
 		applicantCity, applicantState,
 		applicantType, budget, involvement, background,
@@ -320,25 +379,25 @@ func RenderFranchiseeLeadEmail(data map[string]interface{}) (string, string) {
 // RenderInternalAlertEmail - internal team ko bhejne wali email
 func RenderInternalAlertEmail(data map[string]interface{}) (string, string) {
 	applicationID := getStr(data, "applicationId", "N/A")
-	franchiseName := getStr(data, "franchiseName", "N/A")
+	entityName := getEntityName(data)
 	applicantName := getStr(data, "fullName", "N/A")
 	budget := getStr(data, "approximateInvestmentBudget", "N/A")
 	priority := getStr(data, "priority", "standard")
 
-	subject := fmt.Sprintf("[New Enquiry] #%s | %s | Priority: %s", applicationID, franchiseName, priority)
+	subject := fmt.Sprintf("[New Enquiry] #%s | %s | Priority: %s", applicationID, entityName, priority)
 
 	body := fmt.Sprintf(`
 <html><body>
-<h2>New Franchise Enquiry Alert</h2>
+<h2>New Enquiry Alert</h2>
 <p><strong>Application ID:</strong> %s</p>
-<p><strong>Franchise:</strong> %s</p>
+<p><strong>Entity Name:</strong> %s</p>
 <p><strong>Applicant:</strong> %s</p>
 <p><strong>Budget:</strong> %s</p>
 <p><strong>Priority:</strong> %s</p>
 <p><strong>Submitted At:</strong> %s</p>
 <p>Full details available in the admin dashboard.</p>
 </body></html>`,
-		applicationID, franchiseName, applicantName, budget, priority,
+		applicationID, entityName, applicantName, budget, priority,
 		time.Now().Format("2006-01-02 15:04:05 UTC"))
 
 	return subject, body

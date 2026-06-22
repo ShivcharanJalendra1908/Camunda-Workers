@@ -16,6 +16,10 @@ type ParsedFilters struct {
 	Keywords        string          `json:"keywords"`
 	SortBy          string          `json:"sortBy"`
 	Pagination      Pagination      `json:"pagination"`
+	ExclusivityType string          `json:"exclusivityType"`
+	TerritoryScope  string          `json:"territoryScope"`
+	MinUnits        int             `json:"minUnits"`
+	LocalBrandsOnly bool            `json:"localBrandsOnly"`
 }
 
 type InvestmentRange struct {

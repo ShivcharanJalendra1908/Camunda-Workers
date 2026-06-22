@@ -64,13 +64,11 @@ func extractFranchiseID(params map[string]interface{}) (string, error) {
 func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	// query := `
-	// 	SELECT id, name, slug, icon_url
-	// 	FROM industries
-	// 	WHERE is_active = true
-	// 	ORDER BY display_order
-	// 	LIMIT 9
-	// `
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	query := `
     SELECT i.id, i.name, i.slug, i.icon_url
     FROM industries i
@@ -78,6 +76,8 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
         SELECT c.industry_id, COUNT(*) as franchise_count
         FROM franchise_categories fc
         INNER JOIN categories c ON fc.category_id = c.id
+        INNER JOIN franchises fr ON fc.franchise_id = fr.id
+        WHERE fr.entity_type = $1 AND fr.status = 'live'
         GROUP BY c.industry_id
     ) f ON f.industry_id = i.id
     WHERE i.is_active = true
@@ -85,7 +85,7 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
     LIMIT 10
     `
 
-	rows, err := db.QueryContext(ctx, query)
+	rows, err := db.QueryContext(ctx, query, entityType)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -121,16 +121,23 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
 func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	query := `
-		SELECT c.id, c.name, c.slug, c.icon_url, i.slug as industry_slug
+		SELECT DISTINCT c.id, c.name, c.slug, c.icon_url, i.slug as industry_slug, c.display_order
 		FROM categories c
 		INNER JOIN industries i ON c.industry_id = i.id
-		WHERE c.is_active = true
+		INNER JOIN franchise_categories fc ON fc.category_id = c.id
+		INNER JOIN franchises fr ON fc.franchise_id = fr.id
+		WHERE c.is_active = true AND fr.entity_type = $1 AND fr.status = 'live'
 		ORDER BY c.display_order
 		LIMIT 30
 	`
 
-	rows, err := db.QueryContext(ctx, query)
+	rows, err := db.QueryContext(ctx, query, entityType)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -140,8 +147,9 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 	for rows.Next() {
 		var id, name, slug, industrySlug string
 		var iconURL sql.NullString
+		var displayOrder int
 
-		if err := rows.Scan(&id, &name, &slug, &iconURL, &industrySlug); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &iconURL, &industrySlug, &displayOrder); err != nil {
 			continue
 		}
 
@@ -167,6 +175,11 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	industryID, hasIndustry := params["industryId"].(string)
 	industrySlug, hasSlug := params["industrySlug"].(string)
 
@@ -176,37 +189,40 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	if hasIndustry && industryID != "" {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fc.franchise_id) as franchise_count
+			       COUNT(DISTINCT fr.id) as franchise_count
 			FROM categories c
 			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
+			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $2 AND fr.status = 'live'
 			WHERE c.industry_id = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
-		`, industryID)
+		`, industryID, entityType)
 	} else if hasSlug && industrySlug != "" {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fc.franchise_id) as franchise_count
+			       COUNT(DISTINCT fr.id) as franchise_count
 			FROM categories c
 			INNER JOIN industries i ON c.industry_id = i.id
 			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
+			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $2 AND fr.status = 'live'
 			WHERE i.slug = ANY(string_to_array($1, ',')) AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
-		`, industrySlug)
+		`, industrySlug, entityType)
 	} else {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fc.franchise_id) as franchise_count
+			       COUNT(DISTINCT fr.id) as franchise_count
 			FROM categories c
 			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
+			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $1 AND fr.status = 'live'
 			WHERE c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
-		`)
+		`, entityType)
 	}
 
 	if err != nil {
@@ -488,7 +504,8 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 			monthly_turnover_min,
 			monthly_turnover_max,
 			single_unit_cost_min,
-			single_unit_cost_max
+			single_unit_cost_max,
+			revenue_model
 		FROM franchise_investment_requirement
 		WHERE franchise_id = $1
 	`
@@ -500,6 +517,7 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 		roiMin, roiMax               sql.NullFloat64
 		turnoverMin, turnoverMax     sql.NullFloat64
 		unitCostMin, unitCostMax     sql.NullFloat64
+		revenueModel                 sql.NullString
 	)
 
 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
@@ -516,6 +534,7 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 		&turnoverMax,
 		&unitCostMin,
 		&unitCostMax,
+		&revenueModel,
 	)
 
 	if err != nil {
@@ -566,6 +585,12 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 	if unitCostMax.Valid {
 		investment["single_unit_cost_max"] = unitCostMax.Float64
 	}
+	if revenueModel.Valid && revenueModel.String != "" {
+		var revModel map[string]interface{}
+		if err := json.Unmarshal([]byte(revenueModel.String), &revModel); err == nil {
+			investment["revenue_model"] = revModel
+		}
+	}
 
 	return investment, 1, time.Since(start).Milliseconds(), nil
 }
@@ -573,11 +598,6 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 // FranchiseOperations - Get operations details
 func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
-
-	// franchiseID, ok := params["franchiseId"].(string)
-	// if !ok {
-	// 	return nil, 0, 0, ErrInvalidParams
-	// }
 
 	franchiseID, err := extractFranchiseID(params)
 	if err != nil {
@@ -592,7 +612,11 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 			staff_required_max,
 			training_provided,
 			training_details,
-			marketing_support
+			marketing_support,
+			territory_details,
+			development_schedule,
+			support_training,
+			legal_compliance
 		FROM franchise_operations
 		WHERE franchise_id = $1
 	`
@@ -600,10 +624,14 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 	var spaceMin, spaceMax, staffMin, staffMax sql.NullInt32
 	var trainingProvided sql.NullBool
 	var trainingDetails, marketingSupport sql.NullString
+	var territoryDetails, developmentSchedule sql.NullString
+	var supportTraining, legalCompliance sql.NullString
 
 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
 		&spaceMin, &spaceMax, &staffMin, &staffMax,
 		&trainingProvided, &trainingDetails, &marketingSupport,
+		&territoryDetails, &developmentSchedule,
+		&supportTraining, &legalCompliance,
 	)
 
 	if err != nil {
@@ -635,6 +663,30 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 	}
 	if marketingSupport.Valid {
 		operations["marketing_support"] = marketingSupport.String
+	}
+	if territoryDetails.Valid && territoryDetails.String != "" {
+		var td map[string]interface{}
+		if err := json.Unmarshal([]byte(territoryDetails.String), &td); err == nil {
+			operations["territory_details"] = td
+		}
+	}
+	if developmentSchedule.Valid && developmentSchedule.String != "" {
+		var ds map[string]interface{}
+		if err := json.Unmarshal([]byte(developmentSchedule.String), &ds); err == nil {
+			operations["development_schedule"] = ds
+		}
+	}
+	if supportTraining.Valid && supportTraining.String != "" {
+		var st map[string]interface{}
+		if err := json.Unmarshal([]byte(supportTraining.String), &st); err == nil {
+			operations["support_training"] = st
+		}
+	}
+	if legalCompliance.Valid && legalCompliance.String != "" {
+		var lc map[string]interface{}
+		if err := json.Unmarshal([]byte(legalCompliance.String), &lc); err == nil {
+			operations["legal_compliance"] = lc
+		}
 	}
 
 	return operations, 1, time.Since(start).Milliseconds(), nil
@@ -719,6 +771,11 @@ func IndustryBySlugWithQuestions(
 		return nil, 0, 0, ErrInvalidParams
 	}
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	var industryID, name string
 	var description sql.NullString
 
@@ -734,10 +791,10 @@ func IndustryBySlugWithQuestions(
 	rows, _ := db.QueryContext(ctx, `
 		SELECT question
 		FROM category_questions
-		WHERE reference_id = $1
+		WHERE reference_id = $1 AND entity_type = $2
 		ORDER BY created_at
 		LIMIT 8
-	`, industryID)
+	`, industryID, entityType)
 	defer rows.Close()
 
 	var questions []string
@@ -789,6 +846,11 @@ func CategoryQuestionsByIndustry(
 	searchQuery, _ := params["searchQuery"].(string)
 	intentTag := "general"
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	if v, ok := params["industryId"].(string); ok && v != "" {
 		referenceIDs = []string{v}
 	} else if v, ok := params["industrySlug"].(string); ok && v != "" {
@@ -839,11 +901,12 @@ func CategoryQuestionsByIndustry(
 				FROM category_questions
 				WHERE reference_id = $1::uuid
 				  AND (intent_tag = $2 OR intent_tag = 'general')
+				  AND entity_type = $3
 				ORDER BY
 					CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
 					created_at
 				LIMIT 8
-			`, refID, intentTag)
+			`, refID, intentTag, entityType)
 			if err == nil {
 				var subList []string
 				for subRows.Next() {
@@ -884,11 +947,12 @@ func CategoryQuestionsByIndustry(
 			FROM category_questions
 			WHERE reference_id = ANY(string_to_array($1, ',')::uuid[])
 			  AND (intent_tag = $2 OR intent_tag = 'general')
+			  AND entity_type = $3
 			ORDER BY
 				CASE WHEN intent_tag = $2 THEN 0 ELSE 1 END,
 				created_at
 			LIMIT 8
-		`, refIDsStr, intentTag)
+		`, refIDsStr, intentTag, entityType)
 		if err != nil {
 			return []string{}, 0, time.Since(start).Milliseconds(), nil
 		}

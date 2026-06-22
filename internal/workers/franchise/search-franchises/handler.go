@@ -259,11 +259,44 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		mustClauses = append(mustClauses, multiMatch)
 	}
 
-	// ✅ LOCATION FILTER (keyword field)
+	// ✅ LOCATION FILTER (keyword field or country field)
 	if input.Location != "" {
 		locationFilter := map[string]interface{}{
-			"term": map[string]interface{}{
-				"location": strings.ToLower(input.Location),
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"term": map[string]interface{}{
+							"location": strings.ToLower(input.Location),
+						},
+					},
+					{
+						"term": map[string]interface{}{
+							"location": map[string]interface{}{
+								"value":            input.Location,
+								"case_insensitive": true,
+							},
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"location": input.Location,
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"country": input.Location,
+						},
+					},
+					{
+						"term": map[string]interface{}{
+							"country.keyword": map[string]interface{}{
+								"value":            input.Location,
+								"case_insensitive": true,
+							},
+						},
+					},
+				},
+				"minimum_should_match": 1,
 			},
 		}
 		mustClauses = append(mustClauses, locationFilter)
@@ -301,6 +334,50 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		})
 	}
 
+	// ✅ SIZE RANGE
+	if input.MinSize > 0 || input.MaxSize > 0 {
+		rangeFilter := map[string]interface{}{}
+		if input.MinSize > 0 {
+			rangeFilter["gte"] = input.MinSize
+		}
+		if input.MaxSize > 0 {
+			rangeFilter["lte"] = input.MaxSize
+		}
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"range": map[string]interface{}{
+							"member_count": rangeFilter,
+						},
+					},
+					{
+						"range": map[string]interface{}{
+							"total_outlets": rangeFilter,
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		})
+	}
+
+	// ✅ FEE RANGE
+	if input.MinFee > 0 || input.MaxFee > 0 {
+		rangeFilter := map[string]interface{}{}
+		if input.MinFee > 0 {
+			rangeFilter["gte"] = input.MinFee
+		}
+		if input.MaxFee > 0 {
+			rangeFilter["lte"] = input.MaxFee
+		}
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"membership_fee_min": rangeFilter,
+			},
+		})
+	}
+
 	// ✅ RATING FILTER
 	if input.MinRating > 0 {
 		mustClauses = append(mustClauses, map[string]interface{}{
@@ -308,6 +385,71 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				"rating": map[string]interface{}{
 					"gte": input.MinRating,
 				},
+			},
+		})
+	}
+
+	// ✅ ENTITY TYPE FILTER
+	if input.EntityType != "" {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"entity_type": input.EntityType,
+			},
+		})
+	}
+
+	// ✅ EXCLUSIVITY TYPE FILTER
+	if input.ExclusivityType != "" {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"exclusivity_type": input.ExclusivityType,
+			},
+		})
+	}
+
+	// ✅ TERRITORY SCOPE FILTER
+	if input.TerritoryScope != "" {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"territory_scope": input.TerritoryScope,
+			},
+		})
+	}
+
+	// ✅ MIN UNITS FILTER
+	if input.MinUnits > 0 {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"total_outlets": map[string]interface{}{
+					"gte": input.MinUnits,
+				},
+			},
+		})
+	}
+
+	// ✅ LOCAL BRANDS ONLY FILTER
+	if input.LocalBrandsOnly {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"country.keyword": "India",
+			},
+		})
+	}
+
+	// ✅ FEATURED FILTER
+	if input.IsFeaturedOnly {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"is_featured": true,
+			},
+		})
+	}
+
+	// ✅ SPONSORED FILTER
+	if input.IsSponsoredOnly {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"term": map[string]interface{}{
+				"is_sponsored": true,
 			},
 		})
 	}
@@ -334,7 +476,33 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		sort = append(sort, map[string]interface{}{
 			"year_of_establishment": map[string]interface{}{"order": sortOrder},
 		})
+	case "featured":
+		sort = append(sort, map[string]interface{}{
+			"is_featured": map[string]interface{}{"order": "desc"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"featured_order": map[string]interface{}{"order": "asc"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"_score": map[string]interface{}{"order": "desc"},
+		})
 	default:
+		// Default curation order: Sponsored first, then Featured, then Featured Order, then Score
+		sort = append(sort, map[string]interface{}{
+			"is_sponsored": map[string]interface{}{"order": "desc"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"is_featured": map[string]interface{}{"order": "desc"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"featured_order": map[string]interface{}{"order": "asc"},
+		})
+		sort = append(sort, map[string]interface{}{
+			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last"},
+		})
 		sort = append(sort, map[string]interface{}{
 			"_score": map[string]interface{}{"order": "desc"},
 		})
@@ -463,25 +631,37 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if location, ok := vars["location"].(string); ok {
 		input.Location = location
 	}
-	if minInv, ok := vars["min_investment"].(float64); ok {
+	if minInv, ok := getNumber(vars, "min_investment", "minInvestment"); ok {
 		input.MinInvestment = minInv
 	}
-	if maxInv, ok := vars["max_investment"].(float64); ok {
+	if maxInv, ok := getNumber(vars, "max_investment", "maxInvestment"); ok {
 		input.MaxInvestment = maxInv
 	}
-	if minSpace, ok := vars["min_space"].(float64); ok {
+	if minSpace, ok := getNumber(vars, "min_space", "minSpace"); ok {
 		input.MinSpace = minSpace
 	}
-	if maxSpace, ok := vars["max_space"].(float64); ok {
+	if maxSpace, ok := getNumber(vars, "max_space", "maxSpace"); ok {
 		input.MaxSpace = maxSpace
 	}
-	if minRating, ok := vars["min_rating"].(float64); ok {
+	if minSize, ok := getNumber(vars, "min_size", "minSize", "minMembers"); ok {
+		input.MinSize = minSize
+	}
+	if maxSize, ok := getNumber(vars, "max_size", "maxSize", "maxMembers"); ok {
+		input.MaxSize = maxSize
+	}
+	if minFee, ok := getNumber(vars, "min_fee", "minFee", "membership_fee_min"); ok {
+		input.MinFee = minFee
+	}
+	if maxFee, ok := getNumber(vars, "max_fee", "maxFee", "membership_fee_max"); ok {
+		input.MaxFee = maxFee
+	}
+	if minRating, ok := getNumber(vars, "min_rating", "minRating"); ok {
 		input.MinRating = minRating
 	}
-	if page, ok := vars["page"].(float64); ok {
+	if page, ok := getNumber(vars, "page"); ok {
 		input.Page = int(page)
 	}
-	if limit, ok := vars["limit"].(float64); ok {
+	if limit, ok := getNumber(vars, "limit"); ok {
 		input.Limit = int(limit)
 		if input.Limit > h.config.MaxLimit {
 			input.Limit = h.config.MaxLimit
@@ -493,6 +673,52 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if sortOrder, ok := vars["sort_order"].(string); ok {
 		input.SortOrder = sortOrder
 	}
+	if entityType, ok := vars["entityType"].(string); ok {
+		et := strings.ToLower(entityType)
+		switch et {
+		case "franchises":
+			et = "franchise"
+		case "associations":
+			et = "association"
+		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+			et = "master_franchise"
+		default:
+			et = strings.TrimSuffix(et, "s")
+			if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {
+				et = "master_franchise"
+			}
+		}
+		input.EntityType = et
+	}
+
+	if exclusivityType, ok := vars["exclusivityType"].(string); ok {
+		input.ExclusivityType = exclusivityType
+	}
+	if territoryScope, ok := vars["territoryScope"].(string); ok {
+		input.TerritoryScope = territoryScope
+	}
+	if minUnits, ok := vars["minUnits"].(float64); ok {
+		input.MinUnits = int(minUnits)
+	} else if minUnits, ok := vars["minUnits"].(int); ok {
+		input.MinUnits = minUnits
+	}
+	if localBrandsOnly, ok := vars["localBrandsOnly"].(bool); ok {
+		input.LocalBrandsOnly = localBrandsOnly
+	} else if localBrandsOnlyStr, ok := vars["localBrandsOnly"].(string); ok {
+		input.LocalBrandsOnly = (strings.ToLower(strings.TrimSpace(localBrandsOnlyStr)) == "true")
+	}
+
+	if isFeaturedOnly, ok := vars["isFeaturedOnly"].(bool); ok {
+		input.IsFeaturedOnly = isFeaturedOnly
+	} else if isFeaturedOnlyStr, ok := vars["isFeaturedOnly"].(string); ok {
+		input.IsFeaturedOnly = (strings.ToLower(strings.TrimSpace(isFeaturedOnlyStr)) == "true")
+	}
+
+	if isSponsoredOnly, ok := vars["isSponsoredOnly"].(bool); ok {
+		input.IsSponsoredOnly = isSponsoredOnly
+	} else if isSponsoredOnlyStr, ok := vars["isSponsoredOnly"].(string); ok {
+		input.IsSponsoredOnly = (strings.ToLower(strings.TrimSpace(isSponsoredOnlyStr)) == "true")
+	}
 
 	return input, nil
 }
@@ -503,14 +729,22 @@ func (h *Handler) prepareOutput(results []map[string]interface{}, totalCount int
 		TotalCount:  totalCount,
 		QueryTimeMs: queryTime,
 		AppliedFilters: map[string]interface{}{
-			"query":          input.Query,
-			"category":       input.Category,
-			"industry":       input.Industry,
-			"location":       input.Location,
-			"min_investment": input.MinInvestment,
-			"max_investment": input.MaxInvestment,
-			"page":           input.Page,
-			"limit":          input.Limit,
+			"query":           input.Query,
+			"category":        input.Category,
+			"industry":        input.Industry,
+			"location":        input.Location,
+			"min_investment":  input.MinInvestment,
+			"max_investment":  input.MaxInvestment,
+			"page":            input.Page,
+			"limit":           input.Limit,
+			"min_size":        input.MinSize,
+			"max_size":        input.MaxSize,
+			"min_fee":         input.MinFee,
+			"max_fee":         input.MaxFee,
+			"exclusivityType": input.ExclusivityType,
+			"territoryScope":  input.TerritoryScope,
+			"minUnits":        input.MinUnits,
+			"localBrandsOnly": input.LocalBrandsOnly,
 		},
 		Success: true,
 	}
@@ -534,4 +768,24 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 	if err != nil {
 		h.logger.Error("Failed to complete job", map[string]interface{}{"error": err.Error()})
 	}
+}
+
+func getNumber(vars map[string]interface{}, keys ...string) (float64, bool) {
+	for _, key := range keys {
+		if val, ok := vars[key]; ok {
+			switch v := val.(type) {
+			case float64:
+				return v, true
+			case float32:
+				return float64(v), true
+			case int:
+				return float64(v), true
+			case int64:
+				return float64(v), true
+			case int32:
+				return float64(v), true
+			}
+		}
+	}
+	return 0, false
 }

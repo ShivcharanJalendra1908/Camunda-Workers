@@ -59,5 +59,11 @@ func (c *Config) Validate() error {
 	if c.RedisHost == "" {
 		return fmt.Errorf("redis host is required")
 	}
+	if c.MaxJobsActive <= 0 {
+		return fmt.Errorf("maxJobsActive must be greater than 0")
+	}
+	if c.Timeout <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
+	}
 	return nil
 }

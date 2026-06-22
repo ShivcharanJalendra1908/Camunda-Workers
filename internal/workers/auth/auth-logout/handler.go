@@ -252,6 +252,14 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		input.KeycloakUserID = keycloakUserID
 	}
 
+	if refreshToken, ok := variables["refreshToken"].(string); ok {
+		input.RefreshToken = refreshToken
+	}
+
+	if accessToken, ok := variables["accessToken"].(string); ok {
+		input.AccessToken = accessToken
+	}
+
 	if sessionID, ok := variables["sessionId"].(string); ok {
 		input.SessionID = sessionID
 	}

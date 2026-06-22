@@ -1,0 +1,375 @@
+{
+  "title": "Frontend Integration Guide: User Actions, Enquiries & Onboarding",
+  "module": "Association",
+  "version": "1.0.0",
+  "endpoints": {
+    "favorites": [
+      {
+        "name": "Like an Association",
+        "description": "Used when a user 'Likes' an association. Stored in the user favorites system.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/association/favorite/:id",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "id": "e4299b0c-7b4c-478a-a43b-3bf1c8b39a44",
+            "message": "Added to favorites successfully"
+          }
+        }
+      },
+      {
+        "name": "Unlike an Association",
+        "description": "Used to remove an association from the user's favorites system.",
+        "request": {
+          "method": "DELETE",
+          "path": "/api/v1/association/favorite/:id",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Removed from favorites successfully"
+          }
+        }
+      },
+      {
+        "name": "Get User's Liked Associations",
+        "description": "Retrieve all associations favorited by the logged-in user.",
+        "request": {
+          "method": "GET",
+          "path": "/api/v1/association/favorites",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "data": [
+              {
+                "id": "1",
+                "association_name": "Kassia",
+                "slug": "kassia",
+                "logo": "/AssociationImages/FeaturedAssociations/kassia.svg",
+                "location": "Bengaluru,India",
+                "favorited_at": "2026-06-15T22:00:30Z"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "bookmarks": [
+      {
+        "name": "Add Bookmark",
+        "description": "Save an association for later viewing.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/association/:id/bookmark",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Association bookmarked successfully"
+          }
+        }
+      },
+      {
+        "name": "Remove Bookmark",
+        "description": "Remove an association from saved bookmarks.",
+        "request": {
+          "method": "DELETE",
+          "path": "/api/v1/association/:id/bookmark",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Bookmark removed successfully"
+          }
+        }
+      },
+      {
+        "name": "Check if Bookmarked",
+        "description": "Check if the specified association is already bookmarked by the user.",
+        "request": {
+          "method": "GET",
+          "path": "/api/v1/association/:id/bookmark/check",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "isBookmarked": true
+          }
+        }
+      }
+    ],
+    "ratings_reviews": [
+      {
+        "name": "Rate/Review an Association",
+        "description": "Post a rating and review for a specific association.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/association/:id/rate",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>",
+            "Content-Type": "application/json"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": {
+            "rating": 4.5,
+            "review": "Very helpful industry body for MSMEs."
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Review submitted successfully"
+          }
+        }
+      },
+      {
+        "name": "Delete Rating",
+        "description": "Remove the logged-in user's review and rating from the association.",
+        "request": {
+          "method": "DELETE",
+          "path": "/api/v1/association/:id/rate",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Rating deleted successfully"
+          }
+        }
+      },
+      {
+        "name": "Get Public Reviews",
+        "description": "Retrieve all public reviews and ratings for a given association.",
+        "request": {
+          "method": "GET",
+          "path": "/api/v1/association/:id/ratings",
+          "authentication": "Optional",
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "averageRating": 4.5,
+            "totalReviews": 1,
+            "reviews": [
+              {
+                "userName": "Jane Smith",
+                "rating": 4.5,
+                "review": "Very helpful industry body for MSMEs.",
+                "created_at": "2026-06-14T15:24:00Z"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "share_tracking": [
+      {
+        "name": "Track Share Action",
+        "description": "Logs when a user successfully shares an association page to a platform.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/association/:id/share",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>",
+            "Content-Type": "application/json"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": {
+            "sharePlatform": "whatsapp"
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Share tracked successfully"
+          }
+        }
+      }
+    ],
+    "enquiries": [
+      {
+        "name": "Submit Enquiry",
+        "description": "Send an enquiry or query directly to the association regarding membership, compliance, etc.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/association/:id/enquiry",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>",
+            "Content-Type": "application/json"
+          },
+          "parameters": {
+            "id": "uuid-of-the-association"
+          },
+          "body": {
+            "name": "Jane Doe",
+            "email": "jane.doe@example.com",
+            "phone": "+919999999999",
+            "message": "Interested in ordinary membership. Please send the document requirements."
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Enquiry submitted successfully"
+          }
+        }
+      }
+    ],
+    "document_upload": [
+      {
+        "name": "Get S3 Pre-signed URL",
+        "description": "Fetch a temporary, cryptographically signed URL to upload documents directly to AWS S3, bypassing server overhead.",
+        "request": {
+          "method": "GET",
+          "path": "/api/v1/documents/presigned-url",
+          "authentication": "Required (Send Bearer Token)",
+          "headers": {
+            "Authorization": "Bearer <jwt_token>"
+          },
+          "query_parameters": {
+            "fileName": "gst_certificate.pdf"
+          },
+          "body": null
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "uploadUrl": "https://lemici-onboarding-docs.s3.amazonaws.com/uploads/12345_gst.pdf?AWSAccessKeyId=ASIAX...Signature=...",
+            "fileUrl": "https://lemici-onboarding-docs.s3.amazonaws.com/uploads/12345_gst.pdf"
+          }
+        }
+      }
+    ],
+    "onboarding": [
+      {
+        "name": "Association Onboarding Submission",
+        "description": "Submits the onboarding registration payload for a new association under review. Leverages pre-signed S3 URLs generated in the previous step.",
+        "request": {
+          "method": "POST",
+          "path": "/api/v1/onboarding/submit/association",
+          "authentication": "Optional / Public",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "associationName": "Thane Belapur Industries Association",
+            "contactEmail": "tbia@tbia.org",
+            "memberCount": 3000,
+            "membershipFeeMin": 5000,
+            "membershipFeeMax": 15000,
+            "association_type": "Industry Body",
+            "overview": {
+              "about": "Thane Belapur Industries Association was established to represent...",
+              "key_functions": [
+                "Corporate Community",
+                "Maharashtra Industry",
+                "Economic Growth"
+              ]
+            },
+            "contact_details": {
+              "office_address": "P-14, MIDC, Rabale, Navi Mumbai, Maharashtra",
+              "phone_number": "022-27691978",
+              "email": "tbia@tbia.org",
+              "website": "https://tbia.org"
+            },
+            "documents": [
+              {
+                "type": "GST",
+                "url": "https://lemici-onboarding-docs.s3.amazonaws.com/uploads/12345_gst.pdf"
+              },
+              {
+                "type": "PAN",
+                "url": "https://lemici-onboarding-docs.s3.amazonaws.com/uploads/12345_pan.pdf"
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "body": {
+            "success": true,
+            "message": "Onboarding request submitted successfully and is under review."
+          }
+        }
+      }
+    ]
+  }
+}

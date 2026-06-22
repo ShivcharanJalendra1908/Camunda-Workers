@@ -1,7 +1,7 @@
 -- ============================================================
 -- COMPLETE PostgreSQL Schema - Franchise Marketplace Platform
--- Date: 2025-01-07
--- Version: 2.0 (With 3-Level Taxonomy: Industry → Category → Sub-Category)
+-- Date: 2026-06-11
+-- Version: 4.0 
 -- ============================================================
 
 -- Enable UUID generation
@@ -265,6 +265,29 @@ CREATE TABLE franchises (
     contact_email VARCHAR(150),
     logo_url_circle VARCHAR(255),
     logo_url_square VARCHAR(255),
+    
+    -- V2 Unified Entities & Approval Audit
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    association_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    reviewed_by UUID REFERENCES users(id),
+    reviewed_at TIMESTAMP,
+    rejection_reason TEXT,
+    
+    -- Association Search & Sort
+    member_count INT DEFAULT 0,
+    membership_fee_min NUMERIC(12, 2) DEFAULT 0.00,
+    membership_fee_max NUMERIC(12, 2) DEFAULT 0.00,
+    approved_at TIMESTAMP,
+
+    -- Feature 3 & 4 Curation & Onboarding Details
+    website_url VARCHAR(255),
+    is_featured BOOLEAN DEFAULT FALSE,
+    featured_start_at TIMESTAMP,
+    featured_expires_at TIMESTAMP,
+    featured_order INT DEFAULT 0,
+    is_sponsored BOOLEAN DEFAULT FALSE,
+
     created_by UUID NOT NULL REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -284,7 +307,11 @@ CREATE TABLE franchises (
     CONSTRAINT chk_founded_year_valid
         CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
     CONSTRAINT chk_established_year_valid
-        CHECK (established_year IS NULL OR (established_year >= 1800 AND established_year <= EXTRACT(YEAR FROM CURRENT_DATE)))
+        CHECK (established_year IS NULL OR (established_year >= 1800 AND established_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
+    CONSTRAINT chk_website_url
+        CHECK (website_url IS NULL OR website_url = '' OR website_url ~* '^https?://'),
+    CONSTRAINT chk_featured_order_positive
+        CHECK (featured_order >= 0)
 );
 
 CREATE TRIGGER update_franchises_updated_at
@@ -293,6 +320,10 @@ CREATE TRIGGER update_franchises_updated_at
 
 CREATE INDEX idx_franchises_slug ON franchises(slug);
 CREATE INDEX idx_franchises_created_by ON franchises(created_by);
+CREATE INDEX idx_franchises_entity_type_status ON franchises(entity_type, status);
+CREATE INDEX idx_franchises_featured ON franchises(is_featured) WHERE is_featured = TRUE;
+CREATE INDEX idx_franchises_sponsored ON franchises(is_sponsored) WHERE is_sponsored = TRUE;
+CREATE INDEX idx_franchises_featured_order ON franchises(featured_order);
 
 COMMENT ON TABLE franchises IS
     'Core franchise master data. Single source of truth for franchise information. Synced to Elasticsearch for search.';
@@ -424,6 +455,7 @@ CREATE TABLE franchise_investment_requirement (
     single_unit_cost_min DECIMAL(15,2),
     single_unit_cost_max DECIMAL(15,2),
     investment_includes TEXT,
+    revenue_model JSONB,
     created_by UUID NOT NULL REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -490,6 +522,10 @@ CREATE TABLE franchise_operations (
     qualification_required TEXT,
     supply_chain_support BOOLEAN DEFAULT FALSE,
     quality_control BOOLEAN DEFAULT FALSE,
+    territory_details JSONB,
+    development_schedule JSONB,
+    support_training JSONB,
+    legal_compliance JSONB,
     created_by UUID NOT NULL REFERENCES users(id),
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -528,13 +564,19 @@ CREATE TABLE category_questions (
     reference_id UUID NOT NULL,
     -- Refers to either industries.id OR categories.id (decided by AI / backend)
 
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
+
     question TEXT NOT NULL,
     intent_tag VARCHAR(50),           -- NOT NULL DEFAULT 'general',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_category_questions_entity_type 
+        CHECK (entity_type IN ('franchise', 'association', 'master_franchise'))
 );
 
 CREATE INDEX idx_category_questions_reference
 ON category_questions(reference_id);
+CREATE INDEX idx_category_questions_entity_type ON category_questions(entity_type);
 
 COMMENT ON TABLE category_questions IS
     'AI-driven questions linked to either industry or category using reference_id. Answer, type, and display handled by AI.';
@@ -578,18 +620,20 @@ COMMENT ON TABLE franchise_social_links IS
 CREATE TABLE user_favorites (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL,
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- IDEMPOTENCY: Prevent duplicate favorites
-    CONSTRAINT uq_user_franchise_favorite UNIQUE (user_id, franchise_id)
+    CONSTRAINT uq_user_entity_favorite UNIQUE (user_id, entity_id, entity_type),
+    CONSTRAINT chk_user_favorites_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise'))
 );
 
 CREATE INDEX idx_user_favorites_user ON user_favorites(user_id);
-CREATE INDEX idx_user_favorites_franchise ON user_favorites(franchise_id);
+CREATE INDEX idx_user_favorites_entity ON user_favorites(entity_id, entity_type);
 
 COMMENT ON TABLE user_favorites IS 
-    'User saved/favorited franchises. Unique constraint prevents duplicates.';
+    'User saved/favorited entities (franchise/association). Unique constraint prevents duplicates.';
 
 -- ========================================
 -- SAVED SEARCHES TABLE
@@ -737,6 +781,34 @@ $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION get_franchise_hierarchy(UUID) IS 
     'Returns complete industry → category → sub-category hierarchy for a franchise.';
 
+-- ========================================
+-- FRANCHISE DOCUMENTS TABLE
+-- ========================================
+CREATE TABLE franchise_documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    document_type VARCHAR(100) NOT NULL,
+    s3_url VARCHAR(512) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    uploaded_by VARCHAR(255),
+    rejection_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_doc_status_valid 
+        CHECK (status IN ('pending', 'verified', 'rejected'))
+);
+
+CREATE TRIGGER update_franchise_documents_updated_at
+    BEFORE UPDATE ON franchise_documents
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_franchise_documents_franchise ON franchise_documents(franchise_id);
+CREATE INDEX idx_franchise_documents_status ON franchise_documents(status);
+
+COMMENT ON TABLE franchise_documents IS 
+    'Stores documents associated with a franchise (e.g. GST, PAN, Pitch Deck). Status tracks verification state.';
+
 -- Get all franchises in a category (including sub-categories)
 CREATE OR REPLACE FUNCTION get_franchises_by_category(p_category_id UUID)
 RETURNS TABLE (
@@ -835,6 +907,7 @@ CREATE TABLE industry_market_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     industry_id UUID NOT NULL REFERENCES industries(id) ON DELETE CASCADE,
     industry_slug VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
     intent_tag VARCHAR(50) NOT NULL DEFAULT 'general',
     growth_rate_title VARCHAR(200) NOT NULL,
     growth_rate_description TEXT NOT NULL,
@@ -844,7 +917,9 @@ CREATE TABLE industry_market_insights (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Ensure one insight per industry
-    CONSTRAINT uq_industry_intent UNIQUE (industry_id, intent_tag)
+    CONSTRAINT uq_industry_intent UNIQUE (industry_id, intent_tag, entity_type),
+    CONSTRAINT chk_industry_market_insights_entity_type 
+        CHECK (entity_type IN ('franchise', 'association', 'master_franchise'))
 );
 
 -- Add trigger for auto-updating updated_at
@@ -869,15 +944,17 @@ COMMENT ON TABLE industry_market_insights IS
 CREATE TABLE user_ratings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL,
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
     rating DECIMAL(2,1) NOT NULL,
     review TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    -- One user can rate one franchise only once
-    CONSTRAINT uq_user_franchise_rating UNIQUE (user_id, franchise_id),
-    CONSTRAINT chk_rating_range CHECK (rating >= 1.0 AND rating <= 5.0)
+    -- One user can rate one entity only once
+    CONSTRAINT uq_user_entity_rating UNIQUE (user_id, entity_id, entity_type),
+    CONSTRAINT chk_rating_range CHECK (rating >= 1.0 AND rating <= 5.0),
+    CONSTRAINT chk_user_ratings_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise'))
 );
 
 CREATE TRIGGER update_user_ratings_updated_at
@@ -885,11 +962,11 @@ CREATE TRIGGER update_user_ratings_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE INDEX idx_user_ratings_user       ON user_ratings(user_id);
-CREATE INDEX idx_user_ratings_franchise  ON user_ratings(franchise_id);
+CREATE INDEX idx_user_ratings_entity     ON user_ratings(entity_id, entity_type);
 CREATE INDEX idx_user_ratings_rating     ON user_ratings(rating);
 
 COMMENT ON TABLE user_ratings IS
-    'User-submitted ratings (1-5) and optional review text for franchises. One rating per user per franchise.';
+    'User-submitted ratings (1-5) and optional review text for entities (franchise/association). One rating per user per entity.';
 
 -- ========================================
 -- FRANCHISE SHARES TABLE
@@ -898,20 +975,23 @@ CREATE TABLE franchise_shares (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     -- user_id nullable — anonymous share bhi ho sakta hai
-    franchise_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL,
+    entity_type VARCHAR(50) NOT NULL DEFAULT 'franchise',
     share_platform VARCHAR(50) DEFAULT 'copy_link',
     -- e.g. 'whatsapp', 'twitter', 'linkedin', 'email', 'copy_link'
     ip_address VARCHAR(45),
-    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_franchise_shares_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise'))
 );
 
-CREATE INDEX idx_franchise_shares_franchise ON franchise_shares(franchise_id);
+CREATE INDEX idx_franchise_shares_entity    ON franchise_shares(entity_id, entity_type);
 CREATE INDEX idx_franchise_shares_user      ON franchise_shares(user_id);
 CREATE INDEX idx_franchise_shares_platform  ON franchise_shares(share_platform);
 CREATE INDEX idx_franchise_shares_shared_at ON franchise_shares(shared_at);
 
 COMMENT ON TABLE franchise_shares IS
-    'Tracks when users share a franchise. user_id nullable for anonymous shares. Increments franchise_stats.share_count.';
+    'Tracks when users share an entity. user_id nullable for anonymous shares. Increments entity stats share_count.';
 
 -- ============================================================
 -- CONTACT US
@@ -952,6 +1032,248 @@ CREATE TABLE IF NOT EXISTS public_form_submissions (
 CREATE INDEX idx_public_form_submissions_type ON public_form_submissions(form_type);
 CREATE INDEX idx_public_form_submissions_email ON public_form_submissions(email);
 CREATE INDEX idx_public_form_submissions_created_at ON public_form_submissions(created_at DESC);
+
+-- ============================================================
+-- FEATURED ENGINE AUDIT LOG
+-- ============================================================
+CREATE TABLE entity_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL,
+    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    old_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+    new_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_entity_audit_entity ON entity_audit_log(entity_id);
+CREATE INDEX idx_entity_audit_created_at ON entity_audit_log(created_at DESC);
+
+COMMENT ON TABLE entity_audit_log IS
+    'Immutably tracks status changes and direct updates on entities (franchises/associations/master_franchises).';
+
+-- ============================================================
+-- MEMBERSHIP ENQUIRIES
+-- ============================================================
+CREATE TABLE enquiries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    message TEXT,
+    preferred_contact VARCHAR(50) NOT NULL DEFAULT 'EMAIL',
+    responded_at TIMESTAMP,
+    closed_at TIMESTAMP,
+    closed_by VARCHAR(50),
+    last_activity_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_enquiry_status
+        CHECK (status IN ('PENDING', 'RESPONDED', 'CLOSED')),
+    CONSTRAINT chk_preferred_contact
+        CHECK (preferred_contact IN ('EMAIL', 'PHONE', 'EITHER')),
+    CONSTRAINT chk_closed_by
+        CHECK (closed_by IS NULL OR closed_by IN ('USER', 'ASSOCIATION', 'SYSTEM'))
+);
+
+CREATE TRIGGER update_enquiries_updated_at
+    BEFORE UPDATE ON enquiries
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create partial unique index to block duplicate PENDING enquiries per user-entity pair
+CREATE UNIQUE INDEX uq_enquiry_pending_active
+    ON enquiries(user_id, entity_id)
+    WHERE status = 'PENDING';
+
+CREATE INDEX idx_enquiries_user ON enquiries(user_id);
+CREATE INDEX idx_enquiries_entity ON enquiries(entity_id);
+CREATE INDEX idx_enquiries_status ON enquiries(status);
+CREATE INDEX idx_enquiries_last_activity ON enquiries(last_activity_at DESC);
+
+COMMENT ON TABLE enquiries IS
+    'Tracks user membership/general enquiries for franchises, associations, and other entities.';
+
+-- ============================================================
+-- ENQUIRY AUDIT LOG
+-- ============================================================
+CREATE TABLE enquiry_audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    enquiry_id UUID NOT NULL REFERENCES enquiries(id) ON DELETE CASCADE,
+    from_status VARCHAR(50),
+    to_status VARCHAR(50) NOT NULL,
+    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    actor_role VARCHAR(50) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT chk_audit_from_status
+        CHECK (from_status IS NULL OR from_status IN ('PENDING', 'RESPONDED', 'CLOSED')),
+    CONSTRAINT chk_audit_to_status
+        CHECK (to_status IN ('PENDING', 'RESPONDED', 'CLOSED')),
+    CONSTRAINT chk_actor_role
+        CHECK (actor_role IN ('ROLE_USER', 'ROLE_ASSOC_ADMIN', 'ROLE_PLATFORM_ADMIN', 'SYSTEM'))
+);
+
+CREATE INDEX idx_enquiry_audit_enquiry ON enquiry_audit_log(enquiry_id);
+CREATE INDEX idx_enquiry_audit_created_at ON enquiry_audit_log(created_at DESC);
+
+COMMENT ON TABLE enquiry_audit_log IS
+    'Immutably logs all status changes and activity for enquiries.';
+
+-- ============================================================
+-- PENDING EDITS (Sensitive listing fields changes staging)
+-- ============================================================
+CREATE TABLE pending_edits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    field_name VARCHAR(100) NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    requested_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP,
+    rejection_reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_pending_edit_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED'))
+);
+
+CREATE TRIGGER update_pending_edits_updated_at
+    BEFORE UPDATE ON pending_edits
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_pending_edits_entity ON pending_edits(entity_id);
+CREATE INDEX idx_pending_edits_status ON pending_edits(status);
+
+COMMENT ON TABLE pending_edits IS
+    'Staged sensitive field changes for review on any entity type.';
+
+-- ============================================================
+-- DUPLICATE FLAGS (Fuzzy duplicate warnings)
+-- ============================================================
+CREATE TABLE duplicate_flags (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    matched_entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    similarity_score NUMERIC(5, 2) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_duplicate_flag_status CHECK (status IN ('PENDING', 'RESOLVED', 'IGNORED'))
+);
+
+CREATE INDEX idx_duplicate_flags_entity ON duplicate_flags(entity_id);
+CREATE INDEX idx_duplicate_flags_matched_entity ON duplicate_flags(matched_entity_id);
+
+COMMENT ON TABLE duplicate_flags IS
+    'Fuzzy duplicate warnings for newly submitted entities.';
+
+-- ============================================================
+-- VERIFICATION CRITERIA (Pass/Fail state of verification steps)
+-- ============================================================
+CREATE TABLE verification_criteria (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    vc_type VARCHAR(50) NOT NULL, -- 'VC-01', 'VC-02', 'VC-03'
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'PASSED', 'FAILED'
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_entity_vc UNIQUE (entity_id, vc_type),
+    CONSTRAINT chk_vc_status CHECK (status IN ('PENDING', 'PASSED', 'FAILED'))
+);
+
+CREATE TRIGGER update_verification_criteria_updated_at
+    BEFORE UPDATE ON verification_criteria
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_verification_criteria_entity ON verification_criteria(entity_id);
+
+COMMENT ON TABLE verification_criteria IS
+    'Pass/Fail state of VC-01, VC-02, VC-03 verification steps linked to an entity.';
+
+-- ============================================================
+-- OFFERINGS (Structured perks, discounts, directories, webinars)
+-- ============================================================
+CREATE TABLE offerings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    type VARCHAR(50) NOT NULL, -- 'benefit', 'discount', 'webinar', 'directory'
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'PUBLISHED', 'DELETED'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_offering_status CHECK (status IN ('DRAFT', 'PUBLISHED', 'DELETED'))
+);
+
+CREATE TRIGGER update_offerings_updated_at
+    BEFORE UPDATE ON offerings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_offerings_entity ON offerings(entity_id);
+CREATE INDEX idx_offerings_status ON offerings(status);
+
+COMMENT ON TABLE offerings IS
+    'Structured perks, discounts, directories, and webinars linked to an entity.';
+
+-- ============================================================
+-- MEMBERSHIPS (Approved entity-user relationship mapping)
+-- ============================================================
+CREATE TABLE memberships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    entity_id UUID NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'PENDING', -- 'PENDING', 'ACTIVE', 'SUSPENDED', 'CANCELLED'
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_user_entity_membership UNIQUE (user_id, entity_id),
+    CONSTRAINT chk_membership_status CHECK (status IN ('PENDING', 'ACTIVE', 'SUSPENDED', 'CANCELLED'))
+);
+
+CREATE TRIGGER update_memberships_updated_at
+    BEFORE UPDATE ON memberships
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_memberships_user ON memberships(user_id);
+CREATE INDEX idx_memberships_entity ON memberships(entity_id);
+
+COMMENT ON TABLE memberships IS
+    'Approved entity-user relationship mapping.';
+
+-- ============================================================
+-- ASSOCIATIONS TABLE
+-- ============================================================
+CREATE TABLE IF NOT EXISTS associations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    brand_name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'DRAFT', -- 'DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED'
+    featured_start_at TIMESTAMP,
+    featured_end_at TIMESTAMP,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_association_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED'))
+);
+
+CREATE TRIGGER update_associations_updated_at
+    BEFORE UPDATE ON associations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_associations_slug ON associations(slug);
+CREATE INDEX idx_associations_status ON associations(status);
+
+COMMENT ON TABLE associations IS 'Stores core data and extended JSON metadata for associations.';
 
 -- ============================================================
 -- END OF COMPLETE SCHEMA

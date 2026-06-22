@@ -2,9 +2,10 @@ package buildresponse
 
 // Input - Now using pageType instead of templateId
 type Input struct {
-	PageType string                 `json:"pageType"` // "home", "listing", "detail", "search"
-	Data     map[string]interface{} `json:"data"`     // All data from workflow (can be nested)
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	PageType   string                 `json:"pageType"` // "home", "listing", "detail", "search"
+	EntityType string                 `json:"entityType,omitempty"`
+	Data       map[string]interface{} `json:"data"`     // All data from workflow (can be nested)
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 
 	// HOME PAGE FIELDS
 	HeroBrands      []interface{} `json:"heroBrands,omitempty"`
@@ -34,6 +35,8 @@ type Input struct {
 	Recommended       []interface{}          `json:"recommended,omitempty"`
 	MarketInsights    interface{}            `json:"marketInsights,omitempty"`
 	CategoryQuestions []interface{}          `json:"categoryQuestions,omitempty"`
+	MatchScore        interface{}            `json:"matchScore,omitempty"`
+	MatchFactors      map[string]interface{} `json:"matchFactors,omitempty"`
 }
 
 // Output - Simplified structure (matches what build-response returns)

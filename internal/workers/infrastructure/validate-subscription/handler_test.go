@@ -728,8 +728,16 @@ func TestHandler_FullWorkflow(t *testing.T) {
 			key := cacheKey(tt.userID, tt.tier)
 			redisMock.ExpectGet(key).RedisNil()
 
+			var expiresAtNull sql.NullString
+			if tt.expiresAt != "" {
+				expiresAtNull = sql.NullString{
+					String: tt.expiresAt,
+					Valid:  true,
+				}
+			}
+
 			rows := sqlmock.NewRows([]string{"user_id", "tier", "expires_at", "is_valid"}).
-				AddRow(tt.userID, tt.tier, tt.expiresAt, tt.isValid)
+				AddRow(tt.userID, tt.tier, expiresAtNull, tt.isValid)
 			mock.ExpectQuery(`SELECT user_id, tier, expires_at, is_valid FROM user_subscriptions WHERE user_id = \$1 AND tier = \$2`).
 				WithArgs(tt.userID, tt.tier).
 				WillReturnRows(rows)

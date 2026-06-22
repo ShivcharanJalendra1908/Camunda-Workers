@@ -296,7 +296,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	hasExtractedParams := params.Industry != "" || params.Category != "" || params.Subcategory != "" ||
 		params.Location != nil || params.Investment != nil || params.ROI != nil ||
 		params.Space != nil || params.Staff != nil || params.Outlets != nil ||
-		params.Rating != nil || params.Verified != nil || params.TrustedSeller != nil
+		params.Rating != nil || params.Verified != nil || params.TrustedSeller != nil ||
+		params.EntityType != "" || params.MemberCount != nil || params.MembershipFee != nil ||
+		params.MinUnits != nil || params.ExclusivityType != "" || params.TerritoryScope != ""
 
 	var finalResults *SearchResults
 	if hasExtractedParams {
@@ -592,6 +594,64 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// This ensures results are not cut to near-zero when combining multiple criteria.
 	softBoosts := []interface{}{}
 
+	// Entity Type filter
+	if params.EntityType != "" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"term": map[string]interface{}{"entity_type": params.EntityType},
+		})
+	}
+
+	// Member Count (Associations)
+	if params.MemberCount != nil {
+		memRange := map[string]interface{}{}
+		if params.MemberCount.Min > 0 { memRange["gte"] = params.MemberCount.Min }
+		if params.MemberCount.Max > 0 { memRange["lte"] = params.MemberCount.Max }
+		if len(memRange) > 0 {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"range": map[string]interface{}{"member_count": memRange},
+			})
+		}
+	}
+
+	// Membership Fee (Associations) - soft boost
+	if params.MembershipFee != nil {
+		if params.MembershipFee.Max > 0 {
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_min": map[string]interface{}{"lte": params.MembershipFee.Max, "boost": 2},
+				},
+			})
+		}
+		if params.MembershipFee.Min > 0 {
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_max": map[string]interface{}{"gte": params.MembershipFee.Min, "boost": 2},
+				},
+			})
+		}
+	}
+
+	// Min Units / Master Franchise
+	if params.MinUnits != nil && *params.MinUnits > 0 {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"total_outlets": map[string]interface{}{"gte": *params.MinUnits},
+			},
+		})
+	}
+
+	if params.ExclusivityType != "" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"term": map[string]interface{}{"exclusivity_type": params.ExclusivityType},
+		})
+	}
+
+	if params.TerritoryScope != "" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"term": map[string]interface{}{"territory_scope": params.TerritoryScope},
+		})
+	}
+
 	// Location filter — HARD filter (user explicitly wants these cities)
 	if params.Location != nil && params.Location.City != "" {
 		cities := strings.Split(params.Location.City, ",")
@@ -749,15 +809,43 @@ func (h *Handler) parseInput(job entities.Job) (*SearchInput, error) {
 		return nil, fmt.Errorf("parse failed: %w", err)
 	}
 
+	var varMap map[string]interface{}
+	json.Unmarshal([]byte(job.Variables), &varMap)
+
 	if input.Query == "" {
-		var varMap map[string]interface{}
-		json.Unmarshal([]byte(job.Variables), &varMap)
 		for _, field := range []string{"query", "searchQuery", "search_query", "text"} {
 			if val, ok := varMap[field].(string); ok && val != "" {
 				input.Query = val
 				break
 			}
 		}
+	}
+
+	if input.EntityType == "" {
+		for _, field := range []string{"entityType", "entity_type", "entity-type"} {
+			if val, ok := varMap[field].(string); ok && val != "" {
+				input.EntityType = val
+				break
+			}
+		}
+	}
+
+	if input.EntityType != "" {
+		et := strings.ToLower(input.EntityType)
+		switch et {
+		case "franchises":
+			et = "franchise"
+		case "associations":
+			et = "association"
+		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+			et = "master_franchise"
+		default:
+			et = strings.TrimSuffix(et, "s")
+			if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {
+				et = "master_franchise"
+			}
+		}
+		input.EntityType = et
 	}
 
 	return &input, nil
@@ -778,11 +866,27 @@ func (h *Handler) validateInput(input *SearchInput) error {
 }
 
 func (h *Handler) extractParametersWithFallback(ctx context.Context, input *SearchInput) *ExtractedParameters {
+	if input.EntityType != "" {
+		et := strings.ToLower(input.EntityType)
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+			et = "master_franchise"
+		}
+		input.EntityType = et
+	}
+
 	if input.Query == "*" || strings.TrimSpace(input.Query) == "" {
-		return &ExtractedParameters{}
+		params := &ExtractedParameters{}
+		if input.EntityType != "" {
+			params.EntityType = input.EntityType
+		}
+		return params
 	}
 
 	cacheKey := strings.ToLower(strings.TrimSpace(input.Query))
+	if input.EntityType != "" {
+		cacheKey = input.EntityType + ":" + cacheKey
+	}
+
 	llmCacheMu.RLock()
 	cached, exists := llmCache[cacheKey]
 	llmCacheMu.RUnlock()
@@ -802,15 +906,29 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 			"error": err.Error(),
 			"query": input.Query,
 		})
-		return &ExtractedParameters{}
+		params := &ExtractedParameters{}
+		if input.EntityType != "" {
+			params.EntityType = input.EntityType
+		}
+		return params
 	}
 
 	// CHANGED: ParseWithFallback → ParseWithContext (original query pass karo)
 	params := h.paramExtractor.ParseWithContext(response, input.Query)
 
+	// Fallback to payload EntityType if LLM did not extract it
+	if params.EntityType == "" && input.EntityType != "" {
+		et := strings.ToLower(input.EntityType)
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+			et = "master_franchise"
+		}
+		params.EntityType = et
+	}
+
 	h.logger.Info("Parameters extracted", map[string]interface{}{
-		"industry": params.Industry,
-		"category": params.Category,
+		"industry":    params.Industry,
+		"category":    params.Category,
+		"entity_type": params.EntityType,
 		"location": func() string {
 			if params.Location != nil {
 				return params.Location.City
@@ -1023,6 +1141,9 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 	}
 	if params.TrustedSeller != nil {
 		extractedParams["trustedSeller"] = *params.TrustedSeller
+	}
+	if params.EntityType != "" {
+		extractedParams["entityType"] = params.EntityType
 	}
 
 	return map[string]interface{}{

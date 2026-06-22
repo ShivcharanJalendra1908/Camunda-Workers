@@ -67,6 +67,22 @@ DELIMITER ',' CSV HEADER;
 \echo '✅ Sub-categories loaded'
 
 -- ========================================
+-- LOAD INDUSTRY MARKET INSIGHTS
+-- ========================================
+\echo 'Loading industry market insights...'
+COPY industry_market_insights(
+    id, industry_id, industry_slug, entity_type, intent_tag,
+    growth_rate_title, growth_rate_description,
+    market_trend_title, market_trend_description,
+    created_at, updated_at
+)
+FROM '/csv-data/industry_market_insights.csv'
+DELIMITER ',' CSV HEADER;
+
+\echo '✅ Industry market insights loaded'
+
+
+-- ========================================
 -- LOAD FRANCHISES
 -- ========================================
 \echo 'Loading franchises data...'
@@ -74,7 +90,9 @@ COPY franchises(
     id, name, slug, short_description, description, founded_year,
     trusted_seller, verified, total_outlets, outlet_range, parent_company,
     business_type, established_year, units_count, leader_name, leader_role,
-    contact_email, logo_url, created_by, updated_by
+    contact_email, logo_url_circle, logo_url_square, created_by, updated_by,
+    created_at, updated_at, entity_type, status, association_metadata,
+    member_count, membership_fee_min, membership_fee_max, approved_at
 )
 FROM '/csv-data/franchises.csv'
 DELIMITER ',' CSV HEADER;
@@ -139,7 +157,7 @@ COPY franchise_investment_requirement(
     franchise_fee, royalty_percentage, marketing_fee_percentage,
     payback_min_months, payback_max_months, roi_min_percentage, roi_max_percentage,
     monthly_turnover_min, monthly_turnover_max, single_unit_cost_min,
-    single_unit_cost_max, investment_includes, created_by, updated_by
+    single_unit_cost_max, investment_includes, revenue_model, created_by, updated_by
 )
 FROM '/csv-data/franchise_investment_requirement.csv'
 DELIMITER ',' CSV HEADER;
@@ -155,7 +173,7 @@ COPY franchise_operations(
     staff_required_min, staff_required_max, staff_breakdown, operating_hours,
     training_provided, training_details, computer_requirements, marketing_support,
     preferred_locations, qualification_required, supply_chain_support,
-    quality_control, created_by, updated_by
+    quality_control, territory_details, development_schedule, support_training, legal_compliance, created_by, updated_by
 )
 FROM '/csv-data/franchise_operations.csv'
 DELIMITER ',' CSV HEADER;
@@ -179,7 +197,7 @@ DELIMITER ',' CSV HEADER;
 -- ========================================
 \echo 'Loading category questions...'
 COPY category_questions(
-    id, reference_id, question
+    id, reference_id, entity_type, question, intent_tag, created_at
 )
 FROM '/csv-data/category_questions.csv'
 DELIMITER ',' CSV HEADER;
@@ -222,7 +240,10 @@ SELECT 'Operations', COUNT(*) FROM franchise_operations
 UNION ALL
 SELECT 'Social Links', COUNT(*) FROM franchise_social_links
 UNION ALL
-SELECT 'Category Questions', COUNT(*) FROM category_questions;
+SELECT 'Category Questions', COUNT(*) FROM category_questions
+UNION ALL
+SELECT 'Industry Market Insights', COUNT(*) FROM industry_market_insights;
+
 
 \echo ''
 \echo '✅ CSV data loading completed successfully!'

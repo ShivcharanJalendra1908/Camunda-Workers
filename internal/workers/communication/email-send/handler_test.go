@@ -121,7 +121,7 @@ func createValidConfig() *Config {
 		SMTPUsername:  "test-user",
 		SMTPPassword:  "test-password",
 		UseTLS:        true,
-		DefaultFrom:   "noreply@example.com",
+		DefaultFrom:   "noreply@lemici.com",
 	}
 }
 
@@ -1009,7 +1009,7 @@ func TestConfig_DefaultConfig(t *testing.T) {
 	assert.Equal(t, 30*time.Second, config.Timeout)
 	assert.Equal(t, 587, config.SMTPPort)
 	assert.True(t, config.UseTLS)
-	assert.Equal(t, "noreply@example.com", config.DefaultFrom)
+	assert.Equal(t, "noreply@lemici.com", config.DefaultFrom)
 }
 
 func TestCreateConfigFromAppConfig(t *testing.T) {
@@ -1083,7 +1083,7 @@ func TestCreateConfigFromAppConfig(t *testing.T) {
 				assert.Equal(t, 20*time.Second, cfg.Timeout)
 				assert.Equal(t, "", cfg.SMTPHost)
 				assert.Equal(t, 587, cfg.SMTPPort)
-				assert.Equal(t, "noreply@example.com", cfg.DefaultFrom)
+				assert.Equal(t, "noreply@lemici.com", cfg.DefaultFrom)
 			},
 		},
 		{
@@ -1153,7 +1153,7 @@ func TestHandler_GetConfig(t *testing.T) {
 	assert.Equal(t, "smtp.example.com", handler.GetConfig().SMTPHost)
 	assert.Equal(t, 587, handler.GetConfig().SMTPPort)
 	assert.Equal(t, "test-user", handler.GetConfig().SMTPUsername)
-	assert.Equal(t, "noreply@example.com", handler.GetConfig().DefaultFrom)
+	assert.Equal(t, "noreply@lemici.com", handler.GetConfig().DefaultFrom)
 }
 
 // ==========================
@@ -1195,7 +1195,7 @@ func TestGetInputSchema(t *testing.T) {
 	assert.NotNil(t, schema.Properties["subject"].MaxLength)
 	assert.Equal(t, 500, *schema.Properties["subject"].MaxLength)
 
-	assert.False(t, schema.AdditionalProperties)
+	assert.True(t, schema.AdditionalProperties)
 }
 
 func TestGetOutputSchema(t *testing.T) {

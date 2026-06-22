@@ -15,9 +15,11 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;FRANCHISE_BY_SLUG&#34;" target="queryType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:input source="=slug" target="slug" />
           <zeebe:input source="=slug" target="franchiseId" />
           <zeebe:output source="=data[1]" target="basicInfo" />
+          <zeebe:output source="=if data != null and count(data) > 0 and data[1].entity_type != null then data[1].entity_type else entityType" target="entityType" />
           <zeebe:output source="=if data != null and count(data) > 0 then data[1].id else slug" target="franchiseId" />
           <zeebe:output source="=if data != null and count(data) > 0 and data[1].industry != null then data[1].industry.id else null" target="industryId" /> 
           <zeebe:output source="=if data != null and count(data) > 0 and data[1].industry != null then data[1].industry.slug else null" target="industrySlug" />
@@ -55,6 +57,7 @@
       <bpmn:outgoing>Flow_To_Recommended</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Insights</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Questions</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_MatchScore</bpmn:outgoing>
     </bpmn:parallelGateway>
     <bpmn:serviceTask id="Task_GetOverview" name="Get Franchise Overview">
       <bpmn:extensionElements>
@@ -139,6 +142,9 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORIES_FEATURED_8&#34;" target="queryType" />
+          <zeebe:input source="=if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
+          <zeebe:input source="=industryId" target="industryId" />
+          <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:output source="=data" target="categories" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -153,6 +159,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;RECOMMENDED&#34;" target="queryType" />
+          <zeebe:input source="=if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
           <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:input source="=franchiseId" target="franchiseId" />
           <zeebe:output source="=data" target="recommended" />
@@ -169,6 +176,7 @@
         </zeebe:taskHeaders>
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;MARKET_INSIGHTS&#34;" target="queryType" />
+          <zeebe:input source="=if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
           <zeebe:input source="=industrySlug" target="industrySlug" />
           <zeebe:input source="=industryId" target="industryId" />
           <zeebe:output source="=if data != null and count(data) > 0 then data[1] else null" target="marketInsights" />
@@ -186,13 +194,32 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORY_QUESTIONS_BY_INDUSTRY&#34;" target="queryType" />
           <zeebe:input source="=industryId" target="industryId" />
-           <zeebe:input source="=industrySlug" target="industrySlug" />
-            <zeebe:input source="={&#34;industryId&#34;: industryId, &#34;industrySlug&#34;: industrySlug}" target="params" />
+          <zeebe:input source="=industrySlug" target="industrySlug" />
+          <zeebe:input source="=if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
+          <zeebe:input source="={&#34;industryId&#34;: industryId, &#34;industrySlug&#34;: industrySlug, &#34;entityType&#34;: (if entityType != null then entityType else &#34;franchise&#34;)}" target="params" />
           <zeebe:output source="=data" target="categoryQuestions" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Questions</bpmn:incoming>
       <bpmn:outgoing>Flow_Questions_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_CalculateMatchScore" name="Calculate Match Score">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="calculate-match-score" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="={
+            &#34;id&#34;: (if basicInfo.id != null then basicInfo.id else if basicInfo._id != null then basicInfo._id else null),
+            &#34;name&#34;: (if basicInfo.name != null then basicInfo.name else if basicInfo.brand != null then basicInfo.brand else &#34;&#34;),
+            &#34;investmentMin&#34;: (if basicInfo.investment != null and basicInfo.investment.min_investment != null then basicInfo.investment.min_investment else 0),
+            &#34;investmentMax&#34;: (if basicInfo.investment != null and basicInfo.investment.max_investment != null then basicInfo.investment.max_investment else 0),
+            &#34;category&#34;: (if basicInfo.category != null then basicInfo.category else &#34;&#34;),
+            &#34;locations&#34;: (if basicInfo.locations != null then basicInfo.locations else [])
+          }" target="franchiseData" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_MatchScore</bpmn:incoming>
+      <bpmn:outgoing>Flow_MatchScore_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:parallelGateway id="Gateway_Join" name="Join All">
       <bpmn:incoming>Flow_Overview_To_Join</bpmn:incoming>
@@ -204,6 +231,7 @@
       <bpmn:incoming>Flow_Recommended_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Insights_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Questions_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_MatchScore_To_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Build</bpmn:outgoing>
     </bpmn:parallelGateway>
     <bpmn:serviceTask id="Task_BuildResponse" name="Build Detail Response">
@@ -215,6 +243,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=&#34;detail&#34;" target="pageType" />
+          <zeebe:input source="=if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
           <zeebe:input source="=basicInfo" target="basicInfo" />
           <zeebe:input source="=overview" target="overview" />
           <zeebe:input source="=business" target="business" />
@@ -270,6 +299,8 @@
     <bpmn:sequenceFlow id="Flow_Recommended_To_Join" sourceRef="Task_GetRecommended" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Insights_To_Join" sourceRef="Task_GetInsights" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Questions_To_Join" sourceRef="Task_GetQuestions" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_To_MatchScore" sourceRef="Gateway_Fork" targetRef="Task_CalculateMatchScore" />
+    <bpmn:sequenceFlow id="Flow_MatchScore_To_Join" sourceRef="Task_CalculateMatchScore" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
     <bpmn:sequenceFlow id="Flow_To_Send" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
     <bpmn:sequenceFlow id="Flow_To_End" sourceRef="Task_SendResponse" targetRef="End_Detail" />

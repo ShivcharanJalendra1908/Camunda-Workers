@@ -115,6 +115,11 @@ func (h *Handler) validateBaseInput(input *BaseInput) error {
 			"SHARE_FRANCHISE",
 			"GET_USER_SHARES",
 			"SAVE_CONTACT_MESSAGE",
+			"CREATE_PENDING_ENTITY",
+			"UPDATE_STATUS",
+			"CREATE_ENQUIRY",
+			"UPDATE_ENQUIRY_STATUS",
+			"GET_ENQUIRIES",
 		}),
 	); err != nil {
 		return appErrs.NewValidationError("operationType", err.Error())
@@ -288,6 +293,13 @@ func (h *Handler) validateFranchiseInput(input CreateFranchiseInput) error {
 	// 6. Validate Logo URL
 	if err := h.validateURL("logoURL", input.LogoURL); err != nil {
 		return err
+	}
+
+	// Validate Website URL
+	if input.WebsiteURL != "" {
+		if err := h.validateURL("websiteURL", input.WebsiteURL); err != nil {
+			return err
+		}
 	}
 
 	// 7. Validate Years
@@ -539,6 +551,16 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		result, err = h.handleGetUserShares(ctxExec, sanitizedVariables)
 	case "SAVE_CONTACT_MESSAGE":
 		result, err = h.saveContactMessage(ctxExec, sanitizedVariables)
+	case "CREATE_PENDING_ENTITY":
+		result, err = h.handleCreatePendingEntity(ctxExec, sanitizedVariables)
+	case "UPDATE_STATUS":
+		result, err = h.handleUpdateStatus(ctxExec, sanitizedVariables)
+	case "CREATE_ENQUIRY":
+		result, err = h.handleCreateEnquiry(ctxExec, sanitizedVariables)
+	case "UPDATE_ENQUIRY_STATUS":
+		result, err = h.handleUpdateEnquiryStatus(ctxExec, sanitizedVariables)
+	case "GET_ENQUIRIES":
+		result, err = h.handleGetEnquiries(ctxExec, sanitizedVariables)
 
 	default:
 		span.SetAttributes(attribute.String("error.operation_type", baseInput.OperationType))
@@ -618,10 +640,10 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 			trusted_seller, verified, total_outlets, outlet_range,
 			industry, parent_company, business_type, established_year,
 			units_count, leader_name, leader_role, contact_email, 
-			logo_url, created_by, created_at, updated_at
+			logo_url, website_url, is_sponsored, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
-			$14, $15, $16, $17, $18, $19, $20, $21
+			$14, $15, $16, $17, $18, $19, $20, $21, $22, $23
 		) RETURNING id, created_at, updated_at`
 
 	var franchiseID uuid.UUID
@@ -644,6 +666,8 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 		h.sanitizer.SanitizeString(input.LeaderRole),
 		h.sanitizer.SanitizeString(input.ContactEmail),
 		h.sanitizer.SanitizeString(input.LogoURL),
+		h.sanitizer.SanitizeString(input.WebsiteURL),
+		input.IsSponsored,
 		createdBy, now, now,
 	).Scan(&franchiseID, &createdAt, &updatedAt)
 
@@ -765,16 +789,95 @@ func (h *Handler) handleUpdateFranchise(ctx context.Context, variables string, u
 	}
 	defer tx.Rollback()
 
-	// Build dynamic UPDATE query
+	// 1. Fetch current curation values to track audit changes
+	var oldIsFeatured, oldIsSponsored bool
+	var oldFeaturedOrder int
+	var oldFeaturedStartAt, oldFeaturedExpiresAt sql.NullTime
+
+	selectQuery := `
+		SELECT is_featured, is_sponsored, featured_order, featured_start_at, featured_expires_at 
+		FROM franchises WHERE id = $1 FOR UPDATE`
+	err = tx.QueryRowContext(ctx, selectQuery, franchiseID).Scan(
+		&oldIsFeatured, &oldIsSponsored, &oldFeaturedOrder, &oldFeaturedStartAt, &oldFeaturedExpiresAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("%w: franchise_id=%s", ErrFranchiseNotFound, input.FranchiseID)
+		}
+		return nil, fmt.Errorf("%w: fetch old franchise values: %v", ErrDatabaseError, err)
+	}
+
+	// 2. Build dynamic UPDATE query
 	query, args := h.buildUpdateQuery(franchiseID, updatedBy, &input)
 
 	var updatedAt time.Time
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&updatedAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("%w: franchise_id=%s", ErrFranchiseNotFound, input.FranchiseID)
-		}
 		return nil, fmt.Errorf("%w: update franchise: %v", ErrDatabaseError, err)
+	}
+
+	// 3. Compare and insert into featured_association_audit_log if changes exist
+	oldValues := make(map[string]interface{})
+	newValues := make(map[string]interface{})
+	hasCurationChanges := false
+
+	if input.IsFeatured != nil && *input.IsFeatured != oldIsFeatured {
+		oldValues["is_featured"] = oldIsFeatured
+		newValues["is_featured"] = *input.IsFeatured
+		hasCurationChanges = true
+	}
+	if input.IsSponsored != nil && *input.IsSponsored != oldIsSponsored {
+		oldValues["is_sponsored"] = oldIsSponsored
+		newValues["is_sponsored"] = *input.IsSponsored
+		hasCurationChanges = true
+	}
+	if input.FeaturedOrder != nil && *input.FeaturedOrder != oldFeaturedOrder {
+		oldValues["featured_order"] = oldFeaturedOrder
+		newValues["featured_order"] = *input.FeaturedOrder
+		hasCurationChanges = true
+	}
+	if input.FeaturedStartAt != nil {
+		var oldVal interface{}
+		if oldFeaturedStartAt.Valid {
+			oldVal = oldFeaturedStartAt.Time
+		}
+		if !oldFeaturedStartAt.Valid || !input.FeaturedStartAt.Equal(oldFeaturedStartAt.Time) {
+			oldValues["featured_start_at"] = oldVal
+			newValues["featured_start_at"] = *input.FeaturedStartAt
+			hasCurationChanges = true
+		}
+	}
+	if input.FeaturedExpiresAt != nil {
+		var oldVal interface{}
+		if oldFeaturedExpiresAt.Valid {
+			oldVal = oldFeaturedExpiresAt.Time
+		}
+		if !oldFeaturedExpiresAt.Valid || !input.FeaturedExpiresAt.Equal(oldFeaturedExpiresAt.Time) {
+			oldValues["featured_expires_at"] = oldVal
+			newValues["featured_expires_at"] = *input.FeaturedExpiresAt
+			hasCurationChanges = true
+		}
+	}
+
+	if hasCurationChanges {
+		oldBytes, _ := json.Marshal(oldValues)
+		newBytes, _ := json.Marshal(newValues)
+
+		auditQuery := `
+			INSERT INTO featured_association_audit_log (
+				franchise_id, action, actor_id, old_values, new_values, notes, created_at
+			) VALUES (
+				$1, 'UPDATE_CURATION_SETTINGS', $2, $3, $4, 'Admin updated curation settings', CURRENT_TIMESTAMP)`
+		
+		var actorIDVal interface{} = updatedBy
+		if updatedBy == uuid.Nil {
+			actorIDVal = nil
+		}
+
+		_, err = tx.ExecContext(ctx, auditQuery, franchiseID, actorIDVal, oldBytes, newBytes)
+		if err != nil {
+			return nil, fmt.Errorf("%w: insert curation audit log: %v", ErrDatabaseError, err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -829,6 +932,62 @@ func (h *Handler) buildUpdateQuery(franchiseID, updatedBy uuid.UUID, input *Upda
 		args = append(args, h.sanitizer.SanitizeString(*input.ContactEmail))
 		argPos++
 	}
+	if len(input.AssociationMetadata) > 0 {
+		query += fmt.Sprintf(", association_metadata = $%d", argPos)
+		// association_metadata is raw JSON, ensure we don't sanitize it blindly, but we should cast it
+		args = append(args, input.AssociationMetadata)
+		argPos++
+	}
+	if input.MemberCount != nil {
+		query += fmt.Sprintf(", member_count = $%d", argPos)
+		args = append(args, *input.MemberCount)
+		argPos++
+	}
+	if input.MembershipFeeMin != nil {
+		query += fmt.Sprintf(", membership_fee_min = $%d", argPos)
+		args = append(args, *input.MembershipFeeMin)
+		argPos++
+	}
+	if input.MembershipFeeMax != nil {
+		query += fmt.Sprintf(", membership_fee_max = $%d", argPos)
+		args = append(args, *input.MembershipFeeMax)
+		argPos++
+	}
+	if input.ApprovedAt != nil {
+		query += fmt.Sprintf(", approved_at = $%d", argPos)
+		args = append(args, *input.ApprovedAt)
+		argPos++
+	}
+	if input.WebsiteURL != nil {
+		query += fmt.Sprintf(", website_url = $%d", argPos)
+		args = append(args, h.sanitizer.SanitizeString(*input.WebsiteURL))
+		argPos++
+	}
+	if input.IsFeatured != nil {
+		query += fmt.Sprintf(", is_featured = $%d", argPos)
+		args = append(args, *input.IsFeatured)
+		argPos++
+	}
+	if input.FeaturedStartAt != nil {
+		query += fmt.Sprintf(", featured_start_at = $%d", argPos)
+		args = append(args, *input.FeaturedStartAt)
+		argPos++
+	}
+	if input.FeaturedExpiresAt != nil {
+		query += fmt.Sprintf(", featured_expires_at = $%d", argPos)
+		args = append(args, *input.FeaturedExpiresAt)
+		argPos++
+	}
+	if input.FeaturedOrder != nil {
+		query += fmt.Sprintf(", featured_order = $%d", argPos)
+		args = append(args, *input.FeaturedOrder)
+		argPos++
+	}
+	if input.IsSponsored != nil {
+		query += fmt.Sprintf(", is_sponsored = $%d", argPos)
+		args = append(args, *input.IsSponsored)
+		argPos++
+	}
 
 	query += fmt.Sprintf(" WHERE id = $%d RETURNING updated_at", argPos)
 	args = append(args, franchiseID)
@@ -870,6 +1029,9 @@ func (h *Handler) handleGetFranchise(ctx context.Context, variables string) (*Fr
 			f.established_year, f.units_count, f.leader_name, f.leader_role, 
 			f.contact_email, f.logo_url,
 			f.created_by, f.updated_by, f.created_at, f.updated_at,
+			f.entity_type, f.association_metadata,
+			f.member_count, f.membership_fee_min, f.membership_fee_max, f.approved_at,
+			f.website_url, f.is_featured, f.featured_start_at, f.featured_expires_at, f.featured_order, f.is_sponsored,
 			fs.rating, fs.rating_count, fs.follow_count, fs.likes_count,
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
@@ -891,6 +1053,9 @@ func (h *Handler) handleGetFranchise(ctx context.Context, variables string) (*Fr
 
 	var franchise Franchise
 	var stats FranchiseStats
+	var assocMetaStr sql.NullString
+	var websiteUrlStr sql.NullString
+	var featuredStartAt, featuredExpiresAt sql.NullTime
 
 	err := h.db.QueryRowContext(ctx, query, args...).Scan(
 		&franchise.ID, &franchise.Name, &franchise.Slug,
@@ -902,6 +1067,9 @@ func (h *Handler) handleGetFranchise(ctx context.Context, variables string) (*Fr
 		&franchise.ContactEmail, &franchise.LogoURL,
 		&franchise.CreatedBy, &franchise.UpdatedBy, &franchise.CreatedAt,
 		&franchise.UpdatedAt,
+		&franchise.EntityType, &assocMetaStr,
+		&franchise.MemberCount, &franchise.MembershipFeeMin, &franchise.MembershipFeeMax, &franchise.ApprovedAt,
+		&websiteUrlStr, &franchise.IsFeatured, &featuredStartAt, &featuredExpiresAt, &franchise.FeaturedOrder, &franchise.IsSponsored,
 		&stats.Rating, &stats.RatingCount, &stats.FollowCount, &stats.LikesCount,
 		&stats.ViewCount, &stats.SaveCount, &stats.ShareCount, &stats.EnquiryCount,
 		&stats.NewsCount,
@@ -912,6 +1080,19 @@ func (h *Handler) handleGetFranchise(ctx context.Context, variables string) (*Fr
 			return nil, fmt.Errorf("%w", ErrFranchiseNotFound)
 		}
 		return nil, fmt.Errorf("%w: query franchise: %v", ErrDatabaseError, err)
+	}
+
+	if assocMetaStr.Valid && assocMetaStr.String != "" && assocMetaStr.String != "null" {
+		franchise.AssociationMetadata = json.RawMessage(assocMetaStr.String)
+	}
+	if websiteUrlStr.Valid {
+		franchise.WebsiteURL = &websiteUrlStr.String
+	}
+	if featuredStartAt.Valid {
+		franchise.FeaturedStartAt = &featuredStartAt.Time
+	}
+	if featuredExpiresAt.Valid {
+		franchise.FeaturedExpiresAt = &featuredExpiresAt.Time
 	}
 
 	franchise.Stats = &stats
@@ -2136,6 +2317,7 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
 
 	// Get investment requirement
 	var investment Investment
+	var revenueModelStr sql.NullString
 	query = `
         SELECT 
             id, initial_investment_min, initial_investment_max, 
@@ -2144,7 +2326,7 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
             roi_min_percentage, roi_max_percentage,
             monthly_turnover_min, monthly_turnover_max,
             single_unit_cost_min, single_unit_cost_max,
-            investment_includes
+            investment_includes, revenue_model
         FROM franchise_investment_requirement 
         WHERE franchise_id = $1`
 
@@ -2155,25 +2337,30 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
 		&investment.ROIMinPercentage, &investment.ROIMaxPercentage,
 		&investment.MonthlyTurnoverMin, &investment.MonthlyTurnoverMax,
 		&investment.SingleUnitCostMin, &investment.SingleUnitCostMax,
-		&investment.InvestmentIncludes,
+		&investment.InvestmentIncludes, &revenueModelStr,
 	)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("%w: query investment: %v", ErrDatabaseError, err)
 	}
 	if err == nil {
+		if revenueModelStr.Valid && revenueModelStr.String != "" && revenueModelStr.String != "null" {
+			investment.RevenueModel = json.RawMessage(revenueModelStr.String)
+		}
 		fullFranchise.Investment = &investment
 	}
 
 	// Get operations
 	var operations Operations
 	var staffBreakdownStr string
+	var territoryStr, devScheduleStr, supportStr, legalStr sql.NullString
 	query = `
         SELECT 
             id, space_min_sqft, space_max_sqft, required_property_type,
             staff_required_min, staff_required_max, staff_breakdown,
             operating_hours, training_provided, training_details,
             computer_requirements, marketing_support, preferred_locations,
-            qualification_required, supply_chain_support, quality_control
+            qualification_required, supply_chain_support, quality_control,
+            territory_details, development_schedule, support_training, legal_compliance
         FROM franchise_operations 
         WHERE franchise_id = $1`
 
@@ -2186,12 +2373,25 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
 		&operations.MarketingSupport, &operations.PreferredLocations,
 		&operations.QualificationRequired, &operations.SupplyChainSupport,
 		&operations.QualityControl,
+		&territoryStr, &devScheduleStr, &supportStr, &legalStr,
 	)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("%w: query operations: %v", ErrDatabaseError, err)
 	}
 	if err == nil {
 		operations.StaffBreakdown = json.RawMessage(staffBreakdownStr)
+		if territoryStr.Valid && territoryStr.String != "" && territoryStr.String != "null" {
+			operations.TerritoryDetails = json.RawMessage(territoryStr.String)
+		}
+		if devScheduleStr.Valid && devScheduleStr.String != "" && devScheduleStr.String != "null" {
+			operations.DevelopmentSchedule = json.RawMessage(devScheduleStr.String)
+		}
+		if supportStr.Valid && supportStr.String != "" && supportStr.String != "null" {
+			operations.SupportTraining = json.RawMessage(supportStr.String)
+		}
+		if legalStr.Valid && legalStr.String != "" && legalStr.String != "null" {
+			operations.LegalCompliance = json.RawMessage(legalStr.String)
+		}
 		fullFranchise.Operations = &operations
 	}
 
@@ -2427,7 +2627,7 @@ func (h *Handler) HandleAddToFavorites(ctx context.Context, userID, franchiseID 
 // BOOKMARK HANDLERS
 // ============================================================
 
-// handleAddBookmark — adds franchise to user bookmarks (user_favorites table)
+// handleAddBookmark — adds entity to user bookmarks (user_favorites table)
 func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*BookmarkOutput, error) {
 	var input BookmarkInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
@@ -2438,25 +2638,35 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	// Idempotency key generate karo
-	idempotencyKey := h.keyGenerator.GenerateFavoriteKey(input.UserID, input.FranchiseID)
+	idempotencyKey := h.keyGenerator.GenerateFavoriteKey(input.UserID, targetID)
 
 	// Check if already bookmarked
-	exists, existingID, checkErr := h.idempotencyChecker.CheckFavoriteExists(ctx, input.UserID, input.FranchiseID)
-	if checkErr != nil {
-		h.logger.Error("Failed to check existing bookmark", map[string]interface{}{"error": checkErr.Error()})
-	}
+	var existingID string
+	queryErr := h.db.QueryRowContext(ctx, `
+		SELECT id FROM user_favorites WHERE user_id = $1 AND entity_id = $2 AND entity_type = $3`,
+		userID, entityID, entityType,
+	).Scan(&existingID)
 
-	if exists {
+	if queryErr == nil {
 		return &BookmarkOutput{
 			ID:           existingID,
 			UserID:       input.UserID,
-			FranchiseID:  input.FranchiseID,
+			FranchiseID:  input.FranchiseID, // backward compatibility
+			EntityID:     targetID,
+			EntityType:   entityType,
 			IsBookmarked: true,
 			Success:      true,
 			Message:      "Already bookmarked",
@@ -2477,22 +2687,23 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 	// INSERT with ON CONFLICT DO NOTHING — idempotent
 	var returnedID string
 	insertErr := tx.QueryRowContext(ctx, `
-		INSERT INTO user_favorites (id, user_id, franchise_id, created_at)
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id, franchise_id) DO NOTHING
+		INSERT INTO user_favorites (id, user_id, entity_id, entity_type, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id, entity_id, entity_type) DO NOTHING
 		RETURNING id`,
-		bookmarkID, userID, franchiseID, time.Now(),
+		bookmarkID, userID, entityID, entityType, time.Now(),
 	).Scan(&returnedID)
 
 	if insertErr == sql.ErrNoRows {
 		// Concurrent insert — fetch existing
 		var existID string
 		_ = h.db.QueryRowContext(ctx, `
-			SELECT id FROM user_favorites WHERE user_id=$1 AND franchise_id=$2`,
-			userID, franchiseID,
+			SELECT id FROM user_favorites WHERE user_id=$1 AND entity_id=$2 AND entity_type=$3`,
+			userID, entityID, entityType,
 		).Scan(&existID)
 		return &BookmarkOutput{
 			ID: existID, UserID: input.UserID, FranchiseID: input.FranchiseID,
+			EntityID: targetID, EntityType: entityType,
 			IsBookmarked: true, Success: true, Message: "Already bookmarked",
 		}, nil
 	}
@@ -2501,11 +2712,11 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 		return nil, fmt.Errorf("%w: insert bookmark: %v", ErrDatabaseError, insertErr)
 	}
 
-	// Update franchise_stats.save_count +1
+	// Update entity_stats.save_count +1
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats SET save_count = save_count + 1, updated_at = $1
 		WHERE franchise_id = $2`,
-		time.Now(), franchiseID,
+		time.Now(), entityID,
 	)
 
 	if err := tx.Commit(); err != nil {
@@ -2521,13 +2732,15 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 		ID:           bookmarkID,
 		UserID:       input.UserID,
 		FranchiseID:  input.FranchiseID,
+		EntityID:     targetID,
+		EntityType:   entityType,
 		IsBookmarked: true,
 		Success:      true,
 		Message:      "Bookmark added successfully",
 	}, nil
 }
 
-// handleRemoveBookmark — removes franchise from user bookmarks
+// handleRemoveBookmark — removes entity from user bookmarks
 func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*BookmarkOutput, error) {
 	var input BookmarkInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
@@ -2538,10 +2751,15 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -2550,8 +2768,8 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	defer tx.Rollback()
 
 	result, err := tx.ExecContext(ctx, `
-		DELETE FROM user_favorites WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		DELETE FROM user_favorites WHERE user_id = $1 AND entity_id = $2 AND entity_type = $3`,
+		userID, entityID, entityType,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: delete bookmark: %v", ErrDatabaseError, err)
@@ -2565,7 +2783,7 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 			UPDATE franchise_stats
 			SET save_count = GREATEST(save_count - 1, 0), updated_at = $1
 			WHERE franchise_id = $2`,
-			time.Now(), franchiseID,
+			time.Now(), entityID,
 		)
 	}
 
@@ -2576,13 +2794,15 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	return &BookmarkOutput{
 		UserID:       input.UserID,
 		FranchiseID:  input.FranchiseID,
+		EntityID:     targetID,
+		EntityType:   entityType,
 		IsBookmarked: false,
 		Success:      true,
 		Message:      "Bookmark removed successfully",
 	}, nil
 }
 
-// handleGetUserBookmarks — get all bookmarked franchises for a user
+// handleGetUserBookmarks — get all bookmarked entities for a user
 func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) (*GetBookmarksOutput, error) {
 	var input GetBookmarksInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
@@ -2593,6 +2813,8 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
+
+	entityType := normalizeEntityType(input.EntityType, "all")
 
 	// Defaults
 	if input.Page <= 0 {
@@ -2606,25 +2828,30 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 	// Total count
 	var totalCount int
 	_ = h.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM user_favorites WHERE user_id = $1`, userID,
+		`SELECT COUNT(*) FROM user_favorites WHERE user_id = $1 AND ($2 = 'all' OR entity_type = $2)`, userID, entityType,
 	).Scan(&totalCount)
 
-	// Fetch bookmarks with franchise info
+	// Fetch bookmarks with entity info
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT
 			uf.id as bookmark_id,
-			uf.franchise_id,
-			f.name,
-			f.slug,
-			COALESCE(f.logo_url_circle, f.logo_url_square, '') as logo_url,
-			COALESCE((SELECT i.name FROM franchise_categories fc JOIN categories c ON fc.category_id = c.id JOIN industries i ON c.industry_id = i.id WHERE fc.franchise_id = f.id AND fc.is_primary = true LIMIT 1), '') as industry,
+			uf.entity_id,
+			uf.entity_type,
+			COALESCE(f.name, '') as name,
+			COALESCE(f.slug, '') as slug,
+			COALESCE(f.logo_url_circle, f.logo_url_square, f.logo_url, '') as logo_url,
+			COALESCE(
+				(SELECT i.name FROM franchise_categories fc JOIN categories c ON fc.category_id = c.id JOIN industries i ON c.industry_id = i.id WHERE fc.franchise_id = f.id AND fc.is_primary = true LIMIT 1), 
+				f.industry,
+				''
+			) as industry,
 			uf.created_at as bookmarked_at
 		FROM user_favorites uf
-		INNER JOIN franchises f ON uf.franchise_id = f.id
-		WHERE uf.user_id = $1
+		LEFT JOIN franchises f ON uf.entity_id = f.id
+		WHERE uf.user_id = $1 AND ($2 = 'all' OR uf.entity_type = $2)
 		ORDER BY uf.created_at DESC
-		LIMIT $2 OFFSET $3`,
-		userID, input.Limit, offset,
+		LIMIT $3 OFFSET $4`,
+		userID, entityType, input.Limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: query bookmarks: %v", ErrDatabaseError, err)
@@ -2634,12 +2861,15 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 	var bookmarks []BookmarkedFranchise
 	for rows.Next() {
 		var b BookmarkedFranchise
+		var dbEntityType string
 		if err := rows.Scan(
-			&b.BookmarkID, &b.FranchiseID, &b.Name,
+			&b.BookmarkID, &b.EntityID, &dbEntityType, &b.Name,
 			&b.Slug, &b.LogoURL, &b.Industry, &b.BookmarkedAt,
 		); err != nil {
 			return nil, fmt.Errorf("%w: scan bookmark: %v", ErrDatabaseError, err)
 		}
+		b.FranchiseID = b.EntityID // backward compatibility
+		b.EntityType = dbEntityType
 		bookmarks = append(bookmarks, b)
 	}
 
@@ -2664,15 +2894,20 @@ func (h *Handler) handleCheckBookmark(ctx context.Context, variables string) (*C
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	var bookmarkID string
 	queryErr := h.db.QueryRowContext(ctx, `
-		SELECT id FROM user_favorites WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		SELECT id FROM user_favorites WHERE user_id = $1 AND entity_id = $2 AND entity_type = $3`,
+		userID, entityID, entityType,
 	).Scan(&bookmarkID)
 
 	if queryErr == sql.ErrNoRows {
@@ -2709,10 +2944,15 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	// Sanitize review text
 	sanitizedReview := h.sanitizer.SanitizeString(input.Review)
@@ -2734,15 +2974,15 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 	var returnedID string
 	var createdAt time.Time
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO user_ratings (id, user_id, franchise_id, rating, review, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (user_id, franchise_id)
+		INSERT INTO user_ratings (id, user_id, entity_id, entity_type, rating, review, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (user_id, entity_id, entity_type)
 		DO UPDATE SET
 			rating     = EXCLUDED.rating,
 			review     = EXCLUDED.review,
 			updated_at = EXCLUDED.updated_at
 		RETURNING id, created_at`,
-		ratingID, userID, franchiseID, input.Rating, sanitizedReview, now, now,
+		ratingID, userID, entityID, entityType, input.Rating, sanitizedReview, now, now,
 	).Scan(&returnedID, &createdAt)
 
 	if err != nil {
@@ -2752,20 +2992,21 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 	// returnedID == ratingID means newly inserted
 	isNew = (returnedID == ratingID)
 
-	// Recalculate avg rating in franchise_stats
+	// Recalculate avg rating in stats
 	_, err = tx.ExecContext(ctx, `
-		UPDATE franchise_stats fs
+		UPDATE franchise_stats 
 		SET
-			rating       = (SELECT AVG(rating) FROM user_ratings WHERE franchise_id = $1),
-			rating_count = (SELECT COUNT(*) FROM user_ratings WHERE franchise_id = $1),
+			rating       = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
+			rating_count = (SELECT COUNT(*) FROM user_ratings WHERE entity_id = $1),
 			updated_at   = $2
-		WHERE fs.franchise_id = $1`,
-		franchiseID, now,
+		WHERE franchise_id = $1`,
+		entityID, now,
 	)
+	
 	if err != nil {
-		h.logger.Error("Failed to update franchise rating stats", map[string]interface{}{
-			"franchiseId": input.FranchiseID,
-			"error":       err.Error(),
+		h.logger.Error("Failed to update entity rating stats", map[string]interface{}{
+			"entityId": targetID,
+			"error":    err.Error(),
 		})
 		// Non-fatal — continue
 	}
@@ -2782,7 +3023,9 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 	return &RatingOutput{
 		ID:          returnedID,
 		UserID:      input.UserID,
-		FranchiseID: input.FranchiseID,
+		FranchiseID: input.FranchiseID, // backwards compatibility
+		EntityID:    targetID,
+		EntityType:  entityType,
 		Rating:      input.Rating,
 		Review:      sanitizedReview,
 		IsNew:       isNew,
@@ -2803,10 +3046,15 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	query := "UPDATE user_ratings SET updated_at = $1"
 	args := []interface{}{time.Now()}
@@ -2831,16 +3079,16 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 		argPos++
 	}
 
-	query += fmt.Sprintf(" WHERE user_id = $%d AND franchise_id = $%d RETURNING id, rating, review",
-		argPos, argPos+1)
-	args = append(args, userID, franchiseID)
+	query += fmt.Sprintf(" WHERE user_id = $%d AND entity_id = $%d AND entity_type = $%d RETURNING id, rating, review",
+		argPos, argPos+1, argPos+2)
+	args = append(args, userID, entityID, entityType)
 
 	var retID string
 	var retRating float64
 	var retReview sql.NullString
 	err = h.db.QueryRowContext(ctx, query, args...).Scan(&retID, &retRating, &retReview)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("%w: rating not found for this user-franchise pair", ErrFranchiseNotFound)
+		return nil, fmt.Errorf("%w: rating not found for this user-entity pair", ErrFranchiseNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: update rating: %v", ErrDatabaseError, err)
@@ -2849,10 +3097,10 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 	// Recalculate stats
 	_, _ = h.db.ExecContext(ctx, `
 		UPDATE franchise_stats
-		SET rating = (SELECT AVG(rating) FROM user_ratings WHERE franchise_id = $1),
-		    updated_at = $2
+		SET rating = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
+			updated_at = $2
 		WHERE franchise_id = $1`,
-		franchiseID, time.Now(),
+		entityID, time.Now(),
 	)
 
 	review := ""
@@ -2862,12 +3110,13 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 
 	return &RatingOutput{
 		ID: retID, UserID: input.UserID, FranchiseID: input.FranchiseID,
+		EntityID: targetID, EntityType: entityType,
 		Rating: retRating, Review: review, IsNew: false,
 		Success: true, Message: "Rating updated successfully",
 	}, nil
 }
 
-// handleGetUserRating — get a specific user's rating for a franchise
+// handleGetUserRating — get a specific user's rating for an entity
 func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*GetUserRatingOutput, error) {
 	var input GetUserRatingInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
@@ -2878,10 +3127,15 @@ func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*G
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	var ratingID string
 	var rating float64
@@ -2891,8 +3145,8 @@ func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*G
 	err = h.db.QueryRowContext(ctx, `
 		SELECT id, rating, review, updated_at
 		FROM user_ratings
-		WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		WHERE user_id = $1 AND entity_id = $2 AND entity_type = $3`,
+		userID, entityID, entityType,
 	).Scan(&ratingID, &rating, &review, &updatedAt)
 
 	if err == sql.ErrNoRows {
@@ -2918,17 +3172,22 @@ func (h *Handler) handleGetUserRating(ctx context.Context, variables string) (*G
 	}, nil
 }
 
-// handleGetFranchiseRatings — get all ratings for a franchise (paginated)
+// handleGetFranchiseRatings — get all ratings for an entity (paginated)
 func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables string) (*GetFranchiseRatingsOutput, error) {
 	var input GetFranchiseRatingsInput
 	if err := json.Unmarshal([]byte(variables), &input); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	if input.Page <= 0 {
 		input.Page = 1
@@ -2942,20 +3201,20 @@ func (h *Handler) handleGetFranchiseRatings(ctx context.Context, variables strin
 	var totalCount int
 	var avgRating sql.NullFloat64
 	_ = h.db.QueryRowContext(ctx, `
-		SELECT COUNT(*), AVG(rating) FROM user_ratings WHERE franchise_id = $1`,
-		franchiseID,
+		SELECT COUNT(*), AVG(rating) FROM user_ratings WHERE entity_id = $1 AND entity_type = $2`,
+		entityID, entityType,
 	).Scan(&totalCount, &avgRating)
 
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT id, user_id, rating, COALESCE(review, ''), created_at
 		FROM user_ratings
-		WHERE franchise_id = $1
+		WHERE entity_id = $1 AND entity_type = $2
 		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`,
-		franchiseID, input.Limit, offset,
+		LIMIT $3 OFFSET $4`,
+		entityID, entityType, input.Limit, offset,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: get franchise ratings: %v", ErrDatabaseError, err)
+		return nil, fmt.Errorf("%w: get entity ratings: %v", ErrDatabaseError, err)
 	}
 	defer rows.Close()
 
@@ -2995,10 +3254,15 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 	if err != nil {
 		return nil, err
 	}
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -3007,8 +3271,8 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 	defer tx.Rollback()
 
 	result, err := tx.ExecContext(ctx, `
-		DELETE FROM user_ratings WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		DELETE FROM user_ratings WHERE user_id = $1 AND entity_id = $2 AND entity_type = $3`,
+		userID, entityID, entityType,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: delete rating: %v", ErrDatabaseError, err)
@@ -3022,11 +3286,11 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 	// Recalculate stats
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats
-		SET rating       = (SELECT AVG(rating) FROM user_ratings WHERE franchise_id = $1),
-		    rating_count = (SELECT COUNT(*) FROM user_ratings WHERE franchise_id = $1),
-		    updated_at   = $2
+		SET rating       = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
+			rating_count = (SELECT COUNT(*) FROM user_ratings WHERE entity_id = $1),
+			updated_at   = $2
 		WHERE franchise_id = $1`,
-		franchiseID, time.Now(),
+		entityID, time.Now(),
 	)
 
 	if err := tx.Commit(); err != nil {
@@ -3051,10 +3315,15 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 		return nil, fmt.Errorf("%w: %v", ErrValidationError, err)
 	}
 
-	franchiseID, err := h.validateUUID("franchiseId", input.FranchiseID)
+	targetID := input.EntityID
+	if targetID == "" {
+		targetID = input.FranchiseID
+	}
+	entityID, err := h.validateUUID("entityId", targetID)
 	if err != nil {
 		return nil, err
 	}
+	entityType := normalizeEntityType(input.EntityType, "franchise")
 
 	// userID optional — nil if anonymous
 	var userIDPtr interface{}
@@ -3081,9 +3350,9 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 	shareID := uuid.New().String()
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO franchise_shares (id, user_id, franchise_id, share_platform, ip_address, shared_at)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		shareID, userIDPtr, franchiseID, platform,
+		INSERT INTO franchise_shares (id, user_id, entity_id, entity_type, share_platform, ip_address, shared_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		shareID, userIDPtr, entityID, entityType, platform,
 		h.sanitizer.SanitizeString(input.IPAddress),
 		time.Now(),
 	)
@@ -3091,12 +3360,12 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 		return nil, fmt.Errorf("%w: insert share: %v", ErrDatabaseError, err)
 	}
 
-	// Increment share_count in franchise_stats
+	// Increment share_count in stats
 	_, _ = tx.ExecContext(ctx, `
 		UPDATE franchise_stats
 		SET share_count = share_count + 1, updated_at = $1
 		WHERE franchise_id = $2`,
-		time.Now(), franchiseID,
+		time.Now(), entityID,
 	)
 
 	if err := tx.Commit(); err != nil {
@@ -3105,7 +3374,9 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 
 	return &ShareOutput{
 		ShareID:       shareID,
-		FranchiseID:   input.FranchiseID,
+		FranchiseID:   input.FranchiseID, // backwards compatibility
+		EntityID:      targetID,
+		EntityType:    entityType,
 		SharePlatform: platform,
 		Success:       true,
 		Message:       "Share recorded successfully",
@@ -3140,12 +3411,13 @@ func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*G
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT
 			fs.id,
-			fs.franchise_id,
-			COALESCE(f.name, '') as franchise_name,
+			fs.entity_id,
+			fs.entity_type,
+			COALESCE(f.name, '') as entity_name,
 			fs.share_platform,
 			fs.shared_at
 		FROM franchise_shares fs
-		LEFT JOIN franchises f ON fs.franchise_id = f.id
+		LEFT JOIN franchises f ON fs.entity_id = f.id
 		WHERE fs.user_id = $1
 		ORDER BY fs.shared_at DESC
 		LIMIT $2 OFFSET $3`,
@@ -3159,9 +3431,13 @@ func (h *Handler) handleGetUserShares(ctx context.Context, variables string) (*G
 	var shares []ShareItem
 	for rows.Next() {
 		var s ShareItem
-		if err := rows.Scan(&s.ShareID, &s.FranchiseID, &s.FranchiseName, &s.SharePlatform, &s.SharedAt); err != nil {
+		var dbEntityType string
+		if err := rows.Scan(&s.ShareID, &s.EntityID, &dbEntityType, &s.EntityName, &s.SharePlatform, &s.SharedAt); err != nil {
 			continue
 		}
+		s.FranchiseID = s.EntityID // backward compatibility
+		s.FranchiseName = s.EntityName
+		s.EntityType = dbEntityType
 		shares = append(shares, s)
 	}
 
@@ -3272,4 +3548,25 @@ func nullableString(s string) interface{} {
 		return nil
 	}
 	return s
+}
+
+func normalizeEntityType(et string, defaultVal string) string {
+	et = strings.ToLower(strings.TrimSpace(et))
+	if et == "" {
+		return defaultVal
+	}
+	switch et {
+	case "franchises":
+		return "franchise"
+	case "associations":
+		return "association"
+	case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+		return "master_franchise"
+	default:
+		et = strings.TrimSuffix(et, "s")
+		if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {
+			return "master_franchise"
+		}
+		return et
+	}
 }

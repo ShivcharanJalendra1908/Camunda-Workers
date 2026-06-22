@@ -458,6 +458,12 @@ var ZoneKeywords = map[string]string{
 	"all india":        "Pan India",
 }
 
+var CanonicalCityMap = map[string]string{
+	"bangalore": "bengaluru",
+	"gurgaon":   "gurugram",
+	"delhi":     "delhi ncr",
+}
+
 func DetectAllCitiesFromQuery(query string) []string {
 	queryLower := " " + strings.ToLower(strings.TrimSpace(query)) + " "
 
@@ -484,32 +490,40 @@ func DetectAllCitiesFromQuery(query string) []string {
 
 	markers := []string{"in ", "at ", "for ", "near ", "within ", "across ", "from "}
 	for _, info := range all {
-		if found[info.key] {
+		key := info.key
+		if canon, ok := CanonicalCityMap[key]; ok {
+			key = canon
+		}
+		if found[key] {
 			continue
 		}
 		for _, m := range markers {
 			if strings.Contains(queryLower, m+info.alias) {
-				results = append(results, info.key)
-				found[info.key] = true
+				results = append(results, key)
+				found[key] = true
 				break
 			}
 		}
-		if !found[info.key] {
+		if !found[key] {
 			if strings.Contains(queryLower, info.alias+" mein") || strings.Contains(queryLower, info.alias+" se") {
-				results = append(results, info.key)
-				found[info.key] = true
+				results = append(results, key)
+				found[key] = true
 			}
 		}
 	}
 
 	for _, info := range all {
-		if found[info.key] {
+		key := info.key
+		if canon, ok := CanonicalCityMap[key]; ok {
+			key = canon
+		}
+		if found[key] {
 			continue
 		}
 		re := regexp.MustCompile("(?i)\\b" + regexp.QuoteMeta(info.alias) + "\\b")
 		if re.MatchString(queryLower) {
-			results = append(results, info.key)
-			found[info.key] = true
+			results = append(results, key)
+			found[key] = true
 		}
 	}
 

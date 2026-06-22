@@ -20,6 +20,7 @@ import (
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
+	// "camunda-workers/internal/common/flagsmith"
 	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/validation"
@@ -453,6 +454,79 @@ func (h *WorkflowHandler) StartFormSubmission(c *gin.Context) {
 		// Map formData to enquiryFormData for compatibility
 		variables["enquiryFormData"] = payload
 		variables["operation"] = "franchise_enquiry"
+	}
+
+	response := h.startWorkflow(c.Request.Context(), workflowID, variables)
+	c.JSON(http.StatusOK, response)
+}
+
+// ============================================================================
+// UNIFIED ONBOARDING WORKFLOW (V2)
+// ============================================================================
+
+func (h *WorkflowHandler) StartUnifiedOnboarding(c *gin.Context) {
+	entityType := c.Param("entityType")
+	et := strings.ToLower(strings.TrimSpace(entityType))
+	switch et {
+	case "franchise", "franchises":
+		et = "franchise"
+	case "association", "associations":
+		et = "association"
+	case "master-franchise", "master_franchises", "master franchises", "masterfranchise", "master_franchise":
+		et = "master_franchise"
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entity type. Must be 'franchise', 'association', or 'master_franchise'"})
+		return
+	}
+
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload: " + err.Error()})
+		return
+	}
+
+	reqID := uuid.New().String()
+	
+	// Extract user ID if authenticated
+	claims := middleware.ExtractClaims(c)
+	userID := ""
+	if claims != nil {
+		userID = claims.UserID
+	}
+
+	// Check feature flag - forced to false as we don't have the admin panel to approve applications yet.
+	useV2 := false
+	
+	var workflowID string
+	var variables map[string]interface{}
+
+	if useV2 {
+		workflowID = "supplier-onboarding"
+		variables = map[string]interface{}{
+			"entityType":      et,
+			"formData":        payload,
+			"requestId":       reqID,
+			"correlationKey":  reqID,
+			"userId":          userID,
+			"operationsEmail": h.config.Integrations.Internal.OperationsAlertEmail,
+			"operationsName":  h.config.Integrations.Internal.OperationsAlertName,
+			"marketingEmail":  h.config.Integrations.Internal.MarketingAlertEmail,
+			"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
+		}
+	} else {
+		// Fallback to legacy
+		workflowID = "public-form-submission"
+		variables = map[string]interface{}{
+			"formType":        et + "_registration",
+			"formData":        payload,
+			"requestId":       reqID,
+			"correlationKey":  reqID,
+			"userId":          userID,
+			"operationsEmail": h.config.Integrations.Internal.OperationsAlertEmail,
+			"operationsName":  h.config.Integrations.Internal.OperationsAlertName,
+			"marketingEmail":  h.config.Integrations.Internal.MarketingAlertEmail,
+			"marketingName":   h.config.Integrations.Internal.MarketingAlertName,
+		}
 	}
 
 	response := h.startWorkflow(c.Request.Context(), workflowID, variables)

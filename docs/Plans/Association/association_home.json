@@ -1,0 +1,218 @@
+{
+  "data": {
+    "pageId": "association_home",
+    "sections": [
+      {
+        "data": {
+          "industries": [
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/technology.svg",
+              "id": "1",
+              "name": "Technology",
+              "slug": "technology"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/finance.svg",
+              "id": "2",
+              "name": "Finance",
+              "slug": "finance"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/healthcare.svg",
+              "id": "3",
+              "name": "Healthcare",
+              "slug": "healthcare"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/Manufacturing.svg",
+              "id": "4",
+              "name": "Manufacturing",
+              "slug": "manufacturing"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/realestate.svg",
+              "id": "5",
+              "name": "Real Estate",
+              "slug": "real-estate"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/retail.svg",
+              "id": "6",
+              "name": "Retail",
+              "slug": "retail"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/consulting.svg",
+              "id": "7",
+              "name": "Consulting",
+              "slug": "consulting"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/construction.svg",
+              "id": "8",
+              "name": "Construction",
+              "slug": "construction"
+            },
+            {
+              "icon_url": "/AssociationImages/ExploreByIndustry/education.svg",
+              "id": "9",
+              "name": "Education",
+              "slug": "education"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "explore_by_industry"
+      },
+      {
+        "data": [
+          {
+            "association_name": "Kassia",
+            "association_type": "Industry Body",
+            "description": "Karnataka Small Scale Industries Association (KASSIA) is state-level non-Government institution for small-scale industrialists, registered under the Karnataka Societies Registration",
+            "id": "1",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": null,
+              "minFee": null
+            },
+            "location": "Bengaluru,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/kassia.svg"
+            },
+            "no_of_members": 12000,
+            "tags": [
+              "ISO 9001:2015 Certified",
+              "Policy & Grievance Support",
+              "Entrepreneur Support"
+            ],
+            "year_of_establishment": "1949"
+          },
+          {
+            "association_name": "AIGMF",
+            "association_type": "Industry Body",
+            "description": "All India Glass Manufacturers’ Federation (AIGMF) is the sole representative body of all segments of the Indian glass industry including large, medium, and small manufacturers",
+            "id": "2",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": 25000,
+              "minFee": 10000
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/aigmf.svg"
+            },
+            "no_of_members": null,
+            "tags": [
+              "Export-Import Support",
+              "Raw Material Sourcing",
+              "Industry Data & Insights"
+            ],
+            "year_of_establishment": "1944"
+          },
+          {
+            "association_name": "NASSCOM Association",
+            "association_type": "Industry Body",
+            "description": "National Association of Software and Service Companies (NASSCOM)is a non-profit trade association representing 3,000+ IT-BPM companies. It works to position India as a global Market",
+            "id": "3",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": 1000000,
+              "minFee": 100000
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/nasscom.svg"
+            },
+            "no_of_members": 3000,
+            "tags": [
+              "Innovation Hub",
+              "Technology Exports",
+              "Policy & Industry Advocacy"
+            ],
+            "year_of_establishment": "1988"
+          }
+        ],
+        "enabled": true,
+        "type": "featured_business_associations"
+      },
+      {
+        "data": {
+          "cities": [
+            {
+              "icon_url": "/AssociationImages/cities/delhi.jpg",
+              "id": "1",
+              "name": "Delhi",
+              "slug": "delhi"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/bengaluru.jpg",
+              "id": "2",
+              "name": "Bengaluru",
+              "slug": "bengaluru"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/hyderabad.jpg",
+              "id": "3",
+              "name": "Hyderabad",
+              "slug": "hyderabad"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/ahmedabad.png",
+              "id": "4",
+              "name": "Ahmedabad",
+              "slug": "ahmedabad"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/pune.jpg",
+              "id": "5",
+              "name": "Pune",
+              "slug": "pune"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/kolkata.jpg",
+              "id": "6",
+              "name": "Kolkata",
+              "slug": "kolkata"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/chennai.png",
+              "id": "7",
+              "name": "Chennai",
+              "slug": "chennai"
+            },
+            {
+              "icon_url": "/AssociationImages/cities/mumbai.jpg",
+              "id": "8",
+              "name": "Mumbai",
+              "slug": "mumbai"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "why_choose_lemici"
+      },
+      {
+        "data": [
+          {
+            "products": 10000000,
+            "businesses": 10000,
+            "product_categories": 5900,
+            "countries_regions": 200
+          }
+        ],
+        "enabled": true,
+        "type": "statistics"
+      }
+    ]
+  },
+  "metadata": {
+    "generatedAt": "2026-06-15T21:54:48Z",
+    "pageType": "home",
+    "source": "workflow"
+  },
+  "success": true
+}

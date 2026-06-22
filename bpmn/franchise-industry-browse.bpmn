@@ -47,6 +47,7 @@
           <zeebe:input source="=correlationKey" target="requestId" />
           <zeebe:input source="=&#34;franchise-list&#34;" target="templateId" />
           <zeebe:input source="=&quot;industries&quot;" target="pageType" /> 
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=response" target="builtResponse" />
         </zeebe:ioMapping>
       </extensionElements>

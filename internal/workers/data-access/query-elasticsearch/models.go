@@ -30,6 +30,7 @@ type Input struct {
 	CategorySlug    string                 `json:"categorySlug"`    // ✅ ADDED: For category-specific queries
 	SubCategorySlug string                 `json:"subCategorySlug"` // ✅ ADDED: For sub-category-specific queries
 	IndustrySlug    string                 `json:"industrySlug"`    // ✅ ADDED: For industry-specific queries
+	EntityType      string                 `json:"entityType"`      // ✅ ADDED: For entity separation (franchise vs association)
 	Pagination   Pagination             `json:"pagination"`
 
 	Page     int `json:"page,omitempty"`

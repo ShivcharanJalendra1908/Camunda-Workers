@@ -1,0 +1,389 @@
+{
+  "data": {
+    "pageId": "association_listing",
+    "sections": [
+      {
+        "type": "hero",
+        "enabled": true,
+        "data": {
+          "title": "Business Associations",
+          "description": "Discover associations and networking opportunities in your industry"
+        }
+      },
+      {
+        "type": "business_associations",
+        "enabled": true,
+        "data": [
+          {
+            "association_name": "Kassia",
+            "association_type": "Industry Body",
+            "description": "Karnataka Small Scale Industries Association (KASSIA) is state-level non-Government institution for small-scale industrialists, registered under the Karnataka Societies Registration",
+            "id": "1",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": null,
+              "minFee": null
+            },
+            "location": "Bengaluru,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/kassia.svg"
+            },
+            "no_of_members": 12000,
+            "tags": [
+              "ISO 9001:2015 Certified",
+              "Policy & Grievance Support",
+              "Entrepreneur Support"
+            ],
+            "year_of_establishment": "1949"
+          },
+          {
+            "association_name": "AIGMF",
+            "association_type": "Industry Body",
+            "description": "All India Glass Manufacturers’ Federation (AIGMF) is the sole representative body of all segments of the Indian glass industry including large, medium, and small manufacturers",
+            "id": "2",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": 25000,
+              "minFee": 10000
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/aigmf.svg"
+            },
+            "no_of_members": null,
+            "tags": [
+              "Export-Import Support",
+              "Raw Material Sourcing",
+              "Industry Data & Insights"
+            ],
+            "year_of_establishment": "1944"
+          },
+          {
+            "association_name": "NASSCOM Association",
+            "association_type": "Industry Body",
+            "description": "National Association of Software and Service Companies (NASSCOM)is a non-profit trade association representing 3,000+ IT-BPM companies. It works to position India as a global Market",
+            "id": "3",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": 1000000,
+              "minFee": 100000
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/nasscom.svg"
+            },
+            "no_of_members": 3000,
+            "tags": [
+              "Innovation Hub",
+              "Technology Exports",
+              "Policy & Industry Advocacy"
+            ],
+            "year_of_establishment": "1988"
+          },
+          {
+            "association_name": "SIAM",
+            "association_type": "Industry Body",
+            "description": "Society of Indian Automobile Manufacturers is the apex industry body for the Indian automobile sector. It is a society registered under the Societies Registration Act, 1860 with 40+ members.",
+            "id": "4",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": null,
+              "minFee": null
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/siam.svg"
+            },
+            "no_of_members": 40,
+            "tags": [
+              "Sustainable Mobility",
+              "Automobile Sector",
+              "Road Safety"
+            ],
+            "year_of_establishment": "1982"
+          },
+          {
+            "association_name": "FICCI",
+            "association_type": "Industry Body",
+            "description": "Federation of Indian Chambers of Commerce & Industry (FICCI) is a non-government, not-for-profit trade association and advocacy group that represents Indian businesses and industries.",
+            "id": "5",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": null,
+              "minFee": null
+            },
+            "location": "New Delhi,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/ficci.svg"
+            },
+            "no_of_members": 7000,
+            "tags": [
+              "Corporate & SMEs",
+              "Industry Network",
+              "Economic Growth"
+            ],
+            "year_of_establishment": "1927"
+          },
+          {
+            "association_name": "TBIA",
+            "association_type": "Industry Body",
+            "description": "Thane Belapur Industries Association (TBIA) is established to represent industries in TTC MIDC area; interacts with government bodies for industry issues; runs sub-committees for various industries. ",
+            "id": "6",
+            "MembershipFeeRange": {
+              "FeeUnit": "INR",
+              "maxFee": null,
+              "minFee": null
+            },
+            "location": "Navi Mumbai,India",
+            "logo": {
+              "alt": "",
+              "url": "/AssociationImages/FeaturedAssociations/tbia.svg"
+            },
+            "no_of_members": 3000,
+            "tags": [
+              "Corporate Community",
+              "Maharashtra Industry",
+              "Economic Growth"
+            ],
+            "year_of_establishment": "1978"
+          }
+        ]
+      },
+      {
+        "type": "functions_of_business_associations",
+        "enabled": true,
+        "data": [
+          {
+            "title": "Policy Advocacy",
+            "description": "Representing MSME interests to state and central governments to influence industrial policies and resolve regulatory grievances.",
+            "icon": "AdvocacyIcon"
+          },
+          {
+            "title": "Business Networking",
+            "description": "Facilitating B2B meetings, industrial exhibitions, and international trade delegations to open new market opportunities.",
+            "icon": "NetworkingIcon"
+          },
+          {
+            "title": "Industrial Development",
+            "description": "Providing technical training, workshops, and seminars on quality standards, automation, and emerging technologies.",
+            "icon": "DevelopmentIcon"
+          },
+          {
+            "title": "Collaboration & Support",
+            "description": "Fostering strategic partnerships between industries, academia, and government bodies to promote cluster development.",
+            "icon": "CollaborationIcon"
+          }
+        ]
+      },
+      {
+        "type": "statistics",
+        "enabled": true,
+        "data": [
+          {
+            "businesses_engaged_annually": 3000000,
+            "msme_india": 6000000,
+            "enablers_partnered": 1500,
+            "live_events_annually": 1200
+          }
+        ]
+      },
+      {
+        "type": "business_associations_across_india",
+        "enabled": true,
+        "data": [
+          {
+            "state": "Andhra Pradesh",
+            "slug": "andhra-pradesh",
+            "map": "/AssociationImages/BusinessAcrossIndia/states/andhra-pradesh.png",
+            "projects": 15,
+            "consultants": 20,
+            "overview": "Andhra Pradesh is the second largest producer of cotton and raw silk in India. The state has a strong textile industry base consisting of handlooms, handicrafts, spinning and processing units. The state has integrated apparel city in Vizag with an innovative concept of \"Fibre to Store\".",
+            "industries": "Textiles, IT, Pharmaceuticals, Agriculture",
+            "associations": "FAPCCI, APITC, Textile Alliance",
+            "growth": "18% YoY in manufacturing sector",
+            "highlights": [
+              {
+                "title": "Innovation Hubs",
+                "description": "Multiple innovation centers and incubators supporting startups and SMEs with mentorship, funding, and infrastructure.",
+                "icon": "InnovationIcon"
+              },
+              {
+                "title": "Startup Ecosystem",
+                "description": "Growing startup community with government support, angel investors, and venture capital presence.",
+                "icon": "StartupIcon"
+              },
+              {
+                "title": "Skill Development",
+                "description": "Strong focus on vocational training and skill development programs aligned with industry needs.",
+                "icon": "SkillIcon"
+              },
+              {
+                "title": "Infrastructure",
+                "description": "Well-developed industrial parks, SEZs, ports, and connectivity through road, rail, and air networks.",
+                "icon": "InfrastructureIcon"
+              }
+            ]
+          },
+          {
+            "state": "Maharashtra",
+            "slug": "maharashtra",
+            "map": "/AssociationImages/BusinessAcrossIndia/states/maharashtraMap.svg",
+            "projects": 30,
+            "consultants": 40,
+            "overview": "Maharashtra is India's financial powerhouse with strong industrial and startup ecosystems.",
+            "industries": "Finance, IT, Automobile",
+            "associations": "MCCIA, IMC",
+            "growth": "22% startup growth",
+            "highlights": [
+              {
+                "title": "Financial Capital",
+                "description": "Mumbai serves as India's financial center.",
+                "icon": "InnovationIcon"
+              },
+              {
+                "title": "Startup Ecosystem",
+                "description": "Thriving startup communities and incubators.",
+                "icon": "StartupIcon"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "featured_business_categories",
+        "enabled": true,
+        "data": [
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/technology.svg",
+            "id": "1",
+            "name": "Technology",
+            "slug": "technology"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg",
+            "id": "2",
+            "name": "Finance",
+            "slug": "finance"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg",
+            "id": "3",
+            "name": "Healthcare",
+            "slug": "healthcare"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg",
+            "id": "4",
+            "name": "Manufacturing",
+            "slug": "manufacturing"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/retail.svg",
+            "id": "5",
+            "name": "Retail",
+            "slug": "retail"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/consulting.svg",
+            "id": "6",
+            "name": "Consulting",
+            "slug": "consulting"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/construction.svg",
+            "id": "7",
+            "name": "Construction",
+            "slug": "construction"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/education.svg",
+            "id": "8",
+            "name": "Education",
+            "slug": "education"
+          }
+        ]
+      },
+      {
+        "type": "category_questions",
+        "enabled": true,
+        "data": {
+          "questions": [
+            {
+              "question": "What are the primary functions of business associations in India?",
+              "answer": "Business associations provide policy advocacy, industry networking, skill development, market linkage, and standards certification to help MSMEs grow."
+            },
+            {
+              "question": "How do I become a member of a trade association?",
+              "answer": "To join, select the association relevant to your industry and region, check the eligibility criteria, and submit an application form along with business proof like GST/PAN."
+            },
+            {
+              "question": "Are membership fees tax-deductible?",
+              "answer": "Yes, membership subscriptions paid to professional or business associations are generally deductible as business expenses under Section 37(1) of the Income Tax Act."
+            }
+          ]
+        }
+      },
+      {
+        "type": "recommended_business_associations",
+        "enabled": true,
+        "data": [
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/nasscom.svg",
+            "id": "1",
+            "name": "NASSCOM",
+            "slug": "nascomm"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/kassia.svg",
+            "id": "2",
+            "name": "Kassia",
+            "slug": "kassia"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/ficci.svg",
+            "id": "3",
+            "name": "Ficci",
+            "slug": "ficci"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/tbia.svg",
+            "id": "4",
+            "name": "TBIA",
+            "slug": "tbia"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/aigmf.svg",
+            "id": "5",
+            "name": "AIGMF",
+            "slug": "aigmf"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/siam.svg",
+            "id": "6",
+            "name": "SIAM",
+            "slug": "siam"
+          }
+        ]
+      },
+      {
+        "type": "key_market_insights",
+        "enabled": true,
+        "data": {
+          "market_stats": "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people.",
+          "sector_trends": [
+            "Accelerated digitization of supply chains and business processes.",
+            "Increased integration into global value chains through trade associations.",
+            "Government schemes like PLI and Udyam boosting MSME manufacturing."
+          ],
+          "exim_data": "MSMEs contribute approximately 45% of India's total exports.",
+          "cluster_info": "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore."
+        }
+      }
+    ]
+  }
+}

@@ -24,6 +24,11 @@ func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{
 		return nil, 0, 0, ErrMissingParam
 	}
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "all" // If not specified, get all or fallback
+	}
+
 	page := 1
 	limit := 20
 	if p, ok := params["page"].(float64); ok && p > 0 {
@@ -37,18 +42,20 @@ func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{
 	rows, err := db.QueryContext(ctx, `
 		SELECT
 			uf.id as bookmark_id,
-			uf.franchise_id,
-			f.name,
-			f.slug,
-			COALESCE(f.logo_url_circle, '') as logo_url,
-			COALESCE(f.industry, '') as industry,
+			uf.entity_id,
+			uf.entity_type,
+			COALESCE(f.name, a.name, '') as name,
+			COALESCE(f.slug, a.slug, '') as slug,
+			COALESCE(f.logo_url, a.logo_url, '') as logo_url,
+			COALESCE(f.industry, a.industry, '') as industry,
 			uf.created_at as bookmarked_at
 		FROM user_favorites uf
-		INNER JOIN franchises f ON uf.franchise_id = f.id
-		WHERE uf.user_id = $1
+		LEFT JOIN franchises f ON uf.entity_id = f.id AND uf.entity_type = 'franchise'
+		LEFT JOIN associations a ON uf.entity_id = a.id AND uf.entity_type = 'association'
+		WHERE uf.user_id = $1 AND ($2 = 'all' OR uf.entity_type = $2)
 		ORDER BY uf.created_at DESC
-		LIMIT $2 OFFSET $3`,
-		userID, limit, offset,
+		LIMIT $3 OFFSET $4`,
+		userID, entityType, limit, offset,
 	)
 	if err != nil {
 		return nil, 0, 0, err
@@ -57,14 +64,16 @@ func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{
 
 	var bookmarks []map[string]interface{}
 	for rows.Next() {
-		var bookmarkID, franchiseID, name, slug, logoURL, industry string
+		var bookmarkID, entityID, dbEntityType, name, slug, logoURL, industry string
 		var bookmarkedAt time.Time
-		if err := rows.Scan(&bookmarkID, &franchiseID, &name, &slug, &logoURL, &industry, &bookmarkedAt); err != nil {
+		if err := rows.Scan(&bookmarkID, &entityID, &dbEntityType, &name, &slug, &logoURL, &industry, &bookmarkedAt); err != nil {
 			continue
 		}
 		bookmarks = append(bookmarks, map[string]interface{}{
 			"bookmarkId":   bookmarkID,
-			"franchiseId":  franchiseID,
+			"franchiseId":  entityID, // backwards compatibility
+			"entityId":     entityID,
+			"entityType":   dbEntityType,
 			"name":         name,
 			"slug":         slug,
 			"logoUrl":      logoURL,
@@ -92,15 +101,19 @@ func UserBookmarkCheck(ctx context.Context, db *sql.DB, params map[string]interf
 	if !ok || userID == "" {
 		return nil, 0, 0, ErrMissingParam
 	}
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok || franchiseID == "" {
-		return nil, 0, 0, ErrMissingParam
+	
+	entityID, ok := params["entityId"].(string)
+	if !ok || entityID == "" {
+		entityID, ok = params["franchiseId"].(string)
+		if !ok || entityID == "" {
+			return nil, 0, 0, ErrMissingParam
+		}
 	}
 
 	var bookmarkID string
 	err := db.QueryRowContext(ctx, `
-		SELECT id FROM user_favorites WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		SELECT id FROM user_favorites WHERE user_id = $1 AND entity_id = $2`,
+		userID, entityID,
 	).Scan(&bookmarkID)
 
 	if err == sql.ErrNoRows {
@@ -131,9 +144,12 @@ func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]i
 	if !ok || userID == "" {
 		return nil, 0, 0, ErrMissingParam
 	}
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok || franchiseID == "" {
-		return nil, 0, 0, ErrMissingParam
+	entityID, ok := params["entityId"].(string)
+	if !ok || entityID == "" {
+		entityID, ok = params["franchiseId"].(string)
+		if !ok || entityID == "" {
+			return nil, 0, 0, ErrMissingParam
+		}
 	}
 
 	var ratingID string
@@ -144,8 +160,8 @@ func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]i
 	err := db.QueryRowContext(ctx, `
 		SELECT id, rating, review, updated_at
 		FROM user_ratings
-		WHERE user_id = $1 AND franchise_id = $2`,
-		userID, franchiseID,
+		WHERE user_id = $1 AND entity_id = $2`,
+		userID, entityID,
 	).Scan(&ratingID, &rating, &review, &updatedAt)
 
 	if err == sql.ErrNoRows {
@@ -170,13 +186,16 @@ func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]i
 	return result, 1, time.Since(start).Milliseconds(), nil
 }
 
-// FranchiseRatings — get all ratings for a franchise with avg
+// FranchiseRatings — get all ratings for an entity with avg
 func FranchiseRatings(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	franchiseID, ok := params["franchiseId"].(string)
-	if !ok || franchiseID == "" {
-		return nil, 0, 0, ErrMissingParam
+	entityID, ok := params["entityId"].(string)
+	if !ok || entityID == "" {
+		entityID, ok = params["franchiseId"].(string)
+		if !ok || entityID == "" {
+			return nil, 0, 0, ErrMissingParam
+		}
 	}
 
 	page := 1
@@ -192,17 +211,17 @@ func FranchiseRatings(ctx context.Context, db *sql.DB, params map[string]interfa
 	var totalCount int
 	var avgRating sql.NullFloat64
 	_ = db.QueryRowContext(ctx, `
-		SELECT COUNT(*), AVG(rating) FROM user_ratings WHERE franchise_id = $1`,
-		franchiseID,
+		SELECT COUNT(*), AVG(rating) FROM user_ratings WHERE entity_id = $1`,
+		entityID,
 	).Scan(&totalCount, &avgRating)
 
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, user_id, rating, COALESCE(review, ''), created_at
 		FROM user_ratings
-		WHERE franchise_id = $1
+		WHERE entity_id = $1
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3`,
-		franchiseID, limit, offset,
+		entityID, limit, offset,
 	)
 	if err != nil {
 		return nil, 0, 0, err
@@ -275,12 +294,14 @@ func UserShareHistory(ctx context.Context, db *sql.DB, params map[string]interfa
 	rows, err := db.QueryContext(ctx, `
 		SELECT
 			fs.id,
-			fs.franchise_id,
-			COALESCE(f.name, '') as franchise_name,
+			fs.entity_id,
+			fs.entity_type,
+			COALESCE(f.name, a.name, '') as name,
 			fs.share_platform,
 			fs.shared_at
 		FROM franchise_shares fs
-		LEFT JOIN franchises f ON fs.franchise_id = f.id
+		LEFT JOIN franchises f ON fs.entity_id = f.id AND fs.entity_type = 'franchise'
+		LEFT JOIN associations a ON fs.entity_id = a.id AND fs.entity_type = 'association'
 		WHERE fs.user_id = $1
 		ORDER BY fs.shared_at DESC
 		LIMIT $2 OFFSET $3`,
@@ -293,15 +314,18 @@ func UserShareHistory(ctx context.Context, db *sql.DB, params map[string]interfa
 
 	var shares []map[string]interface{}
 	for rows.Next() {
-		var shareID, franchiseID, franchiseName, platform string
+		var shareID, entityID, entityType, name, platform string
 		var sharedAt time.Time
-		if err := rows.Scan(&shareID, &franchiseID, &franchiseName, &platform, &sharedAt); err != nil {
+		if err := rows.Scan(&shareID, &entityID, &entityType, &name, &platform, &sharedAt); err != nil {
 			continue
 		}
 		shares = append(shares, map[string]interface{}{
 			"shareId":       shareID,
-			"franchiseId":   franchiseID,
-			"franchiseName": franchiseName,
+			"franchiseId":   entityID, // backwards compatibility
+			"entityId":      entityID,
+			"entityType":    entityType,
+			"franchiseName": name, // backwards compatibility
+			"entityName":    name,
 			"sharePlatform": platform,
 			"sharedAt":      sharedAt,
 		})

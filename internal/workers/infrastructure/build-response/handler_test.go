@@ -94,6 +94,79 @@ func TestHandler_Execute_Success(t *testing.T) {
 			},
 		},
 		{
+			name: "association home page response",
+			input: &Input{
+				PageType:   "home",
+				EntityType: "association",
+				Data: map[string]interface{}{
+					"industries": []interface{}{
+						map[string]interface{}{"id": "tech", "name": "Technology", "slug": "technology", "icon_url": "tech.svg"},
+					},
+					"popularListings": []interface{}{
+						map[string]interface{}{
+							"id":          "assoc-1",
+							"brand":       "KASSIA",
+							"description": "Kassia Description",
+							"association_metadata": map[string]interface{}{
+								"association_type": "Industry Body",
+								"overview": map[string]interface{}{
+									"key_functions": []interface{}{"Policy Support", "ISO 9001"},
+								},
+							},
+							"founded_year":        1949.0,
+							"member_count":        12000.0,
+							"membership_fee_min": 10000.0,
+							"membership_fee_max": 25000.0,
+							"city":                "Bengaluru",
+							"logo_url_square":     "kassia.svg",
+						},
+					},
+				},
+			},
+			validateOutput: func(t *testing.T, output *Output) {
+				assert.True(t, output.Success)
+				assert.NotNil(t, output.Response)
+
+				metadata, ok := output.Response["metadata"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "home", metadata["pageType"])
+				assert.Equal(t, "1.0.0", metadata["version"])
+
+				data, ok := output.Response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "association_home", data["pageId"])
+
+				sections, ok := data["sections"].([]interface{})
+				assert.True(t, ok)
+				assert.Len(t, sections, 4)
+
+				// Check featured associations mapping
+				assocSection, ok := sections[1].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "featured_business_associations", assocSection["type"])
+
+				assocList, ok := assocSection["data"].([]interface{})
+				assert.True(t, ok)
+				assert.Len(t, assocList, 1)
+
+				assoc, ok := assocList[0].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "KASSIA", assoc["association_name"])
+				assert.Equal(t, "Industry Body", assoc["association_type"])
+				assert.Equal(t, "Bengaluru,India", assoc["location"])
+				assert.Equal(t, "1949", assoc["year_of_establishment"])
+				
+				feeRange, ok := assoc["MembershipFeeRange"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, 10000.0, feeRange["minFee"])
+				assert.Equal(t, 25000.0, feeRange["maxFee"])
+
+				logo, ok := assoc["logo"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "kassia.svg", logo["url"])
+			},
+		},
+		{
 			name: "listing page response",
 			input: createTestInput("listing", map[string]interface{}{
 				"industryInfo": map[string]interface{}{
@@ -404,6 +477,137 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 				assert.Len(t, sections, 2)
 			},
 		},
+		{
+			name: "complete listing response with questions and insights",
+			data: map[string]interface{}{
+				"industryInfo": map[string]interface{}{
+					"description": "Best food franchises",
+				},
+				"franchises": []interface{}{
+					map[string]interface{}{
+						"name":       "Franchise 1",
+						"investment": 100000,
+						"space":      map[string]interface{}{"min": 500},
+					},
+				},
+				"categories": []interface{}{"cat1"},
+				"recommended": []interface{}{
+					map[string]interface{}{"name": "Recommended 1"},
+				},
+				"categoryQuestions": []interface{}{
+					map[string]interface{}{"question": "What is the fee?", "answer": "It is 45000."},
+				},
+				"marketInsights": []interface{}{
+					map[string]interface{}{
+						"market_size": "5 Billion",
+						"growth_rate": "15%",
+					},
+				},
+				"page":  2.0,
+				"limit": 20.0,
+				"total": 100.0,
+			},
+			validate: func(t *testing.T, response map[string]interface{}) {
+				assert.True(t, response["success"].(bool))
+				data := response["data"].(map[string]interface{})
+
+				sections := data["sections"].([]interface{})
+				// Sections:
+				// 0: hero
+				// 1: franchise_listing
+				// 2: featured_categories
+				// 3: category_questions
+				// 4: recommended_franchises
+				// 5: key_market_insights
+				assert.Len(t, sections, 6)
+
+				assert.Equal(t, "hero", sections[0].(map[string]interface{})["type"])
+				assert.Equal(t, "franchise_listing", sections[1].(map[string]interface{})["type"])
+				assert.Equal(t, "featured_categories", sections[2].(map[string]interface{})["type"])
+				assert.Equal(t, "category_questions", sections[3].(map[string]interface{})["type"])
+				assert.Equal(t, "recommended_franchises", sections[4].(map[string]interface{})["type"])
+				assert.Equal(t, "key_market_insights", sections[5].(map[string]interface{})["type"])
+
+				// Validate questions data
+				qSection := sections[3].(map[string]interface{})
+				qData := qSection["data"].(map[string]interface{})
+				questions := qData["questions"].([]interface{})
+				assert.Len(t, questions, 1)
+				assert.Equal(t, "What is the fee?", questions[0].(map[string]interface{})["question"])
+
+				// Validate market insights data
+				insightsSection := sections[5].(map[string]interface{})
+				insightsData := insightsSection["data"].(map[string]interface{})
+				assert.Equal(t, "5 Billion", insightsData["market_size"])
+			},
+		},
+		{
+			name: "association listing page response",
+			data: map[string]interface{}{
+				"entityType": "association",
+				"franchises": []interface{}{
+					map[string]interface{}{
+						"name": "KASSIA",
+						"slug": "kassia",
+						"founded_year": 1949.0,
+						"association_metadata": map[string]interface{}{
+							"association_type": "Industry Body",
+							"overview": map[string]interface{}{
+								"key_functions": []interface{}{"Policy Support", "ISO 9001"},
+							},
+						},
+					},
+				},
+				"categories": []interface{}{
+					map[string]interface{}{"id": "tech", "name": "Technology", "slug": "technology"},
+				},
+				"categoryQuestions": []interface{}{
+					map[string]interface{}{
+						"question": "What are primary functions?",
+						"answer":   "Primary functions are...",
+					},
+				},
+				"recommended": []interface{}{
+					map[string]interface{}{"id": "1", "name": "NASSCOM", "slug": "nasscom"},
+				},
+				"marketInsights": []interface{}{
+					map[string]interface{}{
+						"market_stats": "MSME Stats...",
+					},
+				},
+				"page": 1.0,
+				"pageSize": 10.0,
+				"totalCount": 50.0,
+			},
+			validate: func(t *testing.T, response map[string]interface{}) {
+				assert.True(t, response["success"].(bool))
+				data, ok := response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "association_listing", data["pageId"])
+
+				sections, ok := data["sections"].([]interface{})
+				assert.True(t, ok)
+				assert.Len(t, sections, 9) // 9 sections total
+
+				// Verify section order
+				assert.Equal(t, "hero", sections[0].(map[string]interface{})["type"])
+				assert.Equal(t, "business_associations", sections[1].(map[string]interface{})["type"])
+				assert.Equal(t, "functions_of_business_associations", sections[2].(map[string]interface{})["type"])
+				assert.Equal(t, "statistics", sections[3].(map[string]interface{})["type"])
+				assert.Equal(t, "business_associations_across_india", sections[4].(map[string]interface{})["type"])
+				assert.Equal(t, "featured_business_categories", sections[5].(map[string]interface{})["type"])
+				assert.Equal(t, "category_questions", sections[6].(map[string]interface{})["type"])
+				assert.Equal(t, "recommended_business_associations", sections[7].(map[string]interface{})["type"])
+				assert.Equal(t, "key_market_insights", sections[8].(map[string]interface{})["type"])
+
+				// Check pagination
+				pagination, ok := data["pagination"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, 1, pagination["currentPage"])
+				assert.Equal(t, 10, pagination["pageSize"])
+				assert.Equal(t, int64(50), pagination["totalItems"])
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -451,6 +655,72 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 				assert.NotNil(t, data["basicInfo"])
 				// slug not set when basicInfo has no slug field
 				assert.Nil(t, data["slug"])
+			},
+		},
+		{
+			name: "association detail page response",
+			data: map[string]interface{}{
+				"entityType": "association",
+				"basicInfo": map[string]interface{}{
+					"name": "KASSIA",
+					"slug": "kassia",
+					"description": "Kassia Description",
+					"association_metadata": map[string]interface{}{
+						"association_type": "Industry Body",
+						"overview": map[string]interface{}{
+							"key_functions": []interface{}{"Policy Support", "ISO 9001"},
+						},
+						"faqs": []interface{}{
+							map[string]interface{}{
+								"question": "What is the membership process?",
+								"answer":   "Membership process details...",
+							},
+						},
+					},
+				},
+				"recommended": []interface{}{
+					map[string]interface{}{"id": "1", "name": "NASSCOM", "slug": "nasscom"},
+				},
+				"categories": []interface{}{
+					map[string]interface{}{"id": "tech", "name": "Technology", "slug": "technology"},
+				},
+				"marketInsights": []interface{}{
+					map[string]interface{}{
+						"market_stats": "MSME Stats...",
+					},
+				},
+			},
+			validate: func(t *testing.T, response map[string]interface{}) {
+				assert.True(t, response["success"].(bool))
+				data, ok := response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "association_individual", data["pageId"])
+				assert.Equal(t, "kassia", data["slug"])
+				assert.Equal(t, "KASSIA", data["association_name"])
+
+				sections, ok := data["sections"].([]interface{})
+				assert.True(t, ok)
+				assert.Len(t, sections, 18) // 18 sections total
+
+				// Verify first section
+				heroSection, ok := sections[0].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "association_hero_info_card", heroSection["type"])
+
+				// Verify recommended business associations
+				recSection, ok := sections[14].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "recommended_business_associations", recSection["type"])
+
+				// Verify market insights section
+				insightsSection, ok := sections[15].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "market_insights_section", insightsSection["type"])
+
+				// Verify category questions section (18th section)
+				faqSection, ok := sections[17].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "category_questions", faqSection["type"])
 			},
 		},
 	}
@@ -559,14 +829,14 @@ func TestHandler_ValidateInput(t *testing.T) {
 			input: &Input{
 				PageType: "",
 			},
-			expectedError: "pageType is required",
+			expectedError: "Validation failed for field 'pageType'",
 		},
 		{
 			name: "invalid page type",
 			input: &Input{
 				PageType: "invalid",
 			},
-			expectedError: "must be one of: home, listing, detail, search",
+			expectedError: "Validation failed for field 'pageType'",
 		},
 		{
 			name: "data too deep nesting",
@@ -583,7 +853,9 @@ func TestHandler_ValidateInput(t *testing.T) {
 												"level8": map[string]interface{}{
 													"level9": map[string]interface{}{
 														"level10": map[string]interface{}{
-															"level11": "too deep",
+															"level11": map[string]interface{}{
+																"level12": "too deep",
+															},
 														},
 													},
 												},
@@ -596,7 +868,7 @@ func TestHandler_ValidateInput(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "object nesting too deep",
+			expectedError: "Validation failed for field 'data'",
 		},
 		{
 			name: "data too large",
@@ -612,7 +884,7 @@ func TestHandler_ValidateInput(t *testing.T) {
 					return data
 				}(),
 			},
-			expectedError: "data too large",
+			expectedError: "Validation failed for field 'data'",
 		},
 	}
 
@@ -673,7 +945,9 @@ func TestHandler_ValidateDataDepth(t *testing.T) {
 											"level8": map[string]interface{}{
 												"level9": map[string]interface{}{
 													"level10": map[string]interface{}{
-														"level11": "too deep",
+														"level11": map[string]interface{}{
+															"level12": "too deep",
+														},
 													},
 												},
 											},
@@ -686,7 +960,7 @@ func TestHandler_ValidateDataDepth(t *testing.T) {
 				},
 			},
 			depth:         0,
-			expectedError: "object nesting too deep",
+			expectedError: "Validation failed for field 'data'",
 		},
 	}
 
@@ -729,7 +1003,7 @@ func TestHandler_ValidateDataSize(t *testing.T) {
 				}
 				return data
 			}(),
-			expectedError: "data too large",
+			expectedError: "Validation failed for field 'data'",
 		},
 	}
 

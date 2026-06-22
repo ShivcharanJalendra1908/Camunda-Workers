@@ -194,6 +194,7 @@ func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]int
 
 	result := map[string]interface{}{
 		"franchiseName": name,
+		"entityName":    name,
 	}
 	if contactEmail.Valid && contactEmail.String != "" {
 		result["franchiseContactEmail"] = contactEmail.String

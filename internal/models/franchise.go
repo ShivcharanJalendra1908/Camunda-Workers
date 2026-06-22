@@ -26,22 +26,24 @@ type Franchise struct {
 	ROI              FranchiseROI `json:"roi" db:"roi"`
 }
 
-// UserRating represents a user's rating for a franchise
+// UserRating represents a user's rating for an entity (franchise/association)
 type UserRating struct {
-	ID          string    `json:"id" db:"id"`
-	UserID      string    `json:"userId" db:"user_id"`
-	FranchiseID string    `json:"franchiseId" db:"franchise_id"`
-	Rating      float64   `json:"rating" db:"rating"` // 1.0 to 5.0
-	Review      string    `json:"review,omitempty" db:"review"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
+	ID         string    `json:"id" db:"id"`
+	UserID     string    `json:"userId" db:"user_id"`
+	EntityID   string    `json:"entityId" db:"entity_id"`
+	EntityType string    `json:"entityType" db:"entity_type"`
+	Rating     float64   `json:"rating" db:"rating"` // 1.0 to 5.0
+	Review     string    `json:"review,omitempty" db:"review"`
+	CreatedAt  time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt  time.Time `json:"updatedAt" db:"updated_at"`
 }
 
-// FranchiseShare represents a share event
+// FranchiseShare represents a share event for an entity
 type FranchiseShare struct {
 	ID            string    `json:"id" db:"id"`
 	UserID        string    `json:"userId,omitempty" db:"user_id"`
-	FranchiseID   string    `json:"franchiseId" db:"franchise_id"`
+	EntityID      string    `json:"entityId" db:"entity_id"`
+	EntityType    string    `json:"entityType" db:"entity_type"`
 	SharePlatform string    `json:"sharePlatform" db:"share_platform"`
 	IPAddress     string    `json:"ipAddress,omitempty" db:"ip_address"`
 	SharedAt      time.Time `json:"sharedAt" db:"shared_at"`
@@ -49,10 +51,11 @@ type FranchiseShare struct {
 
 // UserBookmark — alias for user_favorites, used in user-actions context
 type UserBookmark struct {
-	ID          string    `json:"id" db:"id"`
-	UserID      string    `json:"userId" db:"user_id"`
-	FranchiseID string    `json:"franchiseId" db:"franchise_id"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
+	ID         string    `json:"id" db:"id"`
+	UserID     string    `json:"userId" db:"user_id"`
+	EntityID   string    `json:"entityId" db:"entity_id"`
+	EntityType string    `json:"entityType" db:"entity_type"`
+	CreatedAt  time.Time `json:"createdAt" db:"created_at"`
 }
 
 type FranchiseROI struct {

@@ -576,8 +576,8 @@ func TestHandler_EdgeCases(t *testing.T) {
 			UserProfile:   UserProfile{},
 		}
 		output, err := handler.Execute(context.Background(), input)
-		assert.NoError(t, err)
-		assert.Equal(t, 0.0, output.RankedFranchises[0].ESScore)
+		assert.Error(t, err)
+		assert.Nil(t, output)
 	})
 
 	t.Run("very high elasticsearch score", func(t *testing.T) {

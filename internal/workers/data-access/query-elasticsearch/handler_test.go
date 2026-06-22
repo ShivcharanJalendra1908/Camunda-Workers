@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
+	appErrs "camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 )
 
@@ -564,8 +565,13 @@ func TestHandler_ValidateInput_NoQueryType_NoIndexName(t *testing.T) {
 	}
 
 	err := handler.validateInput(input)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Either queryType or (indexName + query) must be provided")
+	if assert.Error(t, err) {
+		if stdErr, ok := err.(*appErrs.StandardError); ok {
+			assert.Contains(t, stdErr.Details, "Either queryType or (indexName + query) must be provided")
+		} else {
+			assert.Contains(t, err.Error(), "Either queryType or (indexName + query) must be provided")
+		}
+	}
 }
 
 func TestHandler_ValidateInput_IndexNameOnly_NoQuery(t *testing.T) {
@@ -577,8 +583,13 @@ func TestHandler_ValidateInput_IndexNameOnly_NoQuery(t *testing.T) {
 	}
 
 	err := handler.validateInput(input)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Either queryType or (indexName + query) must be provided")
+	if assert.Error(t, err) {
+		if stdErr, ok := err.(*appErrs.StandardError); ok {
+			assert.Contains(t, stdErr.Details, "Either queryType or (indexName + query) must be provided")
+		} else {
+			assert.Contains(t, err.Error(), "Either queryType or (indexName + query) must be provided")
+		}
+	}
 }
 
 func TestHandler_ValidateInput_ValidRawQuery(t *testing.T) {
@@ -661,8 +672,13 @@ func TestHandler_ValidateFilters_DeepNesting(t *testing.T) {
 	}
 
 	err := handler.validateFilters(nested)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "nesting too deep")
+	if assert.Error(t, err) {
+		if stdErr, ok := err.(*appErrs.StandardError); ok {
+			assert.Contains(t, stdErr.Details, "nesting too deep")
+		} else {
+			assert.Contains(t, err.Error(), "nesting too deep")
+		}
+	}
 }
 
 func TestHandler_ValidateFilters_ArrayTooLarge(t *testing.T) {

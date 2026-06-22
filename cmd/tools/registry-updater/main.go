@@ -236,7 +236,7 @@ func saveRegistry(reg *registry.ActivityRegistry, path string) error {
 }
 
 func help() {
-	fmt.Println(`
+	fmt.Print(`
 Usage: registry-updater <command> [flags]
 
 Commands:

@@ -16,6 +16,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;ES_HERO_BRANDS&quot;" target="queryType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="heroBrands" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -27,6 +28,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;INDUSTRIES_TOP_9&#34;" target="queryType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="industries" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -38,6 +40,7 @@
         <zeebe:taskDefinition type="query-elasticsearch" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;ES_POPULAR_LISTINGS&quot;" target="queryType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="popularListings" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -49,6 +52,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;CATEGORIES_TOP_30&#34;" target="queryType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="categories" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -68,6 +72,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=&#34;home&#34;" target="pageType" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:input source="=heroBrands" target="heroBrands" />
           <zeebe:input source="=industries" target="industries" />
           <zeebe:input source="=popularListings" target="popularListings" />

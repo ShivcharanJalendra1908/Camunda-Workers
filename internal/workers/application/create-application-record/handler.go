@@ -33,6 +33,7 @@ const (
 var (
 	ErrDatabaseInsertFailed = errors.New("DATABASE_INSERT_FAILED")
 	ErrDuplicateApplication = errors.New("DUPLICATE_APPLICATION")
+	ErrEnquiryLimitReached  = errors.New("ENQUIRY_LIMIT_REACHED")
 )
 
 type Handler struct {
@@ -230,6 +231,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		} else if errors.Is(err, ErrDuplicateApplication) {
 			errorCode = "DUPLICATE_APPLICATION"
 			retries = 0
+		} else if errors.Is(err, ErrEnquiryLimitReached) {
+			errorCode = "ENQUIRY_LIMIT_REACHED"
+			retries = 0
 		}
 
 		span.RecordError(err)
@@ -410,6 +414,7 @@ func (h *Handler) validateDataDepth(data map[string]interface{}, depth int) erro
 
 // ===== EXECUTE WITH IDEMPOTENCY =====
 func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey string) (*Output, error) {
+	var err error
 	// ===== STEP 1: SANITIZE INPUT =====
 	input.SeekerID = h.sanitizer.SanitizeString(input.SeekerID)
 	input.FranchiseID = h.sanitizer.SanitizeString(input.FranchiseID)
@@ -441,34 +446,58 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 		input.ApplicationData = sanitizedData
 	}
 
-	// ===== STEP 2: CHECK FOR DUPLICATE APPLICATION =====
-	exists, existingAppID, err := h.idempotencyChecker.CheckApplicationExists(ctx, input.SeekerID, input.FranchiseID)
-	if err != nil {
-		h.logger.Error("Failed to check existing application", map[string]interface{}{
-			"error": err.Error(),
-		})
-		return nil, err
-	}
+	// ===== STEP 2: CHECK FOR DUPLICATE ENQUIRY (BR-03 & BR-02) =====
+	var pendingEnquiryID string
+	err = h.db.QueryRowContext(ctx, `
+		SELECT id FROM enquiries
+		WHERE user_id = $1 AND entity_id = $2 AND status = 'PENDING'
+		LIMIT 1
+	`, input.SeekerID, input.FranchiseID).Scan(&pendingEnquiryID)
 
-	if exists {
-		h.logger.Warn("Duplicate application detected", map[string]interface{}{
-			"existingApplicationId": existingAppID,
-			"seekerId":              input.SeekerID,
-			"franchiseId":           input.FranchiseID,
+	if err == nil {
+		h.logger.Info("Duplicate pending enquiry detected, returning existing", map[string]interface{}{
+			"existingEnquiryId": pendingEnquiryID,
+			"userId":            input.SeekerID,
+			"entityId":          input.FranchiseID,
 		})
 
-		// Return existing application
 		var createdAt time.Time
-		err = h.db.QueryRowContext(ctx, `SELECT created_at FROM franchise_applications WHERE id = $1`, existingAppID).Scan(&createdAt)
+		err = h.db.QueryRowContext(ctx, `SELECT created_at FROM enquiries WHERE id = $1`, pendingEnquiryID).Scan(&createdAt)
 		if err != nil {
 			return nil, err
 		}
 
 		return &Output{
-			ApplicationID:     existingAppID,
-			ApplicationStatus: "submitted",
+			ApplicationID:     pendingEnquiryID,
+			ApplicationStatus: "PENDING",
 			CreatedAt:         createdAt.Format(time.RFC3339),
 		}, nil
+	} else if err != sql.ErrNoRows {
+		h.logger.Error("Failed to check existing pending enquiry", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	var totalEnquiries int
+	err = h.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM enquiries
+		WHERE user_id = $1 AND entity_id = $2
+	`, input.SeekerID, input.FranchiseID).Scan(&totalEnquiries)
+	if err != nil {
+		h.logger.Error("Failed to count enquiries", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return nil, err
+	}
+
+	if totalEnquiries >= 3 {
+		h.logger.Warn("Enquiry limit reached for this entity", map[string]interface{}{
+			"userId":   input.SeekerID,
+			"entityId": input.FranchiseID,
+			"count":    totalEnquiries,
+		})
+		return nil, ErrEnquiryLimitReached
 	}
 
 	// ===== STEP 3: BEGIN TRANSACTION =====
@@ -478,60 +507,76 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 	}
 	defer tx.Rollback()
 
-	// Generate unique application ID and timestamp
-	appID := uuid.New().String()
+	enquiryID := uuid.New().String()
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 
-	// Serialize application_data to JSON
-	applicationDataJSON, err := json.Marshal(input.ApplicationData)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to marshal application data: %v", ErrDatabaseInsertFailed, err)
+	// Extract message and preferredContact from ApplicationData if available
+	message := ""
+	if msg, ok := input.ApplicationData["message"].(string); ok {
+		message = msg
+	} else if msg, ok := input.ApplicationData["notes"].(string); ok {
+		message = msg
 	}
 
-	// ===== STEP 4: INSERT WITH ON CONFLICT =====
-	insertQuery := `
-        INSERT INTO franchise_applications (
-            id, seeker_id, franchise_id, application_data, 
-            status, idempotency_key, submitted_at, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (seeker_id, franchise_id) 
-        WHERE status IN ('submitted', 'under_review')
-        DO NOTHING
-        RETURNING id`
+	preferredContact := "EMAIL"
+	if pc, ok := input.ApplicationData["preferredContact"].(string); ok && pc != "" {
+		preferredContact = strings.ToUpper(pc)
+	} else if pc, ok := input.ApplicationData["preferred_contact"].(string); ok && pc != "" {
+		preferredContact = strings.ToUpper(pc)
+	}
 
-	var returnedID string
-	err = tx.QueryRowContext(ctx, insertQuery,
-		appID,
+	if preferredContact != "EMAIL" && preferredContact != "PHONE" && preferredContact != "EITHER" {
+		preferredContact = "EMAIL"
+	}
+
+	var msgVal *string
+	if message != "" {
+		msgSanitized := h.sanitizer.SanitizeString(message)
+		msgVal = &msgSanitized
+	}
+
+	// ===== STEP 4: INSERT ENQUIRY =====
+	insertQuery := `
+		INSERT INTO enquiries (
+			id, user_id, entity_id, status, message, preferred_contact, last_activity_at, created_at, updated_at
+		) VALUES ($1, $2, $3, 'PENDING', $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT (user_id, entity_id) WHERE status = 'PENDING'
+		DO NOTHING`
+
+	res, err := tx.ExecContext(ctx, insertQuery,
+		enquiryID,
 		input.SeekerID,
 		input.FranchiseID,
-		applicationDataJSON,
-		"submitted",
-		idempotencyKey,
-		time.Now(),
-		time.Now(),
-		time.Now(),
-	).Scan(&returnedID)
+		msgVal,
+		preferredContact,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: insert enquiry failed: %v", ErrDatabaseInsertFailed, err)
+	}
 
-	if err == sql.ErrNoRows {
-		// Concurrent creation detected
-		h.logger.Warn("Concurrent application creation detected", map[string]interface{}{
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("%w: check rows affected: %v", ErrDatabaseInsertFailed, err)
+	}
+
+	if rowsAffected == 0 {
+		// Concurrent pending enquiry creation detected or handled by conflict clause
+		h.logger.Warn("Concurrent pending enquiry insertion prevented", map[string]interface{}{
 			"seekerId":    input.SeekerID,
 			"franchiseId": input.FranchiseID,
 		})
 
-		// Query existing application
 		var existingID string
-		queryErr := h.db.QueryRowContext(ctx, `
-            SELECT id FROM franchise_applications
-            WHERE seeker_id = $1 AND franchise_id = $2
-            AND status IN ('submitted', 'under_review')
-            LIMIT 1
-        `, input.SeekerID, input.FranchiseID).Scan(&existingID)
+		queryErr := tx.QueryRowContext(ctx, `
+			SELECT id FROM enquiries
+			WHERE user_id = $1 AND entity_id = $2 AND status = 'PENDING'
+			LIMIT 1
+		`, input.SeekerID, input.FranchiseID).Scan(&existingID)
 
 		if queryErr == nil {
 			return &Output{
 				ApplicationID:     existingID,
-				ApplicationStatus: "submitted",
+				ApplicationStatus: "PENDING",
 				CreatedAt:         createdAt,
 			}, nil
 		}
@@ -539,16 +584,12 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 		return nil, fmt.Errorf("%w: concurrent conflict", ErrDuplicateApplication)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("%w: insert failed: %v", ErrDatabaseInsertFailed, err)
-	}
-
 	// ===== STEP 5: UPDATE FRANCHISE STATS =====
 	_, err = tx.ExecContext(ctx, `
-        UPDATE franchise_stats
-        SET enquiry_count = enquiry_count + 1, updated_at = $1
-        WHERE franchise_id = $2
-    `, time.Now(), input.FranchiseID)
+		UPDATE franchise_stats
+		SET enquiry_count = enquiry_count + 1, updated_at = $1
+		WHERE franchise_id = $2
+	`, time.Now(), input.FranchiseID)
 
 	if err != nil {
 		h.logger.Warn("Failed to update franchise stats", map[string]interface{}{
@@ -558,18 +599,15 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 
 	// ===== STEP 6: INSERT AUDIT LOG =====
 	_, err = tx.ExecContext(ctx, `
-        INSERT INTO application_history (id, application_id, old_status, new_status, notes, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)`,
+		INSERT INTO enquiry_audit_log (id, enquiry_id, from_status, to_status, actor_id, actor_role, event_type, metadata, created_at)
+		VALUES ($1, $2, NULL, 'PENDING', $3, 'ROLE_USER', 'ENQUIRY_CREATED', '{}'::jsonb, CURRENT_TIMESTAMP)`,
 		uuid.New().String(),
-		appID,
-		nil,
-		"submitted",
-		fmt.Sprintf("Application created - Priority: %s", input.Priority),
-		time.Now(),
+		enquiryID,
+		input.SeekerID,
 	)
 
 	if err != nil {
-		h.logger.Warn("Audit log insert failed", map[string]interface{}{"error": err})
+		h.logger.Warn("Enquiry audit log insert failed", map[string]interface{}{"error": err})
 	}
 
 	// ===== STEP 7: COMMIT TRANSACTION =====
@@ -577,15 +615,15 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 		return nil, fmt.Errorf("%w: commit transaction: %v", ErrDatabaseInsertFailed, err)
 	}
 
-	h.logger.Info("application record created", map[string]interface{}{
-		"applicationId": appID,
-		"seekerId":      input.SeekerID,
-		"franchiseId":   input.FranchiseID,
+	h.logger.Info("enquiry record created", map[string]interface{}{
+		"enquiryId":   enquiryID,
+		"seekerId":    input.SeekerID,
+		"franchiseId": input.FranchiseID,
 	})
 
 	return &Output{
-		ApplicationID:     appID,
-		ApplicationStatus: "submitted",
+		ApplicationID:     enquiryID,
+		ApplicationStatus: "PENDING",
 		CreatedAt:         createdAt,
 	}, nil
 }

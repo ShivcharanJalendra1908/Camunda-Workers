@@ -2,6 +2,7 @@ package models
 
 type FranchiseSearchFilters struct {
 	Query         string   `form:"q" json:"query"`
+	EntityType    string   `form:"entity_type"`
 	Category      string   `form:"category"`
 	Location      string   `form:"location"`
 	MinInvestment int      `form:"min_investment"`
@@ -10,7 +11,11 @@ type FranchiseSearchFilters struct {
 	MaxSpace      int      `form:"max_space"`
 	Tags          []string `form:"tags"`
 	MinRating     float64  `form:"min_rating"`
-	SortBy        string   `form:"sort_by"`    // rating, investment, relevance
+	MinFee        float64  `form:"min_fee" json:"min_fee"`
+	MaxFee        float64  `form:"max_fee" json:"max_fee"`
+	MinMembers    int      `form:"min_members" json:"min_members"`
+	MaxMembers    int      `form:"max_members" json:"max_members"`
+	SortBy        string   `form:"sort_by"`    // rating, investment, relevance, alphabetical, newest, popularity
 	SortOrder     string   `form:"sort_order"` // asc, desc
 	Page          int      `form:"page"`
 	Limit         int      `form:"limit"`

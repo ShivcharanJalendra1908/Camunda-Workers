@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/pb"
@@ -356,21 +355,19 @@ func TestBuildBasicQuery(t *testing.T) {
 func TestBuildElasticsearchQuery(t *testing.T) {
 	handler := &Handler{config: createTestConfig(), logger: &MockLogger{}}
 	tests := []struct {
-		name           string
-		params         *ExtractedParameters
-		wantQueryType  string
-		wantPostFilter bool
+		name          string
+		params        *ExtractedParameters
+		wantQueryType string
 	}{
 		{
-			name:          "Category only → simple_query_string",
+			name:          "Category only → bool query",
 			params:        &ExtractedParameters{Category: "Food & Beverage"},
-			wantQueryType: "simple_query_string",
+			wantQueryType: "bool",
 		},
 		{
-			name:           "With ROI → post_filter",
-			params:         &ExtractedParameters{Category: "Education", ROI: &RangeFilter{Min: 15, Max: 25}},
-			wantQueryType:  "simple_query_string",
-			wantPostFilter: true,
+			name:          "With ROI → bool query",
+			params:        &ExtractedParameters{Category: "Education", ROI: &RangeFilter{Min: 15, Max: 25}},
+			wantQueryType: "bool",
 		},
 		{
 			name:          "Nil params → match_all",
@@ -383,11 +380,6 @@ func TestBuildElasticsearchQuery(t *testing.T) {
 			q, err := handler.buildElasticsearchQuery(tt.params)
 			assert.NoError(t, err)
 			assert.Contains(t, q["query"].(map[string]interface{}), tt.wantQueryType)
-			if tt.wantPostFilter {
-				assert.Contains(t, q, "post_filter")
-			} else {
-				assert.NotContains(t, q, "post_filter")
-			}
 		})
 	}
 }
@@ -399,6 +391,7 @@ func TestBuildResponse(t *testing.T) {
 		Category:   "Food",
 		Location:   &LocationFilter{City: "Delhi"},
 		Investment: &InvestmentFilter{Min: 2000000, Max: 3000000},
+		EntityType: "association",
 	}
 	results := &SearchResults{Total: 5, MaxScore: 1.5, TookMs: 20, Hits: []map[string]interface{}{}}
 
@@ -408,6 +401,7 @@ func TestBuildResponse(t *testing.T) {
 	assert.Equal(t, "Food", ep["category"])
 	assert.Equal(t, "Delhi", ep["location"])
 	assert.Equal(t, float64(2000000), ep["minInvestment"])
+	assert.Equal(t, "association", ep["entityType"])
 	assert.Contains(t, ep["tags"].([]string), "Food")
 
 	meta := resp["metadata"].(map[string]interface{})
@@ -467,6 +461,16 @@ func TestExtractParametersWithFallback(t *testing.T) {
 		assert.NotNil(t, p)
 		assert.Equal(t, "", p.Industry)
 	})
+	t.Run("Wildcard returns empty with EntityType fallback", func(t *testing.T) {
+		p := handler.extractParametersWithFallback(context.Background(), &SearchInput{Query: "*", EntityType: "association"})
+		assert.NotNil(t, p)
+		assert.Equal(t, "association", p.EntityType)
+	})
+	t.Run("Empty returns empty with EntityType fallback", func(t *testing.T) {
+		p := handler.extractParametersWithFallback(context.Background(), &SearchInput{Query: "   ", EntityType: "master-franchise"})
+		assert.NotNil(t, p)
+		assert.Equal(t, "master_franchise", p.EntityType)
+	})
 }
 
 // ============================================================
@@ -490,8 +494,8 @@ func TestOllamaService_Extract(t *testing.T) {
 		assert.Contains(t, resp, "Food")
 	})
 	t.Run("Timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
-		defer cancel()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Pre-cancel to guarantee deterministic timeout/cancellation error
 		_, err := svc.Extract(ctx, "test")
 		assert.Error(t, err)
 	})

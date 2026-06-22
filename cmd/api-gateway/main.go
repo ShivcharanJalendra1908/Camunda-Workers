@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"strings"
+
 	"camunda-workers/internal/api/handlers"
 	"camunda-workers/internal/api/middleware"
 	"camunda-workers/internal/common/auth"
@@ -243,6 +245,8 @@ func main() {
 
 	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain, cfg)
 
+	documentHandler := handlers.NewDocumentHandler(cfg)
+
 	// ============================================================================
 	// Operate Live-Monitoring (WebSocket + Queries + Actions)
 	// ============================================================================
@@ -304,29 +308,30 @@ func main() {
 		}
 
 		// ========================================================================
-		// PUBLIC FRANCHISE ROUTES - Direct handlers (no auth required)
+		// PUBLIC ENTITY ROUTES (Dynamic :entityType for Franchises/Associations)
 		// ========================================================================
-		franchiseGroup := publicAPI.Group("/franchises")
+		entityGroup := publicAPI.Group("/entities/:entityType")
 		{
-			// Homepage & Discovery
-			franchiseGroup.GET("/home", franchiseHandler.GetHomePageData)
-			franchiseGroup.GET("/listing", franchiseHandler.GetListingPageData)          // ✅ NEW
-			franchiseGroup.GET("/detail/:slug", franchiseHandler.GetFranchiseDetailPage) // ✅ NEW
-			franchiseGroup.GET("/industries", franchiseHandler.GetAllIndustries)
-			franchiseGroup.GET("/industries/:slug", franchiseHandler.GetIndustryBySlug)
-			franchiseGroup.GET("/categories", franchiseHandler.GetCategories)
+			entityGroup.GET("/home", franchiseHandler.GetHomePageData)
+			entityGroup.GET("/listing", franchiseHandler.GetListingPageData)
+			entityGroup.GET("/detail/:slug", franchiseHandler.GetFranchiseDetailPage)
 
 			// Search & Browse
-			franchiseGroup.GET("/search", franchiseHandler.SearchFranchises)
-			franchiseGroup.GET("/suggest", franchiseHandler.GetSuggestions)
-			franchiseGroup.GET("/stats", franchiseHandler.GetStats)
-			franchiseGroup.GET("/featured", franchiseHandler.GetFeatured)
+			entityGroup.GET("/search", franchiseHandler.SearchFranchises)
+			entityGroup.GET("/suggest", franchiseHandler.GetSuggestions)
+
+			// Categories & Industries
+			entityGroup.GET("/industries", franchiseHandler.GetAllIndustries)
+			entityGroup.GET("/industries/:slug", franchiseHandler.GetIndustryBySlug)
+			entityGroup.GET("/categories", franchiseHandler.GetCategories)
+			entityGroup.GET("/stats", franchiseHandler.GetStats)
+			entityGroup.GET("/featured", franchiseHandler.GetFeatured)
 
 			// ✅ Generic :id route MUST be LAST
-			franchiseGroup.GET("/:id", franchiseHandler.GetByID)
+			entityGroup.GET("/:id", franchiseHandler.GetByID)
 
 			// Rating
-			franchiseGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
+			entityGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
 		}
 
 		// ========================================================================
@@ -335,6 +340,13 @@ func main() {
 		publicAPI.POST("/contact",
 			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
 			workflowHandler.StartContactUs)
+
+		// ========================================================================
+		// UNIFIED ONBOARDING SUBMISSION (V2)
+		// ========================================================================
+		publicAPI.POST("/onboarding/submit/:entityType",
+			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
+			workflowHandler.StartUnifiedOnboarding)
 
 		// ========================================================================
 		// PUBLIC GENERIC FORMS (e.g., Buyer/Franchisor Registrations)
@@ -378,40 +390,86 @@ func main() {
 		}
 
 		// ========================================================================
-		// FRANCHISE WORKFLOWS (Authenticated operations)
+		// UNIFIED ENTITY ROUTES (Authenticated) - Works for BOTH franchises & associations
 		// ========================================================================
-		franchiseGroup := protectedAPI.Group("/franchises")
+		protectedEntityGroup := protectedAPI.Group("/entities/:entityType")
 		{
-			// Complex search with personalization - Workflow
-			franchiseGroup.POST("/search", workflowHandler.StartFranchiseSearch)
-			franchiseGroup.GET("/details/:id", workflowHandler.GetFranchiseDetails)
+			// Search with personalization - Workflow
+			protectedEntityGroup.POST("/search", workflowHandler.StartFranchiseSearch)
+			protectedEntityGroup.GET("/details/:id", workflowHandler.GetFranchiseDetails)
 
-			// Simple user-specific operations - Direct handlers
-			franchiseGroup.POST("/favorite/:id", franchiseHandler.AddToFavorites)
-			franchiseGroup.DELETE("/favorite/:id", franchiseHandler.RemoveFromFavorites)
-			franchiseGroup.GET("/favorites", franchiseHandler.GetFavorites)
-			franchiseGroup.POST("/:id/bookmark", franchiseHandler.BookmarkFranchise)
-			franchiseGroup.DELETE("/:id/bookmark", franchiseHandler.UnbookmarkFranchise)
-			franchiseGroup.GET("/:id/bookmark/check", franchiseHandler.CheckBookmark)
-			franchiseGroup.GET("/user/bookmarks", franchiseHandler.GetUserBookmarks)
-			franchiseGroup.POST("/:id/rate", franchiseHandler.RateFranchise)
-			franchiseGroup.PUT("/:id/rate", franchiseHandler.UpdateRating)
-			franchiseGroup.DELETE("/:id/rate", franchiseHandler.DeleteRating)
-			franchiseGroup.GET("/:id/my-rating", franchiseHandler.GetUserRating)
-			franchiseGroup.POST("/:id/share", franchiseHandler.ShareFranchise)
-			franchiseGroup.GET("/user/shares", franchiseHandler.GetUserShares)
-			franchiseGroup.POST("/save-search", franchiseHandler.SaveSearch)
-			franchiseGroup.GET("/saved-searches", franchiseHandler.GetSavedSearches)
-			franchiseGroup.DELETE("/saved-searches/:id", franchiseHandler.DeleteSavedSearch)
+			// User-specific operations - Direct handlers
+			protectedEntityGroup.POST("/favorite/:id", franchiseHandler.AddToFavorites)
+			protectedEntityGroup.DELETE("/favorite/:id", franchiseHandler.RemoveFromFavorites)
+			protectedEntityGroup.GET("/favorites", franchiseHandler.GetFavorites)
+			protectedEntityGroup.POST("/:id/bookmark", franchiseHandler.BookmarkFranchise)
+			protectedEntityGroup.DELETE("/:id/bookmark", franchiseHandler.UnbookmarkFranchise)
+			protectedEntityGroup.GET("/:id/bookmark/check", franchiseHandler.CheckBookmark)
+			protectedEntityGroup.GET("/user/bookmarks", franchiseHandler.GetUserBookmarks)
+			protectedEntityGroup.POST("/:id/rate", franchiseHandler.RateFranchise)
+			protectedEntityGroup.PUT("/:id/rate", franchiseHandler.UpdateRating)
+			protectedEntityGroup.DELETE("/:id/rate", franchiseHandler.DeleteRating)
+			protectedEntityGroup.GET("/:id/my-rating", franchiseHandler.GetUserRating)
+			protectedEntityGroup.POST("/:id/share", franchiseHandler.ShareFranchise)
+			protectedEntityGroup.GET("/user/shares", franchiseHandler.GetUserShares)
+			protectedEntityGroup.POST("/save-search", franchiseHandler.SaveSearch)
+			protectedEntityGroup.GET("/saved-searches", franchiseHandler.GetSavedSearches)
+			protectedEntityGroup.DELETE("/saved-searches/:id", franchiseHandler.DeleteSavedSearch)
 
-			// Franchise CRUD Operations (via franchise-postgres worker)
-			franchiseGroup.POST("/create", workflowHandler.CreateFranchise)
-			franchiseGroup.PUT("/:id", workflowHandler.UpdateFranchise)
-			franchiseGroup.DELETE("/:id", workflowHandler.DeleteFranchise)
-			franchiseGroup.GET("/full/:slug", workflowHandler.GetFullFranchise)
+			// CRUD Operations (via franchise-postgres worker)
+			protectedEntityGroup.POST("/create", workflowHandler.CreateFranchise)
+			protectedEntityGroup.PUT("/:id", workflowHandler.UpdateFranchise)
+			protectedEntityGroup.DELETE("/:id", workflowHandler.DeleteFranchise)
+			protectedEntityGroup.GET("/full/:slug", workflowHandler.GetFullFranchise)
 
 			// Enquiry
-			franchiseGroup.POST("/:id/enquiry", franchiseHandler.SubmitFranchiseEnquiry)
+			protectedEntityGroup.POST("/:id/enquiry", franchiseHandler.SubmitFranchiseEnquiry)
+
+			// Website Verification
+			protectedEntityGroup.POST("/:id/verify/website", franchiseHandler.VerifyWebsite)
+
+			// Offerings
+			protectedEntityGroup.GET("/:id/offerings", franchiseHandler.GetOfferings)
+			protectedEntityGroup.POST("/:id/offerings", franchiseHandler.CreateOffering)
+			protectedEntityGroup.PATCH("/offerings/:offeringId", franchiseHandler.UpdateOffering)
+			protectedEntityGroup.DELETE("/offerings/:offeringId", franchiseHandler.DeleteOffering)
+			protectedEntityGroup.POST("/offerings/:offeringId/publish", franchiseHandler.PublishOffering)
+			protectedEntityGroup.POST("/offerings/:offeringId/unpublish", franchiseHandler.UnpublishOffering)
+			protectedEntityGroup.POST("/offerings/:offeringId/redeem", franchiseHandler.RedeemOffering)
+
+			// Memberships
+			protectedEntityGroup.GET("/:id/memberships", franchiseHandler.GetMemberships)
+			protectedEntityGroup.POST("/:id/memberships", franchiseHandler.RequestMembership)
+			protectedEntityGroup.PATCH("/memberships/:membershipId", franchiseHandler.UpdateMembershipStatus)
+		}
+
+		// ========================================================================
+		// PLATFORM ADMIN ENTITY ROUTES
+		// ========================================================================
+		adminEntityGroup := protectedAPI.Group("/admin")
+		adminEntityGroup.Use(middleware.RequireRole("admin"))
+		{
+			adminEntityGroup.GET("/entities/:entityType", franchiseHandler.ListReviewQueue)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/approve", franchiseHandler.ApproveEntity)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/reject", franchiseHandler.RejectEntity)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/publish", franchiseHandler.PublishEntity)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/suspend", franchiseHandler.SuspendEntity)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/reinstate", franchiseHandler.ReinstateEntity)
+			adminEntityGroup.PATCH("/entities/:entityType/:id/archive", franchiseHandler.ArchiveEntity)
+
+			adminEntityGroup.PATCH("/pending-edits/:editId/approve", franchiseHandler.ApprovePendingEdit)
+			adminEntityGroup.PATCH("/pending-edits/:editId/reject", franchiseHandler.RejectPendingEdit)
+
+			adminEntityGroup.PATCH("/duplicate-flags/:flagId/resolve", franchiseHandler.ResolveDuplicateFlag)
+		}
+
+
+		// ========================================================================
+		// DOCUMENTS WORKFLOWS
+		// ========================================================================
+		documentGroup := protectedAPI.Group("/documents")
+		{
+			documentGroup.GET("/presigned-url", documentHandler.GeneratePresignedURL)
 		}
 
 		// ========================================================================
@@ -499,10 +557,39 @@ func main() {
 		})
 	})
 
+	// URL Rewrite Middleware for Dynamic Entity Routes (to support /api/v1/:entityType/ routes externally)
+	rewriteHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if strings.HasPrefix(path, "/api/v1/") {
+			subPath := strings.TrimPrefix(path, "/api/v1/")
+			segments := strings.Split(subPath, "/")
+			if len(segments) > 0 && segments[0] != "" {
+				firstSeg := segments[0]
+				reserved := map[string]bool{
+					"auth":         true,
+					"oauth":        true,
+					"contact":      true,
+					"onboarding":   true,
+					"forms":        true,
+					"ai":           true,
+					"user":         true,
+					"documents":    true,
+					"applications": true,
+					"entities":     true,
+					"admin":        true,
+				}
+				if !reserved[firstSeg] {
+					r.URL.Path = "/api/v1/entities/" + subPath
+				}
+			}
+		}
+		router.ServeHTTP(w, r)
+	})
+
 	// Start HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.API.Port),
-		Handler:      router,
+		Handler:      rewriteHandler,
 		ReadTimeout:  time.Duration(cfg.API.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.API.WriteTimeout) * time.Second,
 		IdleTimeout:  time.Duration(cfg.API.IdleTimeout) * time.Second,

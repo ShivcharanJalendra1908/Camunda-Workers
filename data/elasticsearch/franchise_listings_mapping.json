@@ -20,6 +20,35 @@
       "slug": {
         "type": "keyword"
       },
+      "entity_type": {
+        "type": "keyword"
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "association_metadata": {
+        "type": "object",
+        "properties": {
+          "membership_fee_min": { "type": "double" },
+          "membership_fee_max": { "type": "double" },
+          "eligibility": { "type": "keyword" },
+          "programs": { "type": "keyword" },
+          "payment_status": { "type": "keyword" },
+          "transaction_id": { "type": "keyword" }
+        }
+      },
+      "member_count": {
+        "type": "integer"
+      },
+      "membership_fee_min": {
+        "type": "double"
+      },
+      "membership_fee_max": {
+        "type": "double"
+      },
+      "approved_at": {
+        "type": "date"
+      },
       "description": {
         "type": "text"
       },

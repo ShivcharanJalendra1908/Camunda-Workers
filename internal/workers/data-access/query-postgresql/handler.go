@@ -549,6 +549,23 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	if input.UserID != "" {
 		params["userId"] = input.UserID
 	}
+	if input.EntityType != "" {
+		et := strings.ToLower(input.EntityType)
+		switch et {
+		case "franchises":
+			et = "franchise"
+		case "associations":
+			et = "association"
+		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+			et = "master_franchise"
+		default:
+			et = strings.TrimSuffix(et, "s")
+			if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {
+				et = "master_franchise"
+			}
+		}
+		params["entityType"] = et
+	}
 
 	// ✅ CRITICAL: Sanitize all slug fields before using them
 	if input.Slug != "" {

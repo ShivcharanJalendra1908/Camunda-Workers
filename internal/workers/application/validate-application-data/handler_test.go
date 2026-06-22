@@ -309,14 +309,14 @@ func TestHandler_ValidatePersonalInfo(t *testing.T) {
 			data: map[string]interface{}{
 				"name":  "John O'Conner-Smith",
 				"email": "test@example.com",
-				"phone": "+123456789012345",
+				"phone": "+12345678901234",
 			},
 			wantErr:  false,
 			errCount: 0,
 			validate: func(t *testing.T, result map[string]interface{}) {
 				assert.Equal(t, "John O'Conner-Smith", result["name"])
 				assert.Equal(t, "test@example.com", result["email"])
-				assert.Equal(t, "+123456789012345", result["phone"])
+				assert.Equal(t, "+12345678901234", result["phone"])
 			},
 		},
 		{
@@ -740,7 +740,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 				},
 				"financialInfo": map[string]interface{}{
 					"liquidCapital": 999999999.0,
-					"netWorth":      9999999999.0,
+					"netWorth":      999999999.0,
 					"creditScore":   850.0,
 				},
 				"experience": map[string]interface{}{

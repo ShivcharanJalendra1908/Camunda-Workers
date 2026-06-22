@@ -61,7 +61,7 @@ func (pe *ParameterExtractor) BuildPrompt(query string) string {
 		q = q + " franchise"
 	}
 
-	return `You are a highly accurate entity extraction AI for a franchise search engine. Extract search parameters from the user's query and output them EXACTLY in the specified JSON format.
+	return `You are a highly accurate entity extraction AI for a franchise, association, and master-franchise search engine. Extract search parameters from the user's query and output them EXACTLY in the specified JSON format.
 
 TAXONOMY:
 Industry → Category → Subcategory
@@ -69,42 +69,46 @@ Industry → Category → Subcategory
 RULES:
 1. Return ONLY valid JSON. No markdown, no conversational text.
 2. If a value is missing, use null. DO NOT use empty strings.
-3. For investments, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
-4. Determine Min/Max Investment carefully: 
-   - "under", "below", "budget of", "max" -> Maximum_Investment
-   - "above", "starting from", "min" -> Minimum_Investment
-   - "between X to Y" -> Minimum_Investment = X, Maximum_Investment = Y
-5. Area_Requirement should be in numbers (sq ft).
-6. ROI should be just the percentage number (e.g., 20).
-7. Rating should be a number between 0 and 5.
-8. Only set Verified or Trusted_Seller to true if the words "verified" or "trusted" are explicitly used in the user's query. Otherwise, they must be null.
+3. Determine Entity_Type. If the user mentions "association" -> set to "association". If they mention "master franchise", "master", or "exclusive" -> set to "master-franchise". Otherwise -> set to "franchise".
+4. For investments and fees, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
+5. Determine Minimum_Investment / Maximum_Investment for franchises.
+6. Determine Minimum_Membership_Fee / Maximum_Membership_Fee for associations.
+7. Area_Requirement should be in numbers (sq ft).
+8. Determine Member_Count for associations (e.g. "500 members", "more than 100 members" -> "500", "100"). Determine Minimum_Units for master franchises (e.g. "at least 5 units").
+9. ROI should be just the percentage number (e.g., 20).
+10. Exclusivity_Type and Territory_Scope for Master Franchises (e.g., "state level", "exclusive").
+11. Only set Verified or Trusted_Seller to true if explicitly used.
 
 DATA STRUCTURE (Return ONLY valid JSON matching this):
 {
+  "Entity_Type": "string or null",
   "Industry": "string or null",
   "Category": "string or null",
   "Subcategory": "string or null",
   "Location": "string (City/State) or null",
-  "Minimum_Investment": "string (e.g., '1L', '50L', '1Cr') or null",
-  "Maximum_Investment": "string (e.g., '10L', '2Cr') or null",
-  "Area_Requirement": "string (e.g., '500') or null",
-  "ROI": "string (e.g., '20') or null",
+  "Minimum_Investment": "string or null",
+  "Maximum_Investment": "string or null",
+  "Area_Requirement": "string or null",
+  "ROI": "string or null",
   "Rating": "number or null",
   "Staff": "number or null",
   "Outlets": "number or null",
   "Verified": "boolean or null",
-  "Trusted_Seller": "boolean or null"
+  "Trusted_Seller": "boolean or null",
+  "Member_Count": "string or null",
+  "Minimum_Membership_Fee": "string or null",
+  "Maximum_Membership_Fee": "string or null",
+  "Minimum_Units": "number or null",
+  "Exclusivity_Type": "string or null",
+  "Territory_Scope": "string or null"
 }
 
 EXAMPLES:
 Query: "food franchise under 1 lakh in delhi with high rating"
-Output: {"Industry": "Food & Beverage", "Category": null, "Subcategory": null, "Location": "Delhi", "Minimum_Investment": null, "Maximum_Investment": "1L", "Area_Requirement": null, "ROI": null, "Rating": 4.5, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
+Output: {"Entity_Type": "franchise", "Industry": "Food & Beverage", "Category": null, "Subcategory": null, "Location": "Delhi", "Minimum_Investment": null, "Maximum_Investment": "1L", "Area_Requirement": null, "ROI": null, "Rating": 4.5, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null, "Member_Count": null, "Minimum_Membership_Fee": null, "Maximum_Membership_Fee": null, "Minimum_Units": null, "Exclusivity_Type": null, "Territory_Scope": null}
 
-Query: "pizza business in mumbai"
-Output: {"Industry": "Food & Beverage", "Category": "Pizza", "Subcategory": null, "Location": "Mumbai", "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null}
-
-Query: "verified education business between 10 to 20 lakh"
-Output: {"Industry": "Education", "Category": null, "Subcategory": null, "Location": null, "Minimum_Investment": "10L", "Maximum_Investment": "20L", "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": true, "Trusted_Seller": null}
+Query: "association with 500 members under 10000 fee in bangalore"
+Output: {"Entity_Type": "association", "Industry": null, "Category": null, "Subcategory": null, "Location": "Bengaluru", "Minimum_Investment": null, "Maximum_Investment": null, "Area_Requirement": null, "ROI": null, "Rating": null, "Staff": null, "Outlets": null, "Verified": null, "Trusted_Seller": null, "Member_Count": "500", "Minimum_Membership_Fee": null, "Maximum_Membership_Fee": "10000", "Minimum_Units": null, "Exclusivity_Type": null, "Territory_Scope": null}
 
 Query: "` + q + `"
 Output:`
@@ -112,20 +116,27 @@ Output:`
 
 // ftModelOutput - Fine-tuned model ka exact output schema
 type ftModelOutput struct {
-	Error             interface{} `json:"error"`
-	Industry          interface{} `json:"Industry"`
-	Category          interface{} `json:"Category"`
-	Subcategory       interface{} `json:"Subcategory"`
-	Location          interface{} `json:"Location"`
-	MinimumInvestment interface{} `json:"Minimum_Investment"`
-	MaximumInvestment interface{} `json:"Maximum_Investment"`
-	AreaRequirement   interface{} `json:"Area_Requirement"`
-	ROI               interface{} `json:"ROI"`
-	Rating            interface{} `json:"Rating"`
-	Staff             interface{} `json:"Staff"`
-	Outlets           interface{} `json:"Outlets"`
-	Verified          interface{} `json:"Verified"`
-	TrustedSeller     interface{} `json:"Trusted_Seller"`
+	Error                interface{} `json:"error"`
+	EntityType           interface{} `json:"Entity_Type"`
+	Industry             interface{} `json:"Industry"`
+	Category             interface{} `json:"Category"`
+	Subcategory          interface{} `json:"Subcategory"`
+	Location             interface{} `json:"Location"`
+	MinimumInvestment    interface{} `json:"Minimum_Investment"`
+	MaximumInvestment    interface{} `json:"Maximum_Investment"`
+	AreaRequirement      interface{} `json:"Area_Requirement"`
+	ROI                  interface{} `json:"ROI"`
+	Rating               interface{} `json:"Rating"`
+	Staff                interface{} `json:"Staff"`
+	Outlets              interface{} `json:"Outlets"`
+	Verified             interface{} `json:"Verified"`
+	TrustedSeller        interface{} `json:"Trusted_Seller"`
+	MemberCount          interface{} `json:"Member_Count"`
+	MinMembershipFee     interface{} `json:"Minimum_Membership_Fee"`
+	MaxMembershipFee     interface{} `json:"Maximum_Membership_Fee"`
+	MinimumUnits         interface{} `json:"Minimum_Units"`
+	ExclusivityType      interface{} `json:"Exclusivity_Type"`
+	TerritoryScope       interface{} `json:"Territory_Scope"`
 }
 
 // ============================================================
@@ -372,7 +383,7 @@ func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) s
 	// Priority 1: Candidate with target marker nearby
 	for _, c := range candidates {
 		cLower := strings.ToLower(c)
-		if cLower == strings.ToLower(skipCity) || isHQOnlyLocation(queryLower, cLower) {
+		if cLower == strings.ToLower(skipCity) || pe.isHQOnlyLocation(queryLower, cLower) {
 			continue
 		}
 
@@ -395,7 +406,7 @@ func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) s
 	// Priority 2: Generic candidate (not User or HQ)
 	for _, c := range candidates {
 		cLower := strings.ToLower(c)
-		if cLower == strings.ToLower(skipCity) || isHQOnlyLocation(queryLower, cLower) {
+		if cLower == strings.ToLower(skipCity) || pe.isHQOnlyLocation(queryLower, cLower) {
 			continue
 		}
 		if !pe.isCityUserLocation(queryLower, cLower) {
@@ -417,7 +428,7 @@ func (pe *ParameterExtractor) extractAllTargetCities(query string, skipCity stri
 	var results []string
 	for _, c := range candidates {
 		cLower := strings.ToLower(c)
-		if cLower == strings.ToLower(skipCity) || isHQOnlyLocation(queryLower, cLower) {
+		if cLower == strings.ToLower(skipCity) || pe.isHQOnlyLocation(queryLower, cLower) {
 			continue
 		}
 		if !pe.isCityUserLocation(queryLower, cLower) {
@@ -428,8 +439,58 @@ func (pe *ParameterExtractor) extractAllTargetCities(query string, skipCity stri
 	return results
 }
 
-func isHQOnlyLocation(queryLower, cityLower string) bool {
-	// Markers that indicate the city is the BRAND'S location, not the USER'S target
+func (pe *ParameterExtractor) getCitySearchTerms(city string) []string {
+	cityLower := strings.ToLower(strings.TrimSpace(city))
+	terms := []string{cityLower}
+
+	// Add aliases if present in CityAliases
+	if aliases, ok := location.CityAliases[cityLower]; ok {
+		for _, a := range aliases {
+			terms = append(terms, strings.ToLower(a))
+		}
+	}
+
+	// If the city contains "delhi ncr", also check "delhi"
+	if strings.Contains(cityLower, "delhi") {
+		terms = append(terms, "delhi")
+		if aliases, ok := location.CityAliases["delhi"]; ok {
+			for _, a := range aliases {
+				terms = append(terms, strings.ToLower(a))
+			}
+		}
+	}
+
+	// Also check if any known city key is a substring or vice versa
+	for key, aliases := range location.CityAliases {
+		if key == cityLower {
+			continue
+		}
+		// If key is part of cityLower (e.g. "delhi" is part of "delhi ncr"), add all its aliases
+		if strings.Contains(cityLower, key) || strings.Contains(key, cityLower) {
+			terms = append(terms, key)
+			for _, a := range aliases {
+				terms = append(terms, strings.ToLower(a))
+			}
+		}
+	}
+
+	// Dedup terms
+	seen := make(map[string]bool)
+	var result []string
+	for _, t := range terms {
+		t = strings.TrimSpace(t)
+		if t != "" && !seen[t] {
+			seen[t] = true
+			result = append(result, t)
+		}
+	}
+	return result
+}
+
+func (pe *ParameterExtractor) isHQOnlyLocation(queryLower, city string) bool {
+	cityLower := strings.ToLower(city)
+	searchTerms := pe.getCitySearchTerms(cityLower)
+
 	hqMarkers := []string{
 		"head office", "headquarters", "hq", "corporate office", "parent company",
 		"based out of", "based in", "headquartered", "unka office", "brand ka office",
@@ -437,19 +498,21 @@ func isHQOnlyLocation(queryLower, cityLower string) bool {
 		"main branch",
 	}
 
-	for _, marker := range hqMarkers {
-		// Pattern: [marker] ... up to 25 chars ... [city]
-		// Allows "head office is in...", "headquarters relocated to...", "hq based out of..."
-		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(marker) + `[\s\w]{0,25}\b` + regexp.QuoteMeta(cityLower) + `\b`)
-		if re.MatchString(queryLower) {
-			return true
+	for _, term := range searchTerms {
+		for _, marker := range hqMarkers {
+			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(marker) + `[\s\w]{0,25}\b` + regexp.QuoteMeta(term) + `\b`)
+			if re.MatchString(queryLower) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func (pe *ParameterExtractor) isCityUserLocation(queryLower, cityLower string) bool {
-	// Pattern: User marker followed by [City]
+func (pe *ParameterExtractor) isCityUserLocation(queryLower, city string) bool {
+	cityLower := strings.ToLower(city)
+	searchTerms := pe.getCitySearchTerms(cityLower)
+
 	markers := []string{
 		"currently in", "based in", "hailing from", "live in", "stay in", "staying in",
 		"living in", "residing in", "based out of", "from", "mein hun", "se hun",
@@ -458,35 +521,47 @@ func (pe *ParameterExtractor) isCityUserLocation(queryLower, cityLower string) b
 
 	foundMarker := false
 	var userMatch []int
-	for _, m := range markers {
-		re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(m) + `\s+` + regexp.QuoteMeta(cityLower) + `\b`)
-		if re.MatchString(queryLower) {
-			userMatch = re.FindStringIndex(queryLower)
-			foundMarker = true
+	for _, term := range searchTerms {
+		for _, m := range markers {
+			re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(m) + `\s+` + regexp.QuoteMeta(term) + `\b`)
+			if re.MatchString(queryLower) {
+				userMatch = re.FindStringIndex(queryLower)
+				foundMarker = true
+				break
+			}
+		}
+		if foundMarker {
 			break
 		}
 	}
 
 	if foundMarker {
 		// Priority check: if OTHER target markers are present and closer, it's a target
-		cityIdx := strings.Index(queryLower, cityLower)
-		targetIdx := targetLocRegex.FindAllStringIndex(queryLower, -1)
+		for _, term := range searchTerms {
+			cityIdx := strings.Index(queryLower, term)
+			if cityIdx == -1 {
+				continue
+			}
+			targetIdx := targetLocRegex.FindAllStringIndex(queryLower, -1)
 
-		for _, idxRange := range targetIdx {
-			if idxRange[1] < cityIdx && (cityIdx-idxRange[1]) < 15 {
-				if idxRange[0] >= userMatch[0] && idxRange[1] <= userMatch[1] {
-					continue // Ignore 'in' from 'based in'
+			for _, idxRange := range targetIdx {
+				if idxRange[1] < cityIdx && (cityIdx-idxRange[1]) < 15 {
+					if idxRange[0] >= userMatch[0] && idxRange[1] <= userMatch[1] {
+						continue // Ignore 'in' from 'based in'
+					}
+					return false // It's likely a target
 				}
-				return false // It's likely a target
 			}
 		}
 		return true
 	}
 
-	// Hinglish "Noida mein hun" or "Main Noida se hun"
-	reSuffix := regexp.MustCompile("(?i)\\b" + regexp.QuoteMeta(cityLower) + "\\s+(mein\\s+hun|se\\s+hun|mein\\s+rehta\\s+hun)")
-	if reSuffix.MatchString(queryLower) {
-		return true
+	// Hinglish Suffix
+	for _, term := range searchTerms {
+		reSuffix := regexp.MustCompile("(?i)\\b" + regexp.QuoteMeta(term) + "\\s+(mein\\s+hun|se\\s+hun|mein\\s+rehta\\s+hun)")
+		if reSuffix.MatchString(queryLower) {
+			return true
+		}
 	}
 
 	return false
@@ -594,7 +669,11 @@ func (pe *ParameterExtractor) parseLocationString(locStr string) *LocationFilter
 	for proper, aliases := range location.CityAliases {
 		for _, alias := range aliases {
 			if strings.ToLower(alias) == locLower {
-				cityProper = strings.ToUpper(proper[:1]) + strings.ToLower(proper[1:])
+				canonical := proper
+				if canon, ok := location.CanonicalCityMap[proper]; ok {
+					canonical = canon
+				}
+				cityProper = strings.ToUpper(canonical[:1]) + strings.ToLower(canonical[1:])
 				break
 			}
 		}
@@ -714,6 +793,43 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 		params.TrustedSeller = &t
 	}
 
+	if v, ok := ftOut.EntityType.(string); ok && strings.TrimSpace(v) != "" {
+		et := strings.ToLower(strings.TrimSpace(v))
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+			et = "master_franchise"
+		}
+		params.EntityType = et
+	}
+
+	memVal := toFloat64(ftOut.MemberCount)
+	if memVal > 0 {
+		params.MemberCount = &RangeFilter{Min: memVal * 0.5, Max: memVal * 2.0} // Soft range approximation
+	}
+
+	minFee := toFloat64(ftOut.MinMembershipFee)
+	maxFee := toFloat64(ftOut.MaxMembershipFee)
+	if minFee > 0 || maxFee > 0 {
+		fee := &InvestmentFilter{}
+		if minFee > 0 { fee.Min = minFee }
+		if maxFee > 0 { fee.Max = maxFee }
+		if fee.Min == 0 && fee.Max > 0 { fee.Min = fee.Max / 10 }
+		if fee.Max == 0 && fee.Min > 0 { fee.Max = fee.Min * 5 }
+		params.MembershipFee = fee
+	}
+
+	unitsVal := int(toFloat64(ftOut.MinimumUnits))
+	if unitsVal > 0 {
+		params.MinUnits = &unitsVal
+	}
+
+	if v, ok := ftOut.ExclusivityType.(string); ok && strings.TrimSpace(v) != "" {
+		params.ExclusivityType = strings.ToLower(strings.TrimSpace(v))
+	}
+
+	if v, ok := ftOut.TerritoryScope.(string); ok && strings.TrimSpace(v) != "" {
+		params.TerritoryScope = strings.ToLower(strings.TrimSpace(v))
+	}
+
 	if err := pe.normalizeParameters(params); err != nil {
 		return nil, fmt.Errorf("normalization failed: %w", err)
 	}
@@ -790,7 +906,7 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 
 	// FIX 1: HQ Location
 	if params.Location != nil && params.Location.City != "" {
-		if isHQOnlyLocation(originalQuery, params.Location.City) {
+		if pe.isHQOnlyLocation(originalQuery, params.Location.City) {
 			targetCity := pe.extractTargetCity(originalQuery, params.Location.City)
 			if targetCity != "" {
 				fmt.Printf("🏢 HQ fix: '%s' → '%s'\n", params.Location.City, targetCity)
@@ -860,6 +976,32 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 			}
 
 			if len(uniqueLocations) > 0 {
+				// If we found "Northeast India", remove "East India"
+				// If we found "Central India", remove "North India"
+				hasNortheast := false
+				hasCentral := false
+				for _, loc := range uniqueLocations {
+					if loc == "Northeast India" {
+						hasNortheast = true
+					}
+					if loc == "Central India" {
+						hasCentral = true
+					}
+				}
+				var finalLocations []string
+				for _, loc := range uniqueLocations {
+					if loc == "East India" && hasNortheast {
+						continue
+					}
+					if loc == "North India" && hasCentral {
+						continue
+					}
+					finalLocations = append(finalLocations, loc)
+				}
+				uniqueLocations = finalLocations
+			}
+
+			if len(uniqueLocations) > 0 {
 				joinedCities := strings.Join(uniqueLocations, ", ")
 				params.Location = &LocationFilter{
 					City:    joinedCities,
@@ -878,7 +1020,7 @@ func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *Investme
 	if matches := rangeInvRegex.FindStringSubmatch(query); len(matches) >= 6 {
 		val1 := parseNumericValue(matches[1], matches[2])
 		val2 := parseNumericValue(matches[4], matches[5])
-		if val1 == 0 && matches[2] == "" && matches[5] != "" {
+		if matches[2] == "" && matches[5] != "" {
 			// Handles "5 to 10 lakh" where first unit is missing
 			val1 = parseNumericValue(matches[1], matches[5])
 		}
@@ -990,6 +1132,20 @@ func toFloat64(v interface{}) float64 {
 	return 0
 }
 
+func titleCaseLocation(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		if len(w) > 0 {
+			if strings.ToLower(w) == "ncr" {
+				words[i] = "NCR"
+			} else {
+				words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+			}
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) error {
 	params.Industry = strings.TrimSpace(params.Industry)
 	params.Category = strings.TrimSpace(params.Category)
@@ -999,9 +1155,12 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.Location.Country == "" {
 			params.Location.Country = "India"
 		}
-		// Location.City and Location.State are already title-cased by parseLocationString
-		// DO NOT re-title-case here as it breaks multi-word names (e.g., Delhi NCR)
-		params.Location.City = strings.TrimSpace(params.Location.City)
+		if params.Location.City != "" {
+			params.Location.City = titleCaseLocation(params.Location.City)
+		}
+		if params.Location.State != "" {
+			params.Location.State = titleCaseLocation(params.Location.State)
+		}
 	}
 
 	if params.Investment != nil {
@@ -1044,7 +1203,10 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.Space.Min < 0 {
 			params.Space.Min = 0
 		}
-		if params.Space.Min > params.Space.Max {
+		if params.Space.Max == 0 && params.Space.Min > 0 {
+			params.Space.Max = params.Space.Min * 5
+		}
+		if params.Space.Min > params.Space.Max && params.Space.Max > 0 {
 			params.Space.Min, params.Space.Max = params.Space.Max, params.Space.Min
 		}
 	}
@@ -1053,7 +1215,10 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.Staff.Min < 0 {
 			params.Staff.Min = 0
 		}
-		if params.Staff.Min > params.Staff.Max {
+		if params.Staff.Max == 0 && params.Staff.Min > 0 {
+			params.Staff.Max = params.Staff.Min * 3
+		}
+		if params.Staff.Min > params.Staff.Max && params.Staff.Max > 0 {
 			params.Staff.Min, params.Staff.Max = params.Staff.Max, params.Staff.Min
 		}
 	}

@@ -206,7 +206,16 @@ func (h *Handler) validateApplicationData(data map[string]interface{}) error {
 					"value contains potentially unsafe content")
 			}
 
-		case float64:
+		case float64, int, int64:
+			var val float64
+			switch nv := v.(type) {
+			case float64:
+				val = nv
+			case int:
+				val = float64(nv)
+			case int64:
+				val = float64(nv)
+			}
 			// Validate numeric ranges for known financial fields
 			if strings.Contains(strings.ToLower(key), "capital") ||
 				strings.Contains(strings.ToLower(key), "worth") ||
@@ -214,13 +223,13 @@ func (h *Handler) validateApplicationData(data map[string]interface{}) error {
 				strings.Contains(strings.ToLower(key), "amount") {
 
 				// Prevent negative values for financial data
-				if v < 0 {
+				if val < 0 {
 					return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
 						"cannot be negative")
 				}
 
 				// Prevent unreasonably large values (billion limit)
-				if v > 1000000000 { // 1 billion
+				if val > 1000000000 { // 1 billion
 					return errors.NewValidationError(fmt.Sprintf("applicationData.%s", key),
 						"value too large (max 1,000,000,000)")
 				}
@@ -334,24 +343,28 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 		data = make(map[string]interface{})
 	}
 
-	// ✅ DERIVE financialInfo from approximateInvestmentBudget if not present
+	// ✅ DERIVE financialInfo from approximateInvestmentBudget if not present at root
 	if _, ok := data["financialInfo"]; !ok {
-		budget, _ := data["approximateInvestmentBudget"].(string)
-		data["financialInfo"] = map[string]interface{}{
-			"liquidCapital": h.budgetToCapital(budget),
-			"netWorth":      h.budgetToNetWorth(budget),
-			"creditScore":   0,
+		if _, hasCap := data["liquidCapital"]; !hasCap {
+			budget, _ := data["approximateInvestmentBudget"].(string)
+			data["financialInfo"] = map[string]interface{}{
+				"liquidCapital": h.budgetToCapital(budget),
+				"netWorth":      h.budgetToNetWorth(budget),
+				"creditScore":   0,
+			}
 		}
 	}
 
-	// ✅ DERIVE experience from background text if not present
+	// ✅ DERIVE experience from background text if not present at root
 	if _, ok := data["experience"]; !ok {
-		background, _ := data["background"].(string)
-		applicantType, _ := data["applicantType"].(string)
-		data["experience"] = map[string]interface{}{
-			"yearsInIndustry":      h.parseYearsFromBackground(background),
-			"managementExperience": applicantType == "company",
-			"businessOwnership":    applicantType == "company",
+		if _, hasYears := data["yearsInIndustry"]; !hasYears {
+			background, _ := data["background"].(string)
+			applicantType, _ := data["applicantType"].(string)
+			data["experience"] = map[string]interface{}{
+				"yearsInIndustry":      h.parseYearsFromBackground(background),
+				"managementExperience": applicantType == "company",
+				"businessOwnership":    applicantType == "company",
+			}
 		}
 	}
 
@@ -666,7 +679,7 @@ func (h *Handler) calculateCompatibilityFromDB(ctx context.Context, franchiseID 
 		err := h.db.QueryRowContext(ctx, `
             SELECT COUNT(*) FROM franchise_cities
             WHERE franchise_id = $1 AND LOWER(state) = LOWER($2)
-        `, franchiseID, preferredState).Scan(&count)
+        `, franchiseID, strings.ToLower(preferredState)).Scan(&count)
 		if err == nil && count > 0 {
 			score += 30 // locationMatch = true
 		}
@@ -683,7 +696,7 @@ func (h *Handler) calculateCompatibilityFromDB(ctx context.Context, franchiseID 
             JOIN categories c ON fc.category_id = c.id
             JOIN industries i ON c.industry_id = i.id
             WHERE fc.franchise_id = $1 AND LOWER(i.slug) = LOWER($2)
-        `, franchiseID, userIndustry).Scan(&count)
+        `, franchiseID, strings.ToLower(userIndustry)).Scan(&count)
 		if err == nil && count > 0 {
 			score += 40 // categoryMatch = true
 		}

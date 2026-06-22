@@ -204,7 +204,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             i.name as industry_name,
             i.slug as industry_slug,
             i.color_hex as industry_color,
-			i.image_url as industry_image_url
+			i.image_url as industry_image_url,
+			f.entity_type
         FROM franchises f
         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
         LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
@@ -232,34 +233,39 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			industryID, industryName, industrySlug string
 			industryColor                          sql.NullString
 			industryImageURL                       sql.NullString // ✅ NEW
+			entityType                             string
 		)
 
 		if err := rows.Scan(
 			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription,
 			&logoURLCircle, &logoURLSquare,
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
-			&industryImageURL,
+			&industryImageURL, &entityType,
 		); err != nil {
 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
 			continue
 		}
 
-		// Location
-		var location string
+		// Location & Country
+		var location, country string
 		m.db.QueryRowContext(ctx,
-			"SELECT city FROM franchise_cities WHERE franchise_id = $1 LIMIT 1",
+			"SELECT city, COALESCE(country, 'India') FROM franchise_cities WHERE franchise_id = $1 LIMIT 1",
 			id,
-		).Scan(&location)
+		).Scan(&location, &country)
+		if country == "" {
+			country = "India"
+		}
 
 		// Tags
 		tags := m.generateSearchTags(ctx, id, name)
 
-		// Space
+		// Space & Operations JSONB fields
 		var minSpace, maxSpace sql.NullInt32
+		var territoryDetailsJSON sql.NullString
 		m.db.QueryRowContext(ctx,
-			"SELECT space_min_sqft, space_max_sqft FROM franchise_operations WHERE franchise_id = $1",
+			"SELECT space_min_sqft, space_max_sqft, territory_details FROM franchise_operations WHERE franchise_id = $1",
 			id,
-		).Scan(&minSpace, &maxSpace)
+		).Scan(&minSpace, &maxSpace, &territoryDetailsJSON)
 
 		// if !minSpace.Valid || minSpace.Int32 == 0 {
 		// 	minSpace.Int32 = 200
@@ -285,24 +291,45 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 
 		subCategories := m.getSubCategories(ctx, id)
 
+		var territoryDetails map[string]interface{}
+		var exclusivityType, territoryScope string
+		if territoryDetailsJSON.Valid && territoryDetailsJSON.String != "" {
+			_ = json.Unmarshal([]byte(territoryDetailsJSON.String), &territoryDetails)
+			if exclusivity, ok := territoryDetails["exclusivity_type"].(string); ok {
+				exclusivityType = exclusivity
+			} else if exclusivity, ok := territoryDetails["scope"].(string); ok {
+				exclusivityType = exclusivity
+			}
+			if scope, ok := territoryDetails["territory_scope"].(string); ok {
+				territoryScope = scope
+			} else if scope, ok := territoryDetails["scope"].(string); ok {
+				territoryScope = scope
+			}
+		}
+
 		// Clean description
 		cleanDesc := cleanDescription(shortDescription.String)
 
 		doc := map[string]interface{}{
-			"franchise_id": id,
-			"name":         name,
-			"slug":         slug,
-			"description":  cleanDesc,
+			"franchise_id":      id,
+			"name":              name,
+			"slug":              slug,
+			"entity_type":       entityType,
+			"description":       cleanDesc,
 			"logo": map[string]interface{}{
 				"circle": logoURLCircle.String,
 				"square": logoURLSquare.String,
 				"alt":    name,
 			},
-			"location":      location,
-			"tags":          tags,
-			"rating":        rating,
-			"total_outlets": totalOutlets.Int32,
-			"updated_at":    time.Now().Format(time.RFC3339),
+			"location":          location,
+			"tags":              tags,
+			"rating":            rating,
+			"total_outlets":     totalOutlets.Int32,
+			"country":           country,
+			"exclusivity_type":  exclusivityType,
+			"territory_scope":   territoryScope,
+			"territory_details": territoryDetails,
+			"updated_at":        time.Now().Format(time.RFC3339),
 		}
 
 		if foundedYear.Valid {
@@ -314,6 +341,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			doc["space"] = map[string]interface{}{
 				"minSpace":  float64(minSpace.Int32),
 				"maxSpace":  float64(maxSpace.Int32),
+				"min_space": float64(minSpace.Int32),
+				"max_space": float64(maxSpace.Int32),
 				"spaceUnit": "sq ft",
 			}
 		}
@@ -331,6 +360,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			doc["investment"] = map[string]interface{}{
 				"min_investment": minLakhs,
 				"max_investment": maxLakhs,
+				"minInvestment":  minLakhs,
+				"maxInvestment":  maxLakhs,
 			}
 		}
 
@@ -537,7 +568,7 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 				market_trend_title,
 				market_trend_description
 			FROM industry_market_insights
-			WHERE industry_id = $1
+			WHERE industry_id = $1 AND entity_type = 'franchise'
 		`
 
 		err = m.db.QueryRowContext(ctx, insightQuery, id).Scan(
@@ -623,6 +654,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		    imi.id,   
 			imi.industry_id,
 			imi.industry_slug,
+			imi.entity_type,
 			imi.intent_tag,
 			imi.growth_rate_title,
 			imi.growth_rate_description,
@@ -650,6 +682,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 			rowID                  string
 			industryID             string
 			industrySlug           string
+			entityType             string
 			intentTag              string
 			growthRateTitle        string
 			growthRateDescription  string
@@ -662,6 +695,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 			&rowID,
 			&industryID,
 			&industrySlug,
+			&entityType,
 			&intentTag,
 			&growthRateTitle,
 			&growthRateDescription,
@@ -677,6 +711,7 @@ func (m *SyncManager) syncIndustryInsightsIndex(ctx context.Context) error {
 		doc := map[string]interface{}{
 			"industry_id":              industryID,
 			"industry_slug":            industrySlug,
+			"entity_type":              entityType,
 			"intent_tag":               intentTag,
 			"growth_rate_title":        growthRateTitle,
 			"growth_rate_description":  growthRateDescription,

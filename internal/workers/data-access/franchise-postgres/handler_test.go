@@ -132,10 +132,10 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchise_Success() {
 			trusted_seller, verified, total_outlets, outlet_range,
 			industry, parent_company, business_type, established_year,
 			units_count, leader_name, leader_role, contact_email, 
-			logo_url, created_by, created_at, updated_at
+			logo_url, website_url, is_sponsored, created_by, created_at, updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
-			$14, $15, $16, $17, $18, $19, $20, $21
+			$14, $15, $16, $17, $18, $19, $20, $21, $22, $23
 		) RETURNING id, created_at, updated_at`
 
 	suite.mock.ExpectBegin()
@@ -145,7 +145,7 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchise_Success() {
 			"Test franchise description", int16(2020), true, true, 100,
 			"51-100", "Food & Beverage", "Test Corp", "Quick Service Restaurant",
 			int16(2020), 50, "John Doe", "CEO", "john@test.com",
-			"https://logo.com/test", userID, sqlmock.AnyArg(), sqlmock.AnyArg(),
+			"https://logo.com/test", "", false, userID, sqlmock.AnyArg(), sqlmock.AnyArg(),
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
 			AddRow(franchiseID, now, now))
@@ -189,19 +189,28 @@ func (suite *HandlerUnitTestSuite) TestUpdateFranchise_Success() {
 	input := UpdateFranchiseInput{
 		OperationType: "UPDATE_FRANCHISE",
 		FranchiseID:   franchiseID.String(),
-		Name:          stringPtr("Updated Name"),
-		Description:   stringPtr("Updated description"),
-		ContactEmail:  stringPtr("updated@test.com"),
+		Name:          stringPtr("Modified Name"),
+		Description:   stringPtr("Modified description"),
+		ContactEmail:  stringPtr("modified@test.com"),
 	}
 
 	inputJSON, _ := json.Marshal(input)
 
 	suite.mock.ExpectBegin()
+	selectQuery := `
+		SELECT is_featured, is_sponsored, featured_order, featured_start_at, featured_expires_at 
+		FROM franchises WHERE id = $1 FOR UPDATE`
+	suite.mock.ExpectQuery(selectQuery).
+		WithArgs(franchiseID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"is_featured", "is_sponsored", "featured_order", "featured_start_at", "featured_expires_at",
+		}).AddRow(false, false, 0, nil, nil))
+
 	expectedQuery := "UPDATE franchises SET updated_by = $1, updated_at = $2, name = $3, description = $4, contact_email = $5 WHERE id = $6 RETURNING updated_at"
 	suite.mock.ExpectQuery(expectedQuery).
 		WithArgs(
 			adminID, sqlmock.AnyArg(),
-			"Updated Name", "Updated description", "updated@test.com",
+			"Modified Name", "Modified description", "modified@test.com",
 			franchiseID,
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"updated_at"}).AddRow(now))
@@ -240,6 +249,9 @@ func (suite *HandlerUnitTestSuite) TestGetFranchise_Success() {
 			f.established_year, f.units_count, f.leader_name, f.leader_role, 
 			f.contact_email, f.logo_url,
 			f.created_by, f.updated_by, f.created_at, f.updated_at,
+			f.entity_type, f.association_metadata,
+			f.member_count, f.membership_fee_min, f.membership_fee_max, f.approved_at,
+			f.website_url, f.is_featured, f.featured_start_at, f.featured_expires_at, f.featured_order, f.is_sponsored,
 			fs.rating, fs.rating_count, fs.follow_count, fs.likes_count,
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
@@ -254,6 +266,8 @@ func (suite *HandlerUnitTestSuite) TestGetFranchise_Success() {
 		"established_year", "units_count", "leader_name", "leader_role",
 		"contact_email", "logo_url",
 		"created_by", "updated_by", "created_at", "updated_at",
+		"entity_type", "association_metadata", "member_count", "membership_fee_min", "membership_fee_max", "approved_at",
+		"website_url", "is_featured", "featured_start_at", "featured_expires_at", "featured_order", "is_sponsored",
 		"rating", "rating_count", "follow_count", "likes_count",
 		"view_count", "save_count", "share_count", "enquiry_count", "news_count",
 	}).AddRow(
@@ -264,6 +278,8 @@ func (suite *HandlerUnitTestSuite) TestGetFranchise_Success() {
 		int16(2020), 50, "John Doe", "CEO",
 		"john@test.com", "https://logo.com/test",
 		userID, userID, now, now,
+		"franchise", []byte("{}"), 0, 0.00, 0.00, nil,
+		nil, false, nil, nil, 0, false,
 		4.5, 100, 500, 1000, 5000, 200, 50, 25, 10,
 	)
 
@@ -569,9 +585,9 @@ func (suite *HandlerUnitTestSuite) TestUpdateOperations_Success() {
 		SpaceMinSqft:         intPtr(600),
 		SpaceMaxSqft:         intPtr(1200),
 		TrainingProvided:     boolPtr(true),
-		TrainingDetails:      stringPtr("3 weeks updated training"),
-		ComputerRequirements: stringPtr("Updated computer requirements"),
-		MarketingSupport:     stringPtr("Updated marketing support"),
+		TrainingDetails:      stringPtr("3 weeks modified training"),
+		ComputerRequirements: stringPtr("Modified computer requirements"),
+		MarketingSupport:     stringPtr("Modified marketing support"),
 		SupplyChainSupport:   boolPtr(true),
 		QualityControl:       boolPtr(true),
 	}
@@ -582,8 +598,8 @@ func (suite *HandlerUnitTestSuite) TestUpdateOperations_Success() {
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(
 			adminID, sqlmock.AnyArg(),
-			600, 1200, true, "3 weeks updated training",
-			"Updated computer requirements", "Updated marketing support",
+			600, 1200, true, "3 weeks modified training",
+			"Modified computer requirements", "Modified marketing support",
 			true, true, franchiseID,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -620,6 +636,9 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 			f.established_year, f.units_count, f.leader_name, f.leader_role, 
 			f.contact_email, f.logo_url,
 			f.created_by, f.updated_by, f.created_at, f.updated_at,
+			f.entity_type, f.association_metadata,
+			f.member_count, f.membership_fee_min, f.membership_fee_max, f.approved_at,
+			f.website_url, f.is_featured, f.featured_start_at, f.featured_expires_at, f.featured_order, f.is_sponsored,
 			fs.rating, fs.rating_count, fs.follow_count, fs.likes_count,
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
@@ -634,6 +653,8 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 		"established_year", "units_count", "leader_name", "leader_role",
 		"contact_email", "logo_url",
 		"created_by", "updated_by", "created_at", "updated_at",
+		"entity_type", "association_metadata", "member_count", "membership_fee_min", "membership_fee_max", "approved_at",
+		"website_url", "is_featured", "featured_start_at", "featured_expires_at", "featured_order", "is_sponsored",
 		"rating", "rating_count", "follow_count", "likes_count",
 		"view_count", "save_count", "share_count", "enquiry_count", "news_count",
 	}).AddRow(
@@ -644,6 +665,8 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 		int16(2020), 50, "John Doe", "CEO",
 		"john@test.com", "https://logo.com/test",
 		userID, userID, now, now,
+		"franchise", []byte("{}"), 0, 0.00, 0.00, nil,
+		nil, false, nil, nil, 0, false,
 		4.5, 100, 500, 1000, 5000, 200, 50, 25, 10,
 	)
 
@@ -670,7 +693,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
             roi_min_percentage, roi_max_percentage,
             monthly_turnover_min, monthly_turnover_max,
             single_unit_cost_min, single_unit_cost_max,
-            investment_includes
+            investment_includes, revenue_model
         FROM franchise_investment_requirement 
         WHERE franchise_id = $1`
     
@@ -683,7 +706,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
             "roi_min_percentage", "roi_max_percentage",
             "monthly_turnover_min", "monthly_turnover_max",
             "single_unit_cost_min", "single_unit_cost_max",
-            "investment_includes",
+            "investment_includes", "revenue_model",
         }).AddRow(
             investmentID, 100000.0, 500000.0,
             30000.0, 5.0, 2.0,
@@ -691,7 +714,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
             15.0, 30.0,
             50000.0, 200000.0,
             1000.0, 5000.0,
-            "Equipment, Training, Marketing",
+            "Equipment, Training, Marketing", nil,
         ))
 
 	// Operations
@@ -703,7 +726,8 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
             staff_required_min, staff_required_max, staff_breakdown,
             operating_hours, training_provided, training_details,
             computer_requirements, marketing_support, preferred_locations,
-            qualification_required, supply_chain_support, quality_control
+            qualification_required, supply_chain_support, quality_control,
+            territory_details, development_schedule, support_training, legal_compliance
         FROM franchise_operations 
         WHERE franchise_id = $1`
     
@@ -715,12 +739,14 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
             "operating_hours", "training_provided", "training_details",
             "computer_requirements", "marketing_support", "preferred_locations",
             "qualification_required", "supply_chain_support", "quality_control",
+            "territory_details", "development_schedule", "support_training", "legal_compliance",
         }).AddRow(
             operationsID, 500, 1000, "Commercial",
             3, 10, staffBreakdownJSON,
             "9 AM - 9 PM", true, "2 weeks training",
             "POS System", "Local marketing", "Malls",
             "High School", true, true,
+            nil, nil, nil, nil,
         ))
 
 	// Social links
@@ -985,8 +1011,8 @@ func (suite *HandlerUnitTestSuite) TestUpdateCategoryQuestion_Success() {
 	input := UpdateCategoryQuestionInput{
 		OperationType: "UPDATE_CATEGORY_QUESTION",
 		QuestionID:    questionID.String(),
-		Question:      stringPtr("Updated question?"),
-		Answer:        stringPtr("Updated answer"),
+		Question:      stringPtr("Modified question?"),
+		Answer:        stringPtr("Modified answer"),
 		DisplayOrder:  intPtr(2),
 	}
 
@@ -995,7 +1021,7 @@ func (suite *HandlerUnitTestSuite) TestUpdateCategoryQuestion_Success() {
 	expectedQuery := "UPDATE category_questions SET question = $1, answer = $2, display_order = $3 WHERE id = $4"
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(
-			"Updated question?", "Updated answer", 2, questionID,
+			"Modified question?", "Modified answer", 2, questionID,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -1147,8 +1173,8 @@ func (suite *HandlerUnitTestSuite) TestUpdateSocialLinks_Success() {
 	input := UpdateSocialLinksInput{
 		OperationType: "UPDATE_SOCIAL_LINKS",
 		FranchiseID:   franchiseID.String(),
-		InstagramURL:  stringPtr("https://instagram.com/updated"),
-		FacebookURL:   stringPtr("https://facebook.com/updated"),
+		InstagramURL:  stringPtr("https://instagram.com/modified"),
+		FacebookURL:   stringPtr("https://facebook.com/modified"),
 	}
 
 	inputJSON, _ := json.Marshal(input)
@@ -1157,8 +1183,8 @@ func (suite *HandlerUnitTestSuite) TestUpdateSocialLinks_Success() {
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(
 			sqlmock.AnyArg(),
-			"https://instagram.com/updated",
-			"https://facebook.com/updated",
+			"https://instagram.com/modified",
+			"https://facebook.com/modified",
 			franchiseID,
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))

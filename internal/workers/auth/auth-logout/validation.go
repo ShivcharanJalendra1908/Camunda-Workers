@@ -14,7 +14,11 @@ func ValidateInput(input *Input) error {
 		if err := ozzo.Validate(input.UserID,
 			ozzo.Length(3, 255).Error("userId must be between 3 and 255 characters"),
 			validation.SafeSQLString,
+			validation.IsUUID,
 		); err != nil {
+			if err.Error() == "must be a valid UUID v4" {
+				return errors.NewInvalidUUIDError("userId", input.UserID)
+			}
 			return errors.NewValidationError("userId", err.Error())
 		}
 	}

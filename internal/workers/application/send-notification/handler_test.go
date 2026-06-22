@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/common/validation"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
@@ -48,6 +50,21 @@ func createTestConfig() *Config {
 		AWSRegion:        "us-east-1",
 		TemplateRegistry: "test-registry",
 		Timeout:          30 * time.Second,
+	}
+}
+
+func createTestHandler(config *Config, db *sql.DB, log logger.Logger, ses SESService, sns SNSService) *Handler {
+	return &Handler{
+		config:             config,
+		db:                 db,
+		logger:             log,
+		sesClient:          ses,
+		snsClient:          sns,
+		templateMap:        loadTestTemplates(),
+		validator:          validation.NewValidator(),
+		sanitizer:          validation.NewSanitizer(),
+		keyGenerator:       idempotency.NewKeyGenerator(),
+		idempotencyChecker: idempotency.NewDBChecker(db),
 	}
 }
 
@@ -211,14 +228,7 @@ func TestHandler_Execute_Success(t *testing.T) {
 			config.EmailEnabled = tt.emailEnabled
 			config.SMSEnabled = tt.smsEnabled
 
-			handler := &Handler{
-				config:      config,
-				db:          db,
-				logger:      newTestLogger(t),
-				sesClient:   mockSES,
-				snsClient:   mockSNS,
-				templateMap: loadTestTemplates(),
-			}
+			handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 			tt.input.Priority = tt.priority
 			output, err := handler.Execute(context.Background(), tt.input)
@@ -245,18 +255,13 @@ func TestHandler_Execute_RecipientNotFound(t *testing.T) {
 		WillReturnError(sql.ErrNoRows)
 
 	config := createTestConfig()
-	handler := &Handler{
-		config: config,
-		db:     db,
-		logger: newTestLogger(t),
-		sesClient: &MockSESService{SendEmailFunc: func(ctx context.Context, params *ses.SendEmailInput, optFns ...func(*ses.Options)) (*ses.SendEmailOutput, error) {
-			return &ses.SendEmailOutput{}, nil
-		}},
-		snsClient: &MockSNSService{PublishFunc: func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
-			return &sns.PublishOutput{}, nil
-		}},
-		templateMap: loadTestTemplates(),
-	}
+	mockSES := &MockSESService{SendEmailFunc: func(ctx context.Context, params *ses.SendEmailInput, optFns ...func(*ses.Options)) (*ses.SendEmailOutput, error) {
+		return &ses.SendEmailOutput{}, nil
+	}}
+	mockSNS := &MockSNSService{PublishFunc: func(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error) {
+		return &sns.PublishOutput{}, nil
+	}}
+	handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 	input := createTestInput(TypeNewApplication)
 	output, err := handler.Execute(context.Background(), input)
@@ -297,14 +302,7 @@ func TestHandler_Execute_EmailFailure(t *testing.T) {
 	}
 
 	config := createTestConfig()
-	handler := &Handler{
-		config:      config,
-		db:          db,
-		logger:      newTestLogger(t),
-		sesClient:   mockSES,
-		snsClient:   mockSNS,
-		templateMap: loadTestTemplates(),
-	}
+	handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 	input := createTestInput(TypeNewApplication)
 	output, err := handler.Execute(context.Background(), input)
@@ -341,14 +339,7 @@ func TestHandler_Execute_SMSFailure(t *testing.T) {
 	}
 
 	config := createTestConfig()
-	handler := &Handler{
-		config:      config,
-		db:          db,
-		logger:      newTestLogger(t),
-		sesClient:   mockSES,
-		snsClient:   mockSNS,
-		templateMap: loadTestTemplates(),
-	}
+	handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 	input := createTestInput(TypeNewApplication)
 	output, err := handler.Execute(context.Background(), input)
@@ -363,14 +354,7 @@ func TestHandler_Execute_TemplateNotFound(t *testing.T) {
 	// which checks ValidateEnum([TypeNewApplication, TypeApplicationSubmitted]).
 	// "unknown_template_type" fails enum validation → error is about notificationType,
 	// NOT "template not found". The test must assert validation error, not template error.
-	handler := &Handler{
-		config:      createTestConfig(),
-		db:          nil,
-		logger:      newTestLogger(t),
-		sesClient:   &MockSESService{},
-		snsClient:   &MockSNSService{},
-		templateMap: loadTestTemplates(),
-	}
+	handler := createTestHandler(createTestConfig(), nil, newTestLogger(t), &MockSESService{}, &MockSNSService{})
 
 	input := createTestInput("unknown_template_type")
 	output, err := handler.Execute(context.Background(), input)
@@ -548,14 +532,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 	t.Run("empty recipient ID fails UUID validation", func(t *testing.T) {
 		// BUG FIX: Original test expected NoError with empty RecipientID.
 		// validateInput uses ozzo.Required which rejects empty string → error.
-		handler := &Handler{
-			config:      createTestConfig(),
-			db:          nil,
-			logger:      newTestLogger(t),
-			sesClient:   &MockSESService{},
-			snsClient:   &MockSNSService{},
-			templateMap: loadTestTemplates(),
-		}
+		handler := createTestHandler(createTestConfig(), nil, newTestLogger(t), &MockSESService{}, &MockSNSService{})
 
 		input := &Input{
 			RecipientID:      "",
@@ -596,14 +573,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 		}
 
 		config := createTestConfig()
-		handler := &Handler{
-			config:      config,
-			db:          db,
-			logger:      newTestLogger(t),
-			sesClient:   mockSES,
-			snsClient:   mockSNS,
-			templateMap: loadTestTemplates(),
-		}
+		handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 		input := &Input{
 			// BUG FIX: was "recipient-001" → valid UUID v4
@@ -635,14 +605,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 			WillReturnError(context.DeadlineExceeded)
 
 		config := createTestConfig()
-		handler := &Handler{
-			config:      config,
-			db:          db,
-			logger:      newTestLogger(t),
-			sesClient:   &MockSESService{},
-			snsClient:   &MockSNSService{},
-			templateMap: loadTestTemplates(),
-		}
+		handler := createTestHandler(config, db, newTestLogger(t), &MockSESService{}, &MockSNSService{})
 
 		input := createTestInput(TypeNewApplication)
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
@@ -710,14 +673,7 @@ func TestHandler_FullWorkflow(t *testing.T) {
 	}
 
 	config := createTestConfig()
-	handler := &Handler{
-		config:      config,
-		db:          db,
-		logger:      newTestLogger(t),
-		sesClient:   mockSES,
-		snsClient:   mockSNS,
-		templateMap: loadTestTemplates(),
-	}
+	handler := createTestHandler(config, db, newTestLogger(t), mockSES, mockSNS)
 
 	input := &Input{
 		// BUG FIX: was "franchisor-001" (invalid UUID) → valid UUID v4
@@ -775,14 +731,7 @@ func BenchmarkHandler_Execute(b *testing.B) {
 	}
 
 	config := createTestConfig()
-	handler := &Handler{
-		config:      config,
-		db:          db,
-		logger:      newTestLogger(&testing.T{}),
-		sesClient:   mockSES,
-		snsClient:   mockSNS,
-		templateMap: loadTestTemplates(),
-	}
+	handler := createTestHandler(config, db, newTestLogger(&testing.T{}), mockSES, mockSNS)
 
 	input := createTestInput(TypeNewApplication)
 	// BUG FIX: was "benchmark-recipient" (invalid UUID) → valid UUID v4

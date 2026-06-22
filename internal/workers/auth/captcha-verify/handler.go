@@ -431,6 +431,9 @@ func convertToStandardError(err error) *errors.StandardError {
 }
 
 func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *Config {
+	if customConfig != nil && appConfig == nil {
+		return customConfig
+	}
 	cfg := DefaultConfig()
 
 	// ✅ merge customConfig (if provided)

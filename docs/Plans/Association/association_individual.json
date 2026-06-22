@@ -1,0 +1,1109 @@
+{
+  "data": {
+    "pageId": "association_individual",
+    "association_name": "kassia",
+    "association_id": "1",
+    "slug": "kassia",
+    "sections": [
+      {
+        "data": {
+          "name": "Karnataka Small Scale Industries Association",
+          "slug": "kassia",
+          "logo": "/AssociationImages/FeaturedAssociations/kassia.svg",
+          "description": "Karnataka Small Scale Industries Association is Premier voluntary state-level non-Government institution for small-scale industrialists, registered under the Karnataka Societies Registration Act. ISO 9001:2015 certified with 12,000+ members and 100+ affiliated associations.",
+          "likes": "107",
+          "rating": "4.5",
+          "review_count": "99",
+          "tags": [
+            "12,000+ Members",
+            "ISO 9001:2015 Certified",
+            "Policy & Grievance Support",
+            "Entrepreneur Support"
+          ],
+          "socialLinks": {
+            "youtube": "https://www.youtube.com/channel/UCXqxjL76uZMxRWOaRra2_kg?view_as=subscriber",
+            "facebook": "https://www.facebook.com/kassia1949/",
+            "instagram": "https://www.instagram.com/kassiablr",
+            "twitter": "https://x.com/KASSIA1949",
+            "linkedin": "https://linkedin.com"
+          }
+        },
+        "enabled": true,
+        "type": "association_hero_info_card"
+      },
+      {
+        "data": {
+          "association_name": "Karnataka Small Scale Industries Association (KASSIA)",
+          "association_type": "Industry body / State-level trade association for small & micro industries",
+          "sector": "Small scale industries / MSMEs",
+          "year_of_establishment": "1949",
+          "legal_status": "Non-government industry association (trade body)",
+          "headquarters": "2/106, 17th Cross, Magadi Chord Road, Vijayanagar, Bangalore-560040, Karnataka, India",
+          "regional_presence": "Primarily Karnataka with state & national representation through committees",
+          "website": "https://kassia.org.in/",
+          "contact_details": "(080) 2335 3250 / 2335 8698"
+        },
+        "enabled": true,
+        "type": "association_info_grid"
+      },
+      {
+        "data": {
+          "Membership": [
+            {
+              "detail": "Total Number of Members",
+              "description": "12,000+ members (individual MSME units)"
+            },
+            {
+              "detail": "Affiliated Associations",
+              "description": "127 affiliated industrial associations across Karnataka"
+            },
+            {
+              "detail": "Membership Growth (Historical)",
+              "description": "Founded with 15 members in 1949; grown to 12,000+ members"
+            },
+            {
+              "detail": "Member Type",
+              "description": "Industrial units / business enterprises (MSMEs)"
+            },
+            {
+              "detail": "Member Size Classification",
+              "description": "Primarily Micro & Small Enterprises (MSMEs)"
+            },
+            {
+              "detail": "Domestic Members",
+              "description": "Yes — members are primarily based in Karnataka, India"
+            },
+            {
+              "detail": "Eligibility for Membership",
+              "description": "Small-scale / MSME industrial units operating in Karnataka"
+            },
+            {
+              "detail": "Sectoral Diversity of Members",
+              "description": "Manufacturing, engineering, fabrication, auto components, electricals, plastics, textiles, and allied industries"
+            },
+            {
+              "detail": "Member Services Access",
+              "description": "Access to buyer-seller meets, tenders, policy updates, and training programs"
+            },
+            {
+              "detail": "Member Directory Availability",
+              "description": "Not publicly available (internal / member-login based)"
+            }
+          ],
+          "Eligibility_Criteria": [
+            {
+              "detail": "Business Type",
+              "description": "MSMEs, manufacturers, startups, and industrial enterprises"
+            },
+            {
+              "detail": "Location Requirement",
+              "description": "Business operations should be based in Karnataka"
+            },
+            {
+              "detail": "Documents Required",
+              "description": "GST certificate, business registration, PAN card"
+            }
+          ],
+          "Membership_Application": [
+            {
+              "detail": "Application Process",
+              "description": "Submit online membership application form"
+            },
+            {
+              "detail": "Approval Timeline",
+              "description": "Usually approved within 7–15 business days"
+            },
+            {
+              "detail": "Membership Fee",
+              "description": "Varies based on business category and size"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "membership_section"
+      },
+      {
+        "data": [
+          {
+            "title": "Policy Advocacy",
+            "description": "Actively raises MSME sector policy issues with the Government and participates in policy forums such as the MSME Board in New Delhi."
+          },
+          {
+            "title": "Government Representation",
+            "description": "Formal representation on central and state government committees, including MSME Advisory Committee, RBI SLBC Committee, and other state advisory bodies."
+          },
+          {
+            "title": "Industry Research & Reports",
+            "description": "Produces informational services, publications, and MSME handbooks containing scheme/policy information and industry data for members."
+          },
+          {
+            "title": "Skill Development Programs",
+            "description": "Operates a Skill Development Centre and participates in government skill initiatives like STRIVE to enhance training and apprenticeships."
+          },
+          {
+            "title": "Startup & Innovation Support",
+            "description": "Through its Centre of Excellence & Innovation and portal services, supports MSME enterprise development and innovation facilitation."
+          },
+          {
+            "title": "Events & Conferences",
+            "description": "Hosts and participates in events such as India MSME Conclave and national/sector conventions in collaboration with other industry bodies."
+          },
+          {
+            "title": "Market Access Programs",
+            "description": "Provides buyer–seller information, marketing leads, national & international tender notifications, and B2B meeting facilitation."
+          },
+          {
+            "title": "International Outreach",
+            "description": "Exchanges international delegations and participates in global trade fairs and exhibitions to benefit members."
+          },
+          {
+            "title": "Certification / Standards Support",
+            "description": "Not directly listed as a formal certification service; provides guidance on incentives, government orders, and compliance-related resources."
+          },
+          {
+            "title": "Additional Member Services",
+            "description": "Helpdesk support (GST, VAT, Banking & Finance), promotional visibility for members, and MSME handbook for schemes & contacts."
+          },
+          {
+            "title": "MSME Grievance Redressal Support",
+            "description": "Assists members in escalating grievances related to taxation, power supply, labour issues, banking, and regulatory authorities through formal representations."
+          }
+        ],
+        "enabled": true,
+        "type": "services_and_institutional_offerings"
+      },
+      {
+        "data": {
+          "Startup_Programs": [
+            {
+              "title": "MSME Entrepreneurship Promotion",
+              "description": "KASSIA promotes entrepreneurship and supports startup MSMEs through guidance, advocacy, and scheme awareness."
+            },
+            {
+              "title": "Entrepreneurship Development Workshops",
+              "description": "Workshops and seminars encouraging new industrial entrepreneurship under MSME frameworks."
+            },
+            {
+              "title": "Startup Participation via India MSME Conclave",
+              "description": "Startups and early-stage MSMEs participated as exhibitors and attendees in the India MSME Conclave."
+            },
+            {
+              "title": "MSME Scheme Awareness for New Enterprises",
+              "description": "Awareness sessions on Udyam registration, subsidies, and SIDBI schemes for new MSMEs."
+            },
+            {
+              "title": "Startup Enablement – Platinum Jubilee Initiatives",
+              "description": "Launch of B2B portal and e-platforms during the Platinum Jubilee, benefiting startup MSMEs."
+            }
+          ],
+          "Skill_Development_Initiatives": [
+            {
+              "title": "Industrial Skill Development",
+              "description": "Skill enhancement programs for workforce readiness and MSME industrial growth."
+            },
+            {
+              "title": "Vocational Training",
+              "description": "Training initiatives for entrepreneurs and industrial employees."
+            }
+          ],
+          "Diversity_&_Inclusion_Programs": [
+            {
+              "title": "Women Entrepreneurship",
+              "description": "Encouraging women-led MSMEs through mentorship and networking."
+            }
+          ],
+          "Sustainability_Initiatives": [
+            {
+              "title": "Green Manufacturing",
+              "description": "Awareness programs on sustainable industrial practices."
+            }
+          ],
+          "Data_Protection_Programs": [
+            {
+              "title": "Digital Security Awareness",
+              "description": "Programs focused on cybersecurity and secure business operations."
+            }
+          ],
+          "DeepTech_Initiatives": [
+            {
+              "title": "Innovation & Technology",
+              "description": "Support for emerging technologies and deep-tech industrial adoption."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "programs_and_initiatives_section"
+      },
+      {
+        "data": {
+          "Industry_Reports": [
+            {
+              "title": "MSME Industry Overview Publications",
+              "description": "General industry insights and MSME sector updates issued through KASSIA platforms."
+            },
+            {
+              "title": "SIDBI–KASSIA MSME Reports",
+              "description": "Industry-related reports presented during SIDBI–KASSIA outreach programs."
+            },
+            {
+              "title": "MSME Sector Reports via India MSME Conclave",
+              "description": "Industry-focused reports and sector discussions published in conclave documentation."
+            },
+            {
+              "title": "Industrial Development Issue Reports",
+              "description": "Reports submitted to government bodies regarding MSME industrial issues."
+            },
+            {
+              "title": "MSME Growth & Challenges Reports",
+              "description": "Reports highlighting operational challenges faced by small-scale industries."
+            },
+            {
+              "title": "MSME Convention Souvenir Reports",
+              "description": "Compiled industry insights published as part of national MSME conventions."
+            }
+          ],
+          "Policy_Papers": [
+            {
+              "title": "MSME Policy Representation Papers",
+              "description": "Policy notes and representations submitted to state and central governments."
+            },
+            {
+              "title": "Industrial Policy Feedback Documents",
+              "description": "Feedback papers on Karnataka industrial and MSME policies."
+            }
+          ],
+          "Whitepapers": [
+            {
+              "title": "Industrial Innovation Whitepapers",
+              "description": "Research-based documents focused on industrial modernization and innovation."
+            }
+          ],
+          "Newsletters": [
+            {
+              "title": "Monthly Industry Updates",
+              "description": "Newsletters highlighting MSME updates, policies, and events."
+            }
+          ],
+          "Annual_Reports": [
+            {
+              "title": "Annual Performance Reports",
+              "description": "Yearly reports on achievements, growth, and institutional progress."
+            }
+          ],
+          "Statistical_Data_Publications": [
+            {
+              "title": "Industrial Statistical Publications",
+              "description": "Published datasets and reports on MSME industry trends and growth."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "publications_section"
+      },
+      {
+        "data": {
+          "Core_Governance_&_Presence": [
+            {
+              "title": "Governance Model",
+              "description": "Centralized leadership structure utilizing committees instead of regional councils."
+            },
+            {
+              "title": "State-Level Role",
+              "description": "Operates as the primary state-level industry body for Karnataka."
+            },
+            {
+              "title": "Jurisdiction",
+              "description": "Comprehensive representation of MSMEs across the entire state of Karnataka."
+            },
+            {
+              "title": "Headquarters",
+              "description": "Central operations based in Bengaluru, Karnataka."
+            },
+            {
+              "title": "Regional Offices",
+              "description": "No separate regional or zonal offices are publicly listed."
+            }
+          ],
+          "Regional_Reach_&_Engagement": [
+            {
+              "title": "Regional Presence",
+              "description": "Strong representation through affiliated district and industrial associations."
+            },
+            {
+              "title": "Industry Engagement",
+              "description": "Connects MSMEs through conclaves, workshops, and networking initiatives."
+            },
+            {
+              "title": "Policy Outreach",
+              "description": "Works closely with government bodies to represent MSME concerns."
+            }
+          ],
+          "Leadership_&_Representation": [
+            {
+              "title": "Leadership Framework",
+              "description": "Led by a council of management with elected representatives."
+            },
+            {
+              "title": "Representation Model",
+              "description": "Industry experts and senior members represent MSME interests."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "regional_structure_section"
+      },
+      {
+        "data": {
+          "Flagship_Events": [
+            {
+              "title": "India MSME Conclave",
+              "description": "KASSIA is a co-organizer of the India MSME Conclave, a large national-level flagship event connecting MSMEs, PSUs, corporates, and policymakers."
+            },
+            {
+              "title": "Platinum Jubilee Celebrations (75 Years)",
+              "description": "State-level flagship celebration marking 75 years of KASSIA, including launches of digital initiatives and MSME platforms."
+            },
+            {
+              "title": "MSME Vendor Development Meets",
+              "description": "Flagship buyer–seller meets conducted during large MSME events and conclaves."
+            },
+            {
+              "title": "National MSME Conventions",
+              "description": "Participation and co-hosting of national MSME conventions focusing on policy, innovation, and growth."
+            },
+            {
+              "title": "Government–Industry Interaction Forums",
+              "description": "High-level forums involving state ministers, MSME departments, and industry leaders."
+            }
+          ],
+          "Annual_Conferences": [
+            {
+              "title": "Annual Industry Conference",
+              "description": "Yearly conference bringing together MSME stakeholders and policymakers."
+            },
+            {
+              "title": "Leadership Summit",
+              "description": "Executive-level discussions on industrial growth and policy."
+            }
+          ],
+          "Workshop": [
+            {
+              "title": "MSME Skill Workshops",
+              "description": "Hands-on workshops for MSMEs covering finance, compliance, and digital tools."
+            },
+            {
+              "title": "Startup Mentorship Sessions",
+              "description": "Training and mentorship programs for startup founders."
+            }
+          ],
+          "Networking_Event": [
+            {
+              "title": "Business Networking Meet",
+              "description": "Industry networking sessions helping MSMEs build partnerships."
+            },
+            {
+              "title": "Investor Connect",
+              "description": "Events connecting startups and MSMEs with investors."
+            }
+          ],
+          "Training_Program": [
+            {
+              "title": "Digital Training Program",
+              "description": "Programs focused on digital transformation for MSMEs."
+            },
+            {
+              "title": "Leadership Development",
+              "description": "Training sessions for industrial leaders and entrepreneurs."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "events_engagement_section"
+      },
+      {
+        "data": {
+          "Policy_Consultation": [
+            {
+              "title": "Karnataka MSME Policy",
+              "description": "Provides structured feedback, suggestions, and industry concerns",
+              "tag": "State"
+            },
+            {
+              "title": "Industrial Policy of Karnataka",
+              "description": "Consulted on industrial growth, MSME incentives, and estates",
+              "tag": "State"
+            },
+            {
+              "title": "Central MSME Policies",
+              "description": "Represents MSME interests before Ministry of MSME",
+              "tag": "National"
+            },
+            {
+              "title": "Union & State Budgets",
+              "description": "Submits MSME expectations and post-budget feedback",
+              "tag": "State & National"
+            },
+            {
+              "title": "Ease of Doing Business Reforms",
+              "description": "Inputs on regulatory simplification and approvals",
+              "tag": "State"
+            },
+            {
+              "title": "Labour & Employment Policies",
+              "description": "MSME-specific feedback on labour law compliance",
+              "tag": "State"
+            },
+            {
+              "title": "GST & Taxation Policy",
+              "description": "Industry feedback on GST compliance issues",
+              "tag": "National"
+            },
+            {
+              "title": "Industrial Infrastructure Policy",
+              "description": "Consultation on land, power, and utilities for MSMEs",
+              "tag": "State"
+            }
+          ],
+          "Govt_Representation": [
+            {
+              "title": "Government Committees",
+              "description": "Representation in state advisory committees",
+              "tag": "State"
+            }
+          ],
+          "Regulatory_Mechanism": [
+            {
+              "title": "Compliance Support",
+              "description": "Guidance on MSME compliance and regulations",
+              "tag": "National"
+            }
+          ],
+          "Industry_Standards": [
+            {
+              "title": "Industrial Standards",
+              "description": "Promotes quality and certification awareness",
+              "tag": "State"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "compliance_policy_section"
+      },
+      {
+        "data": {
+          "Government": [
+            {
+              "title": "Government of Karnataka - Dept. of MSME",
+              "description": "Policy advocacy, MSME representation, industrial policy inputs"
+            },
+            {
+              "title": "Government of Karnataka - Industries & Commerce Dept.",
+              "description": "Consultation on industrial estates, MSME infrastructure"
+            },
+            {
+              "title": "Ministry of MSME, Govt. of India",
+              "description": "MSME policy consultation, scheme facilitation"
+            },
+            {
+              "title": "Small Industries Development Bank of India (SIDBI)",
+              "description": "Financial literacy programs, MSME credit awareness"
+            },
+            {
+              "title": "District Industries Centres (DICs), Karnataka",
+              "description": "District-level MSME outreach & training"
+            },
+            {
+              "title": "STRIVE – Govt. of India",
+              "description": "Skill development implementation partner"
+            },
+            {
+              "title": "MSME Development Institutes (MSME-DI)",
+              "description": "MSME capacity building & training collaboration"
+            },
+            {
+              "title": "Karnataka State Financial Corporation (KSFC)",
+              "description": "MSME financing awareness & facilitation"
+            },
+            {
+              "title": "National Small Industries Corporation (NSIC)",
+              "description": "Vendor development & MSME support initiatives"
+            }
+          ],
+          "International": [
+            {
+              "title": "International MSME Conclave",
+              "description": "MSME representation, policy advocacy, MSME representation"
+            },
+            {
+              "title": "European MSME Conclave",
+              "description": "MSME representation, policy advocacy, MSME representation"
+            }
+          ],
+          "Academic": [
+            {
+              "title": "MSME Entrepreneurship Promotion",
+              "description": "KASSIA promotes entrepreneurship and supports startup MSMEs through guidance, advocacy, and scheme awareness."
+            },
+            {
+              "title": "Entrepreneurship Development Workshops",
+              "description": "Workshops and seminars encouraging new industrial entrepreneurship under MSME frameworks."
+            }
+          ],
+          "Industry": [
+            {
+              "title": "MSME Entrepreneurship Promotion",
+              "description": "KASSIA promotes entrepreneurship and supports startup MSMEs through guidance, advocacy, and scheme awareness."
+            },
+            {
+              "title": "Entrepreneurship Development Workshops",
+              "description": "Workshops and seminars encouraging new industrial entrepreneurship under MSME frameworks."
+            }
+          ],
+          "Affiliated_Body": [
+            {
+              "title": "MSME Entrepreneurship Promotion",
+              "description": "KASSIA promotes entrepreneurship and supports startup MSMEs through guidance, advocacy, and scheme awareness."
+            },
+            {
+              "title": "Entrepreneurship Development Workshops",
+              "description": "Workshops and seminars encouraging new industrial entrepreneurship under MSME frameworks."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "partnership_affiliations_section"
+      },
+      {
+        "data": {
+          "Awards": [
+            {
+              "title": "KASSIA MSME Awards 2025",
+              "description": "Awards given to outstanding KASSIA members in recognition of contributions to the MSME sector."
+            },
+            {
+              "title": "Category Awards – Multiple MSME Categories",
+              "description": "Awards like “SME of the Year,” “Most Innovative SME,” “Women Entrepreneur of the Year,” etc., under KASSIA award platforms."
+            },
+            {
+              "title": "Ujwala Udyami Prashasti Awards",
+              "description": "Awards celebrating outstanding MSMEs (including innovation, growth, social impact, women entrepreneurs)."
+            },
+            {
+              "title": "SME Awards in Partnership Events",
+              "description": "Co-branded SME award events with media partners such as Suvarna News & Kannada Prabha celebrating excellence."
+            },
+            {
+              "title": "KASSIA Rathna Award",
+              "description": "Special award presented during SME award events, recognizing lifetime or exceptional contributions."
+            }
+          ],
+          "Partnerships": [
+            {
+              "title": "ET MSME Awards — Featured Organisation (2025)",
+              "description": "KASSIA’s contribution to building Karnataka’s MSME ecosystem was highlighted in the Economic Times MSME Awards 2025."
+            },
+            {
+              "title": "Platinum Jubilee Felicitation by Government of Karnataka",
+              "description": "Celebratory recognition involving the Chief Minister and dignitaries, highlighting KASSIA’s 75‑year legacy."
+            },
+            {
+              "title": "Participation in Collaborations with Major Industry Bodies",
+              "description": "Recognized as a significant partner in the Council of Associations formed with nine major industry bodies in Karnataka."
+            },
+            {
+              "title": "Asianet / Suvarna SME Awards (2018)",
+              "description": "KASSIA partnered with media houses to host award ceremonies for MSMEs."
+            },
+            {
+              "title": "Multi‑Category MSME Awards",
+              "description": "Includes categories like socially responsible, fastest growth, etc."
+            }
+          ],
+          "Certifications": [
+            {
+              "title": "ISO 9001:2015 Certification",
+              "description": "KASSIA is ISO 9001‑2015 certified for quality management."
+            },
+            {
+              "title": "Accredited with Quality Council of India (QCI)",
+              "description": "Accredited as an industry association/business membership organization by QCI."
+            }
+          ],
+          "Media": [
+            {
+              "title": "Featured as exemplar MSME builder",
+              "description": "Recognized as a key MSME ecosystem architect in Karnataka."
+            },
+            {
+              "title": "SME Awards media coverage in 2018",
+              "description": "Co-presented with Suvarna News & Kannada Prabha, the awards positioned KASSIA as a premier MSME platform."
+            },
+            {
+              "title": "Coverage of Platinum Jubilee event",
+              "description": "Media reported government participation and association legacy at Platinum Jubilee."
+            },
+            {
+              "title": "Council of Associations Recognition",
+              "description": "KASSIA recognized as a founding member of COA with major state bodies."
+            },
+            {
+              "title": "Acknowledged in the TReDS Awareness Program (Historical)",
+              "description": "Reddit MSME news shares recognition of KASSIA’s program for MSME supplier benefits."
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "awards_recognition_section"
+      },
+      {
+        "data": {
+          "Official_Website": [
+            {
+              "title": "Official Website",
+              "description": "Primary digital presence of KASSIA providing information on membership, leadership, services, events, and initiatives",
+              "status": "Active"
+            },
+            {
+              "title": "About Us Page",
+              "description": "Overview of KASSIA’s mission, history, and objectives",
+              "status": "Active"
+            },
+            {
+              "title": "Contact Us Page",
+              "description": "Official contact details and headquarters location",
+              "status": "Active"
+            },
+            {
+              "title": "Office Bearers Page",
+              "description": "Lists leadership and governing members",
+              "status": "Active"
+            },
+            {
+              "title": "Representation Page",
+              "description": "Details of KASSIA’s representation in government bodies",
+              "status": "Active"
+            }
+          ],
+          "Member_Portal": [
+            {
+              "title": "Online Membership Application",
+              "description": "Enables MSMEs to apply for KASSIA membership online",
+              "status": "Available"
+            },
+            {
+              "title": "Membership Information Page",
+              "description": "Details on eligibility, benefits, and categories",
+              "status": "Available"
+            },
+            {
+              "title": "Member Login / Dashboard",
+              "description": "Not publicly documented (no login portal visible on website)",
+              "status": "Not Found"
+            },
+            {
+              "title": "Digital Member Services",
+              "description": "Membership-related services appear to be managed via contact forms and offline coordination",
+              "status": "Not Found"
+            },
+            {
+              "title": "Online Renewal System",
+              "description": "Not explicitly mentioned",
+              "status": "Limited"
+            }
+          ],
+          "Knowledge_Portal": [
+            {
+              "title": "News & Updates Section",
+              "description": "Shares announcements, events, and policy updates",
+              "status": "Active"
+            },
+            {
+              "title": "STRIVE Program Page",
+              "description": "Dedicated section for skill development initiative",
+              "status": "Active"
+            },
+            {
+              "title": "Event & Initiative Information",
+              "description": "Knowledge dissemination through event descriptions",
+              "status": "Active"
+            },
+            {
+              "title": "Policy & MSME Awareness Content",
+              "description": "Information on MSME schemes and programs",
+              "status": "Available"
+            },
+            {
+              "title": "Downloadable Reports / Publications",
+              "description": "No centralized digital repository publicly available",
+              "status": "Not Found"
+            }
+          ],
+          "Additional_Channels": [
+            {
+              "title": "Email Communication",
+              "description": "Official email-based member and stakeholder communication",
+              "status": "Active"
+            },
+            {
+              "title": "Online Event Promotion",
+              "description": "Events promoted via website and social platforms",
+              "status": "Active"
+            },
+            {
+              "title": "Digital Forms & Submissions",
+              "description": "Contact and enquiry forms available",
+              "status": "Active"
+            },
+            {
+              "title": "Partner Digital Platforms",
+              "description": "Visibility via partner portals (AIMA, MSME events)",
+              "status": "Indirect"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "digital_presence_section"
+      },
+      {
+        "data": {
+          "Publicly_Available_Documents": [
+            {
+              "title": "About the Association",
+              "description": "Mission, objectives, and institutional overview",
+              "status": "Available"
+            },
+            {
+              "title": "Office Bearers & Leadership",
+              "description": "Names and designations of elected representatives",
+              "status": "Available"
+            },
+            {
+              "title": "Representation in Government Bodies",
+              "description": "Disclosure of committees and representation roles",
+              "status": "Available"
+            },
+            {
+              "title": "Contact & Address Details",
+              "description": "Official address, phone numbers, and email",
+              "status": "Available"
+            },
+            {
+              "title": "Membership Information",
+              "description": "Eligibility, benefits, and application details",
+              "status": "Available"
+            },
+            {
+              "title": "STRIVE Program Details",
+              "description": "Skill development initiative information",
+              "status": "Available"
+            },
+            {
+              "title": "Financial Statements / Annual Reports",
+              "description": "Not publicly disclosed on website",
+              "status": "Not Found"
+            },
+            {
+              "title": "MoUs / Partnership Documents",
+              "description": "No downloadable MoUs found",
+              "status": "Not Found"
+            }
+          ],
+          "Membership_Verification_Mechanism": [
+            {
+              "title": "Legal Entity Verification",
+              "description": "Membership requires legally registered MSME entities",
+              "status": "Mandatory"
+            },
+            {
+              "title": "Publicly Available Documents",
+              "description": "Membership applications reviewed by association",
+              "status": "Manual/Internal"
+            },
+            {
+              "title": "MSME Status Validation",
+              "description": "MSME classification checked during admission",
+              "status": "Mandatory"
+            },
+            {
+              "title": "Document Submission",
+              "description": "Registration certificates required",
+              "status": "Mandatory"
+            }
+          ],
+          "Grievance_Redressal_Mechanism": [
+            {
+              "title": "Official Contact Channels",
+              "description": "Grievances raised via official email/phone",
+              "status": "Open"
+            },
+            {
+              "title": "Member Representation to Government",
+              "description": "Issues escalated through policy representation",
+              "status": "Indirect"
+            },
+            {
+              "title": "Office Bearer Engagement",
+              "description": "Members raise issues during meetings/events",
+              "status": "Internal"
+            },
+            {
+              "title": "Event-Based Feedback",
+              "description": "Feedback collected during seminars & meetings",
+              "status": "Informal"
+            },
+            {
+              "title": "Dedicated Online Grievance Portal",
+              "description": "No separate grievance portal found",
+              "status": "Not Found"
+            },
+            {
+              "title": "Grievance Resolution SOP",
+              "description": "No documented SOP published",
+              "status": "Not Found"
+            }
+          ],
+          "Ethics / Compliance Framework": [
+            {
+              "title": "Code of Conduct",
+              "description": "No standalone code published",
+              "status": "Not Found"
+            },
+            {
+              "title": "Ethical Business Promotion",
+              "description": "Encouragement of ethical MSME practices",
+              "status": "Advisory"
+            },
+            {
+              "title": "Regulatory Compliance Awareness",
+              "description": "Education on GST, labour laws, MSME compliance",
+              "status": "Active"
+            },
+            {
+              "title": "Governance Through Elected Body",
+              "description": "Compliance ensured through elected council",
+              "status": "Active"
+            },
+            {
+              "title": "Conflict Resolution Practices",
+              "description": "Addressed internally via leadership",
+              "status": "Internal"
+            },
+            {
+              "title": "Member Representation to Government",
+              "description": "Issues escalated through policy representation",
+              "status": "Indirect"
+            }
+          ],
+          "Additional_details": [
+            {
+              "title": "Public Leadership Disclosure",
+              "description": "Names and roles disclosed",
+              "status": "Available"
+            },
+            {
+              "title": "Government Interaction Disclosure",
+              "description": "Publicly mentions govt representation",
+              "status": "Available"
+            },
+            {
+              "title": "Member Communication Transparency",
+              "description": "Uses official channels",
+              "status": "Available"
+            },
+            {
+              "title": "Financial Transparency",
+              "description": "No audited statements published",
+              "status": "Not Found"
+            },
+            {
+              "title": "RTI Applicability",
+              "description": "Not applicable (non-government body)",
+              "status": "N/A"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "transparency_verification_section"
+      },
+      {
+        "data": {
+          "name": "Sri B.R Ganesh Rao",
+          "designation": "President",
+          "children": [
+            {
+              "name": "Sri Ninganna S. Biradar",
+              "designation": "Vice-President"
+            },
+            {
+              "name": "Sri eshava Murthy R.(Kiran)",
+              "designation": "Joint Secretary – Urban"
+            },
+            {
+              "name": "Sri S.M Hussain",
+              "designation": "Hon. General Secretary",
+              "children": [
+                {
+                  "designation": "Executive Secretary"
+                },
+                {
+                  "designation": "Asst. Secretary Technical"
+                },
+                {
+                  "designation": "Executive Officer"
+                },
+                {
+                  "designation": "Asst. Secretary"
+                },
+                {
+                  "designation": "M.R."
+                },
+                {
+                  "designation": "Sr./Jr. Office Assistants"
+                },
+                {
+                  "designation": "Principal Officer"
+                }
+              ]
+            },
+            {
+              "name": "Sri Dinesh Kumar V.",
+              "designation": "Joint Secretary – Rural"
+            },
+            {
+              "name": "Sri Durai R.",
+              "designation": "Treasurer"
+            }
+          ]
+        },
+        "enabled": true,
+        "type": "members_structure_tree"
+      },
+      {
+        "data": [
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/nasscom.svg",
+            "id": "1",
+            "name": "NASSCOM",
+            "slug": "nascomm"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/kassia.svg",
+            "id": "2",
+            "name": "Kassia",
+            "slug": "kassia"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/ficci.svg",
+            "id": "3",
+            "name": "Ficci",
+            "slug": "ficci"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/tbia.svg",
+            "id": "4",
+            "name": "TBIA",
+            "slug": "tbia"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/aigmf.svg",
+            "id": "5",
+            "name": "AIGMF",
+            "slug": "aigmf"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedAssociations/siam.svg",
+            "id": "6",
+            "name": "SIAM",
+            "slug": "siam"
+          }
+        ],
+        "enabled": true,
+        "type": "recommended_business_associations"
+      },
+      {
+        "data": {
+          "market_stats": "Karnataka MSME sector contributes 20% to state GDP with over 8 lakh registered units.",
+          "sector_trends": [
+            "Rising adoption of AI and automation in manufacturing.",
+            "Increased focus on sustainable and green manufacturing practices.",
+            "Growing integration of MSMEs into global supply chains."
+          ],
+          "exim_data": "MSME exports from Karnataka account for approximately $10 billion annually.",
+          "cluster_info": "Major clusters include Peenya (manufacturing), Belagavi (foundry), and Hubli (valves/machine tools)."
+        },
+        "enabled": true,
+        "type": "market_insights_section"
+      },
+      {
+        "data": [
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/technology.svg",
+            "id": "1",
+            "name": "Technology",
+            "slug": "technology"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg",
+            "id": "2",
+            "name": "Finance",
+            "slug": "finance"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg",
+            "id": "3",
+            "name": "Healthcare",
+            "slug": "healthcare"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg",
+            "id": "4",
+            "name": "Manufacturing",
+            "slug": "manufacturing"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/retail.svg",
+            "id": "5",
+            "name": "Retail",
+            "slug": "retail"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/consulting.svg",
+            "id": "6",
+            "name": "Consulting",
+            "slug": "consulting"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/construction.svg",
+            "id": "7",
+            "name": "Construction",
+            "slug": "construction"
+          },
+          {
+            "icon_url": "/AssociationImages/FeaturedBusinessCategories/education.svg",
+            "id": "8",
+            "name": "Education",
+            "slug": "education"
+          }
+        ],
+        "enabled": true,
+        "type": "featured_business_categories"
+      },
+      {
+        "type": "category_questions",
+        "enabled": true,
+        "data": {
+          "questions": [
+            {
+              "question": "What is the membership process?",
+              "answer": "The membership process involves submitting an online application along with business proof like GST/PAN certificate, followed by approval within 7-15 working days."
+            },
+            {
+              "question": "Does this association support export-import guidelines?",
+              "answer": "Yes, the association regularizes and organizes EXIM workshops, consultancies, and representation on international trade fairs for its premium members."
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

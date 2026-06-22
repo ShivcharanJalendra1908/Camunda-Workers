@@ -678,41 +678,75 @@ func createConfigFromAppConfig(appConfig *config.Config, customConfig *Config) *
 }
 
 func resolveEmailAliases(vars map[string]interface{}) {
-	// Map "email" → "to" if "to" is absent or nil
-	if val, ok := vars["to"]; !ok || val == nil || val == "" {
-		if email, ok := vars["email"].(string); ok && email != "" {
-			vars["to"] = email
-		}
-	} else if _, isString := val.(string); !isString {
-		vars["to"] = fmt.Sprintf("%v", val)
+	// Only resolve/default if it looks like an enquiry (i.e. has email, fullName, city, or franchiseId)
+	isEnquiry := false
+	if _, ok := vars["email"]; ok {
+		isEnquiry = true
+	}
+	if _, ok := vars["fullName"]; ok {
+		isEnquiry = true
+	}
+	if _, ok := vars["city"]; ok {
+		isEnquiry = true
+	}
+	if _, ok := vars["franchiseId"]; ok {
+		isEnquiry = true
 	}
 
-	// Build subject from applicant name if absent or nil
-	if val, ok := vars["subject"]; !ok || val == nil || val == "" {
-		name, _ := vars["fullName"].(string)
-		if name == "" {
-			name = "Applicant"
-		}
-		vars["subject"] = fmt.Sprintf("Thank you for your franchise enquiry, %s", name)
-	} else if _, isString := val.(string); !isString {
-		vars["subject"] = fmt.Sprintf("%v", val)
-	}
-
-	// Build body from enquiry fields if absent or nil
-	if val, ok := vars["body"]; !ok || val == nil || val == "" {
-		city, _ := vars["city"].(string)
-		franchise, _ := vars["franchiseId"].(string)
-		fullName, _ := vars["fullName"].(string)
-		if fullName == "" {
-			fullName = "Applicant"
+	if isEnquiry {
+		// Map "email" → "to" if "to" is absent or nil
+		if val, ok := vars["to"]; !ok || val == nil || val == "" {
+			if email, ok := vars["email"].(string); ok && email != "" {
+				vars["to"] = email
+			}
+		} else if _, isString := val.(string); !isString {
+			vars["to"] = fmt.Sprintf("%v", val)
 		}
 
-		vars["body"] = fmt.Sprintf(
-			"Dear %s,\n\nWe have received your enquiry for franchise %s in %s. Our team will contact you shortly.\n\nTeam LeMiCi",
-			fullName, franchise, city,
-		)
-	} else if _, isString := val.(string); !isString {
-		vars["body"] = fmt.Sprintf("%v", val)
+		// Build subject from applicant name if absent or nil
+		if val, ok := vars["subject"]; !ok || val == nil || val == "" {
+			name, _ := vars["fullName"].(string)
+			if name == "" {
+				name = "Applicant"
+			}
+			vars["subject"] = fmt.Sprintf("Thank you for your franchise enquiry, %s", name)
+		} else if _, isString := val.(string); !isString {
+			vars["subject"] = fmt.Sprintf("%v", val)
+		}
+
+		// Build body from enquiry fields if absent or nil
+		if val, ok := vars["body"]; !ok || val == nil || val == "" {
+			city, _ := vars["city"].(string)
+			franchise, _ := vars["franchiseId"].(string)
+			fullName, _ := vars["fullName"].(string)
+			if fullName == "" {
+				fullName = "Applicant"
+			}
+
+			vars["body"] = fmt.Sprintf(
+				"Dear %s,\n\nWe have received your enquiry for franchise %s in %s. Our team will contact you shortly.\n\nTeam LeMiCi",
+				fullName, franchise, city,
+			)
+		} else if _, isString := val.(string); !isString {
+			vars["body"] = fmt.Sprintf("%v", val)
+		}
+	} else {
+		// If not an enquiry, we still want to normalize types if they are present
+		if val, ok := vars["to"]; ok && val != nil {
+			if _, isString := val.(string); !isString {
+				vars["to"] = fmt.Sprintf("%v", val)
+			}
+		}
+		if val, ok := vars["subject"]; ok && val != nil {
+			if _, isString := val.(string); !isString {
+				vars["subject"] = fmt.Sprintf("%v", val)
+			}
+		}
+		if val, ok := vars["body"]; ok && val != nil {
+			if _, isString := val.(string); !isString {
+				vars["body"] = fmt.Sprintf("%v", val)
+			}
+		}
 	}
 }
 

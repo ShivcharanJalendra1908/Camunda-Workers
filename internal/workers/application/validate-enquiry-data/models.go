@@ -4,7 +4,10 @@ const TaskType = "validate-enquiry-data"
 
 // Input - BPMN se aane wala data
 type Input struct {
-	FranchiseID     string                 `json:"franchiseId"`
+	EntityID        string                 `json:"entityId,omitempty"`
+	EntityType      string                 `json:"entityType,omitempty"`
+	FranchiseID     string                 `json:"franchiseId,omitempty"`
+	AssociationID   string                 `json:"associationId,omitempty"`
 	UserID          string                 `json:"userId"`
 	UserProfile     map[string]interface{} `json:"userProfile"` // DB se fetch hoga
 	Data            map[string]interface{} `json:"data"`

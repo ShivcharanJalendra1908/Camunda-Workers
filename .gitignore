@@ -31,3 +31,14 @@ deployments/docker/ollama/*.gguf
 #keycloak
 /deployments/docker/keycloak/old-version
 /deployments/docker/keycloak/opentelemetry-javaagent.jar
+
+# Executables & Binaries
+*.exe
+/bin/
+/worker-manager
+/api-gateway
+
+# Temp directories
+/tmp_gocache/
+/tmp_puppeteer/
+

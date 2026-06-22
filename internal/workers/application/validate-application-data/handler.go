@@ -267,6 +267,9 @@ func (h *Handler) validatePersonalInfo(data map[string]interface{}) (map[string]
 		if nameStr, ok := nameRaw.(string); ok {
 			// 🔒 Sanitize
 			nameStr = h.sanitizer.SanitizeString(nameStr)
+			// Collapse multiple spaces
+			spaceRegex := regexp.MustCompile(`\s+`)
+			nameStr = spaceRegex.ReplaceAllString(nameStr, " ")
 
 			// 🔒 Validate with ozzo
 			if err := ozzo.Validate(nameStr,
@@ -337,6 +340,12 @@ func (h *Handler) validatePersonalInfo(data map[string]interface{}) (map[string]
 		if phoneStr, ok := phoneRaw.(string); ok {
 			// 🔒 Sanitize - remove all non-digit characters except leading +
 			phoneStr = h.sanitizer.SanitizeString(phoneStr)
+			hasPlus := strings.HasPrefix(phoneStr, "+")
+			nonDigitRegex := regexp.MustCompile(`\D`)
+			phoneStr = nonDigitRegex.ReplaceAllString(phoneStr, "")
+			if hasPlus {
+				phoneStr = "+" + phoneStr
+			}
 
 			// 🔒 Validate with ozzo
 			if err := ozzo.Validate(phoneStr,
@@ -557,6 +566,10 @@ func (h *Handler) validateExperience(data map[string]interface{}) (map[string]in
 func (h *Handler) parseInt(raw interface{}) (int, error) {
 	switch v := raw.(type) {
 	case float64:
+		return int(v), nil
+	case int:
+		return v, nil
+	case int64:
 		return int(v), nil
 	case string:
 		// 🔒 Sanitize before parsing

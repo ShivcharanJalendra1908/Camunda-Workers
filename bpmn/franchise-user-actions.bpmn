@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
   <process id="franchise-user-actions" name="Franchise User Actions" isExecutable="true">
     <startEvent id="StartEvent_UserAction" name="User Action Request">
@@ -9,12 +9,12 @@
       <outgoing>Flow_ToValidateUser</outgoing>
       <outgoing>Flow_ToGetFranchiseRatings</outgoing>
     </exclusiveGateway>
-    <serviceTask id="Task_ValidateSubscription" name="Validate User&#10;Subscription">
+    <serviceTask id="Task_ValidateSubscription" name="Validate User&#xA;Subscription">
       <extensionElements>
         <zeebe:taskDefinition type="validate-subscription" retries="2" />
         <zeebe:ioMapping>
           <zeebe:input source="=userId" target="userId" />
-          <zeebe:input source="=&#34;free&#34;" target="subscriptionTier" />
+          <zeebe:input source="=&quot;free&quot;" target="subscriptionTier" />
           <zeebe:output source="=isValid" target="subscriptionValid" />
           <zeebe:output source="=tierLevel" target="tierLevel" />
         </zeebe:ioMapping>
@@ -22,8 +22,7 @@
       <incoming>Flow_ToValidateUser</incoming>
       <outgoing>Flow_ToActionGateway</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_ValidateSubscription" name="Subscription&#10;Error" attachedToRef="Task_ValidateSubscription">
+    <boundaryEvent id="BoundaryError_ValidateSubscription" name="Subscription&#xA;Error" attachedToRef="Task_ValidateSubscription">
       <outgoing>Flow_SubscriptionError_To_HandleError</outgoing>
       <errorEventDefinition id="ErrorDef_Subscription" />
     </boundaryEvent>
@@ -44,19 +43,21 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;ADD_BOOKMARK&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;ADD_BOOKMARK&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=id" target="bookmarkId" />
           <zeebe:output source="=isBookmarked" target="isBookmarked" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToAddBookmark</incoming>
       <outgoing>Flow_AddBookmark_ToResponse</outgoing>
     </serviceTask>
-    <boundaryEvent id="BoundaryError_AddBookmark" name="Bookmark&#10;Error" attachedToRef="Task_AddBookmark">
+    <boundaryEvent id="BoundaryError_AddBookmark" name="Bookmark&#xA;Error" attachedToRef="Task_AddBookmark">
       <outgoing>Flow_BookmarkError_To_HandleError</outgoing>
       <errorEventDefinition id="ErrorDef_AddBookmark" errorRef="Error_DatabaseError" />
     </boundaryEvent>
@@ -64,11 +65,13 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;REMOVE_BOOKMARK&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;REMOVE_BOOKMARK&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToRemoveBookmark</incoming>
@@ -78,7 +81,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_USER_BOOKMARKS&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;GET_USER_BOOKMARKS&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
@@ -94,12 +97,14 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;CHECK_BOOKMARK&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;CHECK_BOOKMARK&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=isBookmarked" target="isBookmarked" />
           <zeebe:output source="=bookmarkId" target="bookmarkId" />
           <zeebe:output source="=success" target="success" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToCheckBookmark</incoming>
@@ -116,7 +121,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;SUBMIT_USER_RATING&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;SUBMIT_USER_RATING&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=rating" target="rating" />
@@ -126,12 +131,14 @@
           <zeebe:output source="=isNew" target="isNew" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToSubmitRating</incoming>
       <outgoing>Flow_SubmitRating_ToResponse</outgoing>
     </serviceTask>
-    <boundaryEvent id="BoundaryError_SubmitRating" name="Rating&#10;Error" attachedToRef="Task_SubmitRating">
+    <boundaryEvent id="BoundaryError_SubmitRating" name="Rating&#xA;Error" attachedToRef="Task_SubmitRating">
       <outgoing>Flow_RatingError_To_HandleError</outgoing>
       <errorEventDefinition id="ErrorDef_SubmitRating" errorRef="Error_ValidationError" />
     </boundaryEvent>
@@ -139,29 +146,33 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;UPDATE_USER_RATING&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;UPDATE_USER_RATING&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=rating" target="rating" />
           <zeebe:input source="=review" target="review" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToUpdateRating</incoming>
       <outgoing>Flow_UpdateRating_ToResponse</outgoing>
     </serviceTask>
-    <serviceTask id="Task_GetUserRating" name="Get User&#39;s Rating">
+    <serviceTask id="Task_GetUserRating" name="Get User's Rating">
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_USER_RATING&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;GET_USER_RATING&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=hasRated" target="hasRated" />
           <zeebe:output source="=rating" target="userRating" />
           <zeebe:output source="=review" target="userReview" />
           <zeebe:output source="=success" target="success" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToGetUserRating</incoming>
@@ -171,7 +182,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;GET_FRANCHISE_RATINGS&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;GET_FRANCHISE_RATINGS&quot;" target="operation_type" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=page" target="page" />
           <zeebe:input source="=limit" target="limit" />
@@ -179,6 +190,8 @@
           <zeebe:output source="=totalCount" target="totalCount" />
           <zeebe:output source="=avgRating" target="avgRating" />
           <zeebe:output source="=success" target="success" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToGetFranchiseRatings</incoming>
@@ -188,11 +201,13 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;DELETE_USER_RATING&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;DELETE_USER_RATING&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToDeleteRating</incoming>
@@ -202,7 +217,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&#34;SHARE_FRANCHISE&#34;" target="operation_type" />
+          <zeebe:input source="=&quot;SHARE_FRANCHISE&quot;" target="operation_type" />
           <zeebe:input source="=franchiseId" target="franchise_id" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=sharePlatform" target="sharePlatform" />
@@ -210,12 +225,14 @@
           <zeebe:output source="=shareId" target="shareId" />
           <zeebe:output source="=success" target="success" />
           <zeebe:output source="=message" target="message" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToShare</incoming>
       <outgoing>Flow_Share_ToResponse</outgoing>
     </serviceTask>
-    <boundaryEvent id="BoundaryError_Share" name="Share&#10;Error" attachedToRef="Task_ShareFranchise">
+    <boundaryEvent id="BoundaryError_Share" name="Share&#xA;Error" attachedToRef="Task_ShareFranchise">
       <outgoing>Flow_ShareError_To_HandleError</outgoing>
       <errorEventDefinition id="ErrorDef_Share" errorRef="Error_DatabaseError" />
     </boundaryEvent>
@@ -244,7 +261,7 @@
       <incoming>Flow_ToSendResponse</incoming>
       <outgoing>Flow_ToEnd</outgoing>
     </serviceTask>
-    <exclusiveGateway id="Gateway_ErrorMerge" name="Error&#10;Merge">
+    <exclusiveGateway id="Gateway_ErrorMerge" name="Error&#xA;Merge">
       <incoming>Flow_SubscriptionError_To_HandleError</incoming>
       <incoming>Flow_RatingError_To_HandleError</incoming>
       <incoming>Flow_ShareError_To_HandleError</incoming>
@@ -262,19 +279,17 @@
       <incoming>Flow_ToHandleError</incoming>
       <outgoing>Flow_Error_ToEnd</outgoing>
     </serviceTask>
-    <endEvent id="EndEvent_Success" name="Action&#10;Completed">
+    <endEvent id="EndEvent_Success" name="Action&#xA;Completed">
       <incoming>Flow_ToEnd</incoming>
     </endEvent>
-    <endEvent id="EndEvent_Error" name="Action&#10;Failed">
+    <endEvent id="EndEvent_Error" name="Action&#xA;Failed">
       <incoming>Flow_Error_ToEnd</incoming>
       <errorEventDefinition id="ErrorDef_End" errorRef="Error_ActionFailed" />
     </endEvent>
     <sequenceFlow id="Flow_ToAuthGateway" sourceRef="StartEvent_UserAction" targetRef="Gateway_AuthCheck" />
-
     <sequenceFlow id="Flow_ToValidateUser" name="Auth Required" sourceRef="Gateway_AuthCheck" targetRef="Task_ValidateSubscription">
       <conditionExpression xsi:type="tFormalExpression">=action != "get_franchise_ratings"</conditionExpression>
     </sequenceFlow>
-
     <sequenceFlow id="Flow_ToActionGateway" sourceRef="Task_ValidateSubscription" targetRef="Gateway_ActionRouter" />
     <sequenceFlow id="Flow_ToBookmarkGateway" sourceRef="Gateway_ActionRouter" targetRef="Gateway_BookmarkType">
       <conditionExpression xsi:type="tFormalExpression">
@@ -352,7 +367,6 @@
       <bpmndi:BPMNShape id="Shape_ValidateSubscription" bpmnElement="Task_ValidateSubscription">
         <dc:Bounds x="430" y="430" width="120" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Shape_Gateway_ActionRouter" bpmnElement="Gateway_ActionRouter" isMarkerVisible="true">
         <dc:Bounds x="575" y="445" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -466,7 +480,6 @@
         <di:waypoint x="198" y="470" />
         <di:waypoint x="305" y="470" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_ToValidateUser" bpmnElement="Flow_ToValidateUser">
         <di:waypoint x="355" y="470" />
         <di:waypoint x="430" y="470" />
@@ -474,7 +487,6 @@
           <dc:Bounds x="359" y="445" width="69" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Edge_ToActionGateway" bpmnElement="Flow_ToActionGateway">
         <di:waypoint x="550" y="470" />
         <di:waypoint x="575" y="470" />
