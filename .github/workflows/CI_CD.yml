@@ -136,11 +136,12 @@ jobs:
            --query "Command.CommandId" \
            --output text)
 
+          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
           echo "Command ID: $COMMAND_ID"
 
-      - name: Get SSM Output
+      - name: Get Deployment Logs
         run: |
-          sleep 20
+          sleep 50
 
           aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
