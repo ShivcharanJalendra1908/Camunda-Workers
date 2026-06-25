@@ -112,7 +112,6 @@ jobs:
                 "ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)",
                 "ECR_URL=\${ACCOUNT_ID}.dkr.ecr.REGION_PLACEHOLDER.amazonaws.com",
                 "aws ecr get-login-password --region REGION_PLACEHOLDER | docker login --username AWS --password-stdin \${ECR_URL}",
-                "git config --global --add safe.directory /home/ubuntu/Workflow-and-Workers",
                 "git fetch --all",
                 "git checkout BRANCH_PLACEHOLDER",
                 "git pull origin BRANCH_PLACEHOLDER",
