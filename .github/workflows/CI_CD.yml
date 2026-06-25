@@ -1,58 +1,58 @@
 name: Backend + Camunda CI/CD
-
+ 
 on:
   push:
     branches:
       - mvp
       - prod
-
+ 
 concurrency:
   group: backend-${{ github.ref_name }}
   cancel-in-progress: true
-
-
+ 
+ 
 permissions:
   contents: read
   id-token: write
   actions: read
-
-
+ 
+ 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
-
+ 
     environment: ${{ github.ref_name }}
-
+ 
     steps:
-
+ 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      
+ 
+     
       - name: Detect Environment
         id: env-detector
         shell: bash
         run: |
           set -euo pipefail
-
+ 
           REF="${{ github.ref }}"
-
+ 
           if [[ "$REF" == "refs/heads/mvp" ]]; then
             echo "env_name=dev"           >> $GITHUB_OUTPUT
             echo "vault_role=backend-dev" >> $GITHUB_OUTPUT
-
+ 
           elif [[ "$REF" == "refs/heads/prod" ]]; then
             echo "env_name=prod"           >> $GITHUB_OUTPUT
             echo "vault_role=backend-prod" >> $GITHUB_OUTPUT
-
+ 
           else
             echo "::error::Unsupported branch. Only mvp and prod are supported."
             exit 1
           fi
-
-      
+ 
+     
       - name: Import Secrets from Vault
         uses: hashicorp/vault-action@v3
         with:
@@ -61,25 +61,25 @@ jobs:
           path: jwt
           role: ${{ steps.env-detector.outputs.vault_role }}
           jwtGithubAudience: ${{ vars.VAULT_ADDR }}
-
+ 
           secrets: |
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config AWS_REGION             | AWS_REGION ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config AWS_ROLE_ARN            | AWS_ROLE_ARN ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config INSTANCE_ID             | INSTANCE_ID ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config BACKEND_GATEWAY_IMAGE   | BACKEND_GATEWAY_IMAGE ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config BACKEND_WORKER_IMAGE    | BACKEND_WORKER_IMAGE ;
-      
+     
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
-
+ 
       - name: Install dependencies
         run: go mod tidy
-
+ 
       - name: Build services
         run: go build ./...
-
+ 
       - name: Run tests
         continue-on-error: true
         run: |
@@ -87,78 +87,78 @@ jobs:
             | grep -v "/test/e2e" \
             | grep -v "/cmd/tools/registry-updater" \
             | grep -v "/internal/workers/auth/captcha-verify")
-
+ 
           go test $PKGS
-
-    
+ 
+   
       - name: Build Gateway image
         run: |
           docker build \
             -t ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
             -f deployments/docker/Dockerfile.gateway \
             .
-
+ 
       - name: Build Worker image
         run: |
           docker build \
             -t ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
             -f deployments/docker/Dockerfile.worker \
             .
-      
+     
    
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-      
+     
       - name: Verify AWS Identity
         run: aws sts get-caller-identity
-
+ 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
-
+ 
       - name: Tag images to ECR
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
-
+ 
           # Tag Gateway
           docker tag \
             ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
             ${ECR_URL}/${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }}
-
+ 
           # Tag Worker
           docker tag \
             ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
             ${ECR_URL}/${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }}
-
+ 
           docker tag ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
             $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:latest
-
+ 
           docker tag ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
             $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:latest
-
+ 
           echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
-
+ 
       - name: Push images to ECR
         run: |
           docker push $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }}
           docker push $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }}
-
+ 
           docker push $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:latest
           docker push $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:latest
-
+ 
      
       - name: Dispatch SSM deploy command
         shell: bash
         run: |
           set -euo pipefail
-
+ 
           BRANCH="${{ github.ref_name }}"
           REGION="${{ env.AWS_REGION }}"
           INSTANCE_ID="${{ env.INSTANCE_ID }}"
-
+ 
           # Write deploy script to a clean JSON file
           cat > /tmp/ssm-payload.json << ENDJSON
           {
@@ -183,32 +183,32 @@ jobs:
             }
           }
           ENDJSON
-
+ 
           # Substitute placeholders with actual values
           sed -i "s|REGION_PLACEHOLDER|${REGION}|g" /tmp/ssm-payload.json
           sed -i "s|BRANCH_PLACEHOLDER|${BRANCH}|g" /tmp/ssm-payload.json
-
+ 
           # Dispatch the SSM command
           SSM_COMMAND_ID=$(aws ssm send-command \
             --region "${REGION}" \
             --cli-input-json file:///tmp/ssm-payload.json \
             --output text \
             --query "Command.CommandId")
-
+ 
           echo "SSM_COMMAND_ID=${SSM_COMMAND_ID}" >> $GITHUB_ENV
           echo "Dispatched SSM command: ${SSM_COMMAND_ID}"
-
-    
+ 
+   
       - name: Wait for SSM deploy to complete
         shell: bash
         run: |
-          
+         
           INSTANCE_ID="${{ env.INSTANCE_ID }}"
           REGION="${{ env.AWS_REGION }}"
-
+ 
           echo "Waiting for SSM command [${SSM_COMMAND_ID}] on instance [${INSTANCE_ID}] ..."
           echo ""
-
+ 
           # Poll every 10 seconds, max 6 minutes (36 attempts)
           for i in $(seq 1 36); do
             STATUS=$(aws ssm get-command-invocation \
@@ -217,9 +217,9 @@ jobs:
               --region "${REGION}" \
               --query "Status" \
               --output text 2>/dev/null || echo "Pending")
-
+ 
             echo "  [${i}/36] Status: ${STATUS}"
-
+ 
             if [[ "${STATUS}" == "Success" ]]; then
               echo ""
               echo "✅ Deployment succeeded!"
@@ -232,7 +232,7 @@ jobs:
                 --output text
               echo "═══════════════════════════════"
               exit 0
-
+ 
             elif [[ "${STATUS}" == "Failed" \
                  || "${STATUS}" == "TimedOut" \
                  || "${STATUS}" == "Cancelled" \
@@ -249,11 +249,9 @@ jobs:
               echo "══════════════════════════════"
               exit 1
             fi
-
+ 
             sleep 10
           done
-
+ 
           echo "❌ Timed out after 6 minutes. SSM command did not complete."
           exit 1
-
-   

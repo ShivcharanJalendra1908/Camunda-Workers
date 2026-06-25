@@ -1775,16 +1775,7 @@
     "phone",
     "microprofile-jwt"
   ],
-  "browserSecurityHeaders": {
-    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; default-src 'self';",
-    "contentSecurityPolicyReportOnly": "",
-    "strictTransportSecurity": "max-age=31536000; includeSubDomains",
-    "xContentTypeOptions": "nosniff",
-    "xFrameOptions": "SAMEORIGIN",
-    "xRobotsTag": "none",
-    "xXSSProtection": "1; mode=block",
-    "referrerPolicy": "no-referrer"
-  },
+  "browserSecurityHeaders": {},
   "smtpServer": {
     "replyToDisplayName": "LeMiCi Team",
     "starttls": "true",
