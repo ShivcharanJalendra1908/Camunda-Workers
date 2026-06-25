@@ -112,28 +112,8 @@ jobs:
       # Deploy via AWS Systems Manager
       #################################################
       - name: Deploy via SSM
-        shell: bash
         run: |
-          cat > deploy.sh <<'EOF'
-          cd /home/ubuntu/Workflow-and-Workers/deployments/docker
-
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URL=$ACCOUNT_ID.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-
-          aws ecr get-login-password --region ${{ vars.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URL
-
-          git fetch --all
-          git checkout ${{ github.ref_name }}
-          git pull origin ${{ github.ref_name }}
-
-          docker compose down
-          docker compose pull
-          docker compose up -d --remove-orphans
-
-          docker system prune -af
-          EOF
-
           aws ssm send-command \
-           --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
-           --document-name AWS-RunShellScript \
-           --parameters file://deploy.sh          
+            --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters commands="sudo -u ubuntu /home/ubuntu/deploy-backend.sh ${{ github.ref_name }}"
