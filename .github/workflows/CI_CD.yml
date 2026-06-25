@@ -90,79 +90,123 @@ jobs:
           docker push $ECR_URL/${{ vars.BACKEND_GATEWAY_IMAGE }}:latest
           docker push $ECR_URL/${{ vars.BACKEND_WORKER_IMAGE }}:latest
 
-            #################################################
-      # Verify SSM Managed Instance
-      #################################################
-      - name: Verify SSM Managed Instance
-        shell: bash
-        run: |
-          STATUS=$(aws ssm describe-instance-information \
-            --filters "Key=InstanceIds,Values=${{ vars.EC2_INSTANCE_ID }}" \
-            --query "InstanceInformationList[0].PingStatus" \
-            --output text)
-
-          echo "SSM Status: $STATUS"
-
-          if [ "$STATUS" != "Online" ]; then
-            echo "ERROR: EC2 is not online in Systems Manager."
-            exit 1
-          fi
-
-      #################################################
+             #################################################
       # Deploy via AWS Systems Manager
       #################################################
       - name: Deploy via SSM
         shell: bash
         run: |
-          COMMAND_ID=$(aws ssm send-command \
-           --instance-ids "${{ vars.EC2_INSTANCE_ID }}" \
-           --document-name "AWS-RunShellScript" \
-           --comment "Deploy Backend" \
-           --parameters '{
-             "commands":[
+          BRANCH="${{ github.ref_name }}"
+          REGION="${{ secrets.AWS_REGION }}"
+          INSTANCE_ID="${{ vars.EC2_INSTANCE_ID }}"
+
+          cat > /tmp/ssm-payload.json <<EOF
+          {
+            "DocumentName": "AWS-RunShellScript",
+            "InstanceIds": ["INSTANCE_ID_PLACEHOLDER"],
+            "Comment": "Backend deploy branch=BRANCH_PLACEHOLDER sha=${{ github.sha }}",
+            "Parameters": {
+              "commands": [
+                "set -e",
                 "cd /home/ubuntu/Workflow-and-Workers/deployments/docker",
-                "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)",
-                "ECR_URL=$ACCOUNT_ID.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com",
-                "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_URL",
+                "ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)",
+                "ECR_URL=\${ACCOUNT_ID}.dkr.ecr.REGION_PLACEHOLDER.amazonaws.com",
+                "aws ecr get-login-password --region REGION_PLACEHOLDER | docker login --username AWS --password-stdin \${ECR_URL}",
                 "git config --global --add safe.directory /home/ubuntu/Workflow-and-Workers",
                 "git fetch --all",
-                "git checkout ${{ github.ref_name }}",
-                "git pull origin ${{ github.ref_name }}",
+                "git checkout BRANCH_PLACEHOLDER",
+                "git pull origin BRANCH_PLACEHOLDER",
                 "docker compose down",
                 "docker compose pull",
                 "docker compose up -d --remove-orphans",
                 "docker system prune -af"
               ]
-            }' \
-           --query "Command.CommandId" \
-           --output text)
+            }
+          }
+          EOF
 
-          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
-          echo "Command ID: $COMMAND_ID"
+          sed -i "s|INSTANCE_ID_PLACEHOLDER|${INSTANCE_ID}|g" /tmp/ssm-payload.json
+          sed -i "s|BRANCH_PLACEHOLDER|${BRANCH}|g" /tmp/ssm-payload.json
+          sed -i "s|REGION_PLACEHOLDER|${REGION}|g" /tmp/ssm-payload.json
 
-      - name: Get Deployment Logs
+          COMMAND_ID=$(aws ssm send-command \
+            --region "${REGION}" \
+            --cli-input-json file:///tmp/ssm-payload.json \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "COMMAND_ID=${COMMAND_ID}" >> $GITHUB_ENV
+          echo "SSM Command ID: ${COMMAND_ID}"
+
+      #################################################
+      # Wait for Deployment & Print Logs
+      #################################################
+      - name: Wait for Deployment & Print Logs
         shell: bash
         run: |
-         sleep 50
+          REGION="${{ secrets.AWS_REGION }}"
+          INSTANCE_ID="${{ vars.EC2_INSTANCE_ID }}"
 
-         OUTPUT=$(aws ssm get-command-invocation \
-           --command-id "$COMMAND_ID" \
-           --instance-id "${{ vars.EC2_INSTANCE_ID }}" \
-           --output json)
+          echo "Waiting for deployment..."
 
-         echo "========== STATUS =========="
-         echo "$OUTPUT" | jq -r '.Status'
+          while true; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID" \
+              --region "$REGION" \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
 
-         echo ""
-         echo "========== STDOUT =========="
-         echo "$OUTPUT" | jq -r '.StandardOutputContent'
+            echo "Current Status: $STATUS"
 
-         echo ""
-         echo "========== STDERR =========="
-         echo "$OUTPUT" | jq -r '.StandardErrorContent'
+            case "$STATUS" in
+              Success|Failed|Cancelled|TimedOut|DeliveryTimedOut)
+                break
+                ;;
+            esac
 
-         STATUS=$(echo "$OUTPUT" | jq -r '.Status')
+            sleep 5
+          done
 
-         if [ "$STATUS" != "Success" ]; then
-           exit 1
-         fi
+          OUTPUT=$(aws ssm get-command-invocation \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --region "$REGION" \
+            --output json)
+
+          echo ""
+          echo "========== STATUS =========="
+          echo "$OUTPUT" | jq -r '.Status'
+
+          echo ""
+          echo "========== STDOUT =========="
+          echo "$OUTPUT" | jq -r '.StandardOutputContent'
+
+          echo ""
+          echo "========== STDERR =========="
+          echo "$OUTPUT" | jq -r '.StandardErrorContent'
+
+          STATUS=$(echo "$OUTPUT" | jq -r '.Status')
+
+          if [ "$STATUS" != "Success" ]; then
+            exit 1
+          fi
+
+      sleep 5
+    done
+
+    echo ""
+    echo "========== STATUS =========="
+    echo "$STATUS"
+
+    echo ""
+    echo "========== STDOUT =========="
+    echo "$OUTPUT" | jq -r '.StandardOutputContent'
+
+    echo ""
+    echo "========== STDERR =========="
+    echo "$OUTPUT" | jq -r '.StandardErrorContent'
+
+    if [ "$STATUS" != "Success" ]; then
+      exit 1
+    fi
