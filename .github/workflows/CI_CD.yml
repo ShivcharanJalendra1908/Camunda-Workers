@@ -144,7 +144,9 @@ jobs:
           echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
  
       - name: Push images to ECR
+        shell: bash
         run: |
+          set -euo pipefail
           docker push $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }}
           docker push $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }}
  
