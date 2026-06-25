@@ -119,7 +119,9 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
  
       - name: Tag images to ECR
+        shell: bash
         run: |
+          set -euo pipefail
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
  
