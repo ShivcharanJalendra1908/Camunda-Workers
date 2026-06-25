@@ -191,22 +191,3 @@ jobs:
           if [ "$STATUS" != "Success" ]; then
             exit 1
           fi
-
-      sleep 5
-    done
-
-    echo ""
-    echo "========== STATUS =========="
-    echo "$STATUS"
-
-    echo ""
-    echo "========== STDOUT =========="
-    echo "$OUTPUT" | jq -r '.StandardOutputContent'
-
-    echo ""
-    echo "========== STDERR =========="
-    echo "$OUTPUT" | jq -r '.StandardErrorContent'
-
-    if [ "$STATUS" != "Success" ]; then
-      exit 1
-    fi
