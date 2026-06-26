@@ -466,7 +466,10 @@ services:
     command: sh -c "exec kong start"
     restart: unless-stopped
     networks:
-      - camunda-network
+      - camunda-network:
+             external: true
+      - aws-observability_default:
+             external: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

@@ -682,3 +682,36 @@ services:
               minute: 60
               policy: local
               limit_by: ip
+
+    # ── Camunda Operate Service ────────────────────────────
+  - name: operate
+    url: http://operate:8080
+
+    routes:
+
+      - name: operate-ui
+        hosts:
+          - operate-dev.lemici.com
+
+        preserve_host: true
+
+        plugins:
+          - name: request-transformer
+            config:
+              add:
+                headers:
+                  - "X-Forwarded-Proto: https"
+
+  - name: grafana
+    url: http://grafana:3000
+
+    routes:
+      - name: grafana-ui
+        hosts:
+          - us-dev-api.lemici.com
+
+        paths:
+          - /grafana
+
+        strip_path: false
+        preserve_host: true
