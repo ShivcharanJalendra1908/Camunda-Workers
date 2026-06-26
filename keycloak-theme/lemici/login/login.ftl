@@ -55,10 +55,10 @@
                 <#if realm.password>
                     <form id="kc-form-login" onsubmit="if(!this.querySelector('#kc-login').disabled){this.querySelector('#kc-login').classList.add('loading'); return true;} return false;" action="${url.loginAction}" method="post">
                         <div class="form-group">
-                            <label for="username">Email</label>
+                            <label for="username">Email or Username</label>
                             <div class="input-wrapper">
-                                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                                <input tabindex="1" id="username" class="pf-c-form-control" name="username" value="${(login.username!'')}" type="email" autofocus autocomplete="username" placeholder="Enter your email" />
+                                <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                <input tabindex="1" id="username" class="pf-c-form-control" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="username" placeholder="Enter your email or username" />
                             </div>
                         </div>
 
