@@ -837,3 +837,115 @@ func TestHandler_ParseInput_SizeFee(t *testing.T) {
 	assert.Equal(t, 1000.0, input.MinFee)
 	assert.Equal(t, 5000.0, input.MaxFee)
 }
+
+func TestHandler_InvestmentSpaceOverlapFilters(t *testing.T) {
+	handler := &Handler{config: createTestConfig()}
+
+	t.Run("Raw INR values are converted to Lakhs and overlap logic is applied", func(t *testing.T) {
+		input := &Input{
+			MinInvestment: 5000000, // 50 Lakhs in raw INR
+			MaxInvestment: 10000000, // 100 Lakhs in raw INR
+			MinSpace:      500,
+			MaxSpace:      1000,
+		}
+
+		req, err := handler.buildSearchRequest(input)
+		assert.NoError(t, err)
+		assert.NotNil(t, req)
+
+		boolQuery, ok := req.Query["bool"].(map[string]interface{})
+		assert.True(t, ok)
+
+		mustArray, ok := boolQuery["must"].([]interface{})
+		if !ok {
+			mustArrayMap, ok2 := boolQuery["must"].([]map[string]interface{})
+			assert.True(t, ok2)
+			mustArray = make([]interface{}, len(mustArrayMap))
+			for i, v := range mustArrayMap {
+				mustArray[i] = v
+			}
+		}
+
+		foundMaxInvestment := false
+		foundMinInvestment := false
+		foundMaxSpace := false
+		foundMinSpace := false
+
+		for _, clauseItem := range mustArray {
+			clause, ok := clauseItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if rangeQuery, ok := clause["range"].(map[string]interface{}); ok {
+				if maxInv, ok := rangeQuery["investment.max_investment"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(50), maxInv["gte"]) // 5,000,000 / 100,000 = 50
+					foundMaxInvestment = true
+				}
+				if minInv, ok := rangeQuery["investment.min_investment"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(100), minInv["lte"]) // 10,000,000 / 100,000 = 100
+					foundMinInvestment = true
+				}
+				if maxSpace, ok := rangeQuery["space.max_space"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(500), maxSpace["gte"])
+					foundMaxSpace = true
+				}
+				if minSpace, ok := rangeQuery["space.min_space"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(1000), minSpace["lte"])
+					foundMinSpace = true
+				}
+			}
+		}
+
+		assert.True(t, foundMaxInvestment, "should filter by investment.max_investment >= user.min")
+		assert.True(t, foundMinInvestment, "should filter by investment.min_investment <= user.max")
+		assert.True(t, foundMaxSpace, "should filter by space.max_space >= user.min")
+		assert.True(t, foundMinSpace, "should filter by space.min_space <= user.max")
+	})
+
+	t.Run("Values already in Lakhs (< 1000) are not divided again", func(t *testing.T) {
+		input := &Input{
+			MinInvestment: 50, // 50 Lakhs directly
+			MaxInvestment: 100, // 100 Lakhs directly
+		}
+
+		req, err := handler.buildSearchRequest(input)
+		assert.NoError(t, err)
+		assert.NotNil(t, req)
+
+		boolQuery, ok := req.Query["bool"].(map[string]interface{})
+		assert.True(t, ok)
+
+		mustArray, ok := boolQuery["must"].([]interface{})
+		if !ok {
+			mustArrayMap, ok2 := boolQuery["must"].([]map[string]interface{})
+			assert.True(t, ok2)
+			mustArray = make([]interface{}, len(mustArrayMap))
+			for i, v := range mustArrayMap {
+				mustArray[i] = v
+			}
+		}
+
+		foundMaxInvestment := false
+		foundMinInvestment := false
+
+		for _, clauseItem := range mustArray {
+			clause, ok := clauseItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if rangeQuery, ok := clause["range"].(map[string]interface{}); ok {
+				if maxInv, ok := rangeQuery["investment.max_investment"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(50), maxInv["gte"])
+					foundMaxInvestment = true
+				}
+				if minInv, ok := rangeQuery["investment.min_investment"].(map[string]interface{}); ok {
+					assert.Equal(t, float64(100), minInv["lte"])
+					foundMinInvestment = true
+				}
+			}
+		}
+
+		assert.True(t, foundMaxInvestment)
+		assert.True(t, foundMinInvestment)
+	})
+}

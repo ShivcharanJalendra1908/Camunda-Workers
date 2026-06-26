@@ -658,6 +658,79 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 			},
 		},
 		{
+			name: "master franchise detail response",
+			data: map[string]interface{}{
+				"entityType": "master_franchise",
+				"basicInfo":  map[string]interface{}{"name": "Brew & Blend", "slug": "brew-blend-master"},
+				"operations": map[string]interface{}{
+					"territory_details": map[string]interface{}{
+						"scope":                 "State-wide exclusivity",
+						"exclusivity_terms":     "Exclusive regional rights to open up to 10 sub-units",
+						"available_territories": []interface{}{"North India"},
+						"taken_territories":     []interface{}{"South India"},
+					},
+					"development_schedule": map[string]interface{}{
+						"obligations":     "Must open minimum 5 units within first 3 years",
+						"timeline_months": 36,
+						"target_units":    5,
+					},
+					"support_training": map[string]interface{}{
+						"brand_toolkits":         "Full advertising and marketing assets package",
+						"operational_manuals":    "Operations manuals",
+						"training_duration_days": 14,
+					},
+					"legal_compliance": map[string]interface{}{
+						"agreement_term_years": 10,
+						"renewal_term_years":   5,
+						"regulatory_licences":  []interface{}{"FSSAI"},
+					},
+				},
+				"investment": map[string]interface{}{
+					"revenue_model": map[string]interface{}{
+						"payback_period":      "18-24 months",
+						"performance_bonuses": "10% bonus",
+						"roi_calculator_inputs": map[string]interface{}{
+							"avg_unit_revenue": 500000,
+						},
+					},
+				},
+			},
+			validate: func(t *testing.T, response map[string]interface{}) {
+				assert.True(t, response["success"].(bool))
+				data, ok := response["data"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "brew-blend-master", data["slug"])
+
+				// Check master franchise details mapped
+				tr, ok := data["territory_rights"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "State-wide exclusivity", tr["scope"])
+				assert.Equal(t, "Exclusive regional rights to open up to 10 sub-units", tr["exclusivity_terms"])
+
+				ds, ok := data["development_schedule"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "Must open minimum 5 units within first 3 years", ds["obligations"])
+
+				st, ok := data["support_and_training"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "Full advertising and marketing assets package", st["brand_toolkits"])
+
+				lc, ok := data["legal_compliance"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, float64(10), lc["agreement_term_years"])
+
+				rm, ok := data["revenue_model"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "18-24 months", rm["payback_period"])
+
+				roles, ok := data["three_player_roles"].(map[string]interface{})
+				assert.True(t, ok)
+				assert.NotNil(t, roles["franchisor"])
+				assert.NotNil(t, roles["master_franchisee"])
+				assert.NotNil(t, roles["unit_franchisees"])
+			},
+		},
+		{
 			name: "association detail page response",
 			data: map[string]interface{}{
 				"entityType": "association",

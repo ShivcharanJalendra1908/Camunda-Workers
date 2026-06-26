@@ -302,36 +302,57 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		mustClauses = append(mustClauses, locationFilter)
 	}
 
-	// ✅ INVESTMENT RANGE
+	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)
 	if input.MinInvestment > 0 || input.MaxInvestment > 0 {
-		rangeFilter := map[string]interface{}{}
-		if input.MinInvestment > 0 {
-			rangeFilter["gte"] = input.MinInvestment
+		minLakhs := input.MinInvestment
+		if minLakhs >= 1000 {
+			minLakhs = minLakhs / 100000
 		}
-		if input.MaxInvestment > 0 {
-			rangeFilter["lte"] = input.MaxInvestment
+		maxLakhs := input.MaxInvestment
+		if maxLakhs >= 1000 {
+			maxLakhs = maxLakhs / 100000
 		}
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"range": map[string]interface{}{
-				"investment.min_investment": rangeFilter,
-			},
-		})
+
+		if minLakhs > 0 {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{
+						"gte": minLakhs,
+					},
+				},
+			})
+		}
+		if maxLakhs > 0 {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{
+						"lte": maxLakhs,
+					},
+				},
+			})
+		}
 	}
 
-	// ✅ SPACE RANGE
+	// ✅ SPACE RANGE (Overlap Logic)
 	if input.MinSpace > 0 || input.MaxSpace > 0 {
-		rangeFilter := map[string]interface{}{}
 		if input.MinSpace > 0 {
-			rangeFilter["gte"] = input.MinSpace
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.max_space": map[string]interface{}{
+						"gte": input.MinSpace,
+					},
+				},
+			})
 		}
 		if input.MaxSpace > 0 {
-			rangeFilter["lte"] = input.MaxSpace
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.min_space": map[string]interface{}{
+						"lte": input.MaxSpace,
+					},
+				},
+			})
 		}
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"range": map[string]interface{}{
-				"space.min_space": rangeFilter,
-			},
-		})
 	}
 
 	// ✅ SIZE RANGE

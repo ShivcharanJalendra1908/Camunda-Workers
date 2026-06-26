@@ -1978,6 +1978,13 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 	detailData["investment_details"] = h.buildInvestmentDetailsStructure(investment, operations)
 	detailData["operation"] = h.buildOperationStructure(operations)
 
+	if entityType == "master_franchise" {
+		mfStructure := h.buildMasterFranchiseStructure(operations, investment)
+		for k, v := range mfStructure {
+			detailData[k] = v
+		}
+	}
+
 	sections := []interface{}{}
 
 	if len(categories) > 0 {
@@ -3046,6 +3053,98 @@ func (h *Handler) buildOperationStructure(operations map[string]interface{}) map
 			"min": int(minStaff),
 			"max": int(maxStaff),
 		}
+	}
+
+	return result
+}
+
+func (h *Handler) buildMasterFranchiseStructure(operations, investment map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+
+	// 1. Territory Rights
+	territoryRights := map[string]interface{}{}
+	if td, ok := operations["territory_details"].(map[string]interface{}); ok {
+		territoryRights["scope"] = td["scope"]
+		territoryRights["exclusivity_terms"] = td["exclusivity_terms"]
+		territoryRights["available_territories"] = td["available_territories"]
+		territoryRights["taken_territories"] = td["taken_territories"]
+	} else {
+		territoryRights["scope"] = ""
+		territoryRights["exclusivity_terms"] = ""
+		territoryRights["available_territories"] = []interface{}{}
+		territoryRights["taken_territories"] = []interface{}{}
+	}
+	result["territory_rights"] = territoryRights
+
+	// 2. Development Schedule
+	devSchedule := map[string]interface{}{}
+	if ds, ok := operations["development_schedule"].(map[string]interface{}); ok {
+		devSchedule["obligations"] = ds["obligations"]
+		devSchedule["timeline_months"] = ds["timeline_months"]
+		devSchedule["target_units"] = ds["target_units"]
+	} else {
+		devSchedule["obligations"] = ""
+		devSchedule["timeline_months"] = 0
+		devSchedule["target_units"] = 0
+	}
+	result["development_schedule"] = devSchedule
+
+	// 3. Support and Training
+	supportTraining := map[string]interface{}{}
+	if st, ok := operations["support_training"].(map[string]interface{}); ok {
+		supportTraining["brand_toolkits"] = st["brand_toolkits"]
+		supportTraining["operational_manuals"] = st["operational_manuals"]
+		supportTraining["training_duration_days"] = st["training_duration_days"]
+	} else {
+		supportTraining["brand_toolkits"] = ""
+		supportTraining["operational_manuals"] = ""
+		supportTraining["training_duration_days"] = 0
+	}
+	result["support_and_training"] = supportTraining
+
+	// 4. Legal Compliance
+	legalCompliance := map[string]interface{}{}
+	if lc, ok := operations["legal_compliance"].(map[string]interface{}); ok {
+		legalCompliance["agreement_term_years"] = lc["agreement_term_years"]
+		legalCompliance["renewal_term_years"] = lc["renewal_term_years"]
+		legalCompliance["regulatory_licenses"] = lc["regulatory_licences"]
+		if legalCompliance["regulatory_licenses"] == nil {
+			legalCompliance["regulatory_licenses"] = lc["regulatory_licenses"]
+		}
+	} else {
+		legalCompliance["agreement_term_years"] = 0
+		legalCompliance["renewal_term_years"] = 0
+		legalCompliance["regulatory_licenses"] = []interface{}{}
+	}
+	result["legal_compliance"] = legalCompliance
+
+	// 5. Revenue Model
+	revenueModel := map[string]interface{}{}
+	if rm, ok := investment["revenue_model"].(map[string]interface{}); ok {
+		revenueModel["payback_period"] = rm["payback_period"]
+		revenueModel["performance_bonuses"] = rm["performance_bonuses"]
+		revenueModel["roi_calculator_inputs"] = rm["roi_calculator_inputs"]
+	} else {
+		revenueModel["payback_period"] = ""
+		revenueModel["performance_bonuses"] = ""
+		revenueModel["roi_calculator_inputs"] = map[string]interface{}{}
+	}
+	result["revenue_model"] = revenueModel
+
+	// 6. Three Player Roles
+	result["three_player_roles"] = map[string]interface{}{
+		"franchisor": map[string]interface{}{
+			"title":       "Franchisor (Brand HQ)",
+			"description": "Provides brand identity, national marketing, IP, and training systems.",
+		},
+		"master_franchisee": map[string]interface{}{
+			"title":       "Master Franchisee (The Seeker)",
+			"description": "Secures territory exclusivity, recruits sub-franchisees, and receives royalty splits.",
+		},
+		"unit_franchisees": map[string]interface{}{
+			"title":       "Unit Franchisees (Sub-franchisees)",
+			"description": "Runs individual location operations under the direction of the Master Franchisee.",
+		},
 	}
 
 	return result
