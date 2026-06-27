@@ -206,6 +206,7 @@ type ErrorContext struct {
 	ErrorID          string                 `json:"errorId"`
 	ErrorCode        ErrorCode              `json:"errorCode"`
 	ErrorMessage     string                 `json:"errorMessage"`
+	Details          string                 `json:"details,omitempty"`
 	Category         ErrorCategory          `json:"category"`
 	Severity         string                 `json:"severity"`
 	Timestamp        string                 `json:"timestamp"`
@@ -235,6 +236,7 @@ func NewErrorContext(stdErr *StandardError, jobContext map[string]interface{}) *
 		ErrorID:          stdErr.ID,
 		ErrorCode:        stdErr.Code,
 		ErrorMessage:     stdErr.Message,
+		Details:          stdErr.Details,
 		Category:         category,
 		Severity:         severity,
 		Timestamp:        stdErr.Timestamp.Format(time.RFC3339),

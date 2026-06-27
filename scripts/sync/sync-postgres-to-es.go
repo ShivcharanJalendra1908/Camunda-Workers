@@ -209,7 +209,16 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			f.member_count,
 			f.membership_fee_min,
 			f.membership_fee_max,
-			f.association_metadata
+			f.association_metadata,
+			f.is_sponsored,
+			f.is_featured,
+			f.featured_order,
+			f.featured_start_at,
+			f.featured_expires_at,
+			f.status,
+			f.verified,
+			f.trusted_seller,
+			f.website_url
         FROM franchises f
         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
         LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
@@ -242,6 +251,15 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			membershipFeeMin                       sql.NullFloat64
 			membershipFeeMax                       sql.NullFloat64
 			associationMetadata                    sql.NullString
+			isSponsored                            sql.NullBool
+			isFeatured                             sql.NullBool
+			featuredOrder                          sql.NullInt32
+			featuredStartAt                        sql.NullTime
+			featuredExpiresAt                      sql.NullTime
+			status                                 sql.NullString
+			verified                               sql.NullBool
+			trustedSeller                          sql.NullBool
+			websiteURL                             sql.NullString
 		)
 
 		if err := rows.Scan(
@@ -250,6 +268,8 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
 			&industryImageURL, &entityType,
 			&memberCount, &membershipFeeMin, &membershipFeeMax, &associationMetadata,
+			&isSponsored, &isFeatured, &featuredOrder, &featuredStartAt, &featuredExpiresAt,
+			&status, &verified, &trustedSeller, &websiteURL,
 		); err != nil {
 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
 			continue
@@ -347,7 +367,23 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			"membership_fee_min":   nil,
 			"membership_fee_max":   nil,
 			"association_metadata": assocMeta,
+			"is_sponsored":         isSponsored.Bool,
+			"is_featured":          isFeatured.Bool,
+			"featured_order":       featuredOrder.Int32,
+			"featured_start_at":    nil,
+			"featured_expires_at":  nil,
+			"status":               status.String,
+			"verified":             verified.Bool,
+			"trusted_seller":       trustedSeller.Bool,
+			"website_url":          websiteURL.String,
 			"updated_at":           time.Now().Format(time.RFC3339),
+		}
+
+		if featuredStartAt.Valid {
+			doc["featured_start_at"] = featuredStartAt.Time.Format(time.RFC3339)
+		}
+		if featuredExpiresAt.Valid {
+			doc["featured_expires_at"] = featuredExpiresAt.Time.Format(time.RFC3339)
 		}
 
 		if memberCount.Valid {
