@@ -6,58 +6,64 @@
         "data": {
           "industries": [
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/technology.svg",
-              "id": "1",
-              "name": "Technology",
-              "slug": "technology"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/food-beverage.png",
+              "id": "7b332bd1-117a-4b40-92a1-aa8c5267a02b",
+              "name": "Food & Beverage",
+              "slug": "food-beverage"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/finance.svg",
-              "id": "2",
-              "name": "Finance",
-              "slug": "finance"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/business-services.png",
+              "id": "c39ecac8-9a1f-4ad3-af64-069b9b315926",
+              "name": "Business Services",
+              "slug": "business-services"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/healthcare.svg",
-              "id": "3",
-              "name": "Healthcare",
-              "slug": "healthcare"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/education.png",
+              "id": "f5fe36f6-02ef-4ca5-b884-30d22b5402cf",
+              "name": "Education",
+              "slug": "education"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/Manufacturing.svg",
-              "id": "4",
-              "name": "Manufacturing",
-              "slug": "manufacturing"
-            },
-            {
-              "icon_url": "/AssociationImages/ExploreByIndustry/realestate.svg",
-              "id": "5",
-              "name": "Real Estate",
-              "slug": "real-estate"
-            },
-            {
-              "icon_url": "/AssociationImages/ExploreByIndustry/retail.svg",
-              "id": "6",
+              "icon_url": "/FranchiseHomePage/Industry_Icons/retail.png",
+              "id": "ae11be80-bea3-4d0e-a35a-c964451b1a20",
               "name": "Retail",
               "slug": "retail"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/consulting.svg",
-              "id": "7",
-              "name": "Consulting",
-              "slug": "consulting"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/dealers-distributors.png",
+              "id": "cc637398-2762-4b5b-a999-c1a8c5567cfe",
+              "name": "Dealers & Distributors",
+              "slug": "dealers-distributors"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/construction.svg",
-              "id": "8",
-              "name": "Construction",
-              "slug": "construction"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/beauty.png",
+              "id": "42467fa8-06f1-4047-baf5-212e10ea66d8",
+              "name": "Beauty",
+              "slug": "beauty"
             },
             {
-              "icon_url": "/AssociationImages/ExploreByIndustry/education.svg",
-              "id": "9",
-              "name": "Education",
-              "slug": "education"
+              "icon_url": "/FranchiseHomePage/Industry_Icons/health.png",
+              "id": "f26791cd-9656-452d-8326-9b9296125906",
+              "name": "Health",
+              "slug": "health"
+            },
+            {
+              "icon_url": "/FranchiseHomePage/Industry_Icons/automotive.png",
+              "id": "5ed3c109-2d23-4148-a019-f347fda26ed4",
+              "name": "Automotive",
+              "slug": "automotive"
+            },
+            {
+              "icon_url": "/FranchiseHomePage/Industry_Icons/sports-fitness.png",
+              "id": "ead42b5a-26e6-4bd2-a2e3-bb8709ede483",
+              "name": "Sports & Fitness",
+              "slug": "sports-fitness"
+            },
+            {
+              "icon_url": "/FranchiseHomePage/Industry_Icons/real-estate.png",
+              "id": "1a821422-d8eb-484f-a280-8af8f6b79144",
+              "name": "Real Estate",
+              "slug": "real-estate"
             }
           ]
         },
@@ -67,71 +73,71 @@
       {
         "data": [
           {
-            "association_name": "Kassia",
+            "association_name": "Karnataka Small Scale Industries Association (KASSIA)",
             "association_type": "Industry Body",
-            "description": "Karnataka Small Scale Industries Association (KASSIA) is state-level non-Government institution for small-scale industrialists, registered under the Karnataka Societies Registration",
-            "id": "1",
+            "description": "Premier state-level association for small-scale industrialists in Karnataka",
+            "id": "a0000000-0000-0000-0000-000000000004",
             "MembershipFeeRange": {
               "FeeUnit": "INR",
               "maxFee": null,
               "minFee": null
             },
-            "location": "Bengaluru,India",
+            "location": "Bangalore",
             "logo": {
               "alt": "",
-              "url": "/AssociationImages/FeaturedAssociations/kassia.svg"
+              "url": "/FranchiseHomePage/coming-soon.png"
             },
             "no_of_members": 12000,
             "tags": [
-              "ISO 9001:2015 Certified",
-              "Policy & Grievance Support",
-              "Entrepreneur Support"
+              "Business Consulting",
+              "Karnataka",
+              "Karnataka Small Scale Industries Association (KASSIA)"
             ],
             "year_of_establishment": "1949"
           },
           {
-            "association_name": "AIGMF",
+            "association_name": "All India Glass Manufacturers’ Federation (AIGMF)",
             "association_type": "Industry Body",
-            "description": "All India Glass Manufacturers’ Federation (AIGMF) is the sole representative body of all segments of the Indian glass industry including large, medium, and small manufacturers",
-            "id": "2",
+            "description": "Apex body representing glass manufacturers in India",
+            "id": "a0000000-0000-0000-0000-000000000001",
             "MembershipFeeRange": {
               "FeeUnit": "INR",
               "maxFee": 25000,
               "minFee": 10000
             },
-            "location": "New Delhi,India",
+            "location": "Delhi",
             "logo": {
               "alt": "",
-              "url": "/AssociationImages/FeaturedAssociations/aigmf.svg"
+              "url": "/FranchiseHomePage/coming-soon.png"
             },
             "no_of_members": null,
             "tags": [
-              "Export-Import Support",
-              "Raw Material Sourcing",
-              "Industry Data & Insights"
+              "Logistics & Supply Chain",
+              "All",
+              "All India Glass Manufacturers’ Federation (AIGMF)"
             ],
             "year_of_establishment": "1944"
           },
           {
-            "association_name": "NASSCOM Association",
+            "association_name": "National Association of Software and Service Companies (NASSCOM)",
             "association_type": "Industry Body",
-            "description": "National Association of Software and Service Companies (NASSCOM)is a non-profit trade association representing 3,000+ IT-BPM companies. It works to position India as a global Market",
-            "id": "3",
+            "description": "Premier trade body and chamber of commerce for the tech industry in India",
+            "id": "a0000000-0000-0000-0000-000000000005",
             "MembershipFeeRange": {
               "FeeUnit": "INR",
               "maxFee": 1000000,
               "minFee": 100000
             },
-            "location": "New Delhi,India",
+            "location": "Noida",
             "logo": {
               "alt": "",
-              "url": "/AssociationImages/FeaturedAssociations/nasscom.svg"
+              "url": "/FranchiseHomePage/coming-soon.png"
             },
             "no_of_members": 3000,
             "tags": [
-              "Innovation Hub",
-              "Technology Exports",
-              "Policy & Industry Advocacy"
+              "IT Consulting & Support",
+              "National",
+              "National Association of Software and Service Companies (NASSCOM)"
             ],
             "year_of_establishment": "1988"
           }
