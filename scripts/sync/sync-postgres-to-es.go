@@ -205,7 +205,11 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             i.slug as industry_slug,
             i.color_hex as industry_color,
 			i.image_url as industry_image_url,
-			f.entity_type
+			f.entity_type,
+			f.member_count,
+			f.membership_fee_min,
+			f.membership_fee_max,
+			f.association_metadata
         FROM franchises f
         LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
         LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
@@ -234,6 +238,10 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			industryColor                          sql.NullString
 			industryImageURL                       sql.NullString // ✅ NEW
 			entityType                             string
+			memberCount                            sql.NullInt32
+			membershipFeeMin                       sql.NullFloat64
+			membershipFeeMax                       sql.NullFloat64
+			associationMetadata                    sql.NullString
 		)
 
 		if err := rows.Scan(
@@ -241,6 +249,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			&logoURLCircle, &logoURLSquare,
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
 			&industryImageURL, &entityType,
+			&memberCount, &membershipFeeMin, &membershipFeeMax, &associationMetadata,
 		); err != nil {
 			log.Printf("⚠️ Failed to scan franchise row: %v", err)
 			continue
@@ -307,29 +316,48 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 			}
 		}
 
+		var assocMeta map[string]interface{}
+		if associationMetadata.Valid && associationMetadata.String != "" && associationMetadata.String != "{}" {
+			_ = json.Unmarshal([]byte(associationMetadata.String), &assocMeta)
+		}
+
 		// Clean description
 		cleanDesc := cleanDescription(shortDescription.String)
 
 		doc := map[string]interface{}{
-			"franchise_id":      id,
-			"name":              name,
-			"slug":              slug,
-			"entity_type":       entityType,
-			"description":       cleanDesc,
+			"franchise_id":         id,
+			"name":                 name,
+			"slug":                 slug,
+			"entity_type":          entityType,
+			"description":          cleanDesc,
 			"logo": map[string]interface{}{
 				"circle": logoURLCircle.String,
 				"square": logoURLSquare.String,
 				"alt":    name,
 			},
-			"location":          location,
-			"tags":              tags,
-			"rating":            rating,
-			"total_outlets":     totalOutlets.Int32,
-			"country":           country,
-			"exclusivity_type":  exclusivityType,
-			"territory_scope":   territoryScope,
-			"territory_details": territoryDetails,
-			"updated_at":        time.Now().Format(time.RFC3339),
+			"location":             location,
+			"tags":                 tags,
+			"rating":               rating,
+			"total_outlets":        totalOutlets.Int32,
+			"country":              country,
+			"exclusivity_type":     exclusivityType,
+			"territory_scope":      territoryScope,
+			"territory_details":    territoryDetails,
+			"member_count":         nil,
+			"membership_fee_min":   nil,
+			"membership_fee_max":   nil,
+			"association_metadata": assocMeta,
+			"updated_at":           time.Now().Format(time.RFC3339),
+		}
+
+		if memberCount.Valid {
+			doc["member_count"] = memberCount.Int32
+		}
+		if membershipFeeMin.Valid {
+			doc["membership_fee_min"] = membershipFeeMin.Float64
+		}
+		if membershipFeeMax.Valid {
+			doc["membership_fee_max"] = membershipFeeMax.Float64
 		}
 
 		if foundedYear.Valid {
