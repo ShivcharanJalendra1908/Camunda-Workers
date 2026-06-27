@@ -851,48 +851,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		"data":    transformedAssociations,
 	})
 
-	// 3. why_choose_lemici (Cities)
-	cities := h.extractArray(data, "cities")
-	if len(cities) == 0 {
-		cities = []interface{}{
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/delhi.jpg", "id": "1", "name": "Delhi", "slug": "delhi"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/bengaluru.jpg", "id": "2", "name": "Bengaluru", "slug": "bengaluru"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/hyderabad.jpg", "id": "3", "name": "Hyderabad", "slug": "hyderabad"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/ahmedabad.png", "id": "4", "name": "Ahmedabad", "slug": "ahmedabad"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/pune.jpg", "id": "5", "name": "Pune", "slug": "pune"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/kolkata.jpg", "id": "6", "name": "Kolkata", "slug": "kolkata"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/chennai.png", "id": "7", "name": "Chennai", "slug": "chennai"},
-			map[string]interface{}{"icon_url": "/AssociationImages/cities/mumbai.jpg", "id": "8", "name": "Mumbai", "slug": "mumbai"},
-		}
-	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "why_choose_lemici",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"cities": cities,
-		},
-	})
-
-	// 4. statistics
-	stats := h.extractArray(data, "statistics")
-	if len(stats) == 0 {
-		stats = []interface{}{
-			map[string]interface{}{
-				"products":           10000000,
-				"businesses":         10000,
-				"product_categories": 5900,
-				"countries_regions":  200,
-			},
-		}
-	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "statistics",
-		"enabled": true,
-		"data":    stats,
-	})
-
+	// why_choose_lemici (Cities) and statistics sections are handled by the frontend.
 	return map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{

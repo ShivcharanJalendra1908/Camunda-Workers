@@ -138,7 +138,7 @@ func TestHandler_Execute_Success(t *testing.T) {
 
 				sections, ok := data["sections"].([]interface{})
 				assert.True(t, ok)
-				assert.Len(t, sections, 4)
+				assert.Len(t, sections, 2)
 
 				// Check featured associations mapping
 				assocSection, ok := sections[1].(map[string]interface{})
@@ -717,7 +717,7 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 
 				lc, ok := data["legal_compliance"].(map[string]interface{})
 				assert.True(t, ok)
-				assert.Equal(t, float64(10), lc["agreement_term_years"])
+				assert.Equal(t, 10, lc["agreement_term_years"])
 
 				rm, ok := data["revenue_model"].(map[string]interface{})
 				assert.True(t, ok)
