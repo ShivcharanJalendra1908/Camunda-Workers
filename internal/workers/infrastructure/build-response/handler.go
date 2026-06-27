@@ -809,8 +809,9 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 			logoUrl = logoStr
 		}
 
+		assocName, _ := transformed["association_name"].(string)
 		transformed["logo"] = map[string]interface{}{
-			"alt": "",
+			"alt": assocName,
 			"url": logoUrl,
 		}
 
@@ -2273,8 +2274,9 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			logoUrl = "/AssociationImages/FeaturedAssociations/kassia.svg"
 		}
 
+		assocName, _ := transformed["association_name"].(string)
 		transformed["logo"] = map[string]interface{}{
-			"alt": "",
+			"alt": assocName,
 			"url": logoUrl,
 		}
 
