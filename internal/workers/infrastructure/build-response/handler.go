@@ -838,7 +838,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 
 		// year_of_establishment
 		estYear := ""
-		if fyVal := getFloatValue(assoc, "founded_year"); fyVal > 0 {
+		if fyVal := getFloatValue(assoc, "year_of_establishment"); fyVal > 0 {
 			estYear = strconv.Itoa(int(fyVal))
 		}
 		transformed["year_of_establishment"] = estYear
