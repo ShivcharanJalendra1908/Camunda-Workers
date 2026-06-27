@@ -3,6 +3,8 @@ version: '3.8'
 networks:
   camunda-network:
     driver: bridge
+  aws-observability_default:
+    external: true
 
 volumes:
   zeebe-data:
@@ -466,10 +468,8 @@ services:
     command: sh -c "exec kong start"
     restart: unless-stopped
     networks:
-      - camunda-network:
-             external: true
-      - aws-observability_default:
-             external: true
+      - camunda-network
+      - aws-observability_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
