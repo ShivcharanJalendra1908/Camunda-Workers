@@ -556,7 +556,7 @@ func TestHandler_PrepareOutput(t *testing.T) {
 		assert.True(t, output.Success)
 		assert.Equal(t, 2, output.TotalCount)
 		assert.Equal(t, queryTime, output.QueryTimeMs)
-		assert.Equal(t, results, output.Franchises)
+		assert.Equal(t, results, output.SearchResults)
 
 		assert.Equal(t, "ice cream", output.AppliedFilters["query"])
 		assert.Equal(t, "food", output.AppliedFilters["category"])

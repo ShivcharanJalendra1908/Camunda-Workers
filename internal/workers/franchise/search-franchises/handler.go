@@ -773,7 +773,7 @@ func (h *Handler) prepareOutput(results []map[string]interface{}, totalCount int
 
 func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job entities.Job, output *Output) {
 	variables := map[string]interface{}{
-		"search_results": output.Franchises,
+		"search_results": output.SearchResults,
 		"total_count":    output.TotalCount,
 		"query_time_ms":  output.QueryTimeMs,
 		"success":        output.Success,
