@@ -543,6 +543,24 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	if input.FranchiseID != "" {
 		params["franchiseId"] = input.FranchiseID
 	}
+	
+	// ✅ CRITICAL FIX: If franchiseId is not a UUID (e.g. it's a slug passed as fallback), resolve it
+	if idStr, ok := params["franchiseId"].(string); ok && idStr != "" {
+		// A simple UUID check (length 36, 4 dashes)
+		isUUID := len(idStr) == 36 && strings.Count(idStr, "-") == 4
+		if !isUUID {
+			var realID string
+			dbErr := h.db.QueryRowContext(ctx, "SELECT id FROM franchises WHERE slug = $1", idStr).Scan(&realID)
+			if dbErr == nil {
+				params["franchiseId"] = realID
+				input.FranchiseID = realID
+				h.logger.Info("Resolved franchise slug to UUID", map[string]interface{}{
+					"slug": idStr,
+					"uuid": realID,
+				})
+			}
+		}
+	}
 	if len(input.FranchiseIDs) > 0 {
 		params["franchiseIds"] = input.FranchiseIDs
 	}

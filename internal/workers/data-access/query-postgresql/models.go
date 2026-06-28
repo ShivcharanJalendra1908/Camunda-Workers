@@ -91,9 +91,8 @@ func (i *Input) Validate() error {
 		),
 
 		// UUID validations
-		ozzo.Field(&i.FranchiseID,
-			ozzo.When(i.FranchiseID != "", validation.IsUUID),
-		),
+		// FranchiseID can sometimes be a slug if ES fallback occurs, so we remove IsUUID here.
+		ozzo.Field(&i.FranchiseID),
 		ozzo.Field(&i.FranchiseIDs,
 			ozzo.Each(validation.IsUUID),
 		),
