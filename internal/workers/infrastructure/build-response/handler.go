@@ -2375,8 +2375,23 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 				})
 			}
 		}
+		}
 	}
 	
+	if len(listingQuestions) == 0 {
+		listingQuestions = []interface{}{
+			map[string]interface{}{
+				"question": "What are the primary functions of business associations in India?",
+			},
+			map[string]interface{}{
+				"question": "How do I become a member of a trade association?",
+			},
+			map[string]interface{}{
+				"question": "Are membership fees tax-deductible?",
+			},
+		}
+	}
+
 	if len(listingQuestions) > 0 {
 		sections = append(sections, map[string]interface{}{
 			"type":    "category_questions",
@@ -2435,6 +2450,24 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 				})
 			}
 		}
+	}
+	
+	if insightsData == nil {
+		insightsData = map[string]interface{}{
+			"market_stats": "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people.",
+			"sector_trends": []interface{}{
+				"Accelerated digitization of supply chains and business processes.",
+				"Increased integration into global value chains through trade associations.",
+				"Government schemes like PLI and Udyam boosting MSME manufacturing.",
+			},
+			"exim_data":    "MSMEs contribute approximately 45% of India's total exports.",
+			"cluster_info": "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore.",
+		}
+		sections = append(sections, map[string]interface{}{
+			"type":    "key_market_insights",
+			"enabled": true,
+			"data":    insightsData,
+		})
 	}
 
 	if v, ok := data["page"].(float64); ok {
