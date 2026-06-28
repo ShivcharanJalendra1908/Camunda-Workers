@@ -297,7 +297,7 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 	err := db.QueryRowContext(ctx, query, slug).Scan(&id, &name, &industrySlug, &listingTitle, &description)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, 0, 0, ErrNotFound
+			return map[string]interface{}{}, 0, time.Since(start).Milliseconds(), nil
 		}
 		return nil, 0, 0, err
 	}
@@ -785,6 +785,9 @@ func IndustryBySlugWithQuestions(
 		WHERE slug = $1 AND is_active = true
 	`, slug).Scan(&industryID, &name, &description)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return map[string]interface{}{}, 0, time.Since(start).Milliseconds(), nil
+		}
 		return nil, 0, 0, err
 	}
 
