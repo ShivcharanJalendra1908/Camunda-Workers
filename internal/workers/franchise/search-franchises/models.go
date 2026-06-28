@@ -42,7 +42,7 @@ type SearchRequest struct {
 
 // Output represents the search response
 type Output struct {
-	Franchises     []map[string]interface{} `json:"franchises"`
+	SearchResults  []map[string]interface{} `json:"search_results"`
 	TotalCount     int                      `json:"total_count"`
 	QueryTimeMs    int64                    `json:"query_time_ms"`
 	Suggestions    []string                 `json:"suggestions,omitempty"`

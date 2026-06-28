@@ -746,7 +746,7 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 
 func (h *Handler) prepareOutput(results []map[string]interface{}, totalCount int, queryTime int64, input *Input) *Output {
 	return &Output{
-		Franchises:  results,
+		SearchResults: results,
 		TotalCount:  totalCount,
 		QueryTimeMs: queryTime,
 		AppliedFilters: map[string]interface{}{
