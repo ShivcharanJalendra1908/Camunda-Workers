@@ -1544,6 +1544,12 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	return map[string]interface{}{
 		"success": true,
 		"data":    detailData,
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "detail",
+			"version":     h.config.AppVersion,
+		},
 	}
 }
 
