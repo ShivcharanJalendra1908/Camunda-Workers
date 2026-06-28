@@ -487,25 +487,25 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	switch input.SortBy {
 	case "rating":
 		sort = append(sort, map[string]interface{}{
-			"rating": map[string]interface{}{"order": sortOrder, "missing": "_last"},
+			"rating": map[string]interface{}{"order": sortOrder, "missing": "_last", "unmapped_type": "double"},
 		})
 	case "investment":
 		sort = append(sort, map[string]interface{}{
-			"investment.min_investment": map[string]interface{}{"order": sortOrder},
+			"investment.min_investment": map[string]interface{}{"order": sortOrder, "unmapped_type": "double"},
 		})
 	case "year":
 		sort = append(sort, map[string]interface{}{
-			"year_of_establishment": map[string]interface{}{"order": sortOrder},
+			"year_of_establishment": map[string]interface{}{"order": sortOrder, "unmapped_type": "integer"},
 		})
 	case "featured":
 		sort = append(sort, map[string]interface{}{
-			"is_featured": map[string]interface{}{"order": "desc"},
+			"is_featured": map[string]interface{}{"order": "desc", "unmapped_type": "boolean"},
 		})
 		sort = append(sort, map[string]interface{}{
-			"featured_order": map[string]interface{}{"order": "asc"},
+			"featured_order": map[string]interface{}{"order": "asc", "unmapped_type": "integer"},
 		})
 		sort = append(sort, map[string]interface{}{
-			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last"},
+			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last", "unmapped_type": "date"},
 		})
 		sort = append(sort, map[string]interface{}{
 			"_score": map[string]interface{}{"order": "desc"},
@@ -513,16 +513,16 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	default:
 		// Default curation order: Sponsored first, then Featured, then Featured Order, then Score
 		sort = append(sort, map[string]interface{}{
-			"is_sponsored": map[string]interface{}{"order": "desc"},
+			"is_sponsored": map[string]interface{}{"order": "desc", "unmapped_type": "boolean"},
 		})
 		sort = append(sort, map[string]interface{}{
-			"is_featured": map[string]interface{}{"order": "desc"},
+			"is_featured": map[string]interface{}{"order": "desc", "unmapped_type": "boolean"},
 		})
 		sort = append(sort, map[string]interface{}{
-			"featured_order": map[string]interface{}{"order": "asc"},
+			"featured_order": map[string]interface{}{"order": "asc", "unmapped_type": "integer"},
 		})
 		sort = append(sort, map[string]interface{}{
-			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last"},
+			"featured_start_at": map[string]interface{}{"order": "asc", "missing": "_last", "unmapped_type": "date"},
 		})
 		sort = append(sort, map[string]interface{}{
 			"_score": map[string]interface{}{"order": "desc"},
