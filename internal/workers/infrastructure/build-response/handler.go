@@ -1551,6 +1551,12 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
 			detailData["slug"] = slug
 		}
+		if status, ok := basicInfo["status"].(string); ok && status != "" {
+			detailData["status"] = status
+		}
+		if createdBy, ok := basicInfo["created_by"].(string); ok && createdBy != "" {
+			detailData["created_by"] = createdBy
+		}
 	}
 
 	return map[string]interface{}{
