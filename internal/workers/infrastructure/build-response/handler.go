@@ -1610,11 +1610,45 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	sections := []interface{}{}
 
 	industryInfo := h.extractMap(data, "industryInfo")
-	franchises := h.extractArray(data, "franchises")
-	categories := h.extractArray(data, "categories")
-	categoryQuestions := h.extractArray(data, "categoryQuestions")
-	recommended := h.extractArray(data, "recommended")
-	marketInsights := h.extractArray(data, "marketInsights")
+
+	franchises := h.extractArray(data, "franchiseListings")
+	if len(franchises) == 0 {
+		if fl, ok := data["franchiseListings"].(map[string]interface{}); ok {
+			if hits, ok := fl["hits"].([]interface{}); ok {
+				franchises = hits
+			}
+		}
+	}
+	if len(franchises) == 0 {
+		franchises = h.extractArray(data, "franchises")
+		if len(franchises) == 0 {
+			if fl, ok := data["franchises"].(map[string]interface{}); ok {
+				if hits, ok := fl["hits"].([]interface{}); ok {
+					franchises = hits
+				}
+			}
+		}
+	}
+
+	categories := h.extractArray(data, "featuredCategories")
+	if len(categories) == 0 {
+		categories = h.extractArray(data, "categories")
+	}
+
+	categoryQuestions := h.extractArray(data, "understandingCategory")
+	if len(categoryQuestions) == 0 {
+		categoryQuestions = h.extractArray(data, "categoryQuestions")
+	}
+
+	recommended := h.extractArray(data, "recommendedFranchises")
+	if len(recommended) == 0 {
+		recommended = h.extractArray(data, "recommended")
+	}
+
+	marketInsights := h.extractArray(data, "keyMarketInsights")
+	if len(marketInsights) == 0 {
+		marketInsights = h.extractArray(data, "marketInsights")
+	}
 	page := 1
 	pageSize := 6
 	totalCount := int64(0)
