@@ -1445,52 +1445,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
-	if len(transformedInsights) == 0 {
-		transformedInsights = map[string]interface{}{
-			"market_stats": "Karnataka MSME sector contributes 20% to state GDP with over 8 lakh registered units.",
-			"sector_trends": []interface{}{
-				"Rising adoption of AI and automation in manufacturing.",
-				"Increased focus on sustainable and green manufacturing practices.",
-				"Growing integration of MSMEs into global supply chains.",
-			},
-			"exim_data":    "MSME exports from Karnataka account for approximately $10 billion annually.",
-			"cluster_info": "Major clusters include Peenya (manufacturing), Belagavi (foundry), and Hubli (valves/machine tools).",
-		}
+	if len(transformedInsights) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "market_insights_section",
+			"enabled": true,
+			"data":    transformedInsights,
+		})
 	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "market_insights_section",
-		"enabled": true,
-		"data":    transformedInsights,
-	})
-
-	// 17. featured_business_categories
-	var transformedDetailCategories []interface{}
-	if len(categories) > 0 {
-		for _, item := range categories {
-			if cMap, ok := item.(map[string]interface{}); ok {
-				transformedDetailCategories = append(transformedDetailCategories, map[string]interface{}{
-					"id":       getStringVal(cMap, "id", ""),
-					"name":     getStringVal(cMap, "name", ""),
-					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", "/AssociationImages/FeaturedBusinessCategories/technology.svg"),
-				})
-			}
-		}
-	} else {
-		transformedDetailCategories = []interface{}{
-			map[string]interface{}{"id": "1", "name": "Technology", "slug": "technology", "icon_url": "/AssociationImages/FeaturedBusinessCategories/technology.svg"},
-			map[string]interface{}{"id": "2", "name": "Finance", "slug": "finance", "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg"},
-			map[string]interface{}{"id": "3", "name": "Healthcare", "slug": "healthcare", "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg"},
-			map[string]interface{}{"id": "4", "name": "Manufacturing", "slug": "manufacturing", "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg"},
-		}
-	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "featured_business_categories",
-		"enabled": true,
-		"data":    transformedDetailCategories,
-	})
 
 	// 18. category_questions
 	var detailQuestions []interface{}
@@ -1512,29 +1473,24 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 					"question": getStringVal(qm, "question", ""),
 					"answer":   getStringVal(qm, "answer", ""),
 				})
+			} else if qStr, ok := qItem.(string); ok {
+				detailQuestions = append(detailQuestions, map[string]interface{}{
+					"question": qStr,
+					"answer":   "",
+				})
 			}
 		}
 	}
-	if len(detailQuestions) == 0 {
-		detailQuestions = []interface{}{
-			map[string]interface{}{
-				"question": "What is the membership process?",
-				"answer":   "The membership process involves submitting an online application along with business proof like GST/PAN certificate, followed by approval within 7-15 working days.",
-			},
-			map[string]interface{}{
-				"question": "Does this association support export-import guidelines?",
-				"answer":   "Yes, the association regularizes and organizes EXIM workshops, consultancies, and representation on international trade fairs for its premium members.",
-			},
-		}
-	}
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "category_questions",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"questions": detailQuestions,
-		},
-	})
+	if len(detailQuestions) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "category_questions",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"questions": detailQuestions,
+			},
+		})
+	}
 
 	detailData := map[string]interface{}{
 		"pageId":   "association_individual",
@@ -2238,6 +2194,11 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			transformed["association_name"] = brand
 		}
 
+		// slug
+		if slug, ok := assoc["slug"].(string); ok {
+			transformed["slug"] = slug
+		}
+
 		// description
 		transformed["description"] = assoc["description"]
 
@@ -2367,146 +2328,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		"data":    transformedAssociations,
 	})
 
-	// 3. functions_of_business_associations
-	sections = append(sections, map[string]interface{}{
-		"type":    "functions_of_business_associations",
-		"enabled": true,
-		"data": []interface{}{
-			map[string]interface{}{
-				"title":       "Policy Advocacy",
-				"description": "Representing MSME interests to state and central governments to influence industrial policies and resolve regulatory grievances.",
-				"icon":        "AdvocacyIcon",
-			},
-			map[string]interface{}{
-				"title":       "Business Networking",
-				"description": "Facilitating B2B meetings, industrial exhibitions, and international trade delegations to open new market opportunities.",
-				"icon":        "NetworkingIcon",
-			},
-			map[string]interface{}{
-				"title":       "Industrial Development",
-				"description": "Providing technical training, workshops, and seminars on quality standards, automation, and emerging technologies.",
-				"icon":        "DevelopmentIcon",
-			},
-			map[string]interface{}{
-				"title":       "Collaboration & Support",
-				"description": "Fostering strategic partnerships between industries, academia, and government bodies to promote cluster development.",
-				"icon":        "CollaborationIcon",
-			},
-		},
-	})
-
-	// 4. statistics
-	stats := h.extractArray(data, "statistics")
-	if len(stats) == 0 {
-		stats = []interface{}{
-			map[string]interface{}{
-				"businesses_engaged_annually": 3000000,
-				"msme_india":                  6000000,
-				"enablers_partnered":          1500,
-				"live_events_annually":        1200,
-			},
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "statistics",
-		"enabled": true,
-		"data":    stats,
-	})
-
-	// 5. business_associations_across_india
-	cities := h.extractArray(data, "cities")
-	if len(cities) == 0 {
-		cities = []interface{}{
-			map[string]interface{}{
-				"state":       "Andhra Pradesh",
-				"slug":        "andhra-pradesh",
-				"map":         "/AssociationImages/BusinessAcrossIndia/states/andhra-pradesh.png",
-				"projects":    15,
-				"consultants": 20,
-				"overview":    "Andhra Pradesh is the second largest producer of cotton and raw silk in India. The state has a strong textile industry base consisting of handlooms, handicrafts, spinning and processing units. The state has integrated apparel city in Vizag with an innovative concept of \"Fibre to Store\".",
-				"industries":  "Textiles, IT, Pharmaceuticals, Agriculture",
-				"associations": "FAPCCI, APITC, Textile Alliance",
-				"growth":      "18% YoY in manufacturing sector",
-				"highlights": []interface{}{
-					map[string]interface{}{
-						"title":       "Innovation Hubs",
-						"description": "Multiple innovation centers and incubators supporting startups and SMEs with mentorship, funding, and infrastructure.",
-						"icon":        "InnovationIcon",
-					},
-					map[string]interface{}{
-						"title":       "Startup Ecosystem",
-						"description": "Growing startup community with government support, angel investors, and venture capital presence.",
-						"icon":        "StartupIcon",
-					},
-					map[string]interface{}{
-						"title":       "Skill Development",
-						"description": "Strong focus on vocational training and skill development programs aligned with industry needs.",
-						"icon":        "SkillIcon",
-					},
-					map[string]interface{}{
-						"title":       "Infrastructure",
-						"description": "Well-developed industrial parks, SEZs, ports, and connectivity through road, rail, and air networks.",
-						"icon":        "InfrastructureIcon",
-					},
-				},
-			},
-			map[string]interface{}{
-				"state":       "Maharashtra",
-				"slug":        "maharashtra",
-				"map":         "/AssociationImages/BusinessAcrossIndia/states/maharashtraMap.svg",
-				"projects":    30,
-				"consultants": 40,
-				"overview":    "Maharashtra is India's financial powerhouse with strong industrial and startup ecosystems.",
-				"industries":  "Finance, IT, Automobile",
-				"associations": "MCCIA, IMC",
-				"growth":      "22% startup growth",
-				"highlights": []interface{}{
-					map[string]interface{}{
-						"title":       "Financial Capital",
-						"description": "Mumbai serves as India's financial center.",
-						"icon":        "InnovationIcon",
-					},
-					map[string]interface{}{
-						"title":       "Startup Ecosystem",
-						"description": "Thriving startup communities and incubators.",
-						"icon":        "StartupIcon",
-					},
-				},
-			},
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "business_associations_across_india",
-		"enabled": true,
-		"data":    cities,
-	})
-
-	// 6. featured_business_categories
-	var transformedCategories []interface{}
-	if len(categories) > 0 {
-		for _, item := range categories {
-			if cMap, ok := item.(map[string]interface{}); ok {
-				transformedCategories = append(transformedCategories, map[string]interface{}{
-					"id":       getStringVal(cMap, "id", ""),
-					"name":     getStringVal(cMap, "name", ""),
-					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", "/AssociationImages/FeaturedBusinessCategories/technology.svg"),
-				})
-			}
-		}
-	} else {
-		transformedCategories = []interface{}{
-			map[string]interface{}{"id": "1", "name": "Technology", "slug": "technology", "icon_url": "/AssociationImages/FeaturedBusinessCategories/technology.svg"},
-			map[string]interface{}{"id": "2", "name": "Finance", "slug": "finance", "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg"},
-			map[string]interface{}{"id": "3", "name": "Healthcare", "slug": "healthcare", "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg"},
-			map[string]interface{}{"id": "4", "name": "Manufacturing", "slug": "manufacturing", "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg"},
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "featured_business_categories",
-		"enabled": true,
-		"data":    transformedCategories,
-	})
+	// Removed functions_of_business_associations, statistics, business_associations_across_india, featured_business_categories
 
 	// 7. category_questions
 	var listingQuestions []interface{}
@@ -2517,32 +2339,24 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 					"question": getStringVal(qm, "question", ""),
 					"answer":   getStringVal(qm, "answer", ""),
 				})
+			} else if qStr, ok := qItem.(string); ok {
+				listingQuestions = append(listingQuestions, map[string]interface{}{
+					"question": qStr,
+					"answer":   "",
+				})
 			}
 		}
 	}
-	if len(listingQuestions) == 0 {
-		listingQuestions = []interface{}{
-			map[string]interface{}{
-				"question": "What are the primary functions of business associations in India?",
-				"answer":   "Business associations provide policy advocacy, industry networking, skill development, market linkage, and standards certification to help MSMEs grow.",
+	
+	if len(listingQuestions) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "category_questions",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"questions": listingQuestions,
 			},
-			map[string]interface{}{
-				"question": "How do I become a member of a trade association?",
-				"answer":   "To join, select the association relevant to your industry and region, check the eligibility criteria, and submit an application form along with business proof like GST/PAN.",
-			},
-			map[string]interface{}{
-				"question": "Are membership fees tax-deductible?",
-				"answer":   "Yes, membership subscriptions paid to professional or business associations are generally deductible as business expenses under Section 37(1) of the Income Tax Act.",
-			},
-		}
+		})
 	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "category_questions",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"questions": listingQuestions,
-		},
-	})
 
 	// 8. recommended_business_associations
 	var transformedRecs []interface{}
@@ -2571,7 +2385,6 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	})
 
 	// 9. key_market_insights
-	var insightsData interface{}
 	if len(marketInsights) > 0 {
 		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
 			trends := getArrayVal(insights, "sector_trends")
@@ -2579,38 +2392,21 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			for _, t := range trends {
 				trendList = append(trendList, t)
 			}
-			if len(trendList) == 0 {
-				trendList = []interface{}{
-					"Accelerated digitization of supply chains and business processes.",
-					"Increased integration into global value chains through trade associations.",
-					"Government schemes like PLI and Udyam boosting MSME manufacturing.",
+			if len(trendList) > 0 {
+				insightsData := map[string]interface{}{
+					"market_stats":  getStringVal(insights, "market_stats", ""),
+					"sector_trends": trendList,
+					"exim_data":     getStringVal(insights, "exim_data", ""),
+					"cluster_info":  getStringVal(insights, "cluster_info", ""),
 				}
-			}
-			insightsData = map[string]interface{}{
-				"market_stats":  getStringVal(insights, "market_stats", "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people."),
-				"sector_trends": trendList,
-				"exim_data":     getStringVal(insights, "exim_data", "MSMEs contribute approximately 45% of India's total exports."),
-				"cluster_info":  getStringVal(insights, "cluster_info", "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore."),
+				sections = append(sections, map[string]interface{}{
+					"type":    "key_market_insights",
+					"enabled": true,
+					"data":    insightsData,
+				})
 			}
 		}
 	}
-	if insightsData == nil {
-		insightsData = map[string]interface{}{
-			"market_stats": "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people.",
-			"sector_trends": []interface{}{
-				"Accelerated digitization of supply chains and business processes.",
-				"Increased integration into global value chains through trade associations.",
-				"Government schemes like PLI and Udyam boosting MSME manufacturing.",
-			},
-			"exim_data":    "MSMEs contribute approximately 45% of India's total exports.",
-			"cluster_info": "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore.",
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "key_market_insights",
-		"enabled": true,
-		"data":    insightsData,
-	})
 
 	if v, ok := data["page"].(float64); ok {
 		page = int(v)
