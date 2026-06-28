@@ -82,6 +82,27 @@ func Execute(ctx context.Context, esClient *elasticsearch.Client, queryType mode
 // EXISTING QUERY IMPLEMENTATIONS (Keep all existing ones)
 // ============================================================
 
+func getEntityTypeFilter(entityType string) interface{} {
+	if entityType == "franchise" {
+		return map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []interface{}{
+					map[string]interface{}{"term": map[string]interface{}{"entity_type": "franchise"}},
+					map[string]interface{}{
+						"bool": map[string]interface{}{
+							"must_not": map[string]interface{}{
+								"exists": map[string]interface{}{"field": "entity_type"},
+							},
+						},
+					},
+				},
+				"minimum_should_match": 1,
+			},
+		}
+	}
+	return getEntityTypeFilter(entityType)
+}
+
 func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	entityType, _ := params["entityType"].(string)
 	if entityType == "" {
@@ -92,7 +113,7 @@ func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 					map[string]interface{}{"match_all": map[string]interface{}{}},
 				},
 			},
@@ -232,7 +253,7 @@ func PopularListings(ctx context.Context, esClient *elasticsearch.Client, params
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 					map[string]interface{}{"match_all": map[string]interface{}{}},
 				},
 			},
@@ -363,7 +384,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"must": []interface{}{
-						map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+						getEntityTypeFilter(entityType),
 						map[string]interface{}{
 							"bool": map[string]interface{}{
 								"should":               shouldClauses,
@@ -392,7 +413,7 @@ func RecommendedByIndustry(ctx context.Context, esClient *elasticsearch.Client, 
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 					map[string]interface{}{"match_all": map[string]interface{}{}},
 				},
 			},
@@ -425,7 +446,7 @@ func FranchiseBySlug(ctx context.Context, esClient *elasticsearch.Client, params
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 					map[string]interface{}{
 						"bool": map[string]interface{}{
 							"should": []map[string]interface{}{
@@ -536,7 +557,7 @@ func Recommended(ctx context.Context, esClient *elasticsearch.Client, params map
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 				},
 				"must_not": mustNot,
 			},
@@ -664,7 +685,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"must": []interface{}{
-						map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+						getEntityTypeFilter(entityType),
 						map[string]interface{}{"match": map[string]interface{}{"industry_id": industryId}},
 					},
 				},
@@ -698,7 +719,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"must": []interface{}{
-						map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+						getEntityTypeFilter(entityType),
 						map[string]interface{}{
 							"bool": map[string]interface{}{
 								"should":               shouldClauses,
@@ -737,7 +758,7 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 			"query": map[string]interface{}{
 				"bool": map[string]interface{}{
 					"must": []interface{}{
-						map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+						getEntityTypeFilter(entityType),
 						map[string]interface{}{"term": map[string]interface{}{"industry_id": "00000000-0000-0000-0000-000000000000"}},
 					},
 					"should": []interface{}{
@@ -919,7 +940,7 @@ func SearchWithFilters(ctx context.Context, esClient *elasticsearch.Client, para
 	query["query"] = map[string]interface{}{
 		"bool": map[string]interface{}{
 			"must": []interface{}{
-				map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+				getEntityTypeFilter(entityType),
 				originalQuery,
 			},
 		},
@@ -1299,7 +1320,7 @@ func GetByID(ctx context.Context, esClient *elasticsearch.Client, params map[str
 		"query": map[string]interface{}{
 			"bool": map[string]interface{}{
 				"must": []interface{}{
-					map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+					getEntityTypeFilter(entityType),
 					map[string]interface{}{"term": map[string]interface{}{"_id": franchiseID}},
 				},
 			},
@@ -1326,7 +1347,7 @@ func CountByFilter(ctx context.Context, esClient *elasticsearch.Client, params m
 	query["query"] = map[string]interface{}{
 		"bool": map[string]interface{}{
 			"must": []interface{}{
-				map[string]interface{}{"term": map[string]interface{}{"entity_type": entityType}},
+				getEntityTypeFilter(entityType),
 				originalQuery,
 			},
 		},
