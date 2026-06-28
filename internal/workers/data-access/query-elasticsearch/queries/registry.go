@@ -100,7 +100,11 @@ func getEntityTypeFilter(entityType string) interface{} {
 			},
 		}
 	}
-	return getEntityTypeFilter(entityType)
+	return map[string]interface{}{
+		"term": map[string]interface{}{
+			"entity_type": entityType,
+		},
+	}
 }
 
 func HeroBrands(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
