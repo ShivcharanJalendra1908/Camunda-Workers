@@ -1445,6 +1445,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
+	
 	if len(transformedInsights) > 0 {
 		sections = append(sections, map[string]interface{}{
 			"type":    "market_insights_section",
@@ -1452,6 +1453,33 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			"data":    transformedInsights,
 		})
 	}
+	// 17. featured_business_categories
+	var transformedDetailCategories []interface{}
+	if len(categories) > 0 {
+		for _, item := range categories {
+			if cMap, ok := item.(map[string]interface{}); ok {
+				transformedDetailCategories = append(transformedDetailCategories, map[string]interface{}{
+					"id":       getStringVal(cMap, "id", ""),
+					"name":     getStringVal(cMap, "name", ""),
+					"slug":     getStringVal(cMap, "slug", ""),
+					"icon_url": getStringVal(cMap, "icon_url", "/AssociationImages/FeaturedBusinessCategories/technology.svg"),
+				})
+			}
+		}
+	} else {
+		transformedDetailCategories = []interface{}{
+			map[string]interface{}{"id": "1", "name": "Technology", "slug": "technology", "icon_url": "/AssociationImages/FeaturedBusinessCategories/technology.svg"},
+			map[string]interface{}{"id": "2", "name": "Finance", "slug": "finance", "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg"},
+			map[string]interface{}{"id": "3", "name": "Healthcare", "slug": "healthcare", "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg"},
+			map[string]interface{}{"id": "4", "name": "Manufacturing", "slug": "manufacturing", "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg"},
+		}
+	}
+
+	sections = append(sections, map[string]interface{}{
+		"type":    "featured_business_categories",
+		"enabled": true,
+		"data":    transformedDetailCategories,
+	})
 
 	// 18. category_questions
 	var detailQuestions []interface{}
@@ -1471,12 +1499,10 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			if qm, ok := qItem.(map[string]interface{}); ok {
 				detailQuestions = append(detailQuestions, map[string]interface{}{
 					"question": getStringVal(qm, "question", ""),
-					"answer":   getStringVal(qm, "answer", ""),
 				})
 			} else if qStr, ok := qItem.(string); ok {
 				detailQuestions = append(detailQuestions, map[string]interface{}{
 					"question": qStr,
-					"answer":   "",
 				})
 			}
 		}
@@ -2121,7 +2147,6 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	sections := []interface{}{}
 
 	franchises := h.extractArray(data, "franchises")
-	categories := h.extractArray(data, "categories")
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 	recommended := h.extractArray(data, "recommended")
 	marketInsights := h.extractArray(data, "marketInsights")
@@ -2337,12 +2362,10 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			if qm, ok := qItem.(map[string]interface{}); ok {
 				listingQuestions = append(listingQuestions, map[string]interface{}{
 					"question": getStringVal(qm, "question", ""),
-					"answer":   getStringVal(qm, "answer", ""),
 				})
 			} else if qStr, ok := qItem.(string); ok {
 				listingQuestions = append(listingQuestions, map[string]interface{}{
 					"question": qStr,
-					"answer":   "",
 				})
 			}
 		}
