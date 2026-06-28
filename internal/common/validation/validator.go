@@ -31,13 +31,15 @@ func NewValidator() *Validator {
 // Common validation rules
 var (
 	// UUID validation
+	// UUID validation (Allows any valid UUID, not just v4)
 	IsUUID = ozzo.NewStringRule(func(s string) bool {
 		if s == "" {
 			return true
 		}
-		match, _ := regexp.MatchString(`^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$`, strings.ToLower(s))
+		// A standard UUID has 32 hex chars and 4 hyphens (8-4-4-4-12)
+		match, _ := regexp.MatchString(`(?i)^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`, strings.ToLower(s))
 		return match
-	}, "must be a valid UUID v4")
+	}, "must be a valid UUID")
 
 	// SQL Injection prevention
 	SafeSQLString = ozzo.NewStringRule(func(s string) bool {
