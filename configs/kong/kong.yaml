@@ -357,13 +357,21 @@ services:
             - "wget"
             - "python-requests"
 
+      # - name: opentelemetry
+      #   config:
+      #     endpoint: http://jaeger:4318/v1/traces
+      #     sampling_rate: 0.1
+      #     resource_attributes:
+      #        service.name: kong-api-gateway
+      #        deployment.environment: development
+
       - name: opentelemetry
         config:
-          endpoint: http://jaeger:4318/v1/traces
-          sampling_rate: 0.1
+          endpoint: http://otelcol:4318/v1/traces
+          sampling_rate: 1.0
           resource_attributes:
-             service.name: kong-api-gateway
-             deployment.environment: development
+            service.name: kong-api-gateway
+            deployment.environment: development
 
   # ── Keycloak Service ──────────────────────────────────────────────────
   - name: keycloak
@@ -643,7 +651,6 @@ services:
                 headers:
                   - "X-Forwarded-Proto: https"
 
-
     # ── Backstage Service ────────────────────────────
   - name: backstage
     url: http://backstage-app:7007
@@ -700,7 +707,6 @@ services:
     url: http://operate:8080
 
     routes:
-
       - name: operate-ui
         hosts:
           - operate-dev.lemici.com
