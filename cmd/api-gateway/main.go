@@ -308,10 +308,6 @@ func main() {
 			publicAPI.POST("/ai/discovery", workflowHandler.StartDiscovery)
 		}
 
-		// ── Contact & Forms routes (no guest quota — apply when product decides) ──
-		publicAPI.POST("/contact", workflowHandler.StartContactUs)
-		publicAPI.POST("/forms/:formType/submit", workflowHandler.StartFormSubmission)
-
 		// ========================================================================
 		// OAUTH/OIDC ROUTES - Direct OAuth flow (for future migration from Camunda)
 		// ========================================================================
