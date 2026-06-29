@@ -1529,8 +1529,14 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
 				heroTitle = t
 			}
-			if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
-				heroDescription = d
+			if entityType == "master_franchise" {
+				if d, ok := industryInfo["master_franchise_listing_description"].(string); ok && d != "" {
+					heroDescription = d
+				}
+			} else {
+				if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
+					heroDescription = d
+				}
 			}
 		}
 	} else if multiIndustryTitle != "" {
@@ -1997,7 +2003,12 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	totalCount := int64(0)
 
 	heroTitle := "Business Associations"
-	heroDescription := "Discover associations and networking opportunities in your industry"
+	heroDescription := "Discover top associations, guilds, and councils in your industry. Connect with powerful networks to access policy advocacy, skill development, B2B opportunities, and critical market insights to accelerate your business growth."
+
+	industryInfo := h.extractMap(data, "industryInfo")
+	if desc, ok := industryInfo["association_listing_description"].(string); ok && desc != "" {
+		heroDescription = desc
+	}
 
 	searchParams := h.extractMap(data, "searchParams")
 	multiIndustryTitle := ""
@@ -2007,7 +2018,6 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		}
 	}
 
-	industryInfo := h.extractMap(data, "industryInfo")
 	if len(industryInfo) > 0 {
 		name := ""
 		if n, ok := industryInfo["name"].(string); ok && n != "" {

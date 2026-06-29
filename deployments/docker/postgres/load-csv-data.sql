@@ -38,8 +38,8 @@ CASCADE;
 \echo 'Loading industries data...'
 COPY industries(
     id, name, slug, icon_name, icon_url, image_url, color_hex, color_name,
-    listing_title, listing_description, display_order, is_active, is_featured,
-    meta_title, meta_description, created_at, updated_at
+    listing_title, listing_description, association_listing_description, master_franchise_listing_description,
+    display_order, is_active, is_featured, meta_title, meta_description, created_at, updated_at
 )
 FROM '/csv-data/industries.csv'
 WITH (

@@ -58,8 +58,9 @@ var CityAliases = map[string][]string{
 	"daman and diu": {"Daman and Diu", "daman and diu"},
 	"davangere": {"Davangere", "davangere"},
 	"dehradun": {"Dehradun", "dehradun"},
-	"delhi": {"Delhi", "delhi"},
-	"delhi ncr": {"Delhi NCR", "delhi ncr"},
+	"delhi": {"Delhi", "delhi", "New Delhi", "new delhi", "Delhi NCR", "delhi ncr"},
+	"delhi ncr": {"Delhi NCR", "delhi ncr", "Delhi", "delhi", "New Delhi", "new delhi"},
+	"new delhi": {"New Delhi", "new delhi", "Delhi", "delhi", "Delhi NCR", "delhi ncr"},
 	"dhaka": {"Dhaka", "dhaka"},
 	"dhanbad": {"Dhanbad", "dhanbad"},
 	"dharwad": {"Dharwad", "dharwad"},
@@ -257,8 +258,9 @@ var CityStateMap = map[string]string{
 	"daman and diu": "Daman and Diu",
 	"davangere": "",
 	"dehradun": "Uttarakhand",
-	"delhi": "",
+	"delhi": "Delhi",
 	"delhi ncr": "Delhi",
+	"new delhi": "Delhi",
 	"dhaka": "",
 	"dhanbad": "Jharkhand",
 	"dharwad": "",
@@ -405,7 +407,7 @@ var CityStateMap = map[string]string{
 }
 
 var CityZoneMap = map[string]string{
-	"delhi": "North Indian Cities", "noida": "North Indian Cities",
+	"delhi": "North Indian Cities", "noida": "North Indian Cities", "new delhi": "North Indian Cities",
 	"gurgaon": "North Indian Cities", "gurugram": "North Indian Cities",
 	"lucknow": "North Indian Cities", "agra": "North Indian Cities",
 	"jaipur": "North Indian Cities", "chandigarh": "North Indian Cities",
@@ -462,6 +464,7 @@ var CanonicalCityMap = map[string]string{
 	"bangalore": "bengaluru",
 	"gurgaon":   "gurugram",
 	"delhi":     "delhi ncr",
+	"new delhi": "delhi ncr",
 }
 
 func DetectAllCitiesFromQuery(query string) []string {

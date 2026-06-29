@@ -135,6 +135,8 @@ CREATE TABLE industries (
     color_name VARCHAR(50),
     listing_title VARCHAR(200),
     listing_description TEXT,
+    association_listing_description TEXT,
+    master_franchise_listing_description TEXT,
     display_order INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     is_featured BOOLEAN DEFAULT FALSE,

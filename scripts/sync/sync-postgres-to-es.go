@@ -520,7 +520,7 @@ func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franc
 // ============================================================
 func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 	query := `
-		SELECT id, name, slug, listing_description
+		SELECT id, name, slug, listing_description, association_listing_description, master_franchise_listing_description
 		FROM industries
 		WHERE is_active = true
 		ORDER BY display_order
@@ -535,9 +535,9 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 	count := 0
 	for rows.Next() {
 		var id, name, slug string
-		var description sql.NullString
+		var description, assocDesc, masterDesc sql.NullString
 
-		if err := rows.Scan(&id, &name, &slug, &description); err != nil {
+		if err := rows.Scan(&id, &name, &slug, &description, &assocDesc, &masterDesc); err != nil {
 			continue
 		}
 
@@ -665,15 +665,17 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 
 		// Build document
 		doc := map[string]interface{}{
-			"industry_id":            id,
-			"industry_name":          name,
-			"industry_slug":          slug,
-			"description":            description.String,
-			"categories":             categories,
-			"questions":              questions,
-			"market_insights":        marketInsights,
-			"recommended_franchises": recommended,
-			"updated_at":             time.Now().Format(time.RFC3339),
+			"industry_id":                          id,
+			"industry_name":                        name,
+			"industry_slug":                        slug,
+			"description":                          description.String,
+			"association_listing_description":      assocDesc.String,
+			"master_franchise_listing_description": masterDesc.String,
+			"categories":                           categories,
+			"questions":                            questions,
+			"market_insights":                      marketInsights,
+			"recommended_franchises":               recommended,
+			"updated_at":                           time.Now().Format(time.RFC3339),
 		}
 
 		// Index to ES

@@ -1345,7 +1345,7 @@ func CountByFilter(ctx context.Context, esClient *elasticsearch.Client, params m
 	}
 
 	query := buildSearchQuery(filters)
-	
+
 	// Wrap with entity_type
 	originalQuery := query["query"]
 	query["query"] = map[string]interface{}{
@@ -1356,7 +1356,7 @@ func CountByFilter(ctx context.Context, esClient *elasticsearch.Client, params m
 			},
 		},
 	}
-	
+
 	query["size"] = 0
 
 	return executeQuery(ctx, esClient, "franchise_listings", query)
@@ -1671,7 +1671,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 		cities := strings.Split(loc, ",")
 		seen := make(map[string]bool)
 		var allTerms []string
-		
+
 		for _, city := range cities {
 			cityStr := strings.TrimSpace(city)
 			if cityStr == "" {

@@ -22,6 +22,12 @@
       "description": {
         "type": "text"
       },
+      "association_listing_description": {
+        "type": "text"
+      },
+      "master_franchise_listing_description": {
+        "type": "text"
+      },
       "categories": {
         "type": "nested",
         "properties": {
