@@ -375,7 +375,6 @@ func main() {
 		// UNIFIED ONBOARDING SUBMISSION (V2)
 		// ========================================================================
 		publicAPI.POST("/onboarding/submit/:entityType",
-			middleware.AnonymousInquiryLimiter(redisClient.GetClient(), 50),
 			workflowHandler.StartUnifiedOnboarding)
 
 		// ========================================================================

@@ -49,7 +49,7 @@ api:
       - "X-CSRF-Token"
       - "X-Device-Token"
       - "X-Device-Salt"
-      - "X-AI-Session-ID"
+      - "X-Guest-Session-ID"
     exposeHeaders:
       - "X-Request-ID"
       - "X-RateLimit-Limit"

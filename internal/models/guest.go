@@ -38,14 +38,14 @@ type SessionResult struct {
 
 // QuotaExhaustedError is returned when a guest has used all credits in their window.
 type QuotaExhaustedError struct {
-	Code           string    `json:"code"`           // SIGNUP_REQUIRED
-	Reason         string    `json:"reason"`         // monthly_credits_exhausted
-	CreditsUsed    int       `json:"creditsUsed"`
-	CreditsLimit   int       `json:"creditsLimit"`
-	ResetAt        time.Time `json:"resetAt"`        // when quota resets (1st of next month)
+	Code           string    `json:"code"`            // SIGNUP_REQUIRED
+	Reason         string    `json:"reason"`          // monthly_credits_exhausted
+	CreditsUsed    int       `json:"credits_used"`
+	CreditsLimit   int       `json:"credits_limit"`
+	ResetAt        time.Time `json:"reset_at"`
 	ResetInSeconds int       `json:"reset_in_seconds"`
 	Message        string    `json:"message"`
-	SignupURL      string    `json:"signupUrl"`
+	SignupURL      string    `json:"signup_url"`
 }
 
 func (e *QuotaExhaustedError) Error() string {
