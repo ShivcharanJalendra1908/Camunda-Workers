@@ -903,7 +903,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	digital_presence := getArrayVal(metadata, "digital_presence")
 	transparency := getArrayVal(metadata, "transparency")
 	governance := getMapVal(metadata, "governance")
-	data_and_insights := getMapVal(metadata, "data_and_insights")
+
 	contact_details := getMapVal(metadata, "contact_details")
 
 	// 1. association_hero_info_card
@@ -1410,20 +1410,6 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	})
 
 	// 16. market_insights_section
-	var transformedInsights map[string]interface{}
-	if len(data_and_insights) > 0 {
-		trends := getArrayVal(data_and_insights, "sector_trends")
-		var trendList []interface{}
-		for _, t := range trends {
-			trendList = append(trendList, t)
-		}
-		transformedInsights = map[string]interface{}{
-			"market_stats":  getStringVal(data_and_insights, "market_stats", ""),
-			"sector_trends": trendList,
-			"exim_data":     getStringVal(data_and_insights, "exim_data", ""),
-			"cluster_info":  getStringVal(data_and_insights, "cluster_info", ""),
-		}
-	}
 	if len(marketInsights) > 0 {
 		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
 			sections = append(sections, map[string]interface{}{
