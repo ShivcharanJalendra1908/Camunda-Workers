@@ -1430,18 +1430,11 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			for _, t := range trends {
 				trendList = append(trendList, t)
 			}
-			if len(trendList) == 0 {
-				trendList = []interface{}{
-					"Rising adoption of AI and automation in manufacturing.",
-					"Increased focus on sustainable and green manufacturing practices.",
-					"Growing integration of MSMEs into global supply chains.",
-				}
-			}
 			transformedInsights = map[string]interface{}{
-				"market_stats":  getStringVal(insights, "market_stats", "Karnataka MSME sector contributes 20% to state GDP with over 8 lakh registered units."),
+				"market_stats":  getStringVal(insights, "market_stats", ""),
 				"sector_trends": trendList,
-				"exim_data":     getStringVal(insights, "exim_data", "MSME exports from Karnataka account for approximately $10 billion annually."),
-				"cluster_info":  getStringVal(insights, "cluster_info", "Major clusters include Peenya (manufacturing), Belagavi (foundry), and Hubli (valves/machine tools)."),
+				"exim_data":     getStringVal(insights, "exim_data", ""),
+				"cluster_info":  getStringVal(insights, "cluster_info", ""),
 			}
 		}
 	}
