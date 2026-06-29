@@ -1423,28 +1423,15 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			"exim_data":     getStringVal(data_and_insights, "exim_data", ""),
 			"cluster_info":  getStringVal(data_and_insights, "cluster_info", ""),
 		}
-	} else if len(marketInsights) > 0 {
-		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
-			trends := getArrayVal(insights, "sector_trends")
-			var trendList []interface{}
-			for _, t := range trends {
-				trendList = append(trendList, t)
-			}
-			transformedInsights = map[string]interface{}{
-				"market_stats":  getStringVal(insights, "market_stats", ""),
-				"sector_trends": trendList,
-				"exim_data":     getStringVal(insights, "exim_data", ""),
-				"cluster_info":  getStringVal(insights, "cluster_info", ""),
-			}
-		}
 	}
-	
-	if len(transformedInsights) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "market_insights_section",
-			"enabled": true,
-			"data":    transformedInsights,
-		})
+	if len(marketInsights) > 0 {
+		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
+			sections = append(sections, map[string]interface{}{
+				"type":    "market_insights_section",
+				"enabled": true,
+				"data":    insights,
+			})
+		}
 	}
 	// 17. featured_business_categories
 	var transformedDetailCategories []interface{}
@@ -2408,24 +2395,11 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	// 9. key_market_insights
 	if len(marketInsights) > 0 {
 		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
-			trends := getArrayVal(insights, "sector_trends")
-			var trendList []interface{}
-			for _, t := range trends {
-				trendList = append(trendList, t)
-			}
-			if len(trendList) > 0 {
-				insightsData := map[string]interface{}{
-					"market_stats":  getStringVal(insights, "market_stats", ""),
-					"sector_trends": trendList,
-					"exim_data":     getStringVal(insights, "exim_data", ""),
-					"cluster_info":  getStringVal(insights, "cluster_info", ""),
-				}
-				sections = append(sections, map[string]interface{}{
-					"type":    "key_market_insights",
-					"enabled": true,
-					"data":    insightsData,
-				})
-			}
+			sections = append(sections, map[string]interface{}{
+				"type":    "key_market_insights",
+				"enabled": true,
+				"data":    insights,
+			})
 		}
 	}
 
