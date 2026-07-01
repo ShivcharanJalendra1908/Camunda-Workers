@@ -51,14 +51,14 @@ fi
 # --------------------------------------------------
 # Step 3: Franchises schema
 # --------------------------------------------------
-if [ -f "/docker-entrypoint-initdb.d/30-schema.sql" ]; then
-  echo "📄 Applying franchises schema..."
+if [ -f "/docker-entrypoint-initdb.d/schema-v2.sql" ]; then
+  echo "📄 Applying franchises schema v2..."
   psql -v ON_ERROR_STOP=1 \
     --username "$POSTGRES_USER" \
     --dbname "franchises" \
-    -f "/docker-entrypoint-initdb.d/30-schema.sql"
+    -f "/docker-entrypoint-initdb.d/schema-v2.sql"
 else
-  echo "❌ 30-schema.sql not found"
+  echo "❌ schema-v2.sql not found"
   exit 1
 fi
 

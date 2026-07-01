@@ -6,6 +6,8 @@
 package queries
 
 import (
+	"camunda-workers/internal/crypto"
+
 	"context"
 	"database/sql"
 	"time"
@@ -16,7 +18,7 @@ import (
 // ============================================================
 
 // UserBookmarks — get all bookmarks for a user (for query-postgresql worker)
-func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	userID, ok := params["userId"].(string)
@@ -94,7 +96,7 @@ func UserBookmarks(ctx context.Context, db *sql.DB, params map[string]interface{
 }
 
 // UserBookmarkCheck — check if a user has bookmarked a specific franchise
-func UserBookmarkCheck(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func UserBookmarkCheck(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	userID, ok := params["userId"].(string)
@@ -137,7 +139,7 @@ func UserBookmarkCheck(ctx context.Context, db *sql.DB, params map[string]interf
 // ============================================================
 
 // UserRatingForFranchise — get a specific user's rating for a franchise
-func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	userID, ok := params["userId"].(string)
@@ -187,7 +189,7 @@ func UserRatingForFranchise(ctx context.Context, db *sql.DB, params map[string]i
 }
 
 // FranchiseRatings — get all ratings for an entity with avg
-func FranchiseRatings(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseRatings(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	entityID, ok := params["entityId"].(string)
@@ -268,7 +270,7 @@ func FranchiseRatings(ctx context.Context, db *sql.DB, params map[string]interfa
 // ============================================================
 
 // UserShareHistory — get share history for a user
-func UserShareHistory(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func UserShareHistory(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	userID, ok := params["userId"].(string)

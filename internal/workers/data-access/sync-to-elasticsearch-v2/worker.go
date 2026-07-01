@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"camunda-workers/internal/common/logger"
+	"camunda-workers/internal/crypto"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
 	"github.com/elastic/go-elasticsearch/v8"
@@ -16,7 +17,8 @@ import (
 const TaskType = "sync-to-elasticsearch-v2"
 
 type Config struct {
-	Timeout time.Duration `mapstructure:"timeout"`
+	Timeout       time.Duration `mapstructure:"timeout"`
+	EncryptionKey string        `mapstructure:"encryption_key"`
 }
 
 type Handler struct {
@@ -24,14 +26,26 @@ type Handler struct {
 	db     *sql.DB
 	es     *elasticsearch.Client
 	logger logger.Logger
+	encryptor *crypto.Encryptor
 }
 
 func NewHandler(cfg *Config, db *sql.DB, es *elasticsearch.Client, log logger.Logger) *Handler {
+	var encryptor *crypto.Encryptor
+	if cfg.EncryptionKey != "" {
+		enc, err := crypto.NewEncryptor(cfg.EncryptionKey)
+		if err == nil {
+			encryptor = enc
+		} else {
+			log.Warn("Failed to initialize encryptor", map[string]interface{}{"error": err.Error()})
+		}
+	}
+
 	return &Handler{
-		config: cfg,
-		db:     db,
-		es:     es,
-		logger: log.WithFields(map[string]interface{}{"worker": TaskType}),
+		config:    cfg,
+		db:        db,
+		es:        es,
+		logger:    log.WithFields(map[string]interface{}{"worker": TaskType}),
+		encryptor: encryptor,
 	}
 }
 

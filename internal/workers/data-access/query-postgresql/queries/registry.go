@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"camunda-workers/internal/crypto"
 	"camunda-workers/internal/models"
 )
 
@@ -16,7 +17,7 @@ var (
 )
 
 // QueryFunc returns: data, rowCount, executionTime (ms), error
-type QueryFunc func(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error)
+type QueryFunc func(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error)
 
 var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeFranchiseFullDetails:  FranchiseFullDetails,
@@ -59,10 +60,10 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeGetUserShares:       UserShareHistory,
 }
 
-func Execute(ctx context.Context, db *sql.DB, queryType models.QueryType, params map[string]interface{}) (interface{}, int, int64, error) {
+func Execute(ctx context.Context, db *sql.DB, queryType models.QueryType, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	fn, exists := Registry[queryType]
 	if !exists {
 		return nil, 0, 0, fmt.Errorf("%w: %s", ErrUnknownQueryType, queryType)
 	}
-	return fn(ctx, db, params)
+	return fn(ctx, db, params, encryptor)
 }

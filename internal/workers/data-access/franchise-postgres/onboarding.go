@@ -55,10 +55,10 @@ func (h *Handler) handleCreatePendingEntity(ctx context.Context, variables strin
 	}
 
 	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	
+
 	// Create idempotency key based on email and name to avoid duplicate pending records
 	idempotencyKey := fmt.Sprintf("create_pending_%s_%s", email, slug)
-	
+
 	// Check idempotency
 	result, err := h.idempotencyChecker.Check(ctx, idempotencyKey)
 	if err != nil && err.Error() != "duplicate request detected" && err.Error() != "request already processing" {
@@ -98,38 +98,78 @@ func (h *Handler) handleCreatePendingEntity(ctx context.Context, variables strin
 		}
 	}
 
+	var encryptedEmail string
+	if email != "" {
+		if h.encryptor == nil {
+			return nil, fmt.Errorf("encryptor not initialized")
+		}
+		enc, err := h.encryptor.Encrypt([]byte(email))
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt email: %v", err)
+		}
+		encryptedEmail = enc
+	}
+
 	query := `
-		INSERT INTO franchises (
-			name, slug, contact_email, entity_type, status, created_at, updated_at, trusted_seller, verified, total_outlets, units_count, member_count, membership_fee_min, membership_fee_max
+		INSERT INTO listings (
+			name, slug, contact_email, entity_type, status, created_at, updated_at, created_by
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, false, false, 0, 0, $8, $9, $10
+			$1, $2, $3, $4, $5, $6, $7, $8
 		) RETURNING id`
 
-	var franchiseID uuid.UUID
+	var listingID uuid.UUID
 	now := time.Now()
+	systemUserID := "00000000-0000-0000-0000-000000000001" // System user for pending guest entities
 
 	err = tx.QueryRowContext(ctx, query,
 		h.sanitizer.SanitizeString(name),
 		h.sanitizer.SanitizeString(slug),
-		h.sanitizer.SanitizeString(email),
+		encryptedEmail,
 		entityType,
 		"pending",
 		now,
 		now,
-		memberCount,
-		membershipFeeMin,
-		membershipFeeMax,
-	).Scan(&franchiseID)
+		systemUserID,
+	).Scan(&listingID)
 
 	if err != nil {
-		return nil, fmt.Errorf("%w: insert pending entity: %v", ErrDatabaseError, err)
+		return nil, fmt.Errorf("%w: insert pending listing: %v", ErrDatabaseError, err)
+	}
+
+	// Insert into child table
+	switch entityType {
+	case "association":
+		var assocType, sectorRep, memberType, memberSizeClass string
+		if val, ok := input.FormData["association_type"].(string); ok { assocType = val }
+		if val, ok := input.FormData["sector_represented"].(string); ok { sectorRep = val }
+		if val, ok := input.FormData["member_type"].(string); ok { memberType = val }
+		if val, ok := input.FormData["member_size_classification"].(string); ok { memberSizeClass = val }
+
+		assocQuery := `INSERT INTO associations (id, member_count, membership_fee_min, membership_fee_max, association_type, sector_represented, member_type, member_size_classification) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		_, err = tx.ExecContext(ctx, assocQuery, listingID, memberCount, membershipFeeMin, membershipFeeMax, assocType, sectorRep, memberType, memberSizeClass)
+		if err != nil {
+			return nil, fmt.Errorf("%w: insert association child: %v", ErrDatabaseError, err)
+		}
+	case "master_franchise":
+		mfQuery := `INSERT INTO master_franchises (id) VALUES ($1)`
+		_, err = tx.ExecContext(ctx, mfQuery, listingID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: insert master_franchise child: %v", ErrDatabaseError, err)
+		}
+	default:
+		// Default to franchise
+		franQuery := `INSERT INTO franchises (id, total_outlets, units_count) VALUES ($1, 0, 0)`
+		_, err = tx.ExecContext(ctx, franQuery, listingID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: insert franchise child: %v", ErrDatabaseError, err)
+		}
 	}
 
 	// Store association_metadata if it's an association
 	if entityType == "association" {
 		metadataJSON, _ := json.Marshal(input.FormData)
-		updateQuery := `UPDATE franchises SET association_metadata = $1 WHERE id = $2`
-		_, err = tx.ExecContext(ctx, updateQuery, metadataJSON, franchiseID)
+		updateQuery := `UPDATE associations SET association_metadata = $1 WHERE id = $2`
+		_, err = tx.ExecContext(ctx, updateQuery, metadataJSON, listingID)
 		if err != nil {
 			h.logger.Warn("Failed to insert association_metadata", map[string]interface{}{"error": err.Error()})
 		}
@@ -142,8 +182,8 @@ func (h *Handler) handleCreatePendingEntity(ctx context.Context, variables strin
 				docType, _ := doc["type"].(string)
 				s3Url, _ := doc["url"].(string)
 				if docType != "" && s3Url != "" {
-					docQuery := `INSERT INTO franchise_documents (franchise_id, document_type, s3_url) VALUES ($1, $2, $3)`
-					_, err = tx.ExecContext(ctx, docQuery, franchiseID, h.sanitizer.SanitizeString(docType), h.sanitizer.SanitizeString(s3Url))
+					docQuery := `INSERT INTO listing_documents (listing_id, document_type, s3_url) VALUES ($1, $2, $3)`
+					_, err = tx.ExecContext(ctx, docQuery, listingID, h.sanitizer.SanitizeString(docType), h.sanitizer.SanitizeString(s3Url))
 					if err != nil {
 						h.logger.Warn("Failed to insert franchise document", map[string]interface{}{"error": err.Error(), "type": docType})
 					}
@@ -163,7 +203,7 @@ func (h *Handler) handleCreatePendingEntity(ctx context.Context, variables strin
 	}
 
 	return map[string]interface{}{
-		"franchiseId": franchiseID.String(),
+		"franchiseId": listingID.String(),
 		"success":     true,
 	}, nil
 }
@@ -202,9 +242,9 @@ func (h *Handler) handleUpdateStatus(ctx context.Context, variables string) (map
 	}
 
 	docQuery := `
-		UPDATE franchise_documents
+		UPDATE listing_documents
 		SET status = $1, rejection_reason = $2, updated_at = $3
-		WHERE franchise_id = $4
+		WHERE listing_id = $4
 	`
 
 	_, err = tx.ExecContext(ctx, query,

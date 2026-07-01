@@ -1,4 +1,6 @@
 // scripts/generate-jwt.go
+//go:build ignore
+
 package main
 
 import (

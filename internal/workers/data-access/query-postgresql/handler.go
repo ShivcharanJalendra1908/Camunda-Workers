@@ -14,6 +14,7 @@ import (
 	appErrs "camunda-workers/internal/common/errors"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/validation"
+	"camunda-workers/internal/crypto"
 	"camunda-workers/internal/models"
 	"camunda-workers/internal/workers/data-access/query-postgresql/queries"
 
@@ -41,9 +42,22 @@ type Handler struct {
 	errorHandler *appErrs.ErrorHandler
 	validator    *validation.Validator
 	sanitizer    *validation.Sanitizer
+	encryptor    *crypto.Encryptor
 }
 
 func NewHandler(config *Config, db *sql.DB, log logger.Logger) *Handler {
+	var encryptor *crypto.Encryptor
+	if config.EncryptionKey != "" {
+		enc, err := crypto.NewEncryptor(config.EncryptionKey)
+		if err == nil {
+			encryptor = enc
+		} else {
+			log.Warn("Failed to initialize encryptor", map[string]interface{}{"error": err.Error()})
+		}
+	} else {
+		log.Warn("EncryptionKey not provided in config", nil)
+	}
+
 	return &Handler{
 		config:       config,
 		db:           db,
@@ -51,6 +65,7 @@ func NewHandler(config *Config, db *sql.DB, log logger.Logger) *Handler {
 		errorHandler: appErrs.NewErrorHandler(log),
 		validator:    validation.NewValidator(),
 		sanitizer:    validation.NewSanitizer(),
+		encryptor:    encryptor,
 	}
 }
 
@@ -648,7 +663,7 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	)
 
 	// Execute query
-	data, rowCount, execTime, err := queries.Execute(ctx, h.db, queryType, params)
+	data, rowCount, execTime, err := queries.Execute(ctx, h.db, queryType, params, h.encryptor)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, appErrs.NewQueryTimeoutError(string(queryType))

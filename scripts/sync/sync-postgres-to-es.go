@@ -190,42 +190,44 @@ func (m *SyncManager) syncHomeIndex(ctx context.Context) error {
 // ============================================================
 func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 	query := `
-        SELECT DISTINCT ON (f.id)
-            f.id,
-            f.name,
-            f.slug,
-            f.founded_year,
+        SELECT DISTINCT ON (l.id)
+            l.id,
+            l.name,
+            l.slug,
+            f.established_year as founded_year,
             f.total_outlets,
-            f.short_description,
-            f.logo_url_circle,
-            f.logo_url_square,
-            COALESCE(fs.rating, 0) as rating,
+            l.short_description,
+            l.logo_url_circle,
+            l.logo_url_square,
+            COALESCE(ls.rating, 0) as rating,
             i.id as industry_id,
             i.name as industry_name,
             i.slug as industry_slug,
             i.color_hex as industry_color,
 			i.image_url as industry_image_url,
-			f.entity_type,
-			f.member_count,
-			f.membership_fee_min,
-			f.membership_fee_max,
-			f.association_metadata,
-			f.is_sponsored,
-			f.is_featured,
-			f.featured_order,
-			f.featured_start_at,
-			f.featured_expires_at,
-			f.status,
-			f.verified,
-			f.trusted_seller,
-			f.website_url
-        FROM franchises f
-        LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
-        LEFT JOIN franchise_categories fc ON f.id = fc.franchise_id
-        LEFT JOIN categories c ON fc.category_id = c.id
+			l.entity_type,
+			a.member_count,
+			a.membership_fee_min,
+			a.membership_fee_max,
+			json_build_object('association_type', a.association_type, 'sector_represented', a.sector_represented, 'member_type', a.member_type, 'member_size_classification', a.member_size_classification) as association_metadata,
+			l.is_sponsored,
+			l.is_featured,
+			l.featured_order,
+			l.featured_start_at,
+			l.featured_expires_at,
+			l.status,
+			l.verified,
+			l.trusted_seller,
+			l.website_url
+        FROM listings l
+        LEFT JOIN franchises f ON l.id = f.id
+        LEFT JOIN associations a ON l.id = a.id
+        LEFT JOIN listing_stats ls ON l.id = ls.listing_id
+        LEFT JOIN listing_categories lc ON l.id = lc.listing_id
+        LEFT JOIN categories c ON lc.category_id = c.id
         LEFT JOIN industries i ON c.industry_id = i.id
         WHERE i.id IS NOT NULL
-        ORDER BY f.id, fc.is_primary DESC NULLS LAST, fc.created_at ASC
+        ORDER BY l.id, lc.is_primary DESC NULLS LAST, lc.created_at ASC
     `
 
 	rows, err := m.db.QueryContext(ctx, query)
@@ -278,7 +280,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		// Location & Country
 		var location, country string
 		m.db.QueryRowContext(ctx,
-			"SELECT city, COALESCE(country, 'India') FROM franchise_cities WHERE franchise_id = $1 LIMIT 1",
+			"SELECT city, COALESCE(country, 'India') FROM listing_cities WHERE listing_id = $1 LIMIT 1",
 			id,
 		).Scan(&location, &country)
 		if country == "" {
@@ -485,10 +487,10 @@ func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franc
 	// Categories + subcategories from DB
 	rows, err := m.db.QueryContext(ctx, `
         SELECT c.name, sc.name
-        FROM franchise_categories fc
+        FROM listing_categories lc
         INNER JOIN categories c ON fc.category_id = c.id
         LEFT JOIN sub_categories sc ON fc.sub_category_id = sc.id
-        WHERE fc.franchise_id = $1
+        WHERE lc.listing_id = $1
         ORDER BY fc.is_primary DESC
     `, franchiseID)
 	if err == nil {
@@ -593,14 +595,14 @@ func (m *SyncManager) syncIndustriesIndex(ctx context.Context) error {
 
 		// Get recommended franchises (top 6 by rating)
 		recQuery := `
-			SELECT f.id, f.name, i.name as industry_name, i.image_url as industry_image_url
-			FROM franchises f
-			INNER JOIN franchise_categories fc ON f.id = fc.franchise_id
-			INNER JOIN categories c ON fc.category_id = c.id
+			SELECT l.id, l.name, i.name as industry_name, i.image_url as industry_image_url
+			FROM listings l
+			INNER JOIN listing_categories lc ON l.id = lc.listing_id
+			INNER JOIN categories c ON lc.category_id = c.id
 			INNER JOIN industries i ON c.industry_id = i.id
-			LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
+			LEFT JOIN listing_stats ls ON l.id = ls.listing_id
 			WHERE i.id = $1
-			ORDER BY fs.rating DESC NULLS LAST
+			ORDER BY ls.rating DESC NULLS LAST
 			LIMIT 6
 		`
 
@@ -1013,9 +1015,9 @@ func cleanDescription(desc string) string {
 func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []map[string]interface{} {
 	query := `
         SELECT c.id, c.name, c.slug, c.icon_url, c.image_url
-        FROM franchise_categories fc
+        FROM listing_categories lc
         INNER JOIN categories c ON fc.category_id = c.id
-        WHERE fc.franchise_id = $1 AND c.is_active = true
+        WHERE lc.listing_id = $1 AND c.is_active = true
         ORDER BY fc.is_primary DESC, c.display_order
     `
 
@@ -1051,9 +1053,9 @@ func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []m
 func (m *SyncManager) getSubCategories(ctx context.Context, franchiseID string) []map[string]interface{} {
 	query := `
         SELECT sc.id, sc.name, sc.slug, sc.category_id
-        FROM franchise_categories fc
+        FROM listing_categories lc
         INNER JOIN sub_categories sc ON fc.sub_category_id = sc.id
-        WHERE fc.franchise_id = $1
+        WHERE lc.listing_id = $1
           AND fc.sub_category_id IS NOT NULL
           AND sc.is_active = true
         ORDER BY fc.is_primary DESC, sc.display_order

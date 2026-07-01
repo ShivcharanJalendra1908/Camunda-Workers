@@ -1,0 +1,360 @@
+id,reference_id,entity_type,question,intent_tag,created_at
+1f40873b-0e2d-4a2d-9e5f-91b3a1896345,524d8a44-f7da-4cbd-9c94-c417ecf4027a,franchise,How is this [Franchise Category] franchise positioned in the current market?,general,2026-01-11 17:43:57
+b137c2df-40d5-4003-880d-e7c57409ed95,524d8a44-f7da-4cbd-9c94-c417ecf4027a,franchise,What key factors influence customer preference for this brand?,general,2026-01-11 17:43:57
+4228f666-edb4-454c-9908-50f77425a314,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,How strong is the brand’s recognition and trust at a national level?,general,2026-01-11 17:43:57
+d14e9ae2-8e9c-49e5-952f-9a1dbe5b1e4a,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,How does the franchise differentiate itself from competitors in this category?,general,2026-01-11 17:43:57
+02f0a409-19db-4b5f-8eb0-0a333d505d3c,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What major market or industry trends impact this [Franchise Category]?,general,2026-01-11 17:43:57
+745fd866-be4e-4d23-9e01-dce73153706a,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,How transparent and collaborative is the relationship between franchisor and franchisees?,general,2026-01-11 17:43:57
+e98e28bd-608a-45a9-bef2-c149ce570de1,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What external risks or regulatory factors could affect long-term brand growth?,general,2026-01-11 17:43:57
+b7abd221-0aaf-4ee3-ab9e-7d22ac9b8544,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,How sustainable and scalable is the franchise model in the long term?,general,2026-01-11 17:43:57
+550e8400-e29b-41d4-a716-446655440001,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,What is the investment required for automobile service franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440002,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,Do I need automotive technical knowledge to run this franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440003,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,How much workshop space is needed for automobile franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440004,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,What equipment and tools are provided by the franchisor?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440005,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,Are there location requirements near highways or main roads?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440006,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,Do automobile franchises provide technical training?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440007,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,What certifications are required for automobile service centers?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440008,5ed3c109-2d23-4148-a019-f347fda26ed4,franchise,Can the franchise service multiple vehicle brands?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440009,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,What is the initial investment for salon franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440010,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,Do beauty franchises require beautician certifications?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440011,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,How many chairs or stations are needed in a salon?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440012,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,What products and supplies are included in the franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440013,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,Are there exclusive territory rights for beauty franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440014,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,What staff training is provided by beauty franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440015,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,Can beauty franchises offer additional services like spa?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440016,42467fa8-06f1-4047-baf5-212e10ea66d8,franchise,What are the typical working hours for salon franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440017,f26791cd-9656-452d-8326-9b9296125906,franchise,What health and wellness franchise models are trending?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440018,f26791cd-9656-452d-8326-9b9296125906,franchise,Do health franchises require medical certifications?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440019,f26791cd-9656-452d-8326-9b9296125906,franchise,What is the initial investment for diagnostic center franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440020,f26791cd-9656-452d-8326-9b9296125906,franchise,How much space is required for a wellness center?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440021,f26791cd-9656-452d-8326-9b9296125906,franchise,What equipment costs are involved in health franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440022,f26791cd-9656-452d-8326-9b9296125906,franchise,Are there regulatory approvals needed for health franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440023,f26791cd-9656-452d-8326-9b9296125906,franchise,Do wellness franchises provide staff training?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440024,f26791cd-9656-452d-8326-9b9296125906,franchise,What is the customer retention rate in wellness businesses?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440025,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,What types of business services franchises are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440026,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,What is the initial investment for business service franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440027,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,Do I need industry-specific expertise to run the franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440028,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,What is the typical office space requirement?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440029,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,How many staff members are needed for operations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440030,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,What technology platforms are provided by franchisors?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440031,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,Are there recurring revenue opportunities in this sector?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440032,c39ecac8-9a1f-4ad3-af64-069b9b315926,franchise,What marketing support do business service franchises provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440033,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,What is the investment for dealer and distributor franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440034,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,How much warehouse space is required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440035,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,What inventory investment is needed upfront?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440036,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,Do franchisors provide inventory on credit terms?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440037,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,What are the typical profit margins for distributors?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440038,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,Are there exclusive territory rights granted?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440039,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,What logistics and transportation support is provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440040,cc637398-2762-4b5b-a999-c1a8c5567cfe,franchise,How is inventory management handled in dealerships?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440041,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,What types of education franchises are most successful in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440042,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,How much space is needed for a tutoring center franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440043,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,What qualifications are required to run an education franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440044,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,Do education franchises provide curriculum and teaching materials?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440045,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,What is the typical student capacity for education franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440046,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,Are education franchises profitable year-round or seasonal?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440047,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,What technology infrastructure is required for education franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440048,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,franchise,Can education franchises be operated from home or online?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440049,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,What is the initial investment required for a fashion franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440050,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,How much retail space is needed for apparel franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440051,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,What are the most popular fashion franchise categories?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440052,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,Do fashion franchises provide inventory on consignment?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440053,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,What is the expected profit margin in fashion retail?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440054,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,Are online sales channels included in franchise agreements?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440055,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,What marketing support do fashion franchises provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440056,3b1b6be7-d616-4c46-a470-2a2fc1d16691,franchise,How seasonal is the fashion franchise business?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440057,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,What are the most profitable food franchise models in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440058,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,How much space is typically required for a QSR franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440059,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,What is the average ROI timeline for food and beverage franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440060,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,Are there specific location requirements for restaurant franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440061,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,What staff size is needed to operate a food franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440062,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,Do food franchises provide training and ongoing support?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440063,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,What are the typical royalty fees for food franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440064,7b332bd1-117a-4b40-92a1-aa8c5267a02b,franchise,Can food franchises operate from cloud kitchens or mobile units?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440065,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,What home-based business franchises have low investment?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440066,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,Can I run a home-based franchise part-time?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440067,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,What are the zoning and legal requirements for home businesses?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440068,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,Do home-based franchises provide online training?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440069,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,What marketing support is available for home businesses?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440070,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,How much space is needed within the home?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440071,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,What are the typical revenue expectations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440072,1e4a2772-e991-4e90-b77b-2724809f5dbc,franchise,Can home-based franchises scale to commercial locations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440073,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,What is the investment for hotel franchises in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440074,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,What property size is required for budget hotels?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440075,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,Do hotel franchises provide staff training?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440076,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,What are the location requirements for hotel franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440077,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,"What technology systems are provided (booking, PMS)?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440078,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,How do revenue sharing models work in hospitality?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440079,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,What brand standards must be maintained?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440080,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,franchise,Are there minimum occupancy guarantees?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440081,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,What are the different types of retail franchises available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440082,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,How much inventory investment is required upfront?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440083,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,What retail space size is ideal for different categories?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440084,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,Do retail franchises provide inventory on credit?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440085,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,What is the typical profit margin in retail franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440086,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,Are there exclusive territorial rights in retail franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440087,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,What point-of-sale systems do retail franchises use?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440088,ae11be80-bea3-4d0e-a35a-c964451b1a20,franchise,How do retail franchises handle returns and exchangs?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440089,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,What is the average investment for a gym franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440090,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,How much space is needed for a fitness studio?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440091,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,Do fitness franchises provide certified trainers?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440092,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,What equipment is included in the franchise package?,general,206-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440093,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,Are there membership sales targets for fitness frachises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440094,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,What marketing support do fitness franchises provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440095,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,Can fitness franchises operate 24/7 or have flexible hours?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440096,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,franchise,What is the break-even timeline for gym franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440097,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,What entertainment franchise models are most popular?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440098,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,What is the initial investment for entertainment franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440099,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,How much space is required for gaming or activity centers?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440100,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,What equipment and technology is provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440101,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,Are there location requirements (malls vs standalone)?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440102,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,What safety certifications are required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440103,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,How seasonal is the entertainment business?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440104,a28de9c3-9d0d-4058-8782-1211f20ffd1d,franchise,What marketing and promotional support is provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440105,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What government service franchises are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440106,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What is the investment for CSC (Common Service Center)?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440107,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What certifications are required for government services?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440108,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What technology infrastructure is needed?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440109,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What are the revenue models for government services?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440110,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,Is training provided for government schemes and services?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440111,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,What documentation and compliance is required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440112,f494351f-bfb3-411d-a178-d1905bd0616e,franchise,Are there location requirements for service centers?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440113,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,What is the investment for real estate franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440114,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,Do I need a real estate agent license?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440115,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,What office space is required for rea estate agencies?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440116,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,"What technology platforms are provided (CRM, listings)?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440117,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,How do commission structures work?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440118,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,What training is provided on propertylaws and RERA?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440119,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,Are there exclusive territory rights?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440120,1a821422-d8eb-484f-a280-8af8f6b79144,franchise,What marketing and lead generation support is available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440121,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What IT service franchises are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440122,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What is the initial investment for technology franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440123,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What technical expertise is required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440124,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What training and certifications are provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440125,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What recurring revenue opportunities exist?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440126,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What technology platforms and tools are included?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440127,64fd1516-f032-4630-8a79-e347851f2e18,franchise,Can IT franchises be operated remotely?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440128,64fd1516-f032-4630-8a79-e347851f2e18,franchise,What client acquisition support is provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440129,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What finance franchise opportunities are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440130,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What is the investment for financial services franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440131,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What licenses and certifications are required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440132,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,"What products can be offered (loans, insurance, mutual funds)?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440133,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What training is provided on financial products?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440134,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,How do commission structures work?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440135,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What technology platforms are provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440136,4a104cba-ccd3-4f86-b204-2277660117eb,franchise,What compliance and regulatory support is available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440137,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What logistics franchise models are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440138,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What is the investment for logistics franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440139,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What warehouse or office space is required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440140,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What vehicles and equipment are needed?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440141,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What technology platforms are provided for operations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440142,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,How do revenue models work in logistics?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440143,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,What training is provided for operations and compliance?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440144,26d2b88d-ddbf-45b7-a016-9379064270a9,franchise,Are there territorial rights in logistics franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440145,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What agriculture franchises are available in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440146,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What is the investment for agriculture franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440147,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,Do I need farming experience to run the franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440148,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What land or space is required?,general,2026-01-30 10:0:00
+550e8400-e29b-41d4-a716-446655440149,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What products or services are offered?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440150,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What training and technical support is provided?,general,2026-1-30 10:00:00
+550e8400-e29b-41d4-a716-446655440151,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,What are the market opportunities in rural areas,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440152,985ff825-8855-4dec-9615-6d83578ef2cf,franchise,Are there government subsidies available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440153,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What media and communication franchises are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440154,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What is the investment for media franchises?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440155,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What technical skills or experience are required?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440156,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What equipment and software are provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440157,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What training is provided for content creation?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440158,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,How do client acquisition and retention work?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440159,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,Can media franchises be operated remotely?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440160,e42b13ce-89ed-481f-98ab-36ac53927ee4,franchise,What ongoing support and updates are provided?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440201,00000000-0000-0000-0000-000000000000,franchise,What is the total investment required to start a franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440202,00000000-0000-0000-0000-000000000000,franchise,How long does it take to break even in a franchise business?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440203,00000000-0000-0000-0000-000000000000,franchise,What ongoing support does the franchisor provide after signing?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440204,00000000-0000-0000-0000-000000000000,franchise,Are there exclusive territory rights available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440205,00000000-0000-0000-0000-000000000000,franchise,What are the royalty fees and ongoing charges?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440206,00000000-0000-0000-0000-000000000000,franchise,What is the franchise agreement duration and renewal terms?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440207,00000000-0000-0000-0000-000000000000,franchise,Can I own multiple outlets of the same franchise?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440208,00000000-0000-0000-0000-000000000000,franchise,How do I evaluate if a franchise is the right fit for me?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440209,00000000-0000-0000-0000-000000000000,franchise,Which franchises can be started under 5 lakhs?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440210,00000000-0000-0000-0000-000000000000,franchise,Can I run a low-investment franchise part-time?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440211,00000000-0000-0000-0000-000000000000,franchise,What is the minimum space needed for budget franchises?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440212,00000000-0000-0000-0000-000000000000,franchise,Are there home-based franchise options available?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440213,00000000-0000-0000-0000-000000000000,franchise,Do low-cost franchises offer financing support?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440214,00000000-0000-0000-0000-000000000000,franchise,How do I find the best franchise for my city?,location-based,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440215,00000000-0000-0000-0000-000000000000,franchise,Are there location-specific territory restrictions?,location-based,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440216,00000000-0000-0000-0000-000000000000,franchise,Which franchises are actively expanding in Tier 2/3 cities?,location-based,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440217,00000000-0000-0000-0000-000000000000,franchise,Does the franchisor provide local marketing support?,location-based,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440218,00000000-0000-0000-0000-000000000000,franchise,What are the footfall and demographic requirements for my area?,location-based,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440219,00000000-0000-0000-0000-000000000000,franchise,What is the average ROI timeline across franchise categories?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440220,00000000-0000-0000-0000-000000000000,franchise,Which franchise categories have the highest profit margins?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440221,00000000-0000-0000-0000-000000000000,franchise,How do I evaluate a franchise financial performance before investing?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440222,00000000-0000-0000-0000-000000000000,franchise,What hidden costs should I watch out for?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440223,00000000-0000-0000-0000-000000000000,franchise,Are there franchises with guaranteed returns or buyback options?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440301,00000000-0000-0000-0000-000000000000,association,What is the membership fee or joining cost to become a member of this association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440302,00000000-0000-0000-0000-000000000000,association,What ongoing support and benefits does the association provide to its members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440303,00000000-0000-0000-0000-000000000000,association,Are there exclusive regional or city-wise chapters available to join?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440304,00000000-0000-0000-0000-000000000000,association,What is the membership agreement duration and renewal process?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440305,00000000-0000-0000-0000-000000000000,association,How do I evaluate if this association is the right fit for my business?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440306,00000000-0000-0000-0000-000000000000,association,Which associations offer low-cost or no-cost membership options?,low-investment,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440307,00000000-0000-0000-0000-000000000000,association,What is the average ROI or business value timeline after joining an association?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440308,00000000-0000-0000-0000-000000000000,association,What hidden costs or commitments should I watch out for before joining?,roi-focused,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440309,5ed3c109-2d23-4148-a019-f347fda26ed4,association,What is the membership investment required for automotive industry associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030a,5ed3c109-2d23-4148-a019-f347fda26ed4,association,Do I need automotive technical knowledge to participate actively?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030b,5ed3c109-2d23-4148-a019-f347fda26ed4,association,How much workspace or showroom area is needed to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030c,5ed3c109-2d23-4148-a019-f347fda26ed4,association,"What equipment, tools, or resource support does the association provide?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030d,5ed3c109-2d23-4148-a019-f347fda26ed4,association,Are there location-based requirements for chapter membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030e,5ed3c109-2d23-4148-a019-f347fda26ed4,association,Do automotive associations provide technical training to members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544030f,5ed3c109-2d23-4148-a019-f347fda26ed4,association,What certifications are required for automotive service center membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440310,5ed3c109-2d23-4148-a019-f347fda26ed4,association,Can members service or represent multiple vehicle brands?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440311,42467fa8-06f1-4047-baf5-212e10ea66d8,association,What is the initial membership investment for beauty and salon associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440312,42467fa8-06f1-4047-baf5-212e10ea66d8,association,Do beauty associations require beautician certifications for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440313,42467fa8-06f1-4047-baf5-212e10ea66d8,association,How many chairs or stations are typically expected for salon membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440314,42467fa8-06f1-4047-baf5-212e10ea66d8,association,"What products, supplies, or kits are provided to association members?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440315,42467fa8-06f1-4047-baf5-212e10ea66d8,association,Are there exclusive territory rights for beauty association chapters?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440316,42467fa8-06f1-4047-baf5-212e10ea66d8,association,What staff training programs do beauty associations facilitate?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440317,42467fa8-06f1-4047-baf5-212e10ea66d8,association,Can members offer additional services like spa or wellness?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440318,42467fa8-06f1-4047-baf5-212e10ea66d8,association,What are the typical working hour norms for active members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440319,f26791cd-9656-452d-8326-9b9296125906,association,What are the membership fees for health and wellness associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031a,f26791cd-9656-452d-8326-9b9296125906,association,Do health associations require medical qualifications or certifications?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031b,f26791cd-9656-452d-8326-9b9296125906,association,What minimum clinic or center setup is needed for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031c,f26791cd-9656-452d-8326-9b9296125906,association,"What equipment, protocols, or resources does the association provide?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031d,f26791cd-9656-452d-8326-9b9296125906,association,Are there exclusive territory rights for health association chapters?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031e,f26791cd-9656-452d-8326-9b9296125906,association,What training and CME programs do health associations offer?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544031f,f26791cd-9656-452d-8326-9b9296125906,association,Can members offer additional wellness services like ayurveda or nutrition?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440320,f26791cd-9656-452d-8326-9b9296125906,association,What compliance and regulatory requirements apply to health members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440321,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,How transparent and collaborative is the association with its members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440322,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,What is the initial membership investment for business service associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440323,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,Do I need industry-specific expertise to join and participate?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440324,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,What is the typical office or operational setup expected of members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440325,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,What technology platforms or tools does the association share with members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440326,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,Are there recurring revenue or contract opportunities through the network?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440327,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,What marketing and promotional support does the association provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440328,c39ecac8-9a1f-4ad3-af64-069b9b315926,association,How many staff members are typically needed to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440329,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,What is the membership investment for dealer and distributor associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032a,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,How much warehouse space is required to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032b,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,What inventory investment is needed to become an active member?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032c,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,Do associations facilitate credit terms or financing for member inventory?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032d,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,What are the typical profit margin benchmarks shared by the association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032e,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,Are there exclusive territory rights for distribution association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544032f,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,What logistics and transportation support does the association provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440330,cc637398-2762-4b5b-a999-c1a8c5567cfe,association,How is inventory management guidance handled for dealer members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440331,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,How sustainable and scalable is the association's model for members long-term?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440332,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,What qualifications are required to run or join an education association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440333,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,How much space is needed for a tutoring center to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440334,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,Do education associations provide curriculum or teaching resources to members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440335,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,What is the typical student or learner capacity expected of members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440336,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,Are education associations active year-round or seasonal in engagement?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440337,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,What technology infrastructure is required for education association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440338,f5fe36f6-02ef-4ca5-b884-30d22b5402cf,association,Can education association members operate from home or online?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440339,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,How does this association differentiate itself from others in the fashion sector?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033a,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,What is the initial membership investment for fashion and apparel associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033b,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,How much retail space is needed for apparel members to qualify?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033c,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,Do fashion associations provide product showcasing or exhibition platforms?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033d,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,What is the expected networking and business value for fashion members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033e,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,Are online sales channels or e-commerce tie-ups included in membership benefits?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544033f,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,What marketing support do fashion associations provide to members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440340,3b1b6be7-d616-4c46-a470-2a2fc1d16691,association,How seasonal is the association's event and activity calendar?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440341,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,What are the most active food and beverage associations in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440342,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,How much space is typically required for QSR businesses to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440343,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,Are there specific location or hygiene requirements for restaurant members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440344,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,What staff size is needed to operate and qualify as a full member?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440345,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,"Do food associations provide training, certifications, and ongoing support?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440346,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,What are the typical membership and participation fees for food associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440347,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,Can cloud kitchen or mobile unit operators join food associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440348,7b332bd1-117a-4b40-92a1-aa8c5267a02b,association,What is the average benefit realization timeline for food association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440349,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,What home-based business associations offer low or no membership fees?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034a,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,Can I participate in home-based association activities part-time?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034b,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,What are the zoning and legal requirements for home-based business members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034c,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,Do home-based associations provide online training and resources?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034d,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,What marketing support is available for home-based members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034e,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,How much home workspace is typically expected for active membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544034f,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,What are the typical business revenue expectations for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440350,1e4a2772-e991-4e90-b77b-2724809f5dbc,association,Can home-based association members scale to commercial operations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440351,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,What is the membership investment for hotel and travel associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440352,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,What property size is required for budget hotel businesses to qualify?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440353,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,Do travel associations provide staff training and certification programs?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440354,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,What are the location requirements for hotel and tourism association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440355,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,"What technology systems (booking, PMS) are recommended or provided?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440356,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,How do revenue sharing or referral models work within travel associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440357,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,What brand or quality standards must members maintain?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440358,d8e835b1-07dd-4279-93b4-5049cfb1c6d6,association,Are there minimum occupancy or performance benchmarks for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440359,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,How strong is the association's brand recognition and credibility nationally?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035a,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,How much inventory investment is expected of retail association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035b,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,What retail space size is ideal for different membership categories?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035c,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,Do retail associations provide inventory financing or bulk procurement support?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035d,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,What is the typical profit margin benchmark shared within retail associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035e,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,Are there exclusive territorial chapters in retail associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544035f,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,What point-of-sale or technology standards do retail associations recommend?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440360,ae11be80-bea3-4d0e-a35a-c964451b1a20,association,How do retail associations handle dispute resolution between members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440361,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,What is the average membership investment for gym and fitness associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440362,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,How much space is needed for a fitness studio to qualify for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440363,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,Do fitness associations provide certified trainer programs to members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440364,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,What equipment standards or guidelines does the association specify?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440365,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,Are there membership growth targets or benchmarks for fitness members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440366,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,What marketing support do sports and fitness associations provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440367,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,Can fitness association members operate 24/7 or have flexible formats?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440368,ead42b5a-26e6-4bd2-a2e3-bb8709ede483,association,What is the typical break-even timeline benchmark for gym members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440369,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,What entertainment business models are most represented in the association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036a,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,What is the initial membership investment for entertainment associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036b,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,How much space is required for gaming or activity center members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036c,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,What equipment and technology guidelines does the association provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036d,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,Are there location preference requirements (malls vs standalone) for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036e,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,What safety certifications are required for entertainment association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544036f,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,How seasonal is the association's event calendar and engagement?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440370,a28de9c3-9d0d-4058-8782-1211f20ffd1d,association,What marketing and promotional support is provided to entertainment members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440371,f494351f-bfb3-411d-a178-d1905bd0616e,association,What government service and citizen facilitation associations are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440372,f494351f-bfb3-411d-a178-d1905bd0616e,association,What is the membership or setup investment for government service associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440373,f494351f-bfb3-411d-a178-d1905bd0616e,association,What certifications are required for government service center membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440374,f494351f-bfb3-411d-a178-d1905bd0616e,association,What technology infrastructure is needed for members to operate?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440375,f494351f-bfb3-411d-a178-d1905bd0616e,association,What are the revenue models or income opportunities for government service members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440376,f494351f-bfb3-411d-a178-d1905bd0616e,association,"Is training provided on government schemes, services, and digital tools?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440377,f494351f-bfb3-411d-a178-d1905bd0616e,association,What documentation and compliance is required for membership?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440378,f494351f-bfb3-411d-a178-d1905bd0616e,association,Are there location requirements for government service center members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440379,1a821422-d8eb-484f-a280-8af8f6b79144,association,What is the membership investment for real estate associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037a,1a821422-d8eb-484f-a280-8af8f6b79144,association,Do I need a real estate agent license or RERA registration to join?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037b,1a821422-d8eb-484f-a280-8af8f6b79144,association,What office space is required for real estate agency members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037c,1a821422-d8eb-484f-a280-8af8f6b79144,association,"What technology platforms (CRM, listings portals) are provided or recommended?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037d,1a821422-d8eb-484f-a280-8af8f6b79144,association,How do referral commission structures work within real estate associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037e,1a821422-d8eb-484f-a280-8af8f6b79144,association,"What training is provided on property laws, RERA, and compliance?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544037f,1a821422-d8eb-484f-a280-8af8f6b79144,association,Are there exclusive territory rights or regional chapters available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440380,1a821422-d8eb-484f-a280-8af8f6b79144,association,What marketing and lead generation support does the association provide?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440381,64fd1516-f032-4630-8a79-e347851f2e18,association,What major market trends does the association address for IT businesses?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440382,64fd1516-f032-4630-8a79-e347851f2e18,association,What is the initial membership investment for technology associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440383,64fd1516-f032-4630-8a79-e347851f2e18,association,What technical expertise level is expected of members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440384,64fd1516-f032-4630-8a79-e347851f2e18,association,"What training, certifications, and upskilling are provided by the association?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440385,64fd1516-f032-4630-8a79-e347851f2e18,association,What recurring revenue opportunities exist through the association network?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440386,64fd1516-f032-4630-8a79-e347851f2e18,association,What technology platforms and tools are shared or recommended for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440387,64fd1516-f032-4630-8a79-e347851f2e18,association,Can IT association members operate remotely or from home?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440388,64fd1516-f032-4630-8a79-e347851f2e18,association,What client acquisition and referral support is provided to members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440389,4a104cba-ccd3-4f86-b204-2277660117eb,association,What external risks or regulatory factors could affect association sustainability?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038a,4a104cba-ccd3-4f86-b204-2277660117eb,association,What is the membership investment for financial services associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038b,4a104cba-ccd3-4f86-b204-2277660117eb,association,What licenses and certifications are required for finance association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038c,4a104cba-ccd3-4f86-b204-2277660117eb,association,"What financial products can members offer or promote (loans, insurance, MFs)?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038d,4a104cba-ccd3-4f86-b204-2277660117eb,association,What training is provided on financial products and regulations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038e,4a104cba-ccd3-4f86-b204-2277660117eb,association,How do referral commission or revenue share structures work?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544038f,4a104cba-ccd3-4f86-b204-2277660117eb,association,"What technology platforms (fintech tools, CRMs) are provided or recommended?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440390,4a104cba-ccd3-4f86-b204-2277660117eb,association,What compliance and regulatory support does the association offer?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440391,26d2b88d-ddbf-45b7-a016-9379064270a9,association,What logistics and manufacturing association models are available?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440392,26d2b88d-ddbf-45b7-a016-9379064270a9,association,What is the membership investment for logistics associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440393,26d2b88d-ddbf-45b7-a016-9379064270a9,association,What warehouse or office space is required for logistics members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440394,26d2b88d-ddbf-45b7-a016-9379064270a9,association,What vehicle and equipment standards are expected of members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440395,26d2b88d-ddbf-45b7-a016-9379064270a9,association,What technology platforms are provided for operations and tracking?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440396,26d2b88d-ddbf-45b7-a016-9379064270a9,association,How do revenue models and benchmarks work within logistics associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440397,26d2b88d-ddbf-45b7-a016-9379064270a9,association,"What training is provided for operations, safety, and compliance?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440398,26d2b88d-ddbf-45b7-a016-9379064270a9,association,Are there territorial chapter rights in logistics associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-446655440399,985ff825-8855-4dec-9615-6d83578ef2cf,association,What agriculture and agri-business associations are available in India?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039a,985ff825-8855-4dec-9615-6d83578ef2cf,association,What is the membership investment for agriculture associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039b,985ff825-8855-4dec-9615-6d83578ef2cf,association,Do I need farming or agri experience to actively participate?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039c,985ff825-8855-4dec-9615-6d83578ef2cf,association,"What land, setup, or space is required for member businesses?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039d,985ff825-8855-4dec-9615-6d83578ef2cf,association,What training and technical support is provided to agri association members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039e,985ff825-8855-4dec-9615-6d83578ef2cf,association,What are the market opportunities in rural areas for members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-44665544039f,985ff825-8855-4dec-9615-6d83578ef2cf,association,Are there government subsidies or schemes accessible through the association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a0,985ff825-8855-4dec-9615-6d83578ef2cf,association,"What products, services, or market access do members get?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a1,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,What media and communication associations are available for businesses?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a2,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,What is the membership investment for media associations?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a3,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,What technical skills or experience are expected of members?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a4,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,"What equipment, software, or tools are provided or recommended?",general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a5,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,What training is provided for content creation and media management?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a6,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,How do client acquisition and member networking work within the association?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a7,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,Can media association members operate remotely?,general,2026-01-30 10:00:00
+550e8400-e29b-41d4-a716-4466554403a8,e42b13ce-89ed-481f-98ab-36ac53927ee4,association,"What ongoing support, updates, and industry briefings are provided?",general,2026-01-30 10:00:00

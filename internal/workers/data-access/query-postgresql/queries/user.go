@@ -2,12 +2,14 @@
 package queries
 
 import (
+	"camunda-workers/internal/crypto"
+
 	"context"
 	"database/sql"
 	"time"
 )
 
-func UserProfile(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func UserProfile(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	userID, ok := params["userId"].(string)
 	if !ok {
 		return nil, 0, 0, ErrMissingParam
@@ -62,7 +64,7 @@ func UserProfile(ctx context.Context, db *sql.DB, params map[string]interface{})
 // 	"time"
 // )
 
-// func UserProfile(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+// func UserProfile(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 // 	userID, ok := params["userId"].(string)
 // 	if !ok {
 // 		return nil, 0, 0, ErrMissingParam

@@ -74,9 +74,10 @@ func (suite *HandlerUnitTestSuite) SetupTest() {
 	testLogger := logger.NewNoOpLogger()
 	config := &Config{
 		RequestTimeout: 30 * time.Second,
+		EncryptionKey:  "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMA==",
 	}
 	suite.ctx = context.Background()
-	suite.handler = NewHandler(suite.db, testLogger, config)
+	suite.handler = NewHandler(suite.db, testLogger, config, "test-worker")
 }
 
 func (suite *HandlerUnitTestSuite) TearDownTest() {
@@ -256,7 +257,7 @@ func (suite *HandlerUnitTestSuite) TestGetFranchise_Success() {
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
 		FROM franchises f
-		LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
+		LEFT JOIN listing_stats fs ON f.id = fs.listing_id
 		WHERE f.id = $1`
 
 	expectedRow := sqlmock.NewRows([]string{
@@ -643,7 +644,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
 		FROM franchises f
-		LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
+		LEFT JOIN listing_stats fs ON f.id = fs.listing_id
 		WHERE f.id = $1`
 
 	franchiseRow := sqlmock.NewRows([]string{
@@ -772,7 +773,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 	cityID := uuid.New()
     citiesQuery := `
         SELECT id, franchise_id, city, state, country, created_at
-        FROM franchise_cities 
+        FROM listing_cities 
         WHERE franchise_id = $1
         ORDER BY city ASC`
     
@@ -846,13 +847,13 @@ func (suite *HandlerUnitTestSuite) TestCreateSocialLinks_Success() {
 	assert.NoError(suite.T(), err)
 }
 
-// 13. CREATE_FRANCHISE_STATS
+// 13. CREATE_LISTING_STATS
 func (suite *HandlerUnitTestSuite) TestCreateFranchiseStats_Success() {
 	franchiseID := uuid.New()
 	statsID := uuid.New()
 
 	input := CreateFranchiseStatsInput{
-		OperationType: "CREATE_FRANCHISE_STATS",
+		OperationType: "CREATE_LISTING_STATS",
 		FranchiseID:   franchiseID.String(),
 		Rating:        float64Ptr(4.5),
 		RatingCount:   100,
@@ -868,7 +869,7 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchiseStats_Success() {
 	inputJSON, _ := json.Marshal(input)
 
 	expectedQuery := `
-		INSERT INTO franchise_stats (
+		INSERT INTO listing_stats (
 			franchise_id, rating, rating_count, follow_count, 
 			likes_count, view_count, save_count, share_count,
 			enquiry_count, news_count, created_at, updated_at
@@ -893,12 +894,12 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchiseStats_Success() {
 	assert.NoError(suite.T(), err)
 }
 
-// 14. UPDATE_FRANCHISE_STATS
+// 14. UPDATE_LISTING_STATS
 func (suite *HandlerUnitTestSuite) TestUpdateFranchiseStats_Success() {
 	franchiseID := uuid.New()
 
 	input := UpdateFranchiseStatsInput{
-		OperationType: "UPDATE_FRANCHISE_STATS",
+		OperationType: "UPDATE_LISTING_STATS",
 		FranchiseID:   franchiseID.String(),
 		ViewCount:     intPtr(10),
 		LikesCount:    intPtr(5),
@@ -909,7 +910,7 @@ func (suite *HandlerUnitTestSuite) TestUpdateFranchiseStats_Success() {
 
 	inputJSON, _ := json.Marshal(input)
 
-	expectedQuery := `UPDATE franchise_stats SET updated_at = $1, view_count = view_count + $2, likes_count = likes_count + $3, save_count = save_count + $4, share_count = share_count + $5, follow_count = follow_count + $6 WHERE franchise_id = $7`
+	expectedQuery := `UPDATE listing_stats SET updated_at = $1, view_count = view_count + $2, likes_count = likes_count + $3, save_count = save_count + $4, share_count = share_count + $5, follow_count = follow_count + $6 WHERE franchise_id = $7`
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(
 			sqlmock.AnyArg(), 10, 5, 3, 2, 7, franchiseID,
@@ -1077,7 +1078,7 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchiseCity_Success() {
 	inputJSON, _ := json.Marshal(input)
 
 	expectedQuery := `
-		INSERT INTO franchise_cities (
+		INSERT INTO listing_cities (
 			franchise_id, city, state, country, created_at
 		) VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`
@@ -1100,14 +1101,14 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchiseCity_Success() {
 	assert.NoError(suite.T(), err)
 }
 
-// 20. GET_FRANCHISE_CITIES
+// 20. GET_LISTING_CITIES
 func (suite *HandlerUnitTestSuite) TestGetFranchiseCities_Success() {
 	franchiseID := uuid.New()
 	cityID := uuid.New()
 	now := time.Now()
 
 	input := GetFranchiseCitiesInput{
-		OperationType: "GET_FRANCHISE_CITIES",
+		OperationType: "GET_LISTING_CITIES",
 		FranchiseID:   franchiseID.String(),
 	}
 
@@ -1115,7 +1116,7 @@ func (suite *HandlerUnitTestSuite) TestGetFranchiseCities_Success() {
 
 	expectedQuery := `
 		SELECT id, franchise_id, city, state, country, created_at
-		FROM franchise_cities 
+		FROM listing_cities 
 		WHERE franchise_id = $1
 		ORDER BY city ASC`
 
@@ -1151,7 +1152,7 @@ func (suite *HandlerUnitTestSuite) TestDeleteFranchiseCity_Success() {
 
 	inputJSON, _ := json.Marshal(input)
 
-	expectedQuery := `DELETE FROM franchise_cities WHERE id = $1`
+	expectedQuery := `DELETE FROM listing_cities WHERE id = $1`
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(cityID).
 		WillReturnResult(sqlmock.NewResult(0, 1))

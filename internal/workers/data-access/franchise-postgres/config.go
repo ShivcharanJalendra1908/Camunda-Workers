@@ -21,6 +21,9 @@ type Config struct {
 	// Feature flags
 	EnableSoftDelete bool `yaml:"enable_soft_delete" default:"false"`
 	EnableAuditLog   bool `yaml:"enable_audit_log" default:"true"`
+
+	// Encryption
+	EncryptionKey string `yaml:"encryption_key"`
 }
 
 func DefaultConfig() *Config {
@@ -35,5 +38,6 @@ func DefaultConfig() *Config {
 		TxTimeout:        10 * time.Second,
 		EnableSoftDelete: false,
 		EnableAuditLog:   true,
+		EncryptionKey:    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==", // fallback dev key
 	}
 }

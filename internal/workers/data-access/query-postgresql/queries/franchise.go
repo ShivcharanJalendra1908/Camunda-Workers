@@ -6,9 +6,11 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"camunda-workers/internal/crypto"
 )
 
-func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	franchiseID, ok := params["franchiseId"].(string)
 	if !ok {
 		return nil, 0, 0, ErrMissingParam
@@ -17,16 +19,23 @@ func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]int
 	start := time.Now()
 
 	var id, name, description, category string
-	var investmentMin, investmentMax int
+	var investmentMin, investmentMax float64
 	var locations string
 	var isVerified bool
 	var createdAt, updatedAt string
 
 	err := db.QueryRowContext(ctx, `
-		SELECT id, name, description, investment_min, investment_max, 
-		       category, locations, is_verified, created_at, updated_at
-		FROM franchises 
-		WHERE id = $1`, franchiseID).Scan(
+		SELECT l.id, l.name, l.description, 
+		       COALESCE(fir.initial_investment_min, 0) as investment_min, 
+		       COALESCE(fir.initial_investment_max, 0) as investment_max, 
+		       COALESCE(lc.category_slug, '') as category, 
+		       '' as locations, 
+		       l.verified as is_verified, 
+		       l.created_at, l.updated_at
+		FROM listings l
+		LEFT JOIN franchise_investment_requirement fir ON l.id = fir.franchise_id
+		LEFT JOIN listing_categories lc ON l.id = lc.listing_id
+		WHERE l.id = $1`, franchiseID).Scan(
 		&id, &name, &description,
 		&investmentMin, &investmentMax,
 		&category, &locations,
@@ -40,8 +49,8 @@ func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]int
 		"id":            id,
 		"name":          name,
 		"description":   description,
-		"investmentMin": investmentMin,
-		"investmentMax": investmentMax,
+		"investmentMin": int(investmentMin),
+		"investmentMax": int(investmentMax),
 		"category":      category,
 		"locations":     locations,
 		"isVerified":    isVerified,
@@ -53,7 +62,7 @@ func FranchiseFullDetails(ctx context.Context, db *sql.DB, params map[string]int
 	return result, 1, execTime, nil
 }
 
-func FranchiseOutlets(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseOutlets(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	franchiseID, ok := params["franchiseId"].(string)
 	if !ok {
 		return nil, 0, 0, ErrMissingParam
@@ -62,9 +71,9 @@ func FranchiseOutlets(ctx context.Context, db *sql.DB, params map[string]interfa
 	start := time.Now()
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, franchise_id, address, city, state, country, phone
-		FROM franchise_outlets 
-		WHERE franchise_id = $1`, franchiseID)
+		SELECT id, listing_id as franchise_id, 'Not Available' as address, city_name as city, state_name as state, country_name as country, '' as phone
+		FROM listing_cities 
+		WHERE listing_id = $1`, franchiseID)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -92,7 +101,7 @@ func FranchiseOutlets(ctx context.Context, db *sql.DB, params map[string]interfa
 	return results, len(results), execTime, nil
 }
 
-func FranchiseVerification(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseVerification(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	franchiseID, ok := params["franchiseId"].(string)
 	if !ok {
 		return nil, 0, 0, ErrMissingParam
@@ -104,9 +113,12 @@ func FranchiseVerification(ctx context.Context, db *sql.DB, params map[string]in
 	var complianceScore float64
 
 	err := db.QueryRowContext(ctx, `
-		SELECT franchise_id, verification_status, verified_at, compliance_score
-		FROM franchise_verification 
-		WHERE franchise_id = $1`, franchiseID).Scan(
+		SELECT id as franchise_id, 
+		       CASE WHEN verified THEN 'VERIFIED' ELSE 'PENDING' END as verification_status, 
+		       created_at as verified_at, 
+		       100 as compliance_score
+		FROM listings 
+		WHERE id = $1`, franchiseID).Scan(
 		&franchiseId, &verificationStatus, &verifiedAt, &complianceScore,
 	)
 	if err != nil {
@@ -124,7 +136,7 @@ func FranchiseVerification(ctx context.Context, db *sql.DB, params map[string]in
 	return result, 1, execTime, nil
 }
 
-func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	franchiseIDs, ok := params["franchiseIds"].([]string)
 	if !ok || len(franchiseIDs) == 0 {
 		return nil, 0, 0, ErrMissingParam
@@ -135,12 +147,18 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 	placeholders := make([]string, len(franchiseIDs))
 	args := make([]interface{}, len(franchiseIDs))
 	for i, id := range franchiseIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1) // ← FIXED: Use fmt.Sprintf instead of rune arithmetic
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = id
 	}
 
-	query := `SELECT id, name, investment_min, investment_max, category 
-	          FROM franchises WHERE id IN (` + join(placeholders, ",") + `)`
+	query := `SELECT l.id, l.name, 
+	                 COALESCE(fir.initial_investment_min, 0) as investment_min,
+	                 COALESCE(fir.initial_investment_max, 0) as investment_max, 
+	                 COALESCE(lc.category_slug, '') as category 
+	          FROM listings l
+	          LEFT JOIN franchise_investment_requirement fir ON l.id = fir.franchise_id
+	          LEFT JOIN listing_categories lc ON l.id = lc.listing_id
+	          WHERE l.id IN (` + join(placeholders, ",") + `)`
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -151,7 +169,7 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 	var results []map[string]interface{}
 	for rows.Next() {
 		var id, name, category string
-		var investmentMin, investmentMax int
+		var investmentMin, investmentMax float64
 		err := rows.Scan(&id, &name, &investmentMin, &investmentMax, &category)
 		if err != nil {
 			return nil, 0, 0, err
@@ -159,8 +177,8 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 		results = append(results, map[string]interface{}{
 			"id":            id,
 			"name":          name,
-			"investmentMin": investmentMin,
-			"investmentMax": investmentMax,
+			"investmentMin": int(investmentMin),
+			"investmentMax": int(investmentMax),
 			"category":      category,
 		})
 	}
@@ -169,7 +187,7 @@ func FranchiseDetails(ctx context.Context, db *sql.DB, params map[string]interfa
 	return results, len(results), execTime, nil
 }
 
-func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	franchiseID, ok := params["franchiseId"].(string)
@@ -181,7 +199,7 @@ func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]int
 	var contactEmail sql.NullString
 
 	err := db.QueryRowContext(ctx,
-		`SELECT name, contact_email FROM franchises WHERE id = $1`,
+		`SELECT name, contact_email FROM listings WHERE id = $1`,
 		franchiseID,
 	).Scan(&name, &contactEmail)
 
@@ -197,7 +215,14 @@ func FranchiseContactInfo(ctx context.Context, db *sql.DB, params map[string]int
 		"entityName":    name,
 	}
 	if contactEmail.Valid && contactEmail.String != "" {
-		result["franchiseContactEmail"] = contactEmail.String
+		decryptedEmail := contactEmail.String
+		if encryptor != nil {
+			dec, err := encryptor.Decrypt(contactEmail.String)
+			if err == nil {
+				decryptedEmail = string(dec)
+			}
+		}
+		result["franchiseContactEmail"] = decryptedEmail
 	} else {
 		// Fallback - agar contact_email NULL hai toh internal team ko bhejo
 		result["franchiseContactEmail"] = ""

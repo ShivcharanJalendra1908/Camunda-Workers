@@ -2,6 +2,8 @@
 package queries
 
 import (
+	"camunda-workers/internal/crypto"
+
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -61,7 +63,7 @@ func extractFranchiseID(params map[string]interface{}) (string, error) {
 // ============================================================
 
 // IndustriesTop9 - Get top 9 industries for home page
-func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	entityType, ok := params["entityType"].(string)
@@ -118,7 +120,7 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
 }
 
 // CategoriesTop30 - Get top 30 categories for home page
-func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	entityType, ok := params["entityType"].(string)
@@ -172,7 +174,7 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 }
 
 // CategoriesFeatured8 - Get 8 featured categories for listing page
-func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	entityType, ok := params["entityType"].(string)
@@ -262,7 +264,7 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 }
 
 // IndustryBySlug - Get industry info by slug
-func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	slug, ok := params["slug"].(string)
@@ -320,7 +322,7 @@ func IndustryBySlug(ctx context.Context, db *sql.DB, params map[string]interface
 
 // FranchiseOverview - Get franchising overview for detail page
 
-func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	franchiseID, err := extractFranchiseID(params)
@@ -330,31 +332,32 @@ func FranchiseOverview(ctx context.Context, db *sql.DB, params map[string]interf
 
 	query := `
 SELECT
-	f.contact_email,
+	l.contact_email,
 	f.parent_company,
 	f.business_type,
 	f.leader_name,
 	f.leader_role,
 	f.established_year,
 	f.units_count,
-	fc.city,
+	fc.city_name as city,
 	fir.franchise_fee,
 	fir.royalty_percentage,
 	fir.monthly_turnover_min,
 	fir.monthly_turnover_max,
 	fo.space_min_sqft,
 	fo.space_max_sqft
-FROM franchises f
+FROM listings l
+LEFT JOIN franchises f ON l.id = f.id
 LEFT JOIN franchise_investment_requirement fir ON f.id = fir.franchise_id
 LEFT JOIN franchise_operations fo ON f.id = fo.franchise_id
 LEFT JOIN LATERAL (
-	SELECT city
-	FROM franchise_cities
-	WHERE franchise_id = f.id
+	SELECT city_name
+	FROM listing_cities
+	WHERE listing_id = l.id
 	ORDER BY created_at DESC
 	LIMIT 1
 ) fc ON true
-WHERE f.id = $1
+WHERE l.id = $1
 	`
 
 	var (
@@ -394,7 +397,14 @@ WHERE f.id = $1
 	overview := map[string]interface{}{}
 
 	if email.Valid {
-		overview["email"] = email.String
+		decryptedEmail := email.String
+		if encryptor != nil && decryptedEmail != "" {
+			dec, err := encryptor.Decrypt(decryptedEmail)
+			if err == nil {
+				decryptedEmail = string(dec)
+			}
+		}
+		overview["email"] = decryptedEmail
 	}
 	if parentCompany.Valid {
 		overview["parent_company"] = parentCompany.String
@@ -440,7 +450,7 @@ WHERE f.id = $1
 }
 
 // FranchiseBusiness - Get business overview (products/services)
-func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	// franchiseID, ok := params["franchiseId"].(string)
@@ -482,7 +492,7 @@ func FranchiseBusiness(ctx context.Context, db *sql.DB, params map[string]interf
 }
 
 // FranchiseInvestment - Get investment details
-func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	franchiseID, err := extractFranchiseID(params)
@@ -596,7 +606,7 @@ func FranchiseInvestment(ctx context.Context, db *sql.DB, params map[string]inte
 }
 
 // FranchiseOperations - Get operations details
-func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	franchiseID, err := extractFranchiseID(params)
@@ -693,7 +703,7 @@ func FranchiseOperations(ctx context.Context, db *sql.DB, params map[string]inte
 }
 
 // FranchiseSocial - Get social links
-func FranchiseSocial(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FranchiseSocial(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	// franchiseID, ok := params["franchiseId"].(string)
@@ -762,6 +772,7 @@ func IndustryBySlugWithQuestions(
 	ctx context.Context,
 	db *sql.DB,
 	params map[string]interface{},
+	encryptor *crypto.Encryptor,
 ) (interface{}, int, int64, error) {
 
 	start := time.Now()
@@ -843,6 +854,7 @@ func CategoryQuestionsByIndustry(
 	ctx context.Context,
 	db *sql.DB,
 	params map[string]interface{},
+	encryptor *crypto.Encryptor,
 ) (interface{}, int, int64, error) {
 	start := time.Now()
 	var referenceIDs []string
@@ -971,7 +983,7 @@ func CategoryQuestionsByIndustry(
 }
 
 // FeaturedCategoriesByIndustry - Get featured categories for an industry (detail page)
-func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}) (interface{}, int, int64, error) {
+func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
 	industryID, ok := params["industryId"].(string)

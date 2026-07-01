@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"camunda-workers/internal/common/idempotency"
+	"camunda-workers/internal/crypto"
 
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
@@ -50,13 +51,29 @@ type Handler struct {
 	errorHandler       *appErrs.ErrorHandler
 	validator          *validation.Validator
 	sanitizer          *validation.Sanitizer
-	keyGenerator       *idempotency.KeyGenerator // ✅ ADD
-	idempotencyChecker *idempotency.DBChecker    // ✅ ADD
+	keyGenerator       *idempotency.KeyGenerator
+	idempotencyChecker *idempotency.DBChecker
+	encryptor          *crypto.Encryptor
 }
 
-func NewHandler(db *sql.DB, logger logger.Logger, config *Config) *Handler {
+func NewHandler(db *sql.DB, logger logger.Logger, config *Config, workerName string) *Handler {
 	if config.RequestTimeout == 0 {
 		config.RequestTimeout = 30 * time.Second
+	}
+
+	keyGen := idempotency.NewKeyGenerator()
+	checker := idempotency.NewDBChecker(db)
+
+	var encryptor *crypto.Encryptor
+	if config.EncryptionKey != "" {
+		enc, err := crypto.NewEncryptor(config.EncryptionKey)
+		if err == nil {
+			encryptor = enc
+		} else {
+			logger.Warn("Failed to initialize encryptor", map[string]interface{}{"error": err.Error()})
+		}
+	} else {
+		logger.Warn("EncryptionKey not provided in config", nil)
 	}
 
 	return &Handler{
@@ -66,8 +83,9 @@ func NewHandler(db *sql.DB, logger logger.Logger, config *Config) *Handler {
 		errorHandler:       appErrs.NewErrorHandler(logger),
 		validator:          validation.NewValidator(),
 		sanitizer:          validation.NewSanitizer(),
-		keyGenerator:       idempotency.NewKeyGenerator(), // ✅ ADD
-		idempotencyChecker: idempotency.NewDBChecker(db),  // ✅ ADD
+		keyGenerator:       keyGen,
+		idempotencyChecker: checker,
+		encryptor:          encryptor,
 	}
 }
 
@@ -93,14 +111,14 @@ func (h *Handler) validateBaseInput(input *BaseInput) error {
 			"UPDATE_OPERATIONS",
 			"GET_FULL_FRANCHISE",
 			"CREATE_SOCIAL_LINKS",
-			"CREATE_FRANCHISE_STATS",
-			"UPDATE_FRANCHISE_STATS",
+			"CREATE_LISTING_STATS",
+			"UPDATE_LISTING_STATS",
 			"CREATE_CATEGORY_QUESTION",
 			"GET_CATEGORY_QUESTIONS",
 			"UPDATE_CATEGORY_QUESTION",
 			"DELETE_CATEGORY_QUESTION",
 			"CREATE_FRANCHISE_CITY",
-			"GET_FRANCHISE_CITIES",
+			"GET_LISTING_CITIES",
 			"DELETE_FRANCHISE_CITY",
 			"UPDATE_SOCIAL_LINKS",
 			"ADD_BOOKMARK",
@@ -503,9 +521,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	// NEW OPERATIONS:
 	case "CREATE_SOCIAL_LINKS":
 		result, err = h.handleCreateSocialLinks(ctxExec, sanitizedVariables)
-	case "CREATE_FRANCHISE_STATS":
+	case "CREATE_LISTING_STATS":
 		result, err = h.handleCreateFranchiseStats(ctxExec, sanitizedVariables)
-	case "UPDATE_FRANCHISE_STATS":
+	case "UPDATE_LISTING_STATS":
 		result, err = h.handleUpdateFranchiseStats(ctxExec, sanitizedVariables)
 	// Category Questions Operations (NEW)
 	case "CREATE_CATEGORY_QUESTION":
@@ -519,7 +537,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	// Franchise Cities Operations (NEW)
 	case "CREATE_FRANCHISE_CITY":
 		result, err = h.handleCreateFranchiseCity(ctxExec, sanitizedVariables)
-	case "GET_FRANCHISE_CITIES":
+	case "GET_LISTING_CITIES":
 		result, err = h.handleGetFranchiseCities(ctxExec, sanitizedVariables)
 	case "DELETE_FRANCHISE_CITY":
 		result, err = h.handleDeleteFranchiseCity(ctxExec, sanitizedVariables)
@@ -634,42 +652,66 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 	}
 	defer tx.Rollback()
 
-	query := `
-		INSERT INTO franchises (
+	var encryptedEmail string
+	if input.ContactEmail != "" {
+		if h.encryptor == nil {
+			return nil, fmt.Errorf("encryptor not initialized")
+		}
+		enc, err := h.encryptor.Encrypt([]byte(input.ContactEmail))
+		if err != nil {
+			return nil, fmt.Errorf("failed to encrypt email: %v", err)
+		}
+		encryptedEmail = enc
+	}
+
+	listingQuery := `
+		INSERT INTO listings (
 			name, slug, short_description, description, founded_year, 
-			trusted_seller, verified, total_outlets, outlet_range,
-			industry, parent_company, business_type, established_year,
-			units_count, leader_name, leader_role, contact_email, 
-			logo_url, website_url, is_sponsored, created_by, created_at, updated_at
+			trusted_seller, verified, contact_email, 
+			logo_url_circle, website_url, is_sponsored, created_by, created_at, updated_at, entity_type, status
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 
-			$14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'franchise', 'pending'
 		) RETURNING id, created_at, updated_at`
 
-	var franchiseID uuid.UUID
+	var listingID uuid.UUID
 	var createdAt, updatedAt time.Time
 	now := time.Now()
 
 	// ===== CRITICAL: All parameters are sanitized =====
-	err = tx.QueryRowContext(ctx, query,
+	err = tx.QueryRowContext(ctx, listingQuery,
 		h.sanitizer.SanitizeString(input.Name),
 		h.sanitizer.SanitizeString(input.Slug),
 		h.sanitizer.SanitizeString(input.ShortDescription),
 		h.sanitizer.SanitizeString(input.Description),
 		input.FoundedYear, input.TrustedSeller, input.Verified,
+		encryptedEmail,
+		h.sanitizer.SanitizeString(input.LogoURL),
+		h.sanitizer.SanitizeString(input.WebsiteURL),
+		input.IsSponsored,
+		createdBy, now, now,
+	).Scan(&listingID, &createdAt, &updatedAt)
+
+	if err != nil {
+		return nil, fmt.Errorf("%w: insert listing: %v", ErrDatabaseError, err)
+	}
+
+	franchiseQuery := `
+		INSERT INTO franchises (
+			id, total_outlets, outlet_range, parent_company, business_type, 
+			established_year, units_count, leader_name, leader_role
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9
+		)`
+
+	_, err = tx.ExecContext(ctx, franchiseQuery,
+		listingID,
 		input.TotalOutlets, h.sanitizer.SanitizeString(input.OutletRange),
-		h.sanitizer.SanitizeString(input.Industry),
 		h.sanitizer.SanitizeString(input.ParentCompany),
 		h.sanitizer.SanitizeString(input.BusinessType),
 		input.EstablishedYear, input.UnitsCount,
 		h.sanitizer.SanitizeString(input.LeaderName),
 		h.sanitizer.SanitizeString(input.LeaderRole),
-		h.sanitizer.SanitizeString(input.ContactEmail),
-		h.sanitizer.SanitizeString(input.LogoURL),
-		h.sanitizer.SanitizeString(input.WebsiteURL),
-		input.IsSponsored,
-		createdBy, now, now,
-	).Scan(&franchiseID, &createdAt, &updatedAt)
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("%w: insert franchise: %v", ErrDatabaseError, err)
@@ -702,13 +744,13 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 		}
 
 		socialQuery := `
-			INSERT INTO franchise_social_links (
-				franchise_id, instagram_url, facebook_url, 
+			INSERT INTO listing_social_links (
+				listing_id, instagram_url, facebook_url, 
 				twitter_url, linkedin_url, created_at, updated_at
 			) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 		_, err = tx.ExecContext(ctx, socialQuery,
-			franchiseID,
+			listingID,
 			h.sanitizer.SanitizeString(input.InstagramURL),
 			h.sanitizer.SanitizeString(input.FacebookURL),
 			h.sanitizer.SanitizeString(input.TwitterURL),
@@ -725,7 +767,7 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 	}
 
 	return &FranchiseOutput{
-		FranchiseID: franchiseID.String(),
+		FranchiseID: listingID.String(),
 		Slug:        input.Slug,
 		Success:     true,
 		Message:     "Franchise created successfully",
@@ -1036,16 +1078,16 @@ func (h *Handler) handleGetFranchise(ctx context.Context, variables string) (*Fr
 			fs.view_count, fs.save_count, fs.share_count, fs.enquiry_count,
 			fs.news_count
 		FROM franchises f
-		LEFT JOIN franchise_stats fs ON f.id = fs.franchise_id
+		LEFT JOIN listing_stats fs ON f.id = fs.listing_id
 		WHERE `
 
 	var args []interface{}
 	if input.FranchiseID != "" {
-		query += "f.id = $1"
+		query += "l.id = $1"
 		franchiseID, _ := uuid.Parse(input.FranchiseID)
 		args = append(args, franchiseID)
 	} else if input.Slug != "" {
-		query += "f.slug = $1"
+		query += "l.slug = $1"
 		args = append(args, h.sanitizer.SanitizeString(input.Slug))
 	} else {
 		return nil, fmt.Errorf("%w: either franchise_id or slug is required", ErrValidationError)
@@ -1872,7 +1914,7 @@ func (h *Handler) handleCreateFranchiseStats(ctx context.Context, variables stri
 	}
 
 	query := `
-		INSERT INTO franchise_stats (
+		INSERT INTO listing_stats (
 			franchise_id, rating, rating_count, follow_count, 
 			likes_count, view_count, save_count, share_count,
 			enquiry_count, news_count, created_at, updated_at
@@ -1913,7 +1955,7 @@ func (h *Handler) handleUpdateFranchiseStats(ctx context.Context, variables stri
 		return nil, fmt.Errorf("%w: franchise_id: %v", ErrInvalidUUID, err)
 	}
 
-	query := "UPDATE franchise_stats SET updated_at = $1"
+	query := "UPDATE listing_stats SET updated_at = $1"
 	args := []interface{}{time.Now()}
 	argPos := 2
 
@@ -2183,7 +2225,7 @@ func (h *Handler) handleCreateFranchiseCity(ctx context.Context, variables strin
 	}
 
 	query := `
-		INSERT INTO franchise_cities (
+		INSERT INTO listing_cities (
 			franchise_id, city, state, country, created_at
 		) VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`
@@ -2223,7 +2265,7 @@ func (h *Handler) handleGetFranchiseCities(ctx context.Context, variables string
 
 	query := `
 		SELECT id, franchise_id, city, state, country, created_at
-		FROM franchise_cities 
+		FROM listing_cities 
 		WHERE franchise_id = $1
 		ORDER BY city ASC`
 
@@ -2261,7 +2303,7 @@ func (h *Handler) handleDeleteFranchiseCity(ctx context.Context, variables strin
 		return nil, fmt.Errorf("%w: city_id: %v", ErrInvalidUUID, err)
 	}
 
-	query := `DELETE FROM franchise_cities WHERE id = $1`
+	query := `DELETE FROM listing_cities WHERE id = $1`
 	result, err := h.db.ExecContext(ctx, query, cityID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: delete franchise city: %v", ErrDatabaseError, err)
@@ -2416,7 +2458,7 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
 	// Get franchise cities
 	query = `
         SELECT id, franchise_id, city, state, country, created_at
-        FROM franchise_cities 
+        FROM listing_cities 
         WHERE franchise_id = $1
         ORDER BY city ASC`
 
@@ -2579,7 +2621,7 @@ func (h *Handler) HandleAddToFavorites(ctx context.Context, userID, franchiseID 
 
 	// ===== STEP 7: UPDATE FRANCHISE STATS =====
 	_, err = tx.ExecContext(ctx, `
-        UPDATE franchise_stats
+        UPDATE listing_stats
         SET save_count = save_count + 1, updated_at = $1
         WHERE franchise_id = $2
     `, time.Now(), franchiseID)
@@ -2714,7 +2756,7 @@ func (h *Handler) handleAddBookmark(ctx context.Context, variables string) (*Boo
 
 	// Update entity_stats.save_count +1
 	_, _ = tx.ExecContext(ctx, `
-		UPDATE franchise_stats SET save_count = save_count + 1, updated_at = $1
+		UPDATE listing_stats SET save_count = save_count + 1, updated_at = $1
 		WHERE franchise_id = $2`,
 		time.Now(), entityID,
 	)
@@ -2780,7 +2822,7 @@ func (h *Handler) handleRemoveBookmark(ctx context.Context, variables string) (*
 	// Decrement save_count only if actually deleted
 	if rowsAffected > 0 {
 		_, _ = tx.ExecContext(ctx, `
-			UPDATE franchise_stats
+			UPDATE listing_stats
 			SET save_count = GREATEST(save_count - 1, 0), updated_at = $1
 			WHERE franchise_id = $2`,
 			time.Now(), entityID,
@@ -2841,7 +2883,7 @@ func (h *Handler) handleGetUserBookmarks(ctx context.Context, variables string) 
 			COALESCE(f.slug, '') as slug,
 			COALESCE(f.logo_url_circle, f.logo_url_square, f.logo_url, '') as logo_url,
 			COALESCE(
-				(SELECT i.name FROM franchise_categories fc JOIN categories c ON fc.category_id = c.id JOIN industries i ON c.industry_id = i.id WHERE fc.franchise_id = f.id AND fc.is_primary = true LIMIT 1), 
+				(SELECT i.name FROM listing_categories fc JOIN categories c ON fc.category_id = c.id JOIN industries i ON c.industry_id = i.id WHERE fc.listing_id = f.id AND fc.is_primary = true LIMIT 1), 
 				f.industry,
 				''
 			) as industry,
@@ -2994,7 +3036,7 @@ func (h *Handler) handleSubmitUserRating(ctx context.Context, variables string) 
 
 	// Recalculate avg rating in stats
 	_, err = tx.ExecContext(ctx, `
-		UPDATE franchise_stats 
+		UPDATE listing_stats 
 		SET
 			rating       = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
 			rating_count = (SELECT COUNT(*) FROM user_ratings WHERE entity_id = $1),
@@ -3096,7 +3138,7 @@ func (h *Handler) handleUpdateUserRating(ctx context.Context, variables string) 
 
 	// Recalculate stats
 	_, _ = h.db.ExecContext(ctx, `
-		UPDATE franchise_stats
+		UPDATE listing_stats
 		SET rating = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
 			updated_at = $2
 		WHERE franchise_id = $1`,
@@ -3285,7 +3327,7 @@ func (h *Handler) handleDeleteUserRating(ctx context.Context, variables string) 
 
 	// Recalculate stats
 	_, _ = tx.ExecContext(ctx, `
-		UPDATE franchise_stats
+		UPDATE listing_stats
 		SET rating       = (SELECT AVG(rating) FROM user_ratings WHERE entity_id = $1),
 			rating_count = (SELECT COUNT(*) FROM user_ratings WHERE entity_id = $1),
 			updated_at   = $2
@@ -3362,7 +3404,7 @@ func (h *Handler) handleShareFranchise(ctx context.Context, variables string) (*
 
 	// Increment share_count in stats
 	_, _ = tx.ExecContext(ctx, `
-		UPDATE franchise_stats
+		UPDATE listing_stats
 		SET share_count = share_count + 1, updated_at = $1
 		WHERE franchise_id = $2`,
 		time.Now(), entityID,
