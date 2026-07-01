@@ -672,30 +672,30 @@ func (h *Handler) classifyQualificationLevel(score int) string {
 func (h *Handler) calculateCompatibilityFromDB(ctx context.Context, franchiseID string, data map[string]interface{}) int {
 	score := 0
 
-	// 1. locationMatch — franchise_cities table se check karo
+	// 1. locationMatch — listing_cities table se check karo
 	preferredState, _ := data["preferredState"].(string)
 	if preferredState != "" {
 		var count int
 		err := h.db.QueryRowContext(ctx, `
-            SELECT COUNT(*) FROM franchise_cities
-            WHERE franchise_id = $1 AND LOWER(state) = LOWER($2)
+            SELECT COUNT(*) FROM listing_cities
+            WHERE listing_id = $1 AND LOWER(state) = LOWER($2)
         `, franchiseID, strings.ToLower(preferredState)).Scan(&count)
 		if err == nil && count > 0 {
 			score += 30 // locationMatch = true
 		}
 	}
 
-	// 2. categoryMatch — franchise_categories → categories → industries
+	// 2. categoryMatch — listing_categories → categories → industries
 	// user ki industry background se match karo
 	userIndustry, _ := data["industryBackground"].(string) // form field (add karna hoga)
 	if userIndustry != "" {
 		var count int
 		err := h.db.QueryRowContext(ctx, `
             SELECT COUNT(*)
-            FROM franchise_categories fc
-            JOIN categories c ON fc.category_id = c.id
+            FROM listing_categories lc
+            JOIN categories c ON lc.category_id = c.id
             JOIN industries i ON c.industry_id = i.id
-            WHERE fc.franchise_id = $1 AND LOWER(i.slug) = LOWER($2)
+            WHERE lc.listing_id = $1 AND LOWER(i.slug) = LOWER($2)
         `, franchiseID, strings.ToLower(userIndustry)).Scan(&count)
 		if err == nil && count > 0 {
 			score += 40 // categoryMatch = true

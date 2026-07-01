@@ -584,11 +584,11 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 		return nil, fmt.Errorf("%w: concurrent conflict", ErrDuplicateApplication)
 	}
 
-	// ===== STEP 5: UPDATE FRANCHISE STATS =====
+	// ===== STEP 5: UPDATE LISTING STATS =====
 	_, err = tx.ExecContext(ctx, `
-		UPDATE franchise_stats
+		UPDATE listing_stats
 		SET enquiry_count = enquiry_count + 1, updated_at = $1
-		WHERE franchise_id = $2
+		WHERE listing_id = $2
 	`, time.Now(), input.FranchiseID)
 
 	if err != nil {

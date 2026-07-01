@@ -717,7 +717,7 @@ func (h *Handler) handleCreateFranchise(ctx context.Context, variables string) (
 		return nil, fmt.Errorf("%w: insert franchise: %v", ErrDatabaseError, err)
 	}
 
-	// NEW: If social URLs provided, insert into franchise_social_links table
+	// NEW: If social URLs provided, insert into listing_social_links table
 	if input.InstagramURL != "" || input.FacebookURL != "" ||
 		input.TwitterURL != "" || input.LinkedinURL != "" {
 
@@ -1768,8 +1768,8 @@ func (h *Handler) handleCreateSocialLinks(ctx context.Context, variables string)
 	}
 
 	query := `
-		INSERT INTO franchise_social_links (
-			franchise_id, instagram_url, facebook_url, 
+		INSERT INTO listing_social_links (
+			listing_id, instagram_url, facebook_url, 
 			twitter_url, linkedin_url, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`
@@ -1811,7 +1811,7 @@ func (h *Handler) handleUpdateSocialLinks(ctx context.Context, variables string)
 		return nil, fmt.Errorf("%w: franchise_id: %v", ErrInvalidUUID, err)
 	}
 
-	query := "UPDATE franchise_social_links SET updated_at = $1"
+	query := "UPDATE listing_social_links SET updated_at = $1"
 	args := []interface{}{time.Now()}
 	argPos := 2
 
@@ -1856,7 +1856,7 @@ func (h *Handler) handleUpdateSocialLinks(ctx context.Context, variables string)
 		argPos++
 	}
 
-	query += fmt.Sprintf(" WHERE franchise_id = $%d", argPos)
+	query += fmt.Sprintf(" WHERE listing_id = $%d", argPos)
 	args = append(args, franchiseID)
 
 	_, err = h.db.ExecContext(ctx, query, args...)
@@ -2441,8 +2441,8 @@ func (h *Handler) handleGetFullFranchise(ctx context.Context, variables string) 
 	var socialLinks SocialLinks
 	query = `
         SELECT id, instagram_url, facebook_url, twitter_url, linkedin_url
-        FROM franchise_social_links 
-        WHERE franchise_id = $1`
+        FROM listing_social_links 
+        WHERE listing_id = $1`
 
 	err = h.db.QueryRowContext(ctx, query, franchiseUUID).Scan(
 		&socialLinks.ID, &socialLinks.InstagramURL, &socialLinks.FacebookURL,

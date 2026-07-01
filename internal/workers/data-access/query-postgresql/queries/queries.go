@@ -76,10 +76,10 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
     FROM industries i
     INNER JOIN (
         SELECT c.industry_id, COUNT(*) as franchise_count
-        FROM franchise_categories fc
-        INNER JOIN categories c ON fc.category_id = c.id
-        INNER JOIN franchises fr ON fc.franchise_id = fr.id
-        WHERE fr.entity_type = $1 AND fr.status = 'live'
+        FROM listing_categories lc
+        INNER JOIN categories c ON lc.category_id = c.id
+        INNER JOIN listings l ON lc.listing_id = l.id
+        WHERE l.entity_type = $1 AND l.status = 'live'
         GROUP BY c.industry_id
     ) f ON f.industry_id = i.id
     WHERE i.is_active = true
@@ -132,9 +132,9 @@ func CategoriesTop30(ctx context.Context, db *sql.DB, params map[string]interfac
 		SELECT DISTINCT c.id, c.name, c.slug, c.icon_url, i.slug as industry_slug, c.display_order
 		FROM categories c
 		INNER JOIN industries i ON c.industry_id = i.id
-		INNER JOIN franchise_categories fc ON fc.category_id = c.id
-		INNER JOIN franchises fr ON fc.franchise_id = fr.id
-		WHERE c.is_active = true AND fr.entity_type = $1 AND fr.status = 'live'
+		INNER JOIN listing_categories lc ON lc.category_id = c.id
+		INNER JOIN listings l ON lc.listing_id = l.id
+		WHERE c.is_active = true AND l.entity_type = $1 AND l.status = 'live'
 		ORDER BY c.display_order
 		LIMIT 30
 	`
@@ -191,10 +191,10 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	if hasIndustry && industryID != "" {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fr.id) as franchise_count
+			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
-			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
-			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $2 AND fr.status = 'live'
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
 			WHERE c.industry_id = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
@@ -203,11 +203,11 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	} else if hasSlug && industrySlug != "" {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fr.id) as franchise_count
+			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
 			INNER JOIN industries i ON c.industry_id = i.id
-			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
-			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $2 AND fr.status = 'live'
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
 			WHERE i.slug = ANY(string_to_array($1, ',')) AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
@@ -216,10 +216,10 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 	} else {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
-			       COUNT(DISTINCT fr.id) as franchise_count
+			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
-			LEFT JOIN franchise_categories fc ON fc.category_id = c.id
-			LEFT JOIN franchises fr ON fc.franchise_id = fr.id AND fr.entity_type = $1 AND fr.status = 'live'
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $1 AND l.status = 'live'
 			WHERE c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
@@ -722,8 +722,8 @@ func FranchiseSocial(ctx context.Context, db *sql.DB, params map[string]interfac
 			facebook_url,
 			twitter_url,
 			linkedin_url
-		FROM franchise_social_links
-		WHERE franchise_id = $1
+		FROM listing_social_links
+		WHERE listing_id = $1
 	`
 
 	var instagram, facebook, twitter, linkedin sql.NullString

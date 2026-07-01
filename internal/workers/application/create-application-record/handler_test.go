@@ -97,7 +97,7 @@ func newTestLogger(t *testing.T) logger.Logger {
 //
 // NOTE: The actual handler.execute() uses idempotencyChecker (DBChecker)
 // which itself makes DB calls (idempotency_operations table, etc.) plus
-// BeginTx, INSERT INTO franchise_applications, UPDATE franchise_stats,
+// BeginTx, INSERT INTO enquiries, UPDATE listing_stats,
 // INSERT INTO application_history, and COMMIT.
 //
 // The test DB mocks must match the actual SQL in this order:
@@ -106,7 +106,7 @@ func newTestLogger(t *testing.T) logger.Logger {
 //  3. idempotencyChecker.CheckApplicationExists → SELECT EXISTS from franchise_applications
 //  4. db.BeginTx
 //  5. tx.QueryRowContext → INSERT INTO franchise_applications ... RETURNING id
-//  6. tx.ExecContext → UPDATE franchise_stats
+//  6. tx.ExecContext → UPDATE listing_stats
 //  7. tx.ExecContext → INSERT INTO application_history
 //  8. tx.Commit
 //  9. idempotencyChecker.MarkCompleted → UPDATE idempotency_operations
@@ -219,8 +219,8 @@ func TestHandler_Execute_ValidationOnly(t *testing.T) {
 		mock.ExpectBegin()
 		// INSERT INTO enquiries
 		mock.ExpectExec(`INSERT INTO enquiries`).WillReturnResult(sqlmock.NewResult(1, 1))
-		// UPDATE franchise_stats
-		mock.ExpectExec(`UPDATE franchise_stats`).WillReturnResult(sqlmock.NewResult(1, 1))
+		// UPDATE listing_stats
+		mock.ExpectExec(`UPDATE listing_stats`).WillReturnResult(sqlmock.NewResult(1, 1))
 		// INSERT INTO enquiry_audit_log
 		mock.ExpectExec(`INSERT INTO enquiry_audit_log`).WillReturnResult(sqlmock.NewResult(1, 1))
 		// COMMIT

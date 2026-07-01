@@ -152,7 +152,7 @@ func (suite *HandlerUnitTestSuite) TestCreateFranchise_Success() {
 			AddRow(franchiseID, now, now))
 
 	expectedSocialQuery := `
-		INSERT INTO franchise_social_links (
+		INSERT INTO listing_social_links (
 			franchise_id, instagram_url, facebook_url, 
 			twitter_url, linkedin_url, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)`
@@ -754,7 +754,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
 	socialLinksID := uuid.New()
     socialLinksQuery := `
         SELECT id, instagram_url, facebook_url, twitter_url, linkedin_url
-        FROM franchise_social_links 
+        FROM listing_social_links 
         WHERE franchise_id = $1`
     
     suite.mock.ExpectQuery(socialLinksQuery).
@@ -818,7 +818,7 @@ func (suite *HandlerUnitTestSuite) TestCreateSocialLinks_Success() {
 	inputJSON, _ := json.Marshal(input)
 
 	expectedQuery := `
-		INSERT INTO franchise_social_links (
+		INSERT INTO listing_social_links (
 			franchise_id, instagram_url, facebook_url, 
 			twitter_url, linkedin_url, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1180,7 +1180,7 @@ func (suite *HandlerUnitTestSuite) TestUpdateSocialLinks_Success() {
 
 	inputJSON, _ := json.Marshal(input)
 
-	expectedQuery := `UPDATE franchise_social_links SET updated_at = $1, instagram_url = $2, facebook_url = $3 WHERE franchise_id = $4`
+	expectedQuery := `UPDATE listing_social_links SET updated_at = $1, instagram_url = $2, facebook_url = $3 WHERE listing_id = $4`
 	suite.mock.ExpectExec(expectedQuery).
 		WithArgs(
 			sqlmock.AnyArg(),

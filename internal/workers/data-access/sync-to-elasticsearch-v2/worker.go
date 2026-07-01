@@ -71,27 +71,29 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 1. Fetch full entity from DB
+	// 1. Fetch full entity from DB (V2 CTI schema)
 	query := `
 		SELECT 
-			f.id, f.name, f.slug, f.short_description, f.description, 
-			f.contact_email, f.entity_type, f.status, f.trusted_seller, f.verified, 
-			f.total_outlets, f.outlet_range, f.industry, f.business_type, 
-			f.established_year, f.units_count, f.logo_url_circle, f.logo_url_square, f.association_metadata,
-			f.member_count, f.membership_fee_min, f.membership_fee_max, f.approved_at,
-			f.website_url, f.is_featured, f.featured_start_at, f.featured_expires_at, f.featured_order, f.is_sponsored,
-			COALESCE(fc.country, 'India') as country,
+			l.id, l.name, l.slug, l.short_description, l.description, 
+			l.contact_email, l.entity_type, l.status, l.trusted_seller, l.verified, 
+			COALESCE(fr.total_outlets, 0), fr.outlet_range, fr.industry, fr.business_type, 
+			fr.established_year, COALESCE(fr.units_count, 0), l.logo_url_circle, l.logo_url_square, a.association_metadata,
+			a.member_count, a.membership_fee_min, a.membership_fee_max, l.approved_at,
+			l.website_url, l.is_featured, l.featured_start_at, l.featured_expires_at, l.featured_order, l.is_sponsored,
+			COALESCE(lc.country, 'India') as country,
 			fo.territory_details,
 			fo.space_min_sqft, fo.space_max_sqft,
 			fi.initial_investment_min, fi.initial_investment_max
-		FROM franchises f
+		FROM listings l
+		LEFT JOIN franchises fr ON l.id = fr.id
+		LEFT JOIN associations a ON l.id = a.id
 		LEFT JOIN (
-			SELECT DISTINCT ON (franchise_id) franchise_id, country 
-			FROM franchise_cities
-		) fc ON f.id = fc.franchise_id
-		LEFT JOIN franchise_operations fo ON f.id = fo.franchise_id
-		LEFT JOIN franchise_investment_requirement fi ON f.id = fi.franchise_id
-		WHERE f.id = $1
+			SELECT DISTINCT ON (listing_id) listing_id, country 
+			FROM listing_cities
+		) lc ON l.id = lc.listing_id
+		LEFT JOIN franchise_operations fo ON l.id = fo.franchise_id
+		LEFT JOIN franchise_investment_requirement fi ON l.id = fi.franchise_id
+		WHERE l.id = $1
 		LIMIT 1
 	`
 	

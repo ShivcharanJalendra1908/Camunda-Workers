@@ -166,12 +166,12 @@ func TestHandler_Execute_Success(t *testing.T) {
 			input: createTestInput(testUserUUID001, createHighScoreApplicationData()),
 			setupMock: func(mock sqlmock.Sqlmock) {
 				// Mock location match query
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 					WithArgs("franchise-123", "maharashtra").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
 				// Mock category match query
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 					WithArgs("franchise-123", "retail").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -206,11 +206,11 @@ func TestHandler_Execute_Success(t *testing.T) {
 				"involvementLevel":     "full-time-owner",
 			}),
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 					WithArgs("franchise-123", "maharashtra").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 					WithArgs("franchise-123", "retail").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -229,11 +229,11 @@ func TestHandler_Execute_Success(t *testing.T) {
 			name:  "medium qualification level",
 			input: createTestInput(testUserUUID003, createMediumScoreApplicationData()),
 			setupMock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 					WithArgs("franchise-123", "karnataka").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+				mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 					WithArgs("franchise-123", "technology").
 					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
@@ -295,11 +295,11 @@ func TestHandler_Execute_EmptyApplicationData(t *testing.T) {
 	defer db.Close()
 
 	// Mock empty results for all queries
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 		WithArgs("franchise-123", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 		WithArgs("franchise-123", sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
@@ -725,11 +725,11 @@ func TestHandler_EdgeCases(t *testing.T) {
 		db, mock := setupMockDB(t)
 		defer db.Close()
 
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 			WithArgs("franchise-123", sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
-		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+		mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 			WithArgs("franchise-123", sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
@@ -821,11 +821,11 @@ func BenchmarkHandler_Execute(b *testing.B) {
 	defer db.Close()
 
 	// Setup mock expectations for benchmark
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_cities").
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_cities").
 		WithArgs("franchise-123", "maharashtra").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM franchise_categories").
+	mock.ExpectQuery("SELECT COUNT\\(\\*\\) FROM listing_categories").
 		WithArgs("franchise-123", "retail").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
