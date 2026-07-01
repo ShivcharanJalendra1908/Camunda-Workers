@@ -448,7 +448,7 @@ func main() {
 			RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
 			MaxJobsActive:  cfg.Workers[taskType].MaxJobsActive,
 		}
-		handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig)
+		handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig, taskType)
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
 
 		zapLog.Info("Franchise PostgreSQL worker registered successfully",
