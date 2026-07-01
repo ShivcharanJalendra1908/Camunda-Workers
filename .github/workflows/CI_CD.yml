@@ -5,6 +5,10 @@ on:
     branches:
       - mvp
       - prod
+      
+    paths-ignore: 
+        - 'keycloak-theme/**'
+        - '.github/workflows/deploy-keycloak.yml'
  
 concurrency:
   group: backend-${{ github.ref_name }}
