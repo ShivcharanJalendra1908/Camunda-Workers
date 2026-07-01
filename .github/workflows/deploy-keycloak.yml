@@ -1,36 +1,28 @@
-name: Backend + Camunda CI/CD
- 
+name: Deploy Keycloak Theme
+
 on:
   push:
     branches:
       - mvp
       - prod
- 
-concurrency:
-  group: backend-${{ github.ref_name }}
-  cancel-in-progress: true
- 
- 
+    paths:
+      - 'keycloak-theme/**'
+      - '.github/workflows/deploy-keycloak.yml'
+
 permissions:
-  contents: read
   id-token: write
-  actions: read
- 
- 
+  contents: read
+
 jobs:
-  build_and_deploy:
+  deploy:
     runs-on: ubuntu-latest
- 
+
     environment: ${{ github.ref_name }}
- 
+
     steps:
- 
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
- 
-     
+        uses: actions/checkout@v3
+
       - name: Detect Environment
         id: env-detector
         shell: bash
@@ -66,91 +58,14 @@ jobs:
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config AWS_REGION             | AWS_REGION ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config AWS_ROLE_ARN            | AWS_ROLE_ARN ;
             kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config INSTANCE_ID             | INSTANCE_ID ;
-            kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config BACKEND_GATEWAY_IMAGE   | BACKEND_GATEWAY_IMAGE ;
-            kv/data/${{ steps.env-detector.outputs.env_name }}/backend/config BACKEND_WORKER_IMAGE    | BACKEND_WORKER_IMAGE ;
-     
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
- 
-      - name: Install dependencies
-        run: go mod tidy
- 
-      - name: Build services
-        run: go build ./...
- 
-      - name: Run tests
-        continue-on-error: true
-        run: |
-          PKGS=$(go list ./... \
-            | grep -v "/test/e2e" \
-            | grep -v "/cmd/tools/registry-updater" \
-            | grep -v "/internal/workers/auth/captcha-verify")
- 
-          go test $PKGS
- 
-   
-      - name: Build Gateway image
-        run: |
-          docker build \
-            -t ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
-            -f deployments/docker/Dockerfile.gateway \
-            .
- 
-      - name: Build Worker image
-        run: |
-          docker build \
-            -t ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
-            -f deployments/docker/Dockerfile.worker \
-            .
-     
-   
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-     
-      - name: Verify AWS Identity
-        run: aws sts get-caller-identity
- 
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
- 
-      - name: Tag images to ECR
-        run: |
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
- 
-          # Tag Gateway
-          docker tag \
-            ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
-            ${ECR_URL}/${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }}
- 
-          # Tag Worker
-          docker tag \
-            ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
-            ${ECR_URL}/${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }}
- 
-          docker tag ${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }} \
-            $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:latest
- 
-          docker tag ${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }} \
-            $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:latest
- 
-          echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
- 
-      - name: Push images to ECR
-        run: |
-          docker push $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:${{ github.sha }}
-          docker push $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:${{ github.sha }}
- 
-          docker push $ECR_URL/${{ env.BACKEND_GATEWAY_IMAGE }}:latest
-          docker push $ECR_URL/${{ env.BACKEND_WORKER_IMAGE }}:latest
- 
-     
-     - name: Dispatch SSM deploy command
+
+      - name: Dispatch SSM deploy command
         shell: bash
         run: |
           set -euo pipefail
@@ -162,24 +77,18 @@ jobs:
           {
             "DocumentName": "AWS-RunShellScript",
             "InstanceIds": ["${INSTANCE_ID}"],
-            "Comment": "Backend deploy branch=${BRANCH} sha=${{ github.sha }}",
+            "Comment": "Keycloak deploy branch=${BRANCH} sha=${{ github.sha }}",
             "Parameters": {
               "commands": [
                       "set -e",
                       "cd /home/ubuntu/Workflow-and-Workers/deployments/docker",
                       "export HOME=/root",
                       "git config --global --add safe.directory /home/ubuntu/Workflow-and-Workers",
-                      "ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)",
-                      "ECR_URL=\${ACCOUNT_ID}.dkr.ecr.REGION_PLACEHOLDER.amazonaws.com",
-                      "export ECR_URL",
-                      "aws ecr get-login-password --region REGION_PLACEHOLDER | sudo docker login --username AWS --password-stdin \${ECR_URL}",
-                      "sudo -u ssm-user git -C /home/ubuntu/Workflow-and-Workers fetch origin",
-                      "sudo -u ssm-user git -C /home/ubuntu/Workflow-and-Workers checkout BRANCH_PLACEHOLDER",
-                      "sudo -u ssm-user git -C/home/ubuntu/Workflow-and-Workersreset --hard origin/BRANCH_PLACEHOLDER",
-                      "sudo docker compose -f deployments/docker/docker-compose.yml down --remove-orphans || true",
-                      "sudo docker compose -f deployments/docker/docker-compose.yml pull",
-                      "sudo docker compose -f deployments/docker/docker-compose.yml up -d --force-recreate",
-                      "sudo docker image prune -f"
+                      "sudo -u ubuntu git -C /home/ubuntu/Workflow-and-Workers fetch origin",
+                      "sudo -u ubuntu git -C /home/ubuntu/Workflow-and-Workers checkout BRANCH_PLACEHOLDER",
+                      "sudo -u ubuntu git -C /home/ubuntu/Workflow-and-Workers reset --hard origin/BRANCH_PLACEHOLDER",
+                      "sudo docker compose stop keycloak",
+                      "sudo docker compose up -d --force-recreate keycloak"
               ]
             }
           }
@@ -195,6 +104,7 @@ jobs:
             --query "Command.CommandId")
           echo "SSM_COMMAND_ID=${SSM_COMMAND_ID}" >> $GITHUB_ENV
           echo "Dispatched SSM command: ${SSM_COMMAND_ID}"
+          
       - name: Wait for SSM deploy to complete
         shell: bash
         run: |
