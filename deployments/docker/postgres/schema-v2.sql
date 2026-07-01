@@ -220,7 +220,7 @@ CREATE TABLE listings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise')),
-    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn')),
+    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
     CONSTRAINT chk_logo_url_circle CHECK (logo_url_circle IS NULL OR logo_url_circle ~* '^https?://' OR logo_url_circle ~* '^/'),
     CONSTRAINT chk_logo_url_square CHECK (logo_url_square IS NULL OR logo_url_square ~* '^https?://' OR logo_url_square ~* '^/'),
     CONSTRAINT chk_founded_year_valid CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
