@@ -167,7 +167,7 @@ func (m *SyncManager) syncHomeIndex(ctx context.Context) error {
 
 	currentYear := time.Now().Year()
 	if err := m.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM franchises WHERE EXTRACT(YEAR FROM created_at) = $1",
+		"SELECT COUNT(*) FROM listings WHERE entity_type = 'franchise' AND EXTRACT(YEAR FROM created_at) = $1",
 		currentYear,
 	).Scan(&newFranchisorsThisYear); err != nil {
 		log.Printf("Warning: failed to get new franchisors this year: %v", err)
