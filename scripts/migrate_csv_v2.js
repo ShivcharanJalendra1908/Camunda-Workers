@@ -200,20 +200,34 @@ for (const rel of copyRelations) {
     }
 }
 
-// 3. Process Franchise Specific Relations (direct copy)
+// 3. Process Franchise Specific Relations (direct copy with ID mapping & filtering)
 console.log('Processing Franchise Specific Relations...');
-const directCopies = [
-    'franchise_business_overview.csv',
-    'franchise_investment_requirement.csv',
-    'franchise_operations.csv',
-    'franchise_cities.csv'
+const franchiseIds = new Set(franchisesData.map(f => f.listing_id));
+const listingIds = new Set(listingsData.map(l => l.id));
+
+const franchiseSpecificFiles = [
+    { name: 'franchise_business_overview.csv', filterKey: 'franchise_id', allowedIds: franchiseIds },
+    { name: 'franchise_investment_requirement.csv', filterKey: 'franchise_id', allowedIds: franchiseIds },
+    { name: 'franchise_operations.csv', filterKey: 'franchise_id', allowedIds: franchiseIds },
+    { name: 'franchise_cities.csv', filterKey: 'franchise_id', allowedIds: listingIds }
 ];
 
-for (const file of directCopies) {
+for (const fileObj of franchiseSpecificFiles) {
+    const file = fileObj.name;
     if (fs.existsSync(path.join(srcDir, file))) {
         const data = parseCSV(path.join(srcDir, file));
         if (data.length > 0) {
-            writeCSV(path.join(destDir, file), Object.keys(data[0]), data);
+            const mappedData = data.map(row => {
+                const newRow = { ...row };
+                if (newRow[fileObj.filterKey]) {
+                    newRow[fileObj.filterKey] = getRealId(newRow[fileObj.filterKey]);
+                }
+                return newRow;
+            }).filter(row => {
+                const id = row[fileObj.filterKey];
+                return fileObj.allowedIds.has(id);
+            });
+            writeCSV(path.join(destDir, file), Object.keys(data[0]), mappedData);
         }
     }
 }
