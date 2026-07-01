@@ -78,18 +78,18 @@ const allListings = parseCSV(path.join(srcDir, 'franchises.csv'));
 const listingHeaders = [
     'id', 'name', 'slug', 'short_description', 'description', 'founded_year',
     'contact_email', 'website_url', 'logo_url_circle', 'logo_url_square',
-    'created_by', 'updated_by', 'created_at', 'updated_at', 'entity_type', 'status'
+    'created_by', 'updated_by', 'created_at', 'updated_at', 'entity_type', 'status',
+    'verified', 'trusted_seller'
 ];
 
 const franchiseHeaders = [
     'listing_id', 'total_outlets', 'parent_company', 'business_type',
-    'established_year', 'units_count', 'leader_name', 'leader_role',
-    'verified', 'trusted_seller'
+    'established_year', 'units_count', 'leader_name', 'leader_role'
 ];
 
 const associationHeaders = [
     'listing_id', 'association_type', 'sector_represented', 'member_count',
-    'membership_fee_min', 'membership_fee_max', 'approved_at'
+    'membership_fee_min', 'membership_fee_max'
 ];
 
 const masterFranchiseHeaders = [
@@ -174,7 +174,13 @@ const copyRelations = [
 
 for (const rel of copyRelations) {
     if (fs.existsSync(path.join(srcDir, rel.src))) {
-        const data = parseCSV(path.join(srcDir, rel.src));
+        let data = parseCSV(path.join(srcDir, rel.src));
+        if (rel.src === 'franchise_social_links.csv') {
+            data = data.filter(row => {
+                const url = row['instagram_url'];
+                return !url || url.startsWith('http') || url.startsWith('https');
+            });
+        }
         if (data.length > 0) {
             const oldHeaders = Object.keys(data[0]);
             const newHeaders = oldHeaders.map(h => h === rel.idCol ? rel.newIdCol : h);
