@@ -194,7 +194,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             l.id,
             l.name,
             l.slug,
-            f.established_year as founded_year,
+            l.founded_year as founded_year,
             f.total_outlets,
             l.short_description,
             l.logo_url_circle,
