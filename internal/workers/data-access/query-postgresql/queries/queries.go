@@ -339,7 +339,7 @@ SELECT
 	f.leader_role,
 	f.established_year,
 	f.units_count,
-	fc.city_name as city,
+	fc.city as city,
 	fir.franchise_fee,
 	fir.royalty_percentage,
 	fir.monthly_turnover_min,
@@ -351,7 +351,7 @@ LEFT JOIN franchises f ON l.id = f.id
 LEFT JOIN franchise_investment_requirement fir ON f.id = fir.franchise_id
 LEFT JOIN franchise_operations fo ON f.id = fo.franchise_id
 LEFT JOIN LATERAL (
-	SELECT city_name
+	SELECT city
 	FROM listing_cities
 	WHERE listing_id = l.id
 	ORDER BY created_at DESC
