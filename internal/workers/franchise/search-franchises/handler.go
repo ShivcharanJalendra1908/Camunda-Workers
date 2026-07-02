@@ -201,27 +201,38 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 	// ✅ INDUSTRY FILTER (TOP LEVEL OBJECT)
 	if input.Industry != "" {
-		industryFilter := map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{
-						"term": map[string]interface{}{
-							"industry.slug": strings.ToLower(input.Industry),
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"industry.name": input.Industry,
-						},
+		industries := strings.Split(input.Industry, ",")
+		var shouldTerms []map[string]interface{}
+		for _, ind := range industries {
+			indTrimmed := strings.TrimSpace(ind)
+			if indTrimmed == "" {
+				continue
+			}
+			shouldTerms = append(shouldTerms, 
+				map[string]interface{}{
+					"term": map[string]interface{}{
+						"industry.slug": strings.ToLower(indTrimmed),
 					},
 				},
-				"minimum_should_match": 1,
-			},
+				map[string]interface{}{
+					"match": map[string]interface{}{
+						"industry.name": indTrimmed,
+					},
+				},
+			)
 		}
-		if input.Query != "" {
-			shouldClauses = append(shouldClauses, industryFilter)
-		} else {
-			mustClauses = append(mustClauses, industryFilter)
+		if len(shouldTerms) > 0 {
+			industryFilter := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldTerms,
+					"minimum_should_match": 1,
+				},
+			}
+			if input.Query != "" {
+				shouldClauses = append(shouldClauses, industryFilter)
+			} else {
+				mustClauses = append(mustClauses, industryFilter)
+			}
 		}
 	}
 
