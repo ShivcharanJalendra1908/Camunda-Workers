@@ -1976,6 +1976,81 @@ func (h *Handler) buildIndustriesResponse(data map[string]interface{}) map[strin
 		entityType = et
 	}
 
+	if entityType == "association" {
+		// Category Grouping mapping for associations
+		var associationGroupMapping = map[string]struct{
+			GroupName string
+			GroupIcon string
+		}{
+			"Health":                    {GroupName: "Health & Wellness", GroupIcon: "🏥"},
+			"Sports & Fitness":          {GroupName: "Health & Wellness", GroupIcon: "🏥"},
+			"Beauty":                    {GroupName: "Health & Wellness", GroupIcon: "🏥"},
+			"Food & Beverage":           {GroupName: "Food & Hospitality", GroupIcon: "🍽️"},
+			"Hotel, Travel & Tourism":   {GroupName: "Food & Hospitality", GroupIcon: "🍽️"},
+			"Home-Based Business":       {GroupName: "Food & Hospitality", GroupIcon: "🍽️"},
+			"Fashion":                   {GroupName: "Lifestyle & Consumer", GroupIcon: "👗"},
+			"Entertainment":             {GroupName: "Lifestyle & Consumer", GroupIcon: "👗"},
+			"Retail":                    {GroupName: "Lifestyle & Consumer", GroupIcon: "👗"},
+			"Business Services":         {GroupName: "Business & Professional Services", GroupIcon: "💼"},
+			"Dealers & Distributors":    {GroupName: "Business & Professional Services", GroupIcon: "💼"},
+			"Government":                {GroupName: "Business & Professional Services", GroupIcon: "💼"},
+			"Education":                 {GroupName: "Education & Knowledge", GroupIcon: "🏫"},
+			"Technology / IT":           {GroupName: "Technology & Media", GroupIcon: "💻"},
+			"Media / Communication":     {GroupName: "Technology & Media", GroupIcon: "💻"},
+			"Finance / Banking":         {GroupName: "Finance & Real Estate", GroupIcon: "💰"},
+			"Real Estate":               {GroupName: "Finance & Real Estate", GroupIcon: "💰"},
+			"Logistics / Manufacturing": {GroupName: "Trade & Industry", GroupIcon: "🏭"},
+			"Agriculture":               {GroupName: "Trade & Industry", GroupIcon: "🏭"},
+			"Automotive":                {GroupName: "Trade & Industry", GroupIcon: "🏭"},
+		}
+
+		var associationGroupsOrder = []struct{
+			Name string
+			Icon string
+		}{
+			{Name: "Health & Wellness", Icon: "🏥"},
+			{Name: "Food & Hospitality", Icon: "🍽️"},
+			{Name: "Lifestyle & Consumer", Icon: "👗"},
+			{Name: "Business & Professional Services", Icon: "💼"},
+			{Name: "Education & Knowledge", Icon: "🏫"},
+			{Name: "Technology & Media", Icon: "💻"},
+			{Name: "Finance & Real Estate", Icon: "💰"},
+			{Name: "Trade & Industry", Icon: "🏭"},
+		}
+
+		// Grouping logic
+		groupMap := make(map[string][]map[string]interface{})
+		for _, ind := range cleaned {
+			name, _ := ind["industry_name"].(string)
+			if groupInfo, exists := associationGroupMapping[name]; exists {
+				groupMap[groupInfo.GroupName] = append(groupMap[groupInfo.GroupName], ind)
+			}
+		}
+
+		groupedCleaned := []map[string]interface{}{}
+		for _, grp := range associationGroupsOrder {
+			if list, exists := groupMap[grp.Name]; exists && len(list) > 0 {
+				groupedCleaned = append(groupedCleaned, map[string]interface{}{
+					"group_name": grp.Name,
+					"group_icon": grp.Icon,
+					"industries": list,
+				})
+			}
+		}
+
+		return map[string]interface{}{
+			"success": true,
+			"data":    groupedCleaned,
+			"metadata": map[string]interface{}{
+				"generatedAt": time.Now().UTC().Format(time.RFC3339),
+				"source":      "workflow",
+				"pageType":    "industries",
+				"entityType":  entityType,
+				"version":     h.config.AppVersion,
+			},
+		}
+	}
+
 	return map[string]interface{}{
 		"success": true,
 		"data":    cleaned,
