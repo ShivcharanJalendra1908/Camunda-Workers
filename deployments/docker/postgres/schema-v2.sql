@@ -401,13 +401,15 @@ CREATE TABLE listing_social_links (
     facebook_url VARCHAR(255),
     twitter_url VARCHAR(255),
     linkedin_url VARCHAR(255),
+    youtube_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_social_links UNIQUE (listing_id),
     CONSTRAINT chk_instagram_url CHECK (instagram_url IS NULL OR instagram_url ~* '^https?://'),
     CONSTRAINT chk_facebook_url CHECK (facebook_url IS NULL OR facebook_url ~* '^https?://'),
     CONSTRAINT chk_twitter_url CHECK (twitter_url IS NULL OR twitter_url ~* '^https?://'),
-    CONSTRAINT chk_linkedin_url CHECK (linkedin_url IS NULL OR linkedin_url ~* '^https?://')
+    CONSTRAINT chk_linkedin_url CHECK (linkedin_url IS NULL OR linkedin_url ~* '^https?://'),
+    CONSTRAINT chk_youtube_url CHECK (youtube_url IS NULL OR youtube_url ~* '^https?://')
 );
 CREATE TRIGGER update_listing_social_links_updated_at BEFORE UPDATE ON listing_social_links FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE INDEX idx_listing_social_links_listing ON listing_social_links(listing_id);

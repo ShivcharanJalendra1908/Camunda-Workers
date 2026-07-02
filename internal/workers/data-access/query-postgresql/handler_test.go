@@ -91,7 +91,7 @@ func TestHandler_Execute_Success(t *testing.T) {
 					300000, 600000, "food", "US,CA", true,
 					"2023-01-01", "2023-12-01",
 				)
-				mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+				mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 					WithArgs("franchise-123").
 					WillReturnRows(rows)
 			},
@@ -118,7 +118,9 @@ func TestHandler_Execute_Success(t *testing.T) {
 				).AddRow(
 					"outlet-2", "franchise-123", "456 Oak Ave", "Portland", "OR", "US", "+1234567891",
 				)
-				mock.ExpectQuery(`SELECT id, franchise_id, address, city, state, country, phone FROM franchise_outlets WHERE franchise_id = \$1`).
+				mock.ExpectQuery(`SELECT id, listing_id as franchise_id, 'Not Available' as address, city_name as city, state_name as state, country_name as country, '' as phone
+		FROM listing_cities 
+		WHERE listing_id = \$1`).
 					WithArgs("franchise-123").
 					WillReturnRows(rows)
 			},
@@ -245,7 +247,7 @@ func TestHandler_Execute_Timeout(t *testing.T) {
 	db, mock := newMockDB(t)
 	defer db.Close()
 
-	mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 		WithArgs("franchise-123").
 		WillDelayFor(200 * time.Millisecond).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("franchise-123"))
@@ -297,7 +299,7 @@ func TestHandler_Execute_QueryErrors(t *testing.T) {
 			name:  "database error",
 			input: createValidInput(models.QueryTypeFranchiseFullDetails),
 			mockQuery: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+				mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 					WithArgs("franchise-123").
 					WillReturnError(errors.New("database connection failed"))
 			},
@@ -317,7 +319,7 @@ func TestHandler_Execute_QueryErrors(t *testing.T) {
 			name:  "no rows found",
 			input: createValidInput(models.QueryTypeFranchiseFullDetails),
 			mockQuery: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+				mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 					WithArgs("franchise-123").
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -441,7 +443,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 		db, mock := newMockDB(t)
 		defer db.Close()
 
-		mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 			WithArgs("franchise-123").
 			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("franchise-123"))
 
@@ -473,7 +475,9 @@ func TestHandler_EdgeCases(t *testing.T) {
 			)
 		}
 
-		mock.ExpectQuery(`SELECT id, franchise_id, address, city, state, country, phone FROM franchise_outlets WHERE franchise_id = \$1`).
+		mock.ExpectQuery(`SELECT id, listing_id as franchise_id, 'Not Available' as address, city_name as city, state_name as state, country_name as country, '' as phone
+		FROM listing_cities 
+		WHERE listing_id = \$1`).
 			WithArgs("franchise-123").
 			WillReturnRows(rows)
 
@@ -505,7 +509,7 @@ func TestHandler_FullWorkflow(t *testing.T) {
 		300000, 600000, "food", "US,CA,UK", true,
 		"2023-01-01", "2023-12-01",
 	)
-	mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 		WithArgs("franchise-123").
 		WillReturnRows(franchiseRows)
 
@@ -516,7 +520,9 @@ func TestHandler_FullWorkflow(t *testing.T) {
 	).AddRow(
 		"outlet-2", "franchise-123", "456 Brew Ave", "Portland", "OR", "US", "+1234567891",
 	)
-	mock.ExpectQuery(`SELECT id, franchise_id, address, city, state, country, phone FROM franchise_outlets WHERE franchise_id = \$1`).
+	mock.ExpectQuery(`SELECT id, listing_id as franchise_id, 'Not Available' as address, city_name as city, state_name as state, country_name as country, '' as phone
+		FROM listing_cities 
+		WHERE listing_id = \$1`).
 		WithArgs("franchise-123").
 		WillReturnRows(outletRows)
 
@@ -560,7 +566,7 @@ func BenchmarkHandler_Execute_FranchiseFullDetails(b *testing.B) {
 			300000, 600000, "food", "US,CA", true,
 			"2023-01-01", "2023-12-01",
 		)
-		mock.ExpectQuery(`SELECT id, name, description, investment_min, investment_max, category, locations, is_verified, created_at, updated_at FROM franchises WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT l\.id, l\.name, l\.description.*FROM listings`).
 			WithArgs("franchise-123").
 			WillReturnRows(rows)
 
@@ -590,7 +596,9 @@ func BenchmarkHandler_Execute_FranchiseOutlets(b *testing.B) {
 		rows := sqlmock.NewRows([]string{
 			"id", "franchise_id", "address", "city", "state", "country", "phone",
 		}).AddRow("outlet-1", "franchise-123", "123 St", "City", "State", "US", "+1234567890")
-		mock.ExpectQuery(`SELECT id, franchise_id, address, city, state, country, phone FROM franchise_outlets WHERE franchise_id = \$1`).
+		mock.ExpectQuery(`SELECT id, listing_id as franchise_id, 'Not Available' as address, city_name as city, state_name as state, country_name as country, '' as phone
+		FROM listing_cities 
+		WHERE listing_id = \$1`).
 			WithArgs("franchise-123").
 			WillReturnRows(rows)
 

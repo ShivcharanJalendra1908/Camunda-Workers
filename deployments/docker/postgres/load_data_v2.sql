@@ -61,7 +61,7 @@ ON CONFLICT (email) DO NOTHING;
 \COPY listing_categories(id, listing_id, category_id, sub_category_id, is_primary, created_at) FROM '/tmp/listing_categories.csv' WITH (FORMAT csv, HEADER true, NULL '');
 
 \echo 'Loading listing_social_links.csv...'
-\COPY listing_social_links(id, listing_id, instagram_url, facebook_url, twitter_url, linkedin_url, created_at, updated_at) FROM '/tmp/listing_social_links.csv' WITH (FORMAT csv, HEADER true, NULL '');
+\COPY listing_social_links(id, listing_id, instagram_url, facebook_url, twitter_url, linkedin_url, youtube_url, created_at, updated_at) FROM '/tmp/listing_social_links.csv' WITH (FORMAT csv, HEADER true, NULL '');
 
 \echo 'Loading franchise_cities.csv as listing_cities...'
 \COPY listing_cities(id, listing_id, city, state, country, created_at) FROM '/tmp/franchise_cities.csv' WITH (FORMAT csv, HEADER true, NULL '');

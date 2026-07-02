@@ -337,7 +337,7 @@ SELECT
 	f.business_type,
 	f.leader_name,
 	f.leader_role,
-	f.established_year,
+	l.founded_year as established_year,
 	f.units_count,
 	fc.city as city,
 	fir.franchise_fee,
@@ -345,9 +345,16 @@ SELECT
 	fir.monthly_turnover_min,
 	fir.monthly_turnover_max,
 	fo.space_min_sqft,
-	fo.space_max_sqft
+	fo.space_max_sqft,
+	a.association_type,
+	a.sector_represented,
+	a.legal_status,
+	a.headquarters_address,
+	a.regional_presence,
+	a.contact_phone
 FROM listings l
 LEFT JOIN franchises f ON l.id = f.id
+LEFT JOIN associations a ON l.id = a.id
 LEFT JOIN franchise_investment_requirement fir ON f.id = fir.franchise_id
 LEFT JOIN franchise_operations fo ON f.id = fo.franchise_id
 LEFT JOIN LATERAL (
@@ -357,7 +364,7 @@ LEFT JOIN LATERAL (
 	ORDER BY created_at DESC
 	LIMIT 1
 ) fc ON true
-WHERE l.id = $1
+WHERE f.id = $1
 	`
 
 	var (
@@ -368,6 +375,10 @@ WHERE l.id = $1
 		franchiseFee, royaltyPercent       sql.NullFloat64
 		turnoverMin, turnoverMax           sql.NullFloat64
 		spaceMin, spaceMax                 sql.NullInt32
+
+		associationType, sectorRepresented  sql.NullString
+		legalStatus, headquartersAddress    sql.NullString
+		regionalPresence, contactPhone      sql.NullString
 	)
 
 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
@@ -385,6 +396,13 @@ WHERE l.id = $1
 		&turnoverMax,
 		&spaceMin,
 		&spaceMax,
+
+		&associationType,
+		&sectorRepresented,
+		&legalStatus,
+		&headquartersAddress,
+		&regionalPresence,
+		&contactPhone,
 	)
 
 	if err != nil {
@@ -444,6 +462,25 @@ WHERE l.id = $1
 	}
 	if spaceMax.Valid {
 		overview["space_max_sqft"] = spaceMax.Int32
+	}
+
+	if associationType.Valid {
+		overview["association_type"] = associationType.String
+	}
+	if sectorRepresented.Valid {
+		overview["sector_represented"] = sectorRepresented.String
+	}
+	if legalStatus.Valid {
+		overview["legal_status"] = legalStatus.String
+	}
+	if headquartersAddress.Valid {
+		overview["headquarters_address"] = headquartersAddress.String
+	}
+	if regionalPresence.Valid {
+		overview["regional_presence"] = regionalPresence.String
+	}
+	if contactPhone.Valid {
+		overview["contact_phone"] = contactPhone.String
 	}
 
 	return overview, 1, time.Since(start).Milliseconds(), nil

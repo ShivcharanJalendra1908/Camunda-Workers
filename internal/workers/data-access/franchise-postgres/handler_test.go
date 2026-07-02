@@ -755,7 +755,7 @@ func (suite *HandlerUnitTestSuite) TestGetFullFranchise_Success() {
     socialLinksQuery := `
         SELECT id, instagram_url, facebook_url, twitter_url, linkedin_url
         FROM listing_social_links 
-        WHERE franchise_id = $1`
+        WHERE listing_id = $1`
     
     suite.mock.ExpectQuery(socialLinksQuery).
         WithArgs(franchiseID).
