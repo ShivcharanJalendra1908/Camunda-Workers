@@ -488,10 +488,10 @@ func (m *SyncManager) generateSearchTags(ctx context.Context, franchiseID, franc
 	rows, err := m.db.QueryContext(ctx, `
         SELECT c.name, sc.name
         FROM listing_categories lc
-        INNER JOIN categories c ON fc.category_id = c.id
-        LEFT JOIN sub_categories sc ON fc.sub_category_id = sc.id
+        INNER JOIN categories c ON lc.category_id = c.id
+        LEFT JOIN sub_categories sc ON lc.sub_category_id = sc.id
         WHERE lc.listing_id = $1
-        ORDER BY fc.is_primary DESC
+        ORDER BY lc.is_primary DESC
     `, franchiseID)
 	if err == nil {
 		defer rows.Close()
@@ -1016,9 +1016,9 @@ func (m *SyncManager) getCategories(ctx context.Context, franchiseID string) []m
 	query := `
         SELECT c.id, c.name, c.slug, c.icon_url, c.image_url
         FROM listing_categories lc
-        INNER JOIN categories c ON fc.category_id = c.id
+        INNER JOIN categories c ON lc.category_id = c.id
         WHERE lc.listing_id = $1 AND c.is_active = true
-        ORDER BY fc.is_primary DESC, c.display_order
+        ORDER BY lc.is_primary DESC, c.display_order
     `
 
 	rows, err := m.db.QueryContext(ctx, query, franchiseID)
@@ -1054,11 +1054,11 @@ func (m *SyncManager) getSubCategories(ctx context.Context, franchiseID string) 
 	query := `
         SELECT sc.id, sc.name, sc.slug, sc.category_id
         FROM listing_categories lc
-        INNER JOIN sub_categories sc ON fc.sub_category_id = sc.id
+        INNER JOIN sub_categories sc ON lc.sub_category_id = sc.id
         WHERE lc.listing_id = $1
-          AND fc.sub_category_id IS NOT NULL
+          AND lc.sub_category_id IS NOT NULL
           AND sc.is_active = true
-        ORDER BY fc.is_primary DESC, sc.display_order
+        ORDER BY lc.is_primary DESC, sc.display_order
     `
 
 	rows, err := m.db.QueryContext(ctx, query, franchiseID)
