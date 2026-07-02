@@ -194,7 +194,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             l.id,
             l.name,
             l.slug,
-            COALESCE(l.founded_year, f.established_year) as founded_year,
+            f.established_year as founded_year,
             f.total_outlets,
             l.short_description,
             l.logo_url_circle,
@@ -347,11 +347,11 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		cleanDesc := cleanDescription(shortDescription.String)
 
 		doc := map[string]interface{}{
-			"franchise_id":         id,
-			"name":                 name,
-			"slug":                 slug,
-			"entity_type":          entityType,
-			"description":          cleanDesc,
+			"franchise_id": id,
+			"name":         name,
+			"slug":         slug,
+			"entity_type":  entityType,
+			"description":  cleanDesc,
 			"logo": map[string]interface{}{
 				"circle": logoURLCircle.String,
 				"square": logoURLSquare.String,
