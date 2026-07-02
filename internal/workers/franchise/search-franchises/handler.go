@@ -191,11 +191,13 @@ func (h *Handler) sanitizeInput(input *Input) {
 func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	query := map[string]interface{}{
 		"bool": map[string]interface{}{
-			"must": []map[string]interface{}{},
+			"must":   []map[string]interface{}{},
+			"should": []map[string]interface{}{},
 		},
 	}
 
 	mustClauses := query["bool"].(map[string]interface{})["must"].([]map[string]interface{})
+	shouldClauses := query["bool"].(map[string]interface{})["should"].([]map[string]interface{})
 
 	// ✅ INDUSTRY FILTER (TOP LEVEL OBJECT)
 	if input.Industry != "" {
@@ -216,7 +218,11 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				"minimum_should_match": 1,
 			},
 		}
-		mustClauses = append(mustClauses, industryFilter)
+		if input.Query != "" {
+			shouldClauses = append(shouldClauses, industryFilter)
+		} else {
+			mustClauses = append(mustClauses, industryFilter)
+		}
 	}
 
 	// ✅ CATEGORY FILTER (NESTED)
@@ -243,7 +249,11 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				},
 			},
 		}
-		mustClauses = append(mustClauses, categoryFilter)
+		if input.Query != "" {
+			shouldClauses = append(shouldClauses, categoryFilter)
+		} else {
+			mustClauses = append(mustClauses, categoryFilter)
+		}
 	}
 
 	// ✅ TEXT SEARCH (MULTI-MATCH)
@@ -476,6 +486,9 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	}
 
 	query["bool"].(map[string]interface{})["must"] = mustClauses
+	if len(shouldClauses) > 0 {
+		query["bool"].(map[string]interface{})["should"] = shouldClauses
+	}
 
 	// ✅ SORTING
 	var sort []map[string]interface{}
