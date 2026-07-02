@@ -76,14 +76,15 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		SELECT 
 			l.id, l.name, l.slug, l.short_description, l.description, 
 			l.contact_email, l.entity_type, l.status, l.trusted_seller, l.verified, 
-			COALESCE(fr.total_outlets, 0), fr.outlet_range, fr.industry, fr.business_type, 
-			fr.established_year, COALESCE(fr.units_count, 0), l.logo_url_circle, l.logo_url_square, a.association_metadata,
+			COALESCE(fr.total_outlets, 0), fr.outlet_range, fr.business_type, 
+			COALESCE(l.founded_year, fr.established_year), COALESCE(fr.units_count, 0), l.logo_url_circle, l.logo_url_square, a.association_metadata,
 			a.member_count, a.membership_fee_min, a.membership_fee_max, l.approved_at,
 			l.website_url, l.is_featured, l.featured_start_at, l.featured_expires_at, l.featured_order, l.is_sponsored,
 			COALESCE(lc.country, 'India') as country,
 			fo.territory_details,
 			fo.space_min_sqft, fo.space_max_sqft,
-			fi.initial_investment_min, fi.initial_investment_max
+			fi.initial_investment_min, fi.initial_investment_max,
+			i.id, i.name, i.slug, i.color_hex
 		FROM listings l
 		LEFT JOIN franchises fr ON l.id = fr.id
 		LEFT JOIN associations a ON l.id = a.id
@@ -93,6 +94,15 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		) lc ON l.id = lc.listing_id
 		LEFT JOIN franchise_operations fo ON l.id = fo.franchise_id
 		LEFT JOIN franchise_investment_requirement fi ON l.id = fi.franchise_id
+		LEFT JOIN LATERAL (
+			SELECT category_id 
+			FROM listing_categories 
+			WHERE listing_id = l.id
+			ORDER BY is_primary DESC NULLS LAST 
+			LIMIT 1
+		) lcat ON true
+		LEFT JOIN categories c ON lcat.category_id = c.id
+		LEFT JOIN industries i ON c.industry_id = i.id
 		WHERE l.id = $1
 		LIMIT 1
 	`
@@ -110,9 +120,8 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		Verified             bool            `json:"verified"`
 		TotalOutlets         int             `json:"total_outlets"`
 		OutletRange          *string         `json:"outlet_range,omitempty"`
-		Industry             *string         `json:"industry,omitempty"`
 		BusinessType         *string         `json:"business_type,omitempty"`
-		EstablishedYear      *int16          `json:"established_year,omitempty"`
+		EstablishedYear      *int32          `json:"established_year,omitempty"`
 		UnitsCount           int             `json:"units_count"`
 		LogoURLCircle        *string         `json:"logo_url_circle,omitempty"`
 		LogoURLSquare        *string         `json:"logo_url_square,omitempty"`
@@ -137,17 +146,19 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	var websiteUrlStr sql.NullString
 	var featuredStartAt, featuredExpiresAt sql.NullTime
+	var indID, indName, indSlug, indColor sql.NullString
 
 	err = h.db.QueryRowContext(ctx, query, franchiseId).Scan(
 		&f.ID, &f.Name, &f.Slug, &f.ShortDescription, &f.Description,
 		&f.ContactEmail, &f.EntityType, &f.Status, &f.TrustedSeller, &f.Verified,
-		&f.TotalOutlets, &f.OutletRange, &f.Industry, &f.BusinessType,
+		&f.TotalOutlets, &f.OutletRange, &f.BusinessType,
 		&f.EstablishedYear, &f.UnitsCount, &f.LogoURLCircle, &f.LogoURLSquare, &f.AssociationMetadata,
 		&f.MemberCount, &f.MembershipFeeMin, &f.MembershipFeeMax, &f.ApprovedAt,
 		&websiteUrlStr, &f.IsFeatured, &featuredStartAt, &featuredExpiresAt, &f.FeaturedOrder, &f.IsSponsored,
 		&f.Country, &f.TerritoryDetails,
 		&f.SpaceMinSqft, &f.SpaceMaxSqft,
 		&f.InitialInvestmentMin, &f.InitialInvestmentMax,
+		&indID, &indName, &indSlug, &indColor,
 	)
 
 	if err != nil {
@@ -265,6 +276,45 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return *s
 	}
 
+	var industryDoc map[string]interface{}
+	if indID.Valid {
+		color := indColor.String
+		if color == "" {
+			color = "#FF6B6B"
+		}
+		industryDoc = map[string]interface{}{
+			"id":        indID.String,
+			"name":      indName.String,
+			"slug":      indSlug.String,
+			"color_hex": color,
+		}
+	}
+
+	// Fetch categories
+	var categories []map[string]interface{}
+	catRows, errCat := h.db.QueryContext(ctx,
+		`SELECT c.id, c.name, c.slug, c.icon_name 
+		 FROM listing_categories lc
+		 JOIN categories c ON lc.category_id = c.id
+		 WHERE lc.listing_id = $1`,
+		franchiseId,
+	)
+	if errCat == nil {
+		defer catRows.Close()
+		for catRows.Next() {
+			var cid, cname, cslug string
+			var cicon sql.NullString
+			if err := catRows.Scan(&cid, &cname, &cslug, &cicon); err == nil {
+				categories = append(categories, map[string]interface{}{
+					"id":        cid,
+					"name":      cname,
+					"slug":      cslug,
+					"icon_name": cicon.String,
+				})
+			}
+		}
+	}
+
 	doc := map[string]interface{}{
 		"franchise_id":         f.ID,
 		"name":                 f.Name,
@@ -276,9 +326,11 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		"trusted_seller":       f.TrustedSeller,
 		"verified":             f.Verified,
 		"total_outlets":        f.TotalOutlets,
-		"industry":             f.Industry,
+		"industry":             industryDoc,
+		"categories":           categories,
 		"business_type":        f.BusinessType,
 		"established_year":     f.EstablishedYear,
+		"year_of_establishment": f.EstablishedYear,
 		"logo": map[string]interface{}{
 			"circle": getStr(f.LogoURLCircle),
 			"square": getStr(f.LogoURLSquare),
