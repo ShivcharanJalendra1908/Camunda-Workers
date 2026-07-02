@@ -2179,7 +2179,9 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 
 		// year_of_establishment
 		estYear := ""
-		if fyVal := getFloatValue(assoc, "founded_year"); fyVal > 0 {
+		if fyVal := getFloatValue(assoc, "year_of_establishment"); fyVal > 0 {
+			estYear = strconv.Itoa(int(fyVal))
+		} else if fyVal := getFloatValue(assoc, "founded_year"); fyVal > 0 {
 			estYear = strconv.Itoa(int(fyVal))
 		}
 		// No estYear fallback
