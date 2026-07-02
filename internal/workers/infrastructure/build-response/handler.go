@@ -1514,6 +1514,10 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			map[string]interface{}{"id": "2", "name": "Finance", "slug": "finance", "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg"},
 			map[string]interface{}{"id": "3", "name": "Healthcare", "slug": "healthcare", "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg"},
 			map[string]interface{}{"id": "4", "name": "Manufacturing", "slug": "manufacturing", "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg"},
+			map[string]interface{}{"id": "5", "name": "Education", "slug": "education", "icon_url": "/AssociationImages/FeaturedBusinessCategories/education.svg"},
+			map[string]interface{}{"id": "6", "name": "Real Estate", "slug": "real-estate", "icon_url": "/AssociationImages/FeaturedBusinessCategories/real-estate.svg"},
+			map[string]interface{}{"id": "7", "name": "Retail", "slug": "retail", "icon_url": "/AssociationImages/FeaturedBusinessCategories/retail.svg"},
+			map[string]interface{}{"id": "8", "name": "Agriculture", "slug": "agriculture", "icon_url": "/AssociationImages/FeaturedBusinessCategories/agriculture.svg"},
 		}
 	}
 
@@ -2546,6 +2550,10 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			map[string]interface{}{"id": "2", "name": "Finance", "slug": "finance", "icon_url": "/AssociationImages/FeaturedBusinessCategories/finance.svg"},
 			map[string]interface{}{"id": "3", "name": "Healthcare", "slug": "healthcare", "icon_url": "/AssociationImages/FeaturedBusinessCategories/healthcare.svg"},
 			map[string]interface{}{"id": "4", "name": "Manufacturing", "slug": "manufacturing", "icon_url": "/AssociationImages/FeaturedBusinessCategories/manufacturing.svg"},
+			map[string]interface{}{"id": "5", "name": "Education", "slug": "education", "icon_url": "/AssociationImages/FeaturedBusinessCategories/education.svg"},
+			map[string]interface{}{"id": "6", "name": "Real Estate", "slug": "real-estate", "icon_url": "/AssociationImages/FeaturedBusinessCategories/real-estate.svg"},
+			map[string]interface{}{"id": "7", "name": "Retail", "slug": "retail", "icon_url": "/AssociationImages/FeaturedBusinessCategories/retail.svg"},
+			map[string]interface{}{"id": "8", "name": "Agriculture", "slug": "agriculture", "icon_url": "/AssociationImages/FeaturedBusinessCategories/agriculture.svg"},
 		}
 	}
 	sections = append(sections, map[string]interface{}{
