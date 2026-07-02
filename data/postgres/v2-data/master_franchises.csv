@@ -1,2 +1,2 @@
-listing_id,master_franchise_type,territory_rights,term_length_years
-65efbd24-f656-4f5c-a239-e689f037052d,,,
+id,territory_rights,sub_franchise_fee_split,master_fee,min_sub_franchises_required
+65efbd24-f656-4f5c-a239-e689f037052d,,,,
