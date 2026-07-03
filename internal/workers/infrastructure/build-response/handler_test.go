@@ -658,7 +658,6 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 			},
 			validate: func(t *testing.T, response map[string]interface{}) {
 				data := response["data"].(map[string]interface{})
-				assert.Equal(t, "test-franchise", data["slug"])
 				assert.NotNil(t, data["basicInfo"])
 				assert.NotNil(t, data["franchising_overview"])
 				assert.NotNil(t, data["investment_details"])
@@ -672,8 +671,6 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 			validate: func(t *testing.T, response map[string]interface{}) {
 				data := response["data"].(map[string]interface{})
 				assert.NotNil(t, data["basicInfo"])
-				// slug is empty string when not set
-				assert.Equal(t, "", data["slug"])
 			},
 		},
 		{
@@ -718,7 +715,6 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 				assert.True(t, response["success"].(bool))
 				data, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
-				assert.Equal(t, "brew-blend-master", data["slug"])
 
 				// Check master franchise details mapped
 				tr, ok := data["territory_rights"].(map[string]interface{})

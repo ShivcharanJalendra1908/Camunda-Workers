@@ -2104,7 +2104,6 @@ type TransformedFranchiseDetailBasicInfo struct {
 type TransformedFranchiseDetailData struct {
 	BasicInfo           TransformedFranchiseDetailBasicInfo `json:"basicInfo"`
 	BusinessOverview    interface{}                         `json:"business_overview,omitempty"`
-	FranchiseID         string                              `json:"franchiseId"`
 	FranchisingOverview interface{}                         `json:"franchising_overview,omitempty"`
 	InvestmentDetails   interface{}                         `json:"investment_details,omitempty"`
 	KeyMarketInsights   interface{}                         `json:"key_market_insights,omitempty"`
@@ -2116,7 +2115,6 @@ type TransformedFranchiseDetailData struct {
 	ThreePlayerRoles    interface{}                         `json:"three_player_roles,omitempty"`
 	Operation           interface{}                         `json:"operation,omitempty"`
 	Sections            []interface{}                       `json:"sections"`
-	Slug                string                              `json:"slug"`
 	SocialMedia         interface{}                         `json:"social_media,omitempty"`
 }
 
@@ -2138,19 +2136,6 @@ func (h *Handler) buildFranchiseDetailResponse(data map[string]interface{}) map[
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 
 	detailData := TransformedFranchiseDetailData{}
-
-	// ✅ Extract franchiseId (defensive)
-	if len(basicInfo) > 0 {
-		if fid, ok := basicInfo["franchise_id"].(string); ok && fid != "" {
-			detailData.FranchiseID = fid
-		} else if id, ok := basicInfo["id"].(string); ok && id != "" {
-			detailData.FranchiseID = id
-		}
-
-		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
-			detailData.Slug = slug
-		}
-	}
 
 	detailData.BasicInfo = h.buildBasicInfoStructure(basicInfo)
 
