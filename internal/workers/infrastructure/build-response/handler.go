@@ -667,42 +667,42 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 	if len(industries) == 0 {
 		industries = h.extractArray(data, "categories")
 	}
-	
+
 	mappedIndustries := []map[string]interface{}{}
 	for _, indItem := range industries {
 		ind, ok := indItem.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		
+
 		idVal := ""
 		if id, ok := ind["id"].(string); ok {
 			idVal = id
 		} else if idFloat, ok := ind["id"].(float64); ok {
 			idVal = strconv.Itoa(int(idFloat))
 		}
-		
+
 		nameVal := ""
 		if name, ok := ind["name"].(string); ok {
 			nameVal = name
 		} else if name, ok := ind["industry_name"].(string); ok {
 			nameVal = name
 		}
-		
+
 		slugVal := ""
 		if slug, ok := ind["slug"].(string); ok {
 			slugVal = slug
 		} else if slug, ok := ind["industry_slug"].(string); ok {
 			slugVal = slug
 		}
-		
+
 		iconVal := ""
 		if icon, ok := ind["icon_url"].(string); ok {
 			iconVal = icon
 		} else if icon, ok := ind["image_url"].(string); ok {
 			iconVal = icon
 		}
-		
+
 		mappedIndustries = append(mappedIndustries, map[string]interface{}{
 			"id":       idVal,
 			"name":     nameVal,
@@ -775,7 +775,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		// membership fee range
 		minFee := getFloatValue(assoc, "membership_fee_min")
 		maxFee := getFloatValue(assoc, "membership_fee_max")
-		
+
 		if minFee == 0 && maxFee == 0 {
 			if memDetails, ok := assocMeta["membership_details"].(map[string]interface{}); ok {
 				if feeMin, ok := memDetails["membership_fee_min"].(float64); ok {
@@ -1440,7 +1440,6 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"data":    insightsData,
 	})
 
-
 	// 17. featured_business_categories
 	var transformedDetailCategories []interface{}
 	if len(categories) > 0 {
@@ -1725,7 +1724,8 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				et = "franchise"
 			}
 
-			if et == "franchise" {
+			switch et {
+			case "franchise":
 				transformed := map[string]interface{}{}
 				transformed["entity_type"] = et
 
@@ -1816,7 +1816,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 					}
 					transformed["investmentRange"] = invRange
 				}
-				
+
 				// Fix logo alt text
 				if logo, ok := transformed["logo"].(map[string]interface{}); ok {
 					if alt, ok := logo["alt"].(string); !ok || alt == "" {
@@ -1827,7 +1827,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				}
 
 				transformedListings = append(transformedListings, transformed)
-			} else if et == "association" {
+			case "association":
 				// Revert association to mutate in place
 				delete(listing, "investment")
 				delete(listing, "investmentRange")
@@ -1847,7 +1847,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				if fid, ok := listing["franchise_id"].(string); ok {
 					listing["id"] = fid
 				}
-				
+
 				// For listing cards: prefer short_description
 				listingDesc := ""
 				if sd, ok := listing["short_description"].(string); ok && sd != "" {
@@ -2404,7 +2404,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		// membership fee range
 		minFee := getFloatValue(assoc, "membership_fee_min")
 		maxFee := getFloatValue(assoc, "membership_fee_max")
-		
+
 		if minFee == 0 && maxFee == 0 {
 			if memDetails, ok := assocMeta["membership_details"].(map[string]interface{}); ok {
 				if feeMin, ok := memDetails["membership_fee_min"].(float64); ok {
@@ -3189,7 +3189,7 @@ func (h *Handler) buildMasterFranchiseStructure(operations, investment map[strin
 		result["three_player_roles"] = map[string]interface{}{
 			"franchisor":        "",
 			"master_franchisee": "",
-			"unit_franchisees":   "",
+			"unit_franchisees":  "",
 		}
 	}
 
