@@ -766,6 +766,10 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 								"answer":   "Membership process details...",
 							},
 						},
+						"governance": map[string]interface{}{
+							"name":        "Sri B.R Ganesh Rao",
+							"designation": "President",
+						},
 					},
 				},
 				"recommended": []interface{}{
@@ -776,7 +780,14 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 				},
 				"marketInsights": []interface{}{
 					map[string]interface{}{
-						"market_stats": "MSME Stats...",
+						"growth_rate": map[string]interface{}{
+							"title":       "Growth Rate",
+							"description": "15%",
+						},
+						"market_trend": map[string]interface{}{
+							"title":       "Market Trend",
+							"description": "Upward",
+						},
 					},
 				},
 			},
