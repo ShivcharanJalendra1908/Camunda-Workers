@@ -1017,6 +1017,31 @@ func CategoryQuestionsByIndustry(
 			}
 		}
 	}
+
+	// Fallback to generic questions if none found
+	if len(questions) == 0 {
+		rows, err := db.QueryContext(queryCtx, `
+			SELECT question
+			FROM category_questions
+			WHERE reference_id = '00000000-0000-0000-0000-000000000000'
+			  AND (intent_tag = $1 OR intent_tag = 'general')
+			  AND entity_type = $2
+			ORDER BY
+				CASE WHEN intent_tag = $1 THEN 0 ELSE 1 END,
+				created_at
+			LIMIT 8
+		`, intentTag, entityType)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var q string
+				if err := rows.Scan(&q); err == nil && q != "" {
+					questions = append(questions, q)
+				}
+			}
+		}
+	}
+
 	return questions, len(questions), time.Since(start).Milliseconds(), nil
 }
 
