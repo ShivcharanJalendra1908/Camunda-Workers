@@ -197,6 +197,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
             l.founded_year as founded_year,
             f.total_outlets,
             l.short_description,
+            l.description,
             l.logo_url_circle,
             l.logo_url_square,
             COALESCE(ls.rating, 0) as rating,
@@ -241,6 +242,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		var (
 			id, name, slug                         string
 			shortDescription                       sql.NullString
+			description                            sql.NullString
 			logoURLCircle, logoURLSquare           sql.NullString
 			foundedYear                            sql.NullInt32
 			totalOutlets                           sql.NullInt32
@@ -265,7 +267,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		)
 
 		if err := rows.Scan(
-			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription,
+			&id, &name, &slug, &foundedYear, &totalOutlets, &shortDescription, &description,
 			&logoURLCircle, &logoURLSquare,
 			&rating, &industryID, &industryName, &industrySlug, &industryColor,
 			&industryImageURL, &entityType,
@@ -344,14 +346,20 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		// Clean description
-		cleanDesc := cleanDescription(shortDescription.String)
+		cleanShortDesc := cleanDescription(shortDescription.String)
+		longDesc := description.String
+		if longDesc == "" {
+			longDesc = shortDescription.String
+		}
+		cleanDesc := cleanDescription(longDesc)
 
 		doc := map[string]interface{}{
-			"franchise_id": id,
-			"name":         name,
-			"slug":         slug,
-			"entity_type":  entityType,
-			"description":  cleanDesc,
+			"franchise_id":      id,
+			"name":              name,
+			"slug":              slug,
+			"entity_type":       entityType,
+			"short_description": cleanShortDesc,
+			"description":       cleanDesc,
 			"logo": map[string]interface{}{
 				"circle": logoURLCircle.String,
 				"square": logoURLSquare.String,

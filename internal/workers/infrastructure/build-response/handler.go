@@ -562,7 +562,13 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 			}
 
 			// Copy remaining fields
-			transformed["description"] = listing["description"]
+			desc := ""
+			if sd, ok := listing["short_description"].(string); ok && sd != "" {
+				desc = sd
+			} else if d, ok := listing["description"].(string); ok {
+				desc = d
+			}
+			transformed["description"] = desc
 			transformed["year_of_establishment"] = listing["year_of_establishment"]
 			transformed["rating"] = listing["rating"]
 			transformed["location"] = listing["location"]
@@ -737,7 +743,13 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		}
 
 		// description
-		transformed["description"] = assoc["description"]
+		desc := ""
+		if sd, ok := assoc["short_description"].(string); ok && sd != "" {
+			desc = sd
+		} else if d, ok := assoc["description"].(string); ok {
+			desc = d
+		}
+		transformed["description"] = desc
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
@@ -1754,6 +1766,14 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				}
 			}
 
+			desc := ""
+			if sd, ok := franchise["short_description"].(string); ok && sd != "" {
+				desc = sd
+			} else if d, ok := franchise["description"].(string); ok {
+				desc = d
+			}
+			franchise["description"] = desc
+
 			// Map color and category from industry nested object to top-level keys for card styling
 			if industry, ok := franchise["industry"].(map[string]interface{}); ok {
 				if color, ok := industry["color"].(string); ok && color != "" {
@@ -2269,7 +2289,13 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		}
 
 		// description
-		transformed["description"] = assoc["description"]
+		desc := ""
+		if sd, ok := assoc["short_description"].(string); ok && sd != "" {
+			desc = sd
+		} else if d, ok := assoc["description"].(string); ok {
+			desc = d
+		}
+		transformed["description"] = desc
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
