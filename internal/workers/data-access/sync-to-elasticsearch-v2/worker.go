@@ -102,7 +102,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			LIMIT 1
 		) lcat ON true
 		LEFT JOIN categories c ON lcat.category_id = c.id
-		LEFT JOIN industries i ON c.industry_id = i.id
+		LEFT JOIN industries i ON COALESCE(a.industry_id, c.industry_id) = i.id
 		WHERE l.id = $1
 		LIMIT 1
 	`

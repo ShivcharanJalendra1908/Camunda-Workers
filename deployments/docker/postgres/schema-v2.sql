@@ -271,6 +271,7 @@ CREATE TABLE associations (
     membership_fee_max NUMERIC(12, 2) DEFAULT 0.00,
     member_type VARCHAR(150),
     member_size_classification VARCHAR(150),
+    industry_id UUID REFERENCES industries(id) ON DELETE SET NULL,
     CONSTRAINT chk_member_count_positive CHECK (member_count >= 0),
     CONSTRAINT chk_membership_fee_min_positive CHECK (membership_fee_min >= 0),
     CONSTRAINT chk_membership_fee_max_positive CHECK (membership_fee_max >= 0),
@@ -888,7 +889,8 @@ BEGIN
         lc.is_primary
     FROM listing_categories lc
     INNER JOIN categories c ON lc.category_id = c.id
-    INNER JOIN industries i ON c.industry_id = i.id
+    LEFT JOIN associations a ON lc.listing_id = a.id
+    INNER JOIN industries i ON COALESCE(a.industry_id, c.industry_id) = i.id
     LEFT JOIN sub_categories sc ON lc.sub_category_id = sc.id
     WHERE lc.listing_id = p_listing_id
     ORDER BY lc.is_primary DESC, i.display_order, c.display_order, sc.display_order;
@@ -936,9 +938,10 @@ SELECT
     sc.name as sub_category_name,
     lc.is_primary
 FROM listings l
+LEFT JOIN associations a ON l.id = a.id
 INNER JOIN listing_categories lc ON l.id = lc.listing_id
 INNER JOIN categories c ON lc.category_id = c.id
-INNER JOIN industries i ON c.industry_id = i.id
+INNER JOIN industries i ON COALESCE(a.industry_id, c.industry_id) = i.id
 LEFT JOIN sub_categories sc ON lc.sub_category_id = sc.id;
 COMMENT ON VIEW v_listing_taxonomy IS 'Denormalized view showing complete listing -> category -> industry relationships.';
 

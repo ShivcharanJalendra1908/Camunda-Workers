@@ -225,7 +225,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
         LEFT JOIN listing_stats ls ON l.id = ls.listing_id
         LEFT JOIN listing_categories lc ON l.id = lc.listing_id
         LEFT JOIN categories c ON lc.category_id = c.id
-        LEFT JOIN industries i ON c.industry_id = i.id
+        LEFT JOIN industries i ON COALESCE(a.industry_id, c.industry_id) = i.id
         WHERE i.id IS NOT NULL
         ORDER BY l.id, lc.is_primary DESC NULLS LAST, lc.created_at ASC
     `

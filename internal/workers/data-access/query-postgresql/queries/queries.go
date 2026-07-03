@@ -75,12 +75,13 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
     SELECT i.id, i.name, i.slug, i.icon_url
     FROM industries i
     INNER JOIN (
-        SELECT c.industry_id, COUNT(*) as franchise_count
+        SELECT COALESCE(a.industry_id, c.industry_id) as industry_id, COUNT(*) as franchise_count
         FROM listing_categories lc
         INNER JOIN categories c ON lc.category_id = c.id
         INNER JOIN listings l ON lc.listing_id = l.id
+        LEFT JOIN associations a ON l.id = a.id
         WHERE l.entity_type = $1 AND l.status = 'live'
-        GROUP BY c.industry_id
+        GROUP BY COALESCE(a.industry_id, c.industry_id)
     ) f ON f.industry_id = i.id
     WHERE i.is_active = true
     ORDER BY f.franchise_count DESC
