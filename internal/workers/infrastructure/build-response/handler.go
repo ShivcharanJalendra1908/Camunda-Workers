@@ -1000,7 +1000,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"association_name":      name,
 		"association_type":      getStringVal(metadata, "association_type", getStringVal(overview, "association_type", "")),
 		"sector":                sectorVal,
-		"year_of_establishment": getStringVal(basicInfo, "founded_year", getStringVal(overview, "founded_year", "")),
+		"year_of_establishment": getStringVal(basicInfo, "year_of_establishment", getStringVal(basicInfo, "founded_year", getStringVal(overview, "founded_year", ""))),
 		"legal_status":          getStringVal(metadata, "legal_status", getStringVal(overview, "legal_status", "")),
 		"headquarters":          getStringVal(contact_details, "office_address", getStringVal(overview, "headquarters_address", "")),
 		"regional_presence":     getStringVal(regional_structure, "regional_offices", getStringVal(overview, "regional_presence", "")),
@@ -1492,9 +1492,6 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
-	if detailQuestions == nil {
-		detailQuestions = []interface{}{}
-	}
 	sections = append(sections, map[string]interface{}{
 		"type":    "category_questions",
 		"enabled": true,
@@ -1515,9 +1512,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		if name, ok := basicInfo["name"].(string); ok && name != "" {
 			detailData["association_name"] = name
 		}
-		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
-			detailData["slug"] = slug
-		}
+		// slug is already inside hero section data, do not duplicate at top level
 		if status, ok := basicInfo["status"].(string); ok && status != "" {
 			detailData["status"] = status
 		}
@@ -1766,13 +1761,15 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				}
 			}
 
-			desc := ""
+			// For listing cards: prefer short_description
+			listingDesc := ""
 			if sd, ok := franchise["short_description"].(string); ok && sd != "" {
-				desc = sd
+				listingDesc = sd
 			} else if d, ok := franchise["description"].(string); ok {
-				desc = d
+				listingDesc = d
 			}
-			franchise["description"] = desc
+			franchise["short_description"] = listingDesc
+			franchise["description"] = listingDesc
 
 			// Map color and category from industry nested object to top-level keys for card styling
 			if industry, ok := franchise["industry"].(map[string]interface{}); ok {
@@ -2415,51 +2412,8 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		"data":    transformedAssociations,
 	})
 
-	// 3. functions_of_business_associations
-	sections = append(sections, map[string]interface{}{
-		"type":    "functions_of_business_associations",
-		"enabled": true,
-		"data": []interface{}{
-			map[string]interface{}{
-				"title":       "Policy Advocacy",
-				"description": "Representing MSME interests to state and central governments to influence industrial policies and resolve regulatory grievances.",
-				"icon":        "AdvocacyIcon",
-			},
-			map[string]interface{}{
-				"title":       "Business Networking",
-				"description": "Facilitating B2B meetings, industrial exhibitions, and international trade delegations to open new market opportunities.",
-				"icon":        "NetworkingIcon",
-			},
-			map[string]interface{}{
-				"title":       "Industrial Development",
-				"description": "Providing technical training, workshops, and seminars on quality standards, automation, and emerging technologies.",
-				"icon":        "DevelopmentIcon",
-			},
-			map[string]interface{}{
-				"title":       "Collaboration & Support",
-				"description": "Fostering strategic partnerships between industries, academia, and government bodies to promote cluster development.",
-				"icon":        "CollaborationIcon",
-			},
-		},
-	})
-
-	// 4. statistics
-	stats := h.extractArray(data, "statistics")
-	if len(stats) == 0 {
-		stats = []interface{}{
-			map[string]interface{}{
-				"businesses_engaged_annually": 3000000,
-				"msme_india":                  6000000,
-				"enablers_partnered":          1500,
-				"live_events_annually":        1200,
-			},
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "statistics",
-		"enabled": true,
-		"data":    stats,
-	})
+	// 3. functions_of_business_associations — REMOVED (hardcoded, not from DB)
+	// 4. statistics — REMOVED (hardcoded, not from DB)
 
 	// 5. featured_business_categories
 	var transformedCategories []interface{}
@@ -2685,6 +2639,17 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[
 		}
 	}
 	delete(result, "logo_url")
+
+	// Franchise Detail Page needs long description
+	// ES doc has both, but we want to ensure `description` is prioritized if it exists.
+	// Since we copied everything, we just need to make sure `description` is correct.
+	desc := ""
+	if d, ok := result["description"].(string); ok && d != "" {
+		desc = d
+	} else if sd, ok := result["short_description"].(string); ok {
+		desc = sd
+	}
+	result["description"] = desc
 
 	return result
 }
