@@ -629,7 +629,7 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := handler.buildListingResponse(tt.data)
+			response := handler.buildFranchiseListingResponse(tt.data)
 			tt.validate(t, response)
 		})
 	}

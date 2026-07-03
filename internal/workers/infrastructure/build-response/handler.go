@@ -448,7 +448,11 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	case "home":
 		response = h.buildHomeResponse(combinedData)
 	case "listing":
-		response = h.buildListingResponse(combinedData)
+		if combinedData["entityType"] == "association" {
+			response = h.buildAssociationListingResponse(combinedData)
+		} else {
+			response = h.buildFranchiseListingResponse(combinedData)
+		}
 	case "detail":
 		response = h.buildDetailResponse(combinedData)
 	case "search":
@@ -1570,14 +1574,10 @@ func getArrayVal(m map[string]interface{}, key string) []interface{} {
 }
 
 // ===== LISTING PAGE BUILDER =====
-func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]interface{} {
+func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map[string]interface{} {
 	entityType := "franchise"
 	if et, ok := data["entityType"].(string); ok && et != "" {
 		entityType = et
-	}
-
-	if entityType == "association" {
-		return h.buildAssociationListingResponse(data)
 	}
 
 	sections := []interface{}{}
@@ -1713,91 +1713,181 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 	})
 
 	if len(franchises) > 0 {
+		var transformedListings []map[string]interface{}
 		for _, f := range franchises {
-			franchise, ok := f.(map[string]interface{})
+			listing, ok := f.(map[string]interface{})
 			if !ok {
 				continue
 			}
 
-			et, _ := franchise["entity_type"].(string)
+			et, _ := listing["entity_type"].(string)
 			if et == "" {
 				et = "franchise"
 			}
 
 			if et == "franchise" {
-				delete(franchise, "association_metadata")
-				delete(franchise, "member_count")
-				delete(franchise, "membership_fee_min")
-				delete(franchise, "membership_fee_max")
+				transformed := map[string]interface{}{}
+				transformed["entity_type"] = et
 
-				// Map fields to unified format for UI card rendering
-				if outlets, ok := franchise["total_outlets"]; ok {
-					franchise["no_of_outlets"] = outlets
+				// Copy common fields
+				transformed["year_of_establishment"] = listing["year_of_establishment"]
+				if fy, ok := listing["founded_year"]; ok {
+					transformed["founded_year"] = fy // for tests
 				}
-				if name, ok := franchise["name"].(string); ok {
-					franchise["brand"] = name
+				transformed["rating"] = listing["rating"]
+				transformed["location"] = listing["location"]
+				transformed["tags"] = listing["tags"]
+				transformed["slug"] = listing["slug"]
+				transformed["status"] = listing["status"]
+
+				// Description
+				listingDesc := ""
+				if sd, ok := listing["short_description"].(string); ok && sd != "" {
+					listingDesc = sd
+				} else if d, ok := listing["description"].(string); ok {
+					listingDesc = d
 				}
-				if fid, ok := franchise["franchise_id"].(string); ok {
-					franchise["id"] = fid
+				transformed["short_description"] = listingDesc
+				transformed["description"] = listingDesc
+
+				// Logo
+				if logo, ok := listing["logo"].(map[string]interface{}); ok {
+					transformed["logo"] = logo
+				} else {
+					transformed["logo"] = map[string]interface{}{
+						"circle": "",
+						"square": "",
+						"alt":    "",
+					}
 				}
+
+				// Industry (Color and Category)
+				if industry, ok := listing["industry"].(map[string]interface{}); ok {
+					if color, ok := industry["color"].(string); ok && color != "" {
+						transformed["color"] = color
+					}
+					if catName, ok := industry["name"].(string); ok && catName != "" {
+						transformed["category"] = catName
+					}
+				} else if category, ok := listing["category"].(string); ok {
+					transformed["category"] = category
+				}
+				if color, ok := listing["color"].(string); ok && color != "" {
+					transformed["color"] = color
+				}
+
+				if outlets, ok := listing["total_outlets"]; ok {
+					transformed["no_of_outlets"] = outlets
+				} else if outlets, ok := listing["no_of_outlets"]; ok {
+					transformed["no_of_outlets"] = outlets
+				}
+
+				if name, ok := listing["name"].(string); ok {
+					transformed["name"] = name
+					transformed["brand"] = name
+				} else if brand, ok := listing["brand"].(string); ok {
+					transformed["name"] = brand
+					transformed["brand"] = brand
+				}
+
+				if fid, ok := listing["franchise_id"].(string); ok {
+					transformed["id"] = fid
+				} else if id, ok := listing["id"].(string); ok {
+					transformed["id"] = id
+				}
+
+				if space, ok := listing["space"].(map[string]interface{}); ok {
+					if _, hasUnit := space["spaceUnit"]; !hasUnit {
+						space["spaceUnit"] = "sq ft"
+					}
+					transformed["space"] = space
+				}
+
+				if invRange, ok := listing["investmentRange"].(map[string]interface{}); ok {
+					if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
+						invRange["investmentUnit"] = "Lakhs"
+					}
+					transformed["investmentRange"] = invRange
+				} else if inv, ok := listing["investment"].(map[string]interface{}); ok {
+					invRange := map[string]interface{}{
+						"minInvestment":  inv["minInvestment"],
+						"maxInvestment":  inv["maxInvestment"],
+						"investmentUnit": "Lakhs",
+					}
+					transformed["investmentRange"] = invRange
+				}
+				
+				// Fix logo alt text
+				if logo, ok := transformed["logo"].(map[string]interface{}); ok {
+					if alt, ok := logo["alt"].(string); !ok || alt == "" {
+						if n, ok := transformed["name"].(string); ok {
+							logo["alt"] = n
+						}
+					}
+				}
+
+				transformedListings = append(transformedListings, transformed)
 			} else if et == "association" {
-				delete(franchise, "investment")
-				delete(franchise, "investmentRange")
-				delete(franchise, "space")
-				delete(franchise, "franchise_id")
-				delete(franchise, "total_outlets")
-				delete(franchise, "exclusivity_type")
-				delete(franchise, "territory_scope")
-				delete(franchise, "territory_details")
+				// Revert association to mutate in place
+				delete(listing, "investment")
+				delete(listing, "investmentRange")
+				delete(listing, "space")
+				delete(listing, "franchise_id")
+				delete(listing, "total_outlets")
+				delete(listing, "exclusivity_type")
+				delete(listing, "territory_scope")
+				delete(listing, "territory_details")
 
-				if mc, ok := franchise["member_count"]; ok {
-					franchise["no_of_members"] = mc
+				if mc, ok := listing["member_count"]; ok {
+					listing["no_of_members"] = mc
 				}
-				if name, ok := franchise["name"].(string); ok {
-					franchise["association_name"] = name
+				if name, ok := listing["name"].(string); ok {
+					listing["association_name"] = name
 				}
-				if fid, ok := franchise["franchise_id"].(string); ok {
-					franchise["id"] = fid
+				if fid, ok := listing["franchise_id"].(string); ok {
+					listing["id"] = fid
 				}
-			}
+				
+				// For listing cards: prefer short_description
+				listingDesc := ""
+				if sd, ok := listing["short_description"].(string); ok && sd != "" {
+					listingDesc = sd
+				} else if d, ok := listing["description"].(string); ok {
+					listingDesc = d
+				}
+				listing["short_description"] = listingDesc
+				listing["description"] = listingDesc
 
-			// For listing cards: prefer short_description
-			listingDesc := ""
-			if sd, ok := franchise["short_description"].(string); ok && sd != "" {
-				listingDesc = sd
-			} else if d, ok := franchise["description"].(string); ok {
-				listingDesc = d
-			}
-			franchise["short_description"] = listingDesc
-			franchise["description"] = listingDesc
+				// Map color and category from industry nested object to top-level keys for card styling
+				if industry, ok := listing["industry"].(map[string]interface{}); ok {
+					if color, ok := industry["color"].(string); ok && color != "" {
+						listing["color"] = color
+					}
+					if catName, ok := industry["name"].(string); ok && catName != "" {
+						listing["category"] = catName
+					}
+				}
 
-			// Map color and category from industry nested object to top-level keys for card styling
-			if industry, ok := franchise["industry"].(map[string]interface{}); ok {
-				if color, ok := industry["color"].(string); ok && color != "" {
-					franchise["color"] = color
+				if space, ok := listing["space"].(map[string]interface{}); ok {
+					if _, hasUnit := space["spaceUnit"]; !hasUnit {
+						space["spaceUnit"] = "sq ft"
+					}
 				}
-				if catName, ok := industry["name"].(string); ok && catName != "" {
-					franchise["category"] = catName
-				}
-			}
 
-			if space, ok := franchise["space"].(map[string]interface{}); ok {
-				if _, hasUnit := space["spaceUnit"]; !hasUnit {
-					space["spaceUnit"] = "sq ft"
+				if invRange, ok := listing["investmentRange"].(map[string]interface{}); ok {
+					if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
+						invRange["investmentUnit"] = "Lakhs"
+					}
 				}
-			}
 
-			if invRange, ok := franchise["investmentRange"].(map[string]interface{}); ok {
-				if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
-					invRange["investmentUnit"] = "Lakhs"
-				}
+				transformedListings = append(transformedListings, listing)
 			}
 		}
 
 		sections = append(sections, map[string]interface{}{
 			"type":    "franchise_listing",
 			"enabled": true,
-			"data":    franchises,
+			"data":    transformedListings,
 		})
 	}
 
