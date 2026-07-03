@@ -454,7 +454,11 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 			response = h.buildFranchiseListingResponse(combinedData)
 		}
 	case "detail":
-		response = h.buildDetailResponse(combinedData)
+		if combinedData["entityType"] == "association" {
+			response = h.buildAssociationDetailResponse(combinedData)
+		} else {
+			response = h.buildFranchiseDetailResponse(combinedData)
+		}
 	case "search":
 		response = h.buildSearchResponse(combinedData)
 	case "industries":
@@ -2073,14 +2077,53 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 }
 
 // ===== DETAIL PAGE BUILDER =====
-func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]interface{} {
+
+type TransformedFranchiseDetailBasicInfo struct {
+	Brand               string                 `json:"brand"`
+	Categories          []interface{}          `json:"categories,omitempty"`
+	Category            string                 `json:"category,omitempty"`
+	Color               string                 `json:"color,omitempty"`
+	Description         string                 `json:"description,omitempty"`
+	ID                  string                 `json:"id"`
+	Industry            interface{}            `json:"industry,omitempty"`
+	Investment          interface{}            `json:"investment,omitempty"`
+	InvestmentRange     interface{}            `json:"investmentRange,omitempty"`
+	Location            string                 `json:"location,omitempty"`
+	Logo                map[string]interface{} `json:"logo"`
+	NoOfOutlets         interface{}            `json:"no_of_outlets,omitempty"`
+	Rating              interface{}            `json:"rating,omitempty"`
+	ROI                 interface{}            `json:"roi,omitempty"`
+	Slug                string                 `json:"slug"`
+	Space               interface{}            `json:"space,omitempty"`
+	SubCategories       []interface{}          `json:"sub_categories,omitempty"`
+	Tags                []interface{}          `json:"tags,omitempty"`
+	WebsiteURL          string                 `json:"website_url"`
+	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
+}
+
+type TransformedFranchiseDetailData struct {
+	BasicInfo           TransformedFranchiseDetailBasicInfo `json:"basicInfo"`
+	BusinessOverview    interface{}                         `json:"business_overview,omitempty"`
+	FranchiseID         string                              `json:"franchiseId"`
+	FranchisingOverview interface{}                         `json:"franchising_overview,omitempty"`
+	InvestmentDetails   interface{}                         `json:"investment_details,omitempty"`
+	KeyMarketInsights   interface{}                         `json:"key_market_insights,omitempty"`
+	TerritoryRights     interface{}                         `json:"territory_rights,omitempty"`
+	DevelopmentSchedule interface{}                         `json:"development_schedule,omitempty"`
+	SupportAndTraining  interface{}                         `json:"support_and_training,omitempty"`
+	LegalCompliance     interface{}                         `json:"legal_compliance,omitempty"`
+	RevenueModel        interface{}                         `json:"revenue_model,omitempty"`
+	ThreePlayerRoles    interface{}                         `json:"three_player_roles,omitempty"`
+	Operation           interface{}                         `json:"operation,omitempty"`
+	Sections            []interface{}                       `json:"sections"`
+	Slug                string                              `json:"slug"`
+	SocialMedia         interface{}                         `json:"social_media,omitempty"`
+}
+
+func (h *Handler) buildFranchiseDetailResponse(data map[string]interface{}) map[string]interface{} {
 	entityType := "franchise"
 	if et, ok := data["entityType"].(string); ok && et != "" {
 		entityType = et
-	}
-
-	if entityType == "association" {
-		return h.buildAssociationDetailResponse(data)
 	}
 
 	basicInfo := h.extractMap(data, "basicInfo")
@@ -2094,27 +2137,27 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 	marketInsights := h.extractArray(data, "marketInsights")
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 
-	detailData := map[string]interface{}{}
+	detailData := TransformedFranchiseDetailData{}
 
 	// ✅ Extract franchiseId (defensive)
 	if len(basicInfo) > 0 {
 		if fid, ok := basicInfo["franchise_id"].(string); ok && fid != "" {
-			detailData["franchiseId"] = fid
+			detailData.FranchiseID = fid
 		} else if id, ok := basicInfo["id"].(string); ok && id != "" {
-			detailData["franchiseId"] = id
+			detailData.FranchiseID = id
 		}
 
 		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
-			detailData["slug"] = slug
+			detailData.Slug = slug
 		}
 	}
 
-	detailData["basicInfo"] = h.buildBasicInfoStructure(basicInfo)
+	detailData.BasicInfo = h.buildBasicInfoStructure(basicInfo)
 
 	if len(socialLinks) > 0 {
-		detailData["social_media"] = h.buildSocialMediaStructure(socialLinks)
+		detailData.SocialMedia = h.buildSocialMediaStructure(socialLinks)
 	} else {
-		detailData["social_media"] = map[string]interface{}{
+		detailData.SocialMedia = map[string]interface{}{
 			"instagram": "",
 			"facebook":  "",
 			"linkedin":  "",
@@ -2123,29 +2166,43 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 		}
 	}
 
-	detailData["franchising_overview"] = h.buildFranchisingOverviewStructure(overview, investment, basicInfo)
-	detailData["business_overview"] = h.buildBusinessOverviewStructure(business, operations)
-	detailData["investment_details"] = h.buildInvestmentDetailsStructure(investment, operations)
-	detailData["operation"] = h.buildOperationStructure(operations)
+	detailData.FranchisingOverview = h.buildFranchisingOverviewStructure(overview, investment, basicInfo)
+	detailData.BusinessOverview = h.buildBusinessOverviewStructure(business, operations)
+	detailData.InvestmentDetails = h.buildInvestmentDetailsStructure(investment, operations)
+	detailData.Operation = h.buildOperationStructure(operations)
 
 	if entityType == "master_franchise" {
 		mfStructure := h.buildMasterFranchiseStructure(operations, investment)
-		for k, v := range mfStructure {
-			detailData[k] = v
-		}
+		detailData.TerritoryRights = mfStructure["territory_rights"]
+		detailData.DevelopmentSchedule = mfStructure["development_schedule"]
+		detailData.SupportAndTraining = mfStructure["support_and_training"]
+		detailData.LegalCompliance = mfStructure["legal_compliance"]
+		detailData.RevenueModel = mfStructure["revenue_model"]
+		detailData.ThreePlayerRoles = mfStructure["three_player_roles"]
 	}
 
 	sections := []interface{}{}
 
 	if len(categories) > 0 {
+		var simpleCats []interface{}
+		for _, catObj := range categories {
+			if cMap, ok := catObj.(map[string]interface{}); ok {
+				simpleCat := map[string]interface{}{
+					"id":        getStringVal(cMap, "id", ""),
+					"name":      getStringVal(cMap, "name", ""),
+					"slug":      getStringVal(cMap, "slug", ""),
+					"icon_url":  getStringVal(cMap, "icon_url", ""),
+					"image_url": getStringVal(cMap, "image_url", ""),
+				}
+				simpleCats = append(simpleCats, simpleCat)
+			}
+		}
 		sections = append(sections, map[string]interface{}{
 			"type":    "featured_categories",
 			"enabled": true,
-			"data":    categories,
+			"data":    simpleCats,
 		})
 	}
-
-	// Add this transformation for recommended items
 
 	// LISTING PAGE - Line 669
 	if len(recommended) > 0 {
@@ -2221,14 +2278,14 @@ func (h *Handler) buildDetailResponse(data map[string]interface{}) map[string]in
 		})
 	}
 
-	detailData["sections"] = sections
+	detailData.Sections = sections
 
 	if len(marketInsights) > 0 {
 		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
-			detailData["key_market_insights"] = insights
+			detailData.KeyMarketInsights = insights
 		}
 	} else {
-		detailData["key_market_insights"] = nil
+		detailData.KeyMarketInsights = nil
 	}
 
 	return map[string]interface{}{
@@ -2715,56 +2772,108 @@ func (h *Handler) buildGenericResponse(input *Input) map[string]interface{} {
 }
 
 // ===== HELPER BUILDERS =====
-func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) map[string]interface{} {
-	result := map[string]interface{}{}
+func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) TransformedFranchiseDetailBasicInfo {
+	result := TransformedFranchiseDetailBasicInfo{}
 
-	// Copy all fields except metadata
-	for key, value := range basicInfo {
-		if key == "_id" || key == "_score" || key == "updated_at" {
-			continue
-		}
-		result[key] = value
-	}
-
-	// ✅ DEFENSIVE: Handle logo structure (logo object OR logo_url)
-
-	if logo, ok := result["logo"].(map[string]interface{}); ok {
-		// Already circle/square format — bas alt ensure karo
-		name := ""
-		if n, ok := basicInfo["name"].(string); ok {
-			name = n
-		} else if b, ok := basicInfo["brand"].(string); ok {
-			name = b
-		}
-		if _, hasAlt := logo["alt"]; !hasAlt {
-			logo["alt"] = name
-		}
+	result.ID = getStringVal(basicInfo, "id", getStringVal(basicInfo, "franchise_id", ""))
+	if brand, ok := basicInfo["brand"].(string); ok {
+		result.Brand = brand
 	} else {
-		// Logo object nahi hai — empty banao
-		name := ""
-		if n, ok := basicInfo["name"].(string); ok {
-			name = n
-		} else if b, ok := basicInfo["brand"].(string); ok {
-			name = b
-		}
-		result["logo"] = map[string]interface{}{
-			"circle": "",
-			"square": "",
-			"alt":    name,
-		}
+		result.Brand = getStringVal(basicInfo, "name", "")
 	}
-	delete(result, "logo_url")
 
-	// Franchise Detail Page needs long description
-	// ES doc has both, but we want to ensure `description` is prioritized if it exists.
-	// Since we copied everything, we just need to make sure `description` is correct.
+	if cat, ok := basicInfo["category"].(string); ok {
+		result.Category = cat
+	}
+	if col, ok := basicInfo["color"].(string); ok {
+		result.Color = col
+	}
+
+	// Franchise Detail Page needs long description prioritized
 	desc := ""
-	if d, ok := result["description"].(string); ok && d != "" {
+	if d, ok := basicInfo["description"].(string); ok && d != "" {
 		desc = d
-	} else if sd, ok := result["short_description"].(string); ok {
+	} else if sd, ok := basicInfo["short_description"].(string); ok {
 		desc = sd
 	}
-	result["description"] = desc
+	result.Description = desc
+
+	result.Industry = basicInfo["industry"]
+	result.Investment = basicInfo["investment"]
+	result.InvestmentRange = basicInfo["investmentRange"]
+
+	if loc, ok := basicInfo["location"].(string); ok {
+		result.Location = loc
+	} else if city, ok := basicInfo["city"].(string); ok {
+		result.Location = city
+	}
+
+	result.NoOfOutlets = basicInfo["no_of_outlets"]
+	result.Rating = basicInfo["rating"]
+	result.ROI = basicInfo["roi"]
+
+	if slug, ok := basicInfo["slug"].(string); ok {
+		result.Slug = slug
+	}
+
+	result.Space = basicInfo["space"]
+
+	if tags, ok := basicInfo["tags"].([]interface{}); ok {
+		result.Tags = tags
+	}
+
+	if web, ok := basicInfo["website_url"].(string); ok {
+		result.WebsiteURL = web
+	} else if web, ok := basicInfo["website"].(string); ok {
+		result.WebsiteURL = web
+	}
+
+	result.YearOfEstablishment = basicInfo["year_of_establishment"]
+
+	// Simplify Categories
+	if cats, ok := basicInfo["categories"].([]interface{}); ok {
+		var simpleCats []interface{}
+		for _, catObj := range cats {
+			if cMap, ok := catObj.(map[string]interface{}); ok {
+				simpleCat := map[string]interface{}{
+					"id":   getStringVal(cMap, "id", ""),
+					"name": getStringVal(cMap, "name", ""),
+					"slug": getStringVal(cMap, "slug", ""),
+				}
+				simpleCats = append(simpleCats, simpleCat)
+			}
+		}
+		result.Categories = simpleCats
+	}
+
+	if subCats, ok := basicInfo["sub_categories"].([]interface{}); ok {
+		var simpleSubCats []interface{}
+		for _, catObj := range subCats {
+			if cMap, ok := catObj.(map[string]interface{}); ok {
+				simpleCat := map[string]interface{}{
+					"id":   getStringVal(cMap, "id", ""),
+					"name": getStringVal(cMap, "name", ""),
+					"slug": getStringVal(cMap, "slug", ""),
+				}
+				simpleSubCats = append(simpleSubCats, simpleCat)
+			}
+		}
+		result.SubCategories = simpleSubCats
+	}
+
+	// Logo
+	if logo, ok := basicInfo["logo"].(map[string]interface{}); ok {
+		if _, hasAlt := logo["alt"]; !hasAlt {
+			logo["alt"] = result.Brand
+		}
+		result.Logo = logo
+	} else {
+		result.Logo = map[string]interface{}{
+			"circle": "",
+			"square": "",
+			"alt":    result.Brand,
+		}
+	}
 
 	return result
 }
