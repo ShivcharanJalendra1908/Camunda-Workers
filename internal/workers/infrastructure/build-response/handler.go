@@ -1040,15 +1040,17 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedApplication
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "membership_section",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"Membership":             transformedMembership,
-			"Eligibility_Criteria":   transformedEligibility,
-			"Membership_Application": transformedApplication,
-		},
-	})
+	if len(transformedMembership) > 0 || len(transformedEligibility) > 0 || len(transformedApplication) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "membership_section",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"Membership":             transformedMembership,
+				"Eligibility_Criteria":   transformedEligibility,
+				"Membership_Application": transformedApplication,
+			},
+		})
+	}
 
 	// 4. services_and_institutional_offerings
 	var transformedServices []interface{}
@@ -1063,11 +1065,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedServices
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "services_and_institutional_offerings",
-		"enabled": true,
-		"data":    transformedServices,
-	})
+	if len(transformedServices) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "services_and_institutional_offerings",
+			"enabled": true,
+			"data":    transformedServices,
+		})
+	}
 
 	// 5. programs_and_initiatives_section
 	var transformedPrograms map[string]interface{}
@@ -1084,16 +1088,23 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 						})
 					}
 				}
-				transformedPrograms[cat] = catList
+				if len(catList) > 0 {
+					transformedPrograms[cat] = catList
+				}
 			}
+		}
+		if len(transformedPrograms) == 0 {
+			transformedPrograms = nil
 		}
 	} // end transformedPrograms
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "programs_and_initiatives_section",
-		"enabled": true,
-		"data":    transformedPrograms,
-	})
+	if len(transformedPrograms) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "programs_and_initiatives_section",
+			"enabled": true,
+			"data":    transformedPrograms,
+		})
+	}
 
 	// 6. publications_section
 	var transformedPublications map[string]interface{}
@@ -1110,16 +1121,23 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 						})
 					}
 				}
-				transformedPublications[cat] = catList
+				if len(catList) > 0 {
+					transformedPublications[cat] = catList
+				}
 			}
+		}
+		if len(transformedPublications) == 0 {
+			transformedPublications = nil
 		}
 	} // end transformedPublications
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "publications_section",
-		"enabled": true,
-		"data":    transformedPublications,
-	})
+	if len(transformedPublications) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "publications_section",
+			"enabled": true,
+			"data":    transformedPublications,
+		})
+	}
 
 	// 7. regional_structure_section
 	chaptersList := getArrayVal(regional_structure, "chapters")
@@ -1136,15 +1154,17 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedChapters
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "regional_structure_section",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"governance_model": getStringVal(regional_structure, "governance_model", ""),
-			"headquarters":     getStringVal(regional_structure, "headquarters", ""),
-			"chapters":         transformedChapters,
-		},
-	})
+	if len(transformedChapters) > 0 || getStringVal(regional_structure, "governance_model", "") != "" || getStringVal(regional_structure, "headquarters", "") != "" {
+		sections = append(sections, map[string]interface{}{
+			"type":    "regional_structure_section",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"governance_model": getStringVal(regional_structure, "governance_model", ""),
+				"headquarters":     getStringVal(regional_structure, "headquarters", ""),
+				"chapters":         transformedChapters,
+			},
+		})
+	}
 
 	// 8. events_engagement_section
 	var transformedEvents map[string]interface{}
@@ -1161,16 +1181,23 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 						})
 					}
 				}
-				transformedEvents[cat] = catList
+				if len(catList) > 0 {
+					transformedEvents[cat] = catList
+				}
 			}
+		}
+		if len(transformedEvents) == 0 {
+			transformedEvents = nil
 		}
 	} // end transformedEvents
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "events_engagement_section",
-		"enabled": true,
-		"data":    transformedEvents,
-	})
+	if len(transformedEvents) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "events_engagement_section",
+			"enabled": true,
+			"data":    transformedEvents,
+		})
+	}
 
 	// 9. compliance_policy_section
 	var transformedPolicies map[string]interface{}
@@ -1187,16 +1214,23 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 						})
 					}
 				}
-				transformedPolicies[cat] = catList
+				if len(catList) > 0 {
+					transformedPolicies[cat] = catList
+				}
 			}
+		}
+		if len(transformedPolicies) == 0 {
+			transformedPolicies = nil
 		}
 	} // end transformedPolicies
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "compliance_policy_section",
-		"enabled": true,
-		"data":    transformedPolicies,
-	})
+	if len(transformedPolicies) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "compliance_policy_section",
+			"enabled": true,
+			"data":    transformedPolicies,
+		})
+	}
 
 	// 10. partnership_affiliations_section
 	var transformedPartners []interface{}
@@ -1213,11 +1247,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedPartners
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "partnership_affiliations_section",
-		"enabled": true,
-		"data":    transformedPartners,
-	})
+	if len(transformedPartners) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "partnership_affiliations_section",
+			"enabled": true,
+			"data":    transformedPartners,
+		})
+	}
 
 	// 11. awards_recognition_section
 	var transformedAwards []interface{}
@@ -1233,11 +1269,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedAwards
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "awards_recognition_section",
-		"enabled": true,
-		"data":    transformedAwards,
-	})
+	if len(transformedAwards) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "awards_recognition_section",
+			"enabled": true,
+			"data":    transformedAwards,
+		})
+	}
 
 	// 12. digital_presence_section
 	var transformedDigital []interface{}
@@ -1254,11 +1292,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedDigital
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "digital_presence_section",
-		"enabled": true,
-		"data":    transformedDigital,
-	})
+	if len(transformedDigital) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "digital_presence_section",
+			"enabled": true,
+			"data":    transformedDigital,
+		})
+	}
 
 	// 13. transparency_verification_section
 	var transformedTransparency []interface{}
@@ -1274,14 +1314,17 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedTransparency
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "transparency_verification_section",
-		"enabled": true,
-		"data":    transformedTransparency,
-	})
+	if len(transformedTransparency) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "transparency_verification_section",
+			"enabled": true,
+			"data":    transformedTransparency,
+		})
+	}
 
 	// 14. members_structure_tree — only shown when governance data exists in DB
 	if len(governance) > 0 {
+
 		sections = append(sections, map[string]interface{}{
 			"type":    "members_structure_tree",
 			"enabled": true,
@@ -1418,17 +1461,15 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
-	if len(detailQuestions) == 0 {
-		detailQuestions = []interface{}{}
+	if len(detailQuestions) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "category_questions",
+			"enabled": true,
+			"data": map[string]interface{}{
+				"questions": detailQuestions,
+			},
+		})
 	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "category_questions",
-		"enabled": true,
-		"data": map[string]interface{}{
-			"questions": detailQuestions,
-		},
-	})
 
 	detailData := map[string]interface{}{
 		"pageId":   "association_individual",
@@ -1690,6 +1731,16 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 				}
 				if fid, ok := franchise["franchise_id"].(string); ok {
 					franchise["id"] = fid
+				}
+			}
+
+			// Map color and category from industry nested object to top-level keys for card styling
+			if industry, ok := franchise["industry"].(map[string]interface{}); ok {
+				if color, ok := industry["color"].(string); ok && color != "" {
+					franchise["color"] = color
+				}
+				if catName, ok := industry["name"].(string); ok && catName != "" {
+					franchise["category"] = catName
 				}
 			}
 

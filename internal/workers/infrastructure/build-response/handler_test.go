@@ -801,25 +801,35 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 
 				sections, ok := data["sections"].([]interface{})
 				assert.True(t, ok)
-				assert.Len(t, sections, 18) // 18 sections total
+				assert.Len(t, sections, 7) // 7 sections total (rest are dynamically omitted because of no data)
 
 				// Verify first section
 				heroSection, ok := sections[0].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "association_hero_info_card", heroSection["type"])
 
+				// Verify members_structure_tree (index 2)
+				treeSection, ok := sections[2].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "members_structure_tree", treeSection["type"])
+
 				// Verify recommended business associations
-				recSection, ok := sections[14].(map[string]interface{})
+				recSection, ok := sections[3].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "recommended_business_associations", recSection["type"])
 
 				// Verify market insights section
-				insightsSection, ok := sections[15].(map[string]interface{})
+				insightsSection, ok := sections[4].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "market_insights_section", insightsSection["type"])
 
-				// Verify category questions section (18th section)
-				faqSection, ok := sections[17].(map[string]interface{})
+				// Verify featured_business_categories
+				catSection, ok := sections[5].(map[string]interface{})
+				assert.True(t, ok)
+				assert.Equal(t, "featured_business_categories", catSection["type"])
+
+				// Verify category questions section (7th section)
+				faqSection, ok := sections[6].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "category_questions", faqSection["type"])
 			},
