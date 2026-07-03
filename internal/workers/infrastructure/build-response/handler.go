@@ -929,26 +929,17 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 
 	tags := getArrayVal(overview, "key_functions")
 	var transformedTags []interface{}
-	if len(tags) > 0 {
-		for _, t := range tags {
-			transformedTags = append(transformedTags, t)
-		}
-	} else {
-		transformedTags = []interface{}{
-			"12,000+ Members",
-			"ISO 9001:2015 Certified",
-			"Policy & Grievance Support",
-			"Entrepreneur Support",
-		}
+	for _, t := range tags {
+		transformedTags = append(transformedTags, t)
 	}
 
 	socialLinksVal := getMapVal(contact_details, "social_links")
 	socialLinks := map[string]interface{}{
-		"youtube":   getStringVal(socialLinksVal, "youtube", "https://youtube.com"),
-		"facebook":  getStringVal(socialLinksVal, "facebook", "https://facebook.com"),
-		"instagram": getStringVal(socialLinksVal, "instagram", "https://instagram.com"),
-		"twitter":   getStringVal(socialLinksVal, "twitter", "https://x.com"),
-		"linkedin":  getStringVal(socialLinksVal, "linkedin", "https://linkedin.com"),
+		"youtube":   getStringVal(socialLinksVal, "youtube", ""),
+		"facebook":  getStringVal(socialLinksVal, "facebook", ""),
+		"instagram": getStringVal(socialLinksVal, "instagram", ""),
+		"twitter":   getStringVal(socialLinksVal, "twitter", ""),
+		"linkedin":  getStringVal(socialLinksVal, "linkedin", ""),
 	}
 
 	heroData := map[string]interface{}{
@@ -956,9 +947,9 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"slug":         slug,
 		"logo":         logoURL,
 		"description":  description,
-		"likes":        getStringVal(basicInfo, "likes_count", "107"),
-		"rating":       getStringVal(basicInfo, "rating", "4.5"),
-		"review_count": getStringVal(basicInfo, "rating_count", "99"),
+		"likes":        getStringVal(basicInfo, "likes_count", ""),
+		"rating":       getStringVal(basicInfo, "rating", ""),
+		"review_count": getStringVal(basicInfo, "rating_count", ""),
 		"tags":         transformedTags,
 		"socialLinks":  socialLinks,
 	}
@@ -976,16 +967,13 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			sectorVal = getStringVal(industryMap, "name", "")
 		}
 	}
-	if sectorVal == "" {
-		sectorVal = "Small scale industries / MSMEs"
-	}
 
 	websiteVal := getStringVal(contact_details, "website", "")
 	if websiteVal == "" {
 		websiteVal = getStringVal(basicInfo, "website_url", "")
 	}
 	if websiteVal == "" {
-		websiteVal = "https://kassia.org.in/"
+		websiteVal = ""
 	}
 
 	phoneVal := getStringVal(contact_details, "phone_number", "")
@@ -995,18 +983,15 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	if phoneVal == "" {
 		phoneVal = getStringVal(overview, "email", "")
 	}
-	if phoneVal == "" {
-		phoneVal = "(080) 2335 3250 / 2335 8698"
-	}
 
 	infoGridData := map[string]interface{}{
 		"association_name":      name,
-		"association_type":      getStringVal(metadata, "association_type", getStringVal(overview, "association_type", "Industry body / State-level trade association")),
+		"association_type":      getStringVal(metadata, "association_type", getStringVal(overview, "association_type", "")),
 		"sector":                sectorVal,
 		"year_of_establishment": getStringVal(basicInfo, "founded_year", getStringVal(overview, "founded_year", "")),
-		"legal_status":          getStringVal(metadata, "legal_status", getStringVal(overview, "legal_status", "Non-government industry association (trade body)")),
-		"headquarters":          getStringVal(contact_details, "office_address", getStringVal(overview, "headquarters_address", "2/106, 17th Cross, Magadi Chord Road, Vijayanagar, Bangalore-560040, Karnataka, India")),
-		"regional_presence":     getStringVal(regional_structure, "regional_offices", getStringVal(overview, "regional_presence", "Primarily Karnataka with state & national representation")),
+		"legal_status":          getStringVal(metadata, "legal_status", getStringVal(overview, "legal_status", "")),
+		"headquarters":          getStringVal(contact_details, "office_address", getStringVal(overview, "headquarters_address", "")),
+		"regional_presence":     getStringVal(regional_structure, "regional_offices", getStringVal(overview, "regional_presence", "")),
 		"website":               websiteVal,
 		"contact_details":       phoneVal,
 	}
@@ -1029,13 +1014,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedMembership = []interface{}{
-			map[string]interface{}{"detail": "Total Number of Members", "description": "12,000+ members (individual MSME units)"},
-			map[string]interface{}{"detail": "Affiliated Associations", "description": "127 affiliated industrial associations across Karnataka"},
-			map[string]interface{}{"detail": "Eligibility for Membership", "description": "Small-scale / MSME industrial units operating in Karnataka"},
-		}
-	}
+	} // end transformedMembership — no hardcoded fallback; empty if no DB data
 
 	eligibilityList := getArrayVal(membership_details, "requirements")
 	var transformedEligibility []interface{}
@@ -1048,13 +1027,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedEligibility = []interface{}{
-			map[string]interface{}{"detail": "Business Type", "description": "MSMEs, manufacturers, startups, and industrial enterprises"},
-			map[string]interface{}{"detail": "Location Requirement", "description": "Business operations should be based in Karnataka"},
-			map[string]interface{}{"detail": "Documents Required", "description": "GST certificate, business registration, PAN card"},
-		}
-	}
+	} // end transformedEligibility
 
 	applicationVal := getMapVal(membership_details, "application_process")
 	var transformedApplication []interface{}
@@ -1065,12 +1038,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				"description": fmt.Sprintf("%v", v),
 			})
 		}
-	} else {
-		transformedApplication = []interface{}{
-			map[string]interface{}{"detail": "Application Process", "description": "Submit online membership application form"},
-			map[string]interface{}{"detail": "Approval Timeline", "description": "Usually approved within 7–15 business days"},
-		}
-	}
+	} // end transformedApplication
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "membership_section",
@@ -1093,13 +1061,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedServices = []interface{}{
-			map[string]interface{}{"title": "Policy Advocacy", "description": "Actively raises MSME sector policy issues with the Government and participates in policy forums."},
-			map[string]interface{}{"title": "Government Representation", "description": "Formal representation on central and state government committees."},
-			map[string]interface{}{"title": "Market Access Programs", "description": "Provides buyer–seller information, marketing leads, national & international tender notifications."},
-		}
-	}
+	} // end transformedServices
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "services_and_institutional_offerings",
@@ -1125,16 +1087,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				transformedPrograms[cat] = catList
 			}
 		}
-	} else {
-		transformedPrograms = map[string]interface{}{
-			"Startup_Programs": []interface{}{
-				map[string]interface{}{"title": "MSME Entrepreneurship Promotion", "description": "KASSIA promotes entrepreneurship and supports startup MSMEs through guidance, advocacy, and scheme awareness."},
-			},
-			"Skill_Development_Initiatives": []interface{}{
-				map[string]interface{}{"title": "Industrial Skill Development", "description": "Skill enhancement programs for workforce readiness and MSME industrial growth."},
-			},
-		}
-	}
+	} // end transformedPrograms
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "programs_and_initiatives_section",
@@ -1160,13 +1113,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				transformedPublications[cat] = catList
 			}
 		}
-	} else {
-		transformedPublications = map[string]interface{}{
-			"Industry_Reports": []interface{}{
-				map[string]interface{}{"title": "MSME Industry Overview Publications", "description": "General industry insights and MSME sector updates issued through KASSIA platforms."},
-			},
-		}
-	}
+	} // end transformedPublications
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "publications_section",
@@ -1187,22 +1134,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedChapters = []interface{}{
-			map[string]interface{}{
-				"name":                 "KASSIA Bengaluru Chapter",
-				"headquarters_address": "Magadi Chord Road, Vijayanagar, Bangalore-560040",
-				"contact_email":        "info@kassia.org.in",
-			},
-		}
-	}
+	} // end transformedChapters
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "regional_structure_section",
 		"enabled": true,
 		"data": map[string]interface{}{
-			"governance_model": getStringVal(regional_structure, "governance_model", "Governing Council consisting of elected representatives from districts and affiliated associations."),
-			"headquarters":     getStringVal(regional_structure, "headquarters", "Bengaluru, Karnataka, India"),
+			"governance_model": getStringVal(regional_structure, "governance_model", ""),
+			"headquarters":     getStringVal(regional_structure, "headquarters", ""),
 			"chapters":         transformedChapters,
 		},
 	})
@@ -1225,13 +1164,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				transformedEvents[cat] = catList
 			}
 		}
-	} else {
-		transformedEvents = map[string]interface{}{
-			"Conferences_&_Seminars": []interface{}{
-				map[string]interface{}{"title": "India MSME Conclave", "description": "National platform bringing together policy makers, industry leaders, and MSME stakeholders to discuss challenges and growth strategies."},
-			},
-		}
-	}
+	} // end transformedEvents
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "events_engagement_section",
@@ -1257,13 +1190,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				transformedPolicies[cat] = catList
 			}
 		}
-	} else {
-		transformedPolicies = map[string]interface{}{
-			"Standard_Operating_Guidelines": []interface{}{
-				map[string]interface{}{"title": "Udyam Registration Advisory", "description": "Guideline helping micro enterprises register under the updated MSME definition."},
-			},
-		}
-	}
+	} // end transformedPolicies
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "compliance_policy_section",
@@ -1284,15 +1211,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedPartners = []interface{}{
-			map[string]interface{}{
-				"partner_name": "Government of Karnataka – Dept. of MSME",
-				"relation":     "Policy advocacy, MSME representation, industrial policy inputs",
-				"website":      "https://kassia.org.in/about-us/",
-			},
-		}
-	}
+	} // end transformedPartners
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "partnership_affiliations_section",
@@ -1312,14 +1231,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedAwards = []interface{}{
-			map[string]interface{}{
-				"award_title": "ISO 9001:2015 Certification",
-				"description": "Certified for maintaining quality standards in providing support services to small-scale industries.",
-			},
-		}
-	}
+	} // end transformedAwards
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "awards_recognition_section",
@@ -1340,16 +1252,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedDigital = []interface{}{
-			map[string]interface{}{
-				"category":      "Official Website",
-				"property_name": "https://kassia.org.in",
-				"status":        "Active",
-				"description":   "Primary online hub for member services, Udyam support, news, and notifications.",
-			},
-		}
-	}
+	} // end transformedDigital
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "digital_presence_section",
@@ -1369,12 +1272,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedTransparency = []interface{}{
-			map[string]interface{}{"title": "Financial Audit Status", "description": "Audited annually by certified chartered accountants.", "status": "Audited"},
-			map[string]interface{}{"title": "Governing Council Disclosures", "description": "Names and designations of all council members publicly disclosed.", "status": "Available"},
-		}
-	}
+	} // end transformedTransparency
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "transparency_verification_section",
@@ -1382,36 +1280,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"data":    transformedTransparency,
 	})
 
-	// 14. members_structure_tree
-	var structure map[string]interface{}
+	// 14. members_structure_tree — only shown when governance data exists in DB
 	if len(governance) > 0 {
-		structure = governance
-	} else {
-		structure = map[string]interface{}{
-			"name":        "Sri B.R Ganesh Rao",
-			"designation": "President",
-			"children": []interface{}{
-				map[string]interface{}{
-					"name":        "Sri Ninganna S. Biradar",
-					"designation": "Vice-President",
-				},
-				map[string]interface{}{
-					"name":        "Sri S.M Hussain",
-					"designation": "Hon. General Secretary",
-				},
-				map[string]interface{}{
-					"name":        "Sri Durai R.",
-					"designation": "Treasurer",
-				},
-			},
-		}
+		sections = append(sections, map[string]interface{}{
+			"type":    "members_structure_tree",
+			"enabled": true,
+			"data":    governance,
+		})
 	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "members_structure_tree",
-		"enabled": true,
-		"data":    structure,
-	})
 
 	// 15. recommended_business_associations
 	var transformedRecs []interface{}
@@ -1426,13 +1302,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				})
 			}
 		}
-	} else {
-		transformedRecs = []interface{}{
-			map[string]interface{}{"id": "1", "name": "NASSCOM", "slug": "nasscom", "icon_url": "/AssociationImages/FeaturedAssociations/nasscom.svg"},
-			map[string]interface{}{"id": "2", "name": "Kassia", "slug": "kassia", "icon_url": "/AssociationImages/FeaturedAssociations/kassia.svg"},
-			map[string]interface{}{"id": "3", "name": "FICCI", "slug": "ficci", "icon_url": "/AssociationImages/FeaturedAssociations/ficci.svg"},
-		}
-	}
+	} // end transformedRecs
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "recommended_business_associations",
@@ -1440,60 +1310,58 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"data":    transformedRecs,
 	})
 
-	// 16. market_insights_section
-	var transformedInsights map[string]interface{}
+	// 16. market_insights_section — use real data only; skip if nothing available
+	// Priority 1: data_and_insights from association_metadata (DB)
+	// Priority 2: growth_rate + market_trend from ES marketInsights
+	var insightsData map[string]interface{}
+
 	if len(data_and_insights) > 0 {
 		trends := getArrayVal(data_and_insights, "sector_trends")
 		var trendList []interface{}
 		for _, t := range trends {
 			trendList = append(trendList, t)
 		}
-		transformedInsights = map[string]interface{}{
-			"market_stats":  getStringVal(data_and_insights, "market_stats", ""),
-			"sector_trends": trendList,
-			"exim_data":     getStringVal(data_and_insights, "exim_data", ""),
-			"cluster_info":  getStringVal(data_and_insights, "cluster_info", ""),
+		insightsData = map[string]interface{}{}
+		if v := getStringVal(data_and_insights, "market_stats", ""); v != "" {
+			insightsData["market_stats"] = v
 		}
-	} else if len(marketInsights) > 0 {
-		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
-			trends := getArrayVal(insights, "sector_trends")
-			var trendList []interface{}
-			for _, t := range trends {
-				trendList = append(trendList, t)
-			}
-			if len(trendList) == 0 {
-				trendList = []interface{}{
-					"Rising adoption of AI and automation in manufacturing.",
-					"Increased focus on sustainable and green manufacturing practices.",
-					"Growing integration of MSMEs into global supply chains.",
-				}
-			}
-			transformedInsights = map[string]interface{}{
-				"market_stats":  getStringVal(insights, "market_stats", "Karnataka MSME sector contributes 20% to state GDP with over 8 lakh registered units."),
-				"sector_trends": trendList,
-				"exim_data":     getStringVal(insights, "exim_data", "MSME exports from Karnataka account for approximately $10 billion annually."),
-				"cluster_info":  getStringVal(insights, "cluster_info", "Major clusters include Peenya (manufacturing), Belagavi (foundry), and Hubli (valves/machine tools)."),
-			}
+		if len(trendList) > 0 {
+			insightsData["sector_trends"] = trendList
 		}
-	}
-	if len(transformedInsights) == 0 {
-		transformedInsights = map[string]interface{}{
-			"market_stats": "Karnataka MSME sector contributes 20% to state GDP with over 8 lakh registered units.",
-			"sector_trends": []interface{}{
-				"Rising adoption of AI and automation in manufacturing.",
-				"Increased focus on sustainable and green manufacturing practices.",
-				"Growing integration of MSMEs into global supply chains.",
-			},
-			"exim_data":    "MSME exports from Karnataka account for approximately $10 billion annually.",
-			"cluster_info": "Major clusters include Peenya (manufacturing), Belagavi (foundry), and Hubli (valves/machine tools).",
+		if v := getStringVal(data_and_insights, "exim_data", ""); v != "" {
+			insightsData["exim_data"] = v
+		}
+		if v := getStringVal(data_and_insights, "cluster_info", ""); v != "" {
+			insightsData["cluster_info"] = v
+		}
+		if len(insightsData) == 0 {
+			insightsData = nil
 		}
 	}
 
-	sections = append(sections, map[string]interface{}{
-		"type":    "market_insights_section",
-		"enabled": true,
-		"data":    transformedInsights,
-	})
+	if insightsData == nil && len(marketInsights) > 0 {
+		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
+			insightsData = map[string]interface{}{}
+			if gr, ok := insights["growth_rate"].(map[string]interface{}); ok {
+				insightsData["growth_rate"] = gr
+			}
+			if mt, ok := insights["market_trend"].(map[string]interface{}); ok {
+				insightsData["market_trend"] = mt
+			}
+			if len(insightsData) == 0 {
+				insightsData = nil
+			}
+		}
+	}
+
+	if insightsData != nil {
+		sections = append(sections, map[string]interface{}{
+			"type":    "market_insights_section",
+			"enabled": true,
+			"data":    insightsData,
+		})
+	}
+
 
 	// 17. featured_business_categories
 	var transformedDetailCategories []interface{}
@@ -1551,16 +1419,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	}
 	if len(detailQuestions) == 0 {
-		detailQuestions = []interface{}{
-			map[string]interface{}{
-				"question": "What is the membership process?",
-				"answer":   "The membership process involves submitting an online application along with business proof like GST/PAN certificate, followed by approval within 7-15 working days.",
-			},
-			map[string]interface{}{
-				"question": "Does this association support export-import guidelines?",
-				"answer":   "Yes, the association regularizes and organizes EXIM workshops, consultancies, and representation on international trade fairs for its premium members.",
-			},
-		}
+		detailQuestions = []interface{}{}
 	}
 
 	sections = append(sections, map[string]interface{}{
@@ -1790,6 +1649,48 @@ func (h *Handler) buildListingResponse(data map[string]interface{}) map[string]i
 			franchise, ok := f.(map[string]interface{})
 			if !ok {
 				continue
+			}
+
+			et, _ := franchise["entity_type"].(string)
+			if et == "" {
+				et = "franchise"
+			}
+
+			if et == "franchise" {
+				delete(franchise, "association_metadata")
+				delete(franchise, "member_count")
+				delete(franchise, "membership_fee_min")
+				delete(franchise, "membership_fee_max")
+
+				// Map fields to unified format for UI card rendering
+				if outlets, ok := franchise["total_outlets"]; ok {
+					franchise["no_of_outlets"] = outlets
+				}
+				if name, ok := franchise["name"].(string); ok {
+					franchise["brand"] = name
+				}
+				if fid, ok := franchise["franchise_id"].(string); ok {
+					franchise["id"] = fid
+				}
+			} else if et == "association" {
+				delete(franchise, "investment")
+				delete(franchise, "investmentRange")
+				delete(franchise, "space")
+				delete(franchise, "franchise_id")
+				delete(franchise, "total_outlets")
+				delete(franchise, "exclusivity_type")
+				delete(franchise, "territory_scope")
+				delete(franchise, "territory_details")
+
+				if mc, ok := franchise["member_count"]; ok {
+					franchise["no_of_members"] = mc
+				}
+				if name, ok := franchise["name"].(string); ok {
+					franchise["association_name"] = name
+				}
+				if fid, ok := franchise["franchise_id"].(string); ok {
+					franchise["id"] = fid
+				}
 			}
 
 			if space, ok := franchise["space"].(map[string]interface{}); ok {
@@ -2463,75 +2364,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		"data":    stats,
 	})
 
-	// 5. business_associations_across_india
-	cities := h.extractArray(data, "cities")
-	if len(cities) == 0 {
-		cities = []interface{}{
-			map[string]interface{}{
-				"state":       "Andhra Pradesh",
-				"slug":        "andhra-pradesh",
-				"map":         "/AssociationImages/BusinessAcrossIndia/states/andhra-pradesh.png",
-				"projects":    15,
-				"consultants": 20,
-				"overview":    "Andhra Pradesh is the second largest producer of cotton and raw silk in India. The state has a strong textile industry base consisting of handlooms, handicrafts, spinning and processing units. The state has integrated apparel city in Vizag with an innovative concept of \"Fibre to Store\".",
-				"industries":  "Textiles, IT, Pharmaceuticals, Agriculture",
-				"associations": "FAPCCI, APITC, Textile Alliance",
-				"growth":      "18% YoY in manufacturing sector",
-				"highlights": []interface{}{
-					map[string]interface{}{
-						"title":       "Innovation Hubs",
-						"description": "Multiple innovation centers and incubators supporting startups and SMEs with mentorship, funding, and infrastructure.",
-						"icon":        "InnovationIcon",
-					},
-					map[string]interface{}{
-						"title":       "Startup Ecosystem",
-						"description": "Growing startup community with government support, angel investors, and venture capital presence.",
-						"icon":        "StartupIcon",
-					},
-					map[string]interface{}{
-						"title":       "Skill Development",
-						"description": "Strong focus on vocational training and skill development programs aligned with industry needs.",
-						"icon":        "SkillIcon",
-					},
-					map[string]interface{}{
-						"title":       "Infrastructure",
-						"description": "Well-developed industrial parks, SEZs, ports, and connectivity through road, rail, and air networks.",
-						"icon":        "InfrastructureIcon",
-					},
-				},
-			},
-			map[string]interface{}{
-				"state":       "Maharashtra",
-				"slug":        "maharashtra",
-				"map":         "/AssociationImages/BusinessAcrossIndia/states/maharashtraMap.svg",
-				"projects":    30,
-				"consultants": 40,
-				"overview":    "Maharashtra is India's financial powerhouse with strong industrial and startup ecosystems.",
-				"industries":  "Finance, IT, Automobile",
-				"associations": "MCCIA, IMC",
-				"growth":      "22% startup growth",
-				"highlights": []interface{}{
-					map[string]interface{}{
-						"title":       "Financial Capital",
-						"description": "Mumbai serves as India's financial center.",
-						"icon":        "InnovationIcon",
-					},
-					map[string]interface{}{
-						"title":       "Startup Ecosystem",
-						"description": "Thriving startup communities and incubators.",
-						"icon":        "StartupIcon",
-					},
-				},
-			},
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "business_associations_across_india",
-		"enabled": true,
-		"data":    cities,
-	})
-
-	// 6. featured_business_categories
+	// 5. featured_business_categories
 	var transformedCategories []interface{}
 	if len(categories) > 0 {
 		for _, item := range categories {
@@ -2564,7 +2397,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		},
 	})
 
-	// 7. category_questions
+	// 6. category_questions
 	var listingQuestions []interface{}
 	if len(categoryQuestions) > 0 {
 		for _, qItem := range categoryQuestions {
@@ -2600,7 +2433,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		},
 	})
 
-	// 8. recommended_business_associations
+	// 7. recommended_business_associations
 	var transformedRecs []interface{}
 	if len(recommended) > 0 {
 		for _, item := range recommended {
@@ -2630,47 +2463,33 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		"data":    transformedRecs,
 	})
 
-	// 9. key_market_insights
-	var insightsData interface{}
+	// 8. key_market_insights
+	// key_market_insights: use only real data from ES (growth_rate + market_trend).
+	// No hardcoded fallback — if ES returned nothing the section is skipped.
 	if len(marketInsights) > 0 {
 		if insights, ok := marketInsights[0].(map[string]interface{}); ok {
-			trends := getArrayVal(insights, "sector_trends")
-			var trendList []interface{}
-			for _, t := range trends {
-				trendList = append(trendList, t)
+			insightsData := map[string]interface{}{}
+
+			// growth_rate block (from ES field growth_rate_title / growth_rate_description)
+			if gr, ok := insights["growth_rate"].(map[string]interface{}); ok {
+				insightsData["growth_rate"] = gr
 			}
-			insightsData = map[string]interface{}{
-				"market_stats":  getStringVal(insights, "market_stats", "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people."),
-				"sector_trends": trendList,
-				"exim_data":     getStringVal(insights, "exim_data", "MSMEs contribute approximately 45% of India's total exports."),
-				"cluster_info":  getStringVal(insights, "cluster_info", "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore."),
+
+			// market_trend block (from ES field market_trend_title / market_trend_description)
+			if mt, ok := insights["market_trend"].(map[string]interface{}); ok {
+				insightsData["market_trend"] = mt
 			}
-			if len(trendList) == 0 {
-				insightsData.(map[string]interface{})["sector_trends"] = []interface{}{
-					"Accelerated digitization of supply chains and business processes.",
-					"Increased integration into global value chains through trade associations.",
-					"Government schemes like PLI and Udyam boosting MSME manufacturing.",
-				}
+
+			// Only append the section when at least one field was populated
+			if len(insightsData) > 0 {
+				sections = append(sections, map[string]interface{}{
+					"type":    "key_market_insights",
+					"enabled": true,
+					"data":    insightsData,
+				})
 			}
 		}
 	}
-	if insightsData == nil {
-		insightsData = map[string]interface{}{
-			"market_stats": "India has over 6.3 crore MSMEs, contributing 30% to GDP and employing 11 crore people.",
-			"sector_trends": []interface{}{
-				"Accelerated digitization of supply chains and business processes.",
-				"Increased integration into global value chains through trade associations.",
-				"Government schemes like PLI and Udyam boosting MSME manufacturing.",
-			},
-			"exim_data":    "MSMEs contribute approximately 45% of India's total exports.",
-			"cluster_info": "Industrial clusters supported by associations are growing in Pune, Bengaluru, Surat, and Coimbatore.",
-		}
-	}
-	sections = append(sections, map[string]interface{}{
-		"type":    "key_market_insights",
-		"enabled": true,
-		"data":    insightsData,
-	})
 
 	if v, ok := data["page"].(float64); ok {
 		page = int(v)

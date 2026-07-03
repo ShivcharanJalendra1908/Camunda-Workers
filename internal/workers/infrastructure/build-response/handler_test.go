@@ -572,7 +572,14 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 				},
 				"marketInsights": []interface{}{
 					map[string]interface{}{
-						"market_stats": "MSME Stats...",
+						"growth_rate": map[string]interface{}{
+							"title":       "Industry Growth Rate",
+							"description": "15% YoY growth in association memberships.",
+						},
+						"market_trend": map[string]interface{}{
+							"title":       "Market Trend",
+							"description": "Rising demand for professional associations.",
+						},
 					},
 				},
 				"page": 1.0,
@@ -587,18 +594,28 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 
 				sections, ok := data["sections"].([]interface{})
 				assert.True(t, ok)
-				assert.Len(t, sections, 9) // 9 sections total
+				// 8 sections: hero, business_associations, functions_of_business_associations,
+				// statistics, featured_business_categories, category_questions,
+				// recommended_business_associations, key_market_insights
+				assert.Len(t, sections, 8)
 
 				// Verify section order
 				assert.Equal(t, "hero", sections[0].(map[string]interface{})["type"])
 				assert.Equal(t, "business_associations", sections[1].(map[string]interface{})["type"])
 				assert.Equal(t, "functions_of_business_associations", sections[2].(map[string]interface{})["type"])
 				assert.Equal(t, "statistics", sections[3].(map[string]interface{})["type"])
-				assert.Equal(t, "business_associations_across_india", sections[4].(map[string]interface{})["type"])
-				assert.Equal(t, "featured_business_categories", sections[5].(map[string]interface{})["type"])
-				assert.Equal(t, "category_questions", sections[6].(map[string]interface{})["type"])
-				assert.Equal(t, "recommended_business_associations", sections[7].(map[string]interface{})["type"])
-				assert.Equal(t, "key_market_insights", sections[8].(map[string]interface{})["type"])
+				assert.Equal(t, "explore_by_categories", sections[4].(map[string]interface{})["type"])
+				assert.Equal(t, "category_questions", sections[5].(map[string]interface{})["type"])
+				assert.Equal(t, "recommended_business_associations", sections[6].(map[string]interface{})["type"])
+				assert.Equal(t, "key_market_insights", sections[7].(map[string]interface{})["type"])
+
+				// Check key_market_insights uses real ES fields
+				insightsSection := sections[7].(map[string]interface{})
+				insightsData := insightsSection["data"].(map[string]interface{})
+				gr := insightsData["growth_rate"].(map[string]interface{})
+				assert.Equal(t, "Industry Growth Rate", gr["title"])
+				mt := insightsData["market_trend"].(map[string]interface{})
+				assert.Equal(t, "Market Trend", mt["title"])
 
 				// Check pagination
 				pagination, ok := data["pagination"].(map[string]interface{})

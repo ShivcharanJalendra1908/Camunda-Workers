@@ -822,12 +822,55 @@ func MarketInsights(ctx context.Context, esClient *elasticsearch.Client, params 
 
 	hitsList, ok := hits["hits"].([]interface{})
 	if !ok || len(hitsList) == 0 {
-		// No insights found - return empty (graceful degradation)
-		return &QueryResult{
-			Data:      []map[string]interface{}{},
-			TotalHits: 0,
-			Took:      time.Since(start).Milliseconds(),
-		}, nil
+		// No specific-industry insights — try the general fallback row from ES
+		// (industry_id = 00000000-0000-0000-0000-000000000000, entity_type = current entityType)
+		fallbackQuery := map[string]interface{}{
+			"query": map[string]interface{}{
+				"bool": map[string]interface{}{
+					"must": []interface{}{
+						getEntityTypeFilter(entityType),
+						map[string]interface{}{"term": map[string]interface{}{"industry_id": "00000000-0000-0000-0000-000000000000"}},
+					},
+					"should": []interface{}{
+						map[string]interface{}{"term": map[string]interface{}{"intent_tag": "general"}},
+					},
+					"minimum_should_match": 1,
+				},
+			},
+			"size": 1,
+		}
+		fqJSON, err := json.Marshal(fallbackQuery)
+		if err == nil {
+			fRes, fErr := esClient.Search(
+				esClient.Search.WithContext(ctx),
+				esClient.Search.WithIndex("industry_insights"),
+				esClient.Search.WithBody(bytes.NewReader(fqJSON)),
+				esClient.Search.WithTrackTotalHits(true),
+			)
+			if fErr == nil && !fRes.IsError() {
+				defer fRes.Body.Close()
+				var fResp map[string]interface{}
+				if json.NewDecoder(fRes.Body).Decode(&fResp) == nil {
+					if fHits, ok := fResp["hits"].(map[string]interface{}); ok {
+						if fList, ok := fHits["hits"].([]interface{}); ok && len(fList) > 0 {
+							hitsList = fList
+							// reassign hits so the transform below works
+							hits = fHits
+						}
+					}
+				}
+			}
+		}
+		// After fallback attempt, still nothing? Return empty gracefully.
+		if len(hitsList) == 0 {
+			return &QueryResult{
+				Data:      []map[string]interface{}{},
+				TotalHits: 0,
+				Took:      time.Since(start).Milliseconds(),
+			}, nil
+		}
+		// use updated hitsList
+		_ = hits
 	}
 
 	// Extract first hit

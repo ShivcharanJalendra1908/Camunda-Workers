@@ -364,7 +364,7 @@ LEFT JOIN LATERAL (
 	ORDER BY created_at DESC
 	LIMIT 1
 ) fc ON true
-WHERE f.id = $1
+WHERE l.id = $1
 	`
 
 	var (
