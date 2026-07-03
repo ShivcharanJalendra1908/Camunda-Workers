@@ -492,7 +492,10 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 	if entityType == "association" {
 		return h.buildAssociationHomeResponse(data)
 	}
+	return h.buildFranchiseHomeResponse(data)
+}
 
+func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[string]interface{} {
 	sections := []interface{}{}
 
 	h.logger.Info("Building home response", map[string]interface{}{
@@ -520,6 +523,9 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 	}
 
 	industries := h.extractArray(data, "industries")
+	if len(industries) > 9 {
+		industries = industries[:9]
+	}
 	if len(industries) > 0 {
 		sections = append(sections, map[string]interface{}{
 			"type":    "top_franchise_opportunities",
@@ -533,7 +539,7 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 	// ✅ DEFENSIVE TRANSFORMATION - Handles both transformed and untransformed data
 	listings := h.extractArray(data, "popularListings")
 	if len(listings) > 0 {
-		transformedListings := make([]map[string]interface{}, 0, len(listings))
+		transformedListings := make([]interface{}, 0, len(listings))
 
 		for _, item := range listings {
 			listing, ok := item.(map[string]interface{})
@@ -541,33 +547,36 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 				continue
 			}
 
-			transformed := map[string]interface{}{}
+			transformed := TransformedFranchiseListing{}
 
 			// ✅ Handle franchise_id OR id (defensive)
 			if franchiseID, ok := listing["franchise_id"].(string); ok {
-				transformed["id"] = franchiseID
+				transformed.ID = franchiseID
 			} else if id, ok := listing["id"].(string); ok {
-				transformed["id"] = id
+				transformed.ID = id
 			}
 
 			// ✅ Handle name OR brand (defensive)
 			if name, ok := listing["name"].(string); ok {
-				transformed["brand"] = name
+				transformed.Brand = name
 			} else if brand, ok := listing["brand"].(string); ok {
-				transformed["brand"] = brand
+				transformed.Brand = brand
 			}
 
 			// ✅ Extract category from industry.name OR use existing category
 			if industry, ok := listing["industry"].(map[string]interface{}); ok {
 				if categoryName, ok := industry["name"].(string); ok {
-					transformed["category"] = categoryName
+					transformed.Category = categoryName
 				}
 				if color, ok := industry["color"].(string); ok {
-					transformed["color"] = color
+					transformed.Color = color
 				}
 			} else if category, ok := listing["category"].(string); ok {
-				transformed["category"] = category
+				transformed.Category = category
 			}
+            if color, ok := listing["color"].(string); ok && color != "" {
+                transformed.Color = color
+            }
 
 			// Copy remaining fields
 			desc := ""
@@ -576,36 +585,39 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 			} else if d, ok := listing["description"].(string); ok {
 				desc = d
 			}
-			transformed["description"] = desc
-			transformed["year_of_establishment"] = listing["year_of_establishment"]
-			transformed["rating"] = listing["rating"]
-			transformed["location"] = listing["location"]
-			transformed["tags"] = listing["tags"]
-			transformed["space"] = listing["space"]
-			transformed["slug"] = listing["slug"]
+			transformed.Description = desc
+			transformed.YearOfEstablishment = listing["year_of_establishment"]
+			transformed.Rating = listing["rating"]
+			transformed.Location = listing["location"]
+			transformed.Tags = listing["tags"]
+			
+			if space, ok := listing["space"].(map[string]interface{}); ok {
+				transformed.Space = space
+			}
+			if slug, ok := listing["slug"].(string); ok {
+				transformed.Slug = slug
+			}
 
 			// ✅ Handle total_outlets OR no_of_outlets (defensive)
 			if outlets, ok := listing["total_outlets"]; ok {
-				transformed["no_of_outlets"] = outlets
+				transformed.NoOfOutlets = outlets
 			} else if outlets, ok := listing["no_of_outlets"]; ok {
-				transformed["no_of_outlets"] = outlets
+				transformed.NoOfOutlets = outlets
 			}
 
 			// Keep investmentRange
-			transformed["investmentRange"] = listing["investmentRange"]
+			if ir, ok := listing["investmentRange"].(map[string]interface{}); ok {
+				transformed.InvestmentRange = ir
+			}
 
 			// ✅ Handle logo_url OR logo object (defensive)
 			if logo, ok := listing["logo"].(map[string]interface{}); ok {
-				transformed["logo"] = logo
+				transformed.Logo = logo
 			} else {
-				brandName := ""
-				if b, ok := transformed["brand"].(string); ok {
-					brandName = b
-				}
-				transformed["logo"] = map[string]interface{}{
+				transformed.Logo = map[string]interface{}{
 					"circle": "",
 					"square": "",
-					"alt":    brandName,
+					"alt":    transformed.Brand,
 				}
 			}
 
@@ -671,6 +683,9 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 	if len(industries) == 0 {
 		industries = h.extractArray(data, "categories")
 	}
+	if len(industries) > 9 {
+		industries = industries[:9]
+	}
 
 	mappedIndustries := []map[string]interface{}{}
 	for _, indItem := range industries {
@@ -734,20 +749,25 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 			continue
 		}
 
-		transformed := map[string]interface{}{}
+		transformed := TransformedAssociationListing{}
 
 		// id
 		if id, ok := assoc["id"].(string); ok {
-			transformed["id"] = id
+			transformed.ID = id
 		} else if fid, ok := assoc["franchise_id"].(string); ok {
-			transformed["id"] = fid
+			transformed.ID = fid
+		}
+
+		// slug
+		if slug, ok := assoc["slug"].(string); ok {
+			transformed.Slug = slug
 		}
 
 		// name
 		if name, ok := assoc["name"].(string); ok {
-			transformed["association_name"] = name
+			transformed.AssociationName = name
 		} else if brand, ok := assoc["brand"].(string); ok {
-			transformed["association_name"] = brand
+			transformed.AssociationName = brand
 		}
 
 		// description
@@ -757,7 +777,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		} else if d, ok := assoc["description"].(string); ok {
 			desc = d
 		}
-		transformed["description"] = desc
+		transformed.Description = desc
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
@@ -774,7 +794,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		} else if at, ok := assoc["association_type"].(string); ok && at != "" {
 			assocType = at
 		}
-		transformed["association_type"] = assocType
+		transformed.AssociationType = assocType
 
 		// membership fee range
 		minFee := getFloatValue(assoc, "membership_fee_min")
@@ -792,17 +812,18 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		}
 
 		feeUnit := "INR"
-		transformed["MembershipFeeRange"] = map[string]interface{}{
+		membershipFeeRange := map[string]interface{}{
 			"FeeUnit": feeUnit,
 			"minFee":  interface{}(nil),
 			"maxFee":  interface{}(nil),
 		}
 		if minFee > 0 {
-			transformed["MembershipFeeRange"].(map[string]interface{})["minFee"] = minFee
+			membershipFeeRange["minFee"] = minFee
 		}
 		if maxFee > 0 {
-			transformed["MembershipFeeRange"].(map[string]interface{})["maxFee"] = maxFee
+			membershipFeeRange["maxFee"] = maxFee
 		}
+		transformed.MembershipFeeRange = membershipFeeRange
 
 		// location
 		loc := ""
@@ -811,7 +832,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		} else if city, ok := assoc["city"].(string); ok {
 			loc = city + ",India"
 		}
-		transformed["location"] = loc
+		transformed.Location = loc
 
 		// logo
 		logoUrl := ""
@@ -829,9 +850,8 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 			logoUrl = logoStr
 		}
 
-		assocName, _ := transformed["association_name"].(string)
-		transformed["logo"] = map[string]interface{}{
-			"alt": assocName,
+		transformed.Logo = map[string]interface{}{
+			"alt": transformed.AssociationName,
 			"url": logoUrl,
 		}
 
@@ -840,7 +860,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		if mcVal := getFloatValue(assoc, "member_count"); mcVal > 0 {
 			noOfMembers = int(mcVal)
 		}
-		transformed["no_of_members"] = noOfMembers
+		transformed.NoOfMembers = noOfMembers
 
 		// tags
 		tagsList := []interface{}{}
@@ -854,7 +874,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 				tagsList = tags
 			}
 		}
-		transformed["tags"] = tagsList
+		transformed.Tags = tagsList
 
 		// year_of_establishment
 		estYear := ""
@@ -863,7 +883,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		} else if fyVal := getFloatValue(assoc, "founded_year"); fyVal > 0 {
 			estYear = strconv.Itoa(int(fyVal))
 		}
-		transformed["year_of_establishment"] = estYear
+		transformed.YearOfEstablishment = estYear
 
 		transformedAssociations = append(transformedAssociations, transformed)
 	}
@@ -948,9 +968,18 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	}
 
 	tags := getArrayVal(overview, "key_functions")
+	if len(tags) == 0 {
+		if basicTags, ok := basicInfo["tags"].([]interface{}); ok {
+			tags = basicTags
+		}
+	}
 	var transformedTags []interface{}
-	for _, t := range tags {
-		transformedTags = append(transformedTags, t)
+	if len(tags) > 0 {
+		for _, t := range tags {
+			transformedTags = append(transformedTags, t)
+		}
+	} else {
+		transformedTags = []interface{}{}
 	}
 
 	socialLinksVal := getMapVal(contact_details, "social_links")
@@ -962,16 +991,16 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		"linkedin":  getStringVal(socialLinksVal, "linkedin", ""),
 	}
 
-	heroData := map[string]interface{}{
-		"name":         name,
-		"slug":         slug,
-		"logo":         logoURL,
-		"description":  description,
-		"likes":        getStringVal(basicInfo, "likes_count", ""),
-		"rating":       getStringVal(basicInfo, "rating", ""),
-		"review_count": getStringVal(basicInfo, "rating_count", ""),
-		"tags":         transformedTags,
-		"socialLinks":  socialLinks,
+	heroData := TransformedAssociationHeroInfoCard{
+		Name:        name,
+		Slug:        slug,
+		Description: description,
+		Likes:       getStringVal(basicInfo, "likes_count", ""),
+		Logo:        logoURL,
+		Rating:      getStringVal(basicInfo, "rating", ""),
+		ReviewCount: getStringVal(basicInfo, "rating_count", ""),
+		SocialLinks: socialLinks,
+		Tags:        transformedTags,
 	}
 
 	sections = append(sections, map[string]interface{}{
@@ -1507,24 +1536,20 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		},
 	})
 
-	detailData := map[string]interface{}{
-		"pageId":   "association_individual",
-		"sections": sections,
+	detailData := TransformedAssociationDetailData{
+		PageID:   "association_individual",
+		Sections: sections,
 	}
 
 	if len(basicInfo) > 0 {
 		if id, ok := basicInfo["id"].(string); ok && id != "" {
-			detailData["association_id"] = id
+			detailData.AssociationID = id
 		}
-		if name, ok := basicInfo["name"].(string); ok && name != "" {
-			detailData["association_name"] = name
+		if slug, ok := basicInfo["slug"].(string); ok && slug != "" {
+			detailData.Slug = slug
 		}
-		// slug is already inside hero section data, do not duplicate at top level
 		if status, ok := basicInfo["status"].(string); ok && status != "" {
-			detailData["status"] = status
-		}
-		if createdBy, ok := basicInfo["created_by"].(string); ok && createdBy != "" {
-			detailData["created_by"] = createdBy
+			detailData.Status = status
 		}
 	}
 
@@ -1578,23 +1603,38 @@ func getArrayVal(m map[string]interface{}, key string) []interface{} {
 
 // ===== LISTING PAGE BUILDER =====
 type TransformedFranchiseListing struct {
-	ID                  string                 `json:"id"`
-	EntityType          string                 `json:"entity_type"`
 	Brand               string                 `json:"brand"`
 	Category            string                 `json:"category,omitempty"`
 	Color               string                 `json:"color,omitempty"`
-	ShortDescription    string                 `json:"short_description"`
-	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
+	Description         string                 `json:"description,omitempty"`
+	EntityType          string                 `json:"entity_type,omitempty"`
 	FoundedYear         interface{}            `json:"founded_year,omitempty"`
-	Rating              interface{}            `json:"rating,omitempty"`
-	Location            interface{}            `json:"location,omitempty"`
-	NoOfOutlets         interface{}            `json:"no_of_outlets,omitempty"`
-	Space               map[string]interface{} `json:"space,omitempty"`
+	ID                  string                 `json:"id"`
+	IndustryImageURL    string                 `json:"industry_image_url,omitempty"`
 	InvestmentRange     map[string]interface{} `json:"investmentRange,omitempty"`
-	Tags                interface{}            `json:"tags,omitempty"`
-	Slug                interface{}            `json:"slug,omitempty"`
-	Status              interface{}            `json:"status,omitempty"`
+	Location            interface{}            `json:"location,omitempty"`
 	Logo                map[string]interface{} `json:"logo,omitempty"`
+	NoOfOutlets         interface{}            `json:"no_of_outlets,omitempty"`
+	Rating              interface{}            `json:"rating,omitempty"`
+	Slug                interface{}            `json:"slug,omitempty"`
+	Space               map[string]interface{} `json:"space,omitempty"`
+	Status              interface{}            `json:"status,omitempty"`
+	Tags                interface{}            `json:"tags,omitempty"`
+	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
+}
+
+type TransformedAssociationListing struct {
+	ID                  string                 `json:"id"`
+	AssociationName     string                 `json:"association_name,omitempty"`
+	Slug                interface{}            `json:"slug,omitempty"`
+	AssociationType     string                 `json:"association_type,omitempty"`
+	Description         string                 `json:"description,omitempty"`
+	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
+	NoOfMembers         interface{}            `json:"no_of_members,omitempty"`
+	MembershipFeeRange  map[string]interface{} `json:"MembershipFeeRange,omitempty"`
+	Location            interface{}            `json:"location,omitempty"`
+	Logo                map[string]interface{} `json:"logo,omitempty"`
+	Tags                interface{}            `json:"tags,omitempty"`
 }
 
 func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map[string]interface{} {
@@ -1781,7 +1821,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				if sd, ok := listing["short_description"].(string); ok && sd != "" {
 					listingDesc = sd
 				}
-				transformed.ShortDescription = listingDesc
+				transformed.Description = listingDesc
 
 				// Logo
 				if logo, ok := listing["logo"].(map[string]interface{}); ok {
@@ -2118,6 +2158,26 @@ type TransformedFranchiseDetailData struct {
 	SocialMedia         interface{}                         `json:"social_media,omitempty"`
 }
 
+type TransformedAssociationDetailData struct {
+	AssociationID string        `json:"association_id,omitempty"`
+	PageID        string        `json:"pageId"`
+	Sections      []interface{} `json:"sections"`
+	Slug          string        `json:"slug,omitempty"`
+	Status        string        `json:"status,omitempty"`
+}
+
+type TransformedAssociationHeroInfoCard struct {
+	Name        string                 `json:"name"`
+	Slug        string                 `json:"slug,omitempty"`
+	Description string                 `json:"description,omitempty"`
+	Likes       string                 `json:"likes,omitempty"`
+	Logo        string                 `json:"logo,omitempty"`
+	Rating      string                 `json:"rating,omitempty"`
+	ReviewCount string                 `json:"review_count,omitempty"`
+	SocialLinks map[string]interface{} `json:"socialLinks,omitempty"`
+	Tags        []interface{}          `json:"tags"`
+}
+
 func (h *Handler) buildFranchiseDetailResponse(data map[string]interface{}) map[string]interface{} {
 	entityType := "franchise"
 	if et, ok := data["entityType"].(string); ok && et != "" {
@@ -2421,25 +2481,25 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			continue
 		}
 
-		transformed := map[string]interface{}{}
+		transformed := TransformedAssociationListing{}
 
 		// id
 		if id, ok := assoc["id"].(string); ok {
-			transformed["id"] = id
+			transformed.ID = id
 		} else if fid, ok := assoc["franchise_id"].(string); ok {
-			transformed["id"] = fid
-		}
-
-		// name
-		if name, ok := assoc["name"].(string); ok {
-			transformed["association_name"] = name
-		} else if brand, ok := assoc["brand"].(string); ok {
-			transformed["association_name"] = brand
+			transformed.ID = fid
 		}
 
 		// slug
 		if slug, ok := assoc["slug"].(string); ok {
-			transformed["slug"] = slug
+			transformed.Slug = slug
+		}
+
+		// name
+		if name, ok := assoc["name"].(string); ok {
+			transformed.AssociationName = name
+		} else if brand, ok := assoc["brand"].(string); ok {
+			transformed.AssociationName = brand
 		}
 
 		// description
@@ -2449,7 +2509,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		} else if d, ok := assoc["description"].(string); ok {
 			desc = d
 		}
-		transformed["description"] = desc
+		transformed.Description = desc
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
@@ -2466,7 +2526,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		} else if at, ok := assoc["association_type"].(string); ok && at != "" {
 			assocType = at
 		}
-		transformed["association_type"] = assocType
+		transformed.AssociationType = assocType
 
 		// membership fee range
 		minFee := getFloatValue(assoc, "membership_fee_min")
@@ -2484,17 +2544,18 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		}
 
 		feeUnit := "INR"
-		transformed["MembershipFeeRange"] = map[string]interface{}{
+		membershipFeeRange := map[string]interface{}{
 			"FeeUnit": feeUnit,
 			"minFee":  interface{}(nil),
 			"maxFee":  interface{}(nil),
 		}
 		if minFee > 0 {
-			transformed["MembershipFeeRange"].(map[string]interface{})["minFee"] = minFee
+			membershipFeeRange["minFee"] = minFee
 		}
 		if maxFee > 0 {
-			transformed["MembershipFeeRange"].(map[string]interface{})["maxFee"] = maxFee
+			membershipFeeRange["maxFee"] = maxFee
 		}
+		transformed.MembershipFeeRange = membershipFeeRange
 
 		// location
 		loc := ""
@@ -2503,7 +2564,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		} else if city, ok := assoc["city"].(string); ok {
 			loc = city + ",India"
 		}
-		transformed["location"] = loc
+		transformed.Location = loc
 
 		// logo
 		logoUrl := ""
@@ -2522,9 +2583,8 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		}
 		// No logo fallback
 
-		assocName, _ := transformed["association_name"].(string)
-		transformed["logo"] = map[string]interface{}{
-			"alt": assocName,
+		transformed.Logo = map[string]interface{}{
+			"alt": transformed.AssociationName,
 			"url": logoUrl,
 		}
 
@@ -2533,7 +2593,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		if mcVal := getFloatValue(assoc, "member_count"); mcVal > 0 {
 			noOfMembers = int(mcVal)
 		}
-		transformed["no_of_members"] = noOfMembers
+		transformed.NoOfMembers = noOfMembers
 
 		// tags
 		tagsList := []interface{}{}
@@ -2548,7 +2608,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			}
 		}
 		// No tags fallback
-		transformed["tags"] = tagsList
+		transformed.Tags = tagsList
 
 		// year_of_establishment
 		estYear := ""
@@ -2558,7 +2618,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			estYear = strconv.Itoa(int(fyVal))
 		}
 		// No estYear fallback
-		transformed["year_of_establishment"] = estYear
+		transformed.YearOfEstablishment = estYear
 
 		transformedAssociations = append(transformedAssociations, transformed)
 	}

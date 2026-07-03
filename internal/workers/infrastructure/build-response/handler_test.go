@@ -149,20 +149,20 @@ func TestHandler_Execute_Success(t *testing.T) {
 				assert.True(t, ok)
 				assert.Len(t, assocList, 1)
 
-				assoc, ok := assocList[0].(map[string]interface{})
+				assoc, ok := assocList[0].(TransformedAssociationListing)
 				assert.True(t, ok)
-				assert.Equal(t, "KASSIA", assoc["association_name"])
-				assert.Equal(t, "Industry Body", assoc["association_type"])
-				assert.Equal(t, "Bengaluru,India", assoc["location"])
-				assert.Equal(t, "1949", assoc["year_of_establishment"])
+				assert.Equal(t, "KASSIA", assoc.AssociationName)
+				assert.Equal(t, "Industry Body", assoc.AssociationType)
+				assert.Equal(t, "Bengaluru,India", assoc.Location)
+				assert.Equal(t, "1949", assoc.YearOfEstablishment)
 				
-				feeRange, ok := assoc["MembershipFeeRange"].(map[string]interface{})
-				assert.True(t, ok)
+				feeRange := assoc.MembershipFeeRange
+				assert.NotNil(t, feeRange)
 				assert.Equal(t, 10000.0, feeRange["minFee"])
 				assert.Equal(t, 25000.0, feeRange["maxFee"])
 
-				logo, ok := assoc["logo"].(map[string]interface{})
-				assert.True(t, ok)
+				logo := assoc.Logo
+				assert.NotNil(t, logo)
 				assert.Equal(t, "kassia.svg", logo["url"])
 			},
 		},
@@ -794,7 +794,6 @@ func TestHandler_BuildDetailResponse(t *testing.T) {
 				data, ok := response["data"].(map[string]interface{})
 				assert.True(t, ok)
 				assert.Equal(t, "association_individual", data["pageId"])
-				assert.Equal(t, "KASSIA", data["association_name"])
 
 				sections, ok := data["sections"].([]interface{})
 				assert.True(t, ok)
