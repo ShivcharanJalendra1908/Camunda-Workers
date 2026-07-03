@@ -574,9 +574,9 @@ func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[st
 			} else if category, ok := listing["category"].(string); ok {
 				transformed.Category = category
 			}
-            if color, ok := listing["color"].(string); ok && color != "" {
-                transformed.Color = color
-            }
+			if color, ok := listing["color"].(string); ok && color != "" {
+				transformed.Color = color
+			}
 
 			// Copy remaining fields
 			desc := ""
@@ -590,7 +590,7 @@ func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[st
 			transformed.Rating = listing["rating"]
 			transformed.Location = listing["location"]
 			transformed.Tags = listing["tags"]
-			
+
 			if space, ok := listing["space"].(map[string]interface{}); ok {
 				transformed.Space = space
 			}
@@ -1506,7 +1506,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	})
 
 	// 18. category_questions
-	var detailQuestions []interface{}
+	detailQuestions := []interface{}{}
 	faqList := getArrayVal(metadata, "faqs")
 	if len(faqList) > 0 {
 		for _, fItem := range faqList {
@@ -1518,12 +1518,16 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
-	if len(detailQuestions) == 0 && len(categoryQuestions) > 0 {
+	if len(categoryQuestions) > 0 {
 		for _, qItem := range categoryQuestions {
 			if qm, ok := qItem.(map[string]interface{}); ok {
 				detailQuestions = append(detailQuestions, map[string]interface{}{
 					"question": getStringVal(qm, "question", ""),
 					"answer":   getStringVal(qm, "answer", ""),
+				})
+			} else if qStr, ok := qItem.(string); ok {
+				detailQuestions = append(detailQuestions, map[string]interface{}{
+					"question": qStr,
 				})
 			}
 		}
@@ -1783,8 +1787,6 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 			"description": heroDescription,
 		},
 	})
-
-
 
 	if len(franchises) > 0 {
 		var transformedListings []interface{}
@@ -2666,7 +2668,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	})
 
 	// 6. category_questions
-	var listingQuestions []interface{}
+	listingQuestions := []interface{}{}
 	if len(categoryQuestions) > 0 {
 		for _, qItem := range categoryQuestions {
 			if qm, ok := qItem.(map[string]interface{}); ok {
@@ -2680,19 +2682,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			}
 		}
 	}
-	if len(listingQuestions) == 0 {
-		listingQuestions = []interface{}{
-			map[string]interface{}{
-				"question": "What are the primary functions of business associations in India?",
-			},
-			map[string]interface{}{
-				"question": "How do I become a member of a trade association?",
-			},
-			map[string]interface{}{
-				"question": "Are membership fees tax-deductible?",
-			},
-		}
-	}
+
 	sections = append(sections, map[string]interface{}{
 		"type":    "category_questions",
 		"enabled": true,
