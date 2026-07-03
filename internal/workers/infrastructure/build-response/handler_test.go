@@ -212,10 +212,10 @@ func TestHandler_Execute_Success(t *testing.T) {
 				// Check spaceUnit injection
 				franchises, ok := listingSection["data"].([]interface{})
 				assert.True(t, ok, "franchises should be a slice")
-				franchise, ok := franchises[0].(map[string]interface{})
-				assert.True(t, ok, "franchise should be a map")
-				space, ok := franchise["space"].(map[string]interface{})
-				assert.True(t, ok, "space should be a map")
+				franchise, ok := franchises[0].(TransformedFranchiseListing)
+				assert.True(t, ok, "franchise should be a TransformedFranchiseListing")
+				space := franchise.Space
+				assert.NotNil(t, space, "space should not be nil")
 				assert.Equal(t, "sq ft", space["spaceUnit"])
 			},
 		},
@@ -458,8 +458,8 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 
 				// Check spaceUnit injection
 				franchises := listingSection["data"].([]interface{})
-				franchise := franchises[0].(map[string]interface{})
-				space := franchise["space"].(map[string]interface{})
+				franchise := franchises[0].(TransformedFranchiseListing)
+				space := franchise.Space
 				assert.Equal(t, "sq ft", space["spaceUnit"])
 			},
 		},
@@ -594,23 +594,20 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 
 				sections, ok := data["sections"].([]interface{})
 				assert.True(t, ok)
-				// 8 sections: hero, business_associations, functions_of_business_associations,
-				// statistics, featured_business_categories, category_questions,
-				// recommended_business_associations, key_market_insights
-				assert.Len(t, sections, 8)
+				// 6 sections: hero, business_associations, explore_by_categories,
+				// category_questions, recommended_business_associations, key_market_insights
+				assert.Len(t, sections, 6)
 
 				// Verify section order
 				assert.Equal(t, "hero", sections[0].(map[string]interface{})["type"])
 				assert.Equal(t, "business_associations", sections[1].(map[string]interface{})["type"])
-				assert.Equal(t, "functions_of_business_associations", sections[2].(map[string]interface{})["type"])
-				assert.Equal(t, "statistics", sections[3].(map[string]interface{})["type"])
-				assert.Equal(t, "explore_by_categories", sections[4].(map[string]interface{})["type"])
-				assert.Equal(t, "category_questions", sections[5].(map[string]interface{})["type"])
-				assert.Equal(t, "recommended_business_associations", sections[6].(map[string]interface{})["type"])
-				assert.Equal(t, "key_market_insights", sections[7].(map[string]interface{})["type"])
+				assert.Equal(t, "explore_by_categories", sections[2].(map[string]interface{})["type"])
+				assert.Equal(t, "category_questions", sections[3].(map[string]interface{})["type"])
+				assert.Equal(t, "recommended_business_associations", sections[4].(map[string]interface{})["type"])
+				assert.Equal(t, "key_market_insights", sections[5].(map[string]interface{})["type"])
 
 				// Check key_market_insights uses real ES fields
-				insightsSection := sections[7].(map[string]interface{})
+				insightsSection := sections[5].(map[string]interface{})
 				insightsData := insightsSection["data"].(map[string]interface{})
 				gr := insightsData["growth_rate"].(map[string]interface{})
 				assert.Equal(t, "Industry Growth Rate", gr["title"])
@@ -629,7 +626,12 @@ func TestHandler_BuildListingResponse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			response := handler.buildFranchiseListingResponse(tt.data)
+			var response map[string]interface{}
+			if tt.name == "association listing page response" {
+				response = handler.buildAssociationListingResponse(tt.data)
+			} else {
+				response = handler.buildFranchiseListingResponse(tt.data)
+			}
 			tt.validate(t, response)
 		})
 	}

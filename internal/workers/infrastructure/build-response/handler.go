@@ -1573,6 +1573,26 @@ func getArrayVal(m map[string]interface{}, key string) []interface{} {
 }
 
 // ===== LISTING PAGE BUILDER =====
+type TransformedFranchiseListing struct {
+	ID                  string                 `json:"id"`
+	EntityType          string                 `json:"entity_type"`
+	Brand               string                 `json:"brand"`
+	Category            string                 `json:"category,omitempty"`
+	Color               string                 `json:"color,omitempty"`
+	ShortDescription    string                 `json:"short_description"`
+	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
+	FoundedYear         interface{}            `json:"founded_year,omitempty"`
+	Rating              interface{}            `json:"rating,omitempty"`
+	Location            interface{}            `json:"location,omitempty"`
+	NoOfOutlets         interface{}            `json:"no_of_outlets,omitempty"`
+	Space               map[string]interface{} `json:"space,omitempty"`
+	InvestmentRange     map[string]interface{} `json:"investmentRange,omitempty"`
+	Tags                interface{}            `json:"tags,omitempty"`
+	Slug                interface{}            `json:"slug,omitempty"`
+	Status              interface{}            `json:"status,omitempty"`
+	Logo                map[string]interface{} `json:"logo,omitempty"`
+}
+
 func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map[string]interface{} {
 	entityType := "franchise"
 	if et, ok := data["entityType"].(string); ok && et != "" {
@@ -1602,9 +1622,18 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 		}
 	}
 
-	categories := h.extractArray(data, "featuredCategories")
-	if len(categories) == 0 {
-		categories = h.extractArray(data, "categories")
+	categoriesRaw := h.extractArray(data, "featuredCategories")
+	if len(categoriesRaw) == 0 {
+		categoriesRaw = h.extractArray(data, "categories")
+	}
+	categories := make([]interface{}, 0, len(categoriesRaw))
+	for _, c := range categoriesRaw {
+		if cMap, ok := c.(map[string]interface{}); ok {
+			delete(cMap, "franchise_count")
+			categories = append(categories, cMap)
+		} else {
+			categories = append(categories, c)
+		}
 	}
 
 	categoryQuestions := h.extractArray(data, "understandingCategory")
@@ -1626,7 +1655,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 	totalCount := int64(0)
 
 	heroTitle := "Franchise Opportunities in India"
-	heroDescription := "Explore top franchise opportunities in India"
+	heroDescription := "Explore thousands of top franchise opportunities in India across various industries. Find the perfect business that matches your budget and goals."
 
 	// Check searchParams for AI-extracted industry names (multi-industry support)
 	searchParams := h.extractMap(data, "searchParams")
@@ -1711,8 +1740,10 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 		},
 	})
 
+
+
 	if len(franchises) > 0 {
-		var transformedListings []map[string]interface{}
+		var transformedListings []interface{}
 		for _, f := range franchises {
 			listing, ok := f.(map[string]interface{})
 			if !ok {
@@ -1726,35 +1757,33 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 
 			switch et {
 			case "franchise":
-				transformed := map[string]interface{}{}
-				transformed["entity_type"] = et
+				transformed := TransformedFranchiseListing{
+					EntityType: et,
+				}
 
 				// Copy common fields
-				transformed["year_of_establishment"] = listing["year_of_establishment"]
+				transformed.YearOfEstablishment = listing["year_of_establishment"]
 				if fy, ok := listing["founded_year"]; ok {
-					transformed["founded_year"] = fy // for tests
+					transformed.FoundedYear = fy // for tests
 				}
-				transformed["rating"] = listing["rating"]
-				transformed["location"] = listing["location"]
-				transformed["tags"] = listing["tags"]
-				transformed["slug"] = listing["slug"]
-				transformed["status"] = listing["status"]
+				transformed.Rating = listing["rating"]
+				transformed.Location = listing["location"]
+				transformed.Tags = listing["tags"]
+				transformed.Slug = listing["slug"]
+				transformed.Status = listing["status"]
 
-				// Description
+				// Only map short_description (ignore description for the listing card)
 				listingDesc := ""
 				if sd, ok := listing["short_description"].(string); ok && sd != "" {
 					listingDesc = sd
-				} else if d, ok := listing["description"].(string); ok {
-					listingDesc = d
 				}
-				transformed["short_description"] = listingDesc
-				transformed["description"] = listingDesc
+				transformed.ShortDescription = listingDesc
 
 				// Logo
 				if logo, ok := listing["logo"].(map[string]interface{}); ok {
-					transformed["logo"] = logo
+					transformed.Logo = logo
 				} else {
-					transformed["logo"] = map[string]interface{}{
+					transformed.Logo = map[string]interface{}{
 						"circle": "",
 						"square": "",
 						"alt":    "",
@@ -1764,64 +1793,63 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				// Industry (Color and Category)
 				if industry, ok := listing["industry"].(map[string]interface{}); ok {
 					if color, ok := industry["color"].(string); ok && color != "" {
-						transformed["color"] = color
+						transformed.Color = color
 					}
 					if catName, ok := industry["name"].(string); ok && catName != "" {
-						transformed["category"] = catName
+						transformed.Category = catName
 					}
 				} else if category, ok := listing["category"].(string); ok {
-					transformed["category"] = category
+					transformed.Category = category
 				}
 				if color, ok := listing["color"].(string); ok && color != "" {
-					transformed["color"] = color
+					transformed.Color = color
 				}
 
 				if outlets, ok := listing["total_outlets"]; ok {
-					transformed["no_of_outlets"] = outlets
+					transformed.NoOfOutlets = outlets
 				} else if outlets, ok := listing["no_of_outlets"]; ok {
-					transformed["no_of_outlets"] = outlets
+					transformed.NoOfOutlets = outlets
 				}
 
+				// Only keep brand, omit name
 				if name, ok := listing["name"].(string); ok {
-					transformed["name"] = name
-					transformed["brand"] = name
+					transformed.Brand = name
 				} else if brand, ok := listing["brand"].(string); ok {
-					transformed["name"] = brand
-					transformed["brand"] = brand
+					transformed.Brand = brand
 				}
 
 				if fid, ok := listing["franchise_id"].(string); ok {
-					transformed["id"] = fid
+					transformed.ID = fid
 				} else if id, ok := listing["id"].(string); ok {
-					transformed["id"] = id
+					transformed.ID = id
 				}
 
 				if space, ok := listing["space"].(map[string]interface{}); ok {
 					if _, hasUnit := space["spaceUnit"]; !hasUnit {
 						space["spaceUnit"] = "sq ft"
 					}
-					transformed["space"] = space
+					transformed.Space = space
 				}
 
 				if invRange, ok := listing["investmentRange"].(map[string]interface{}); ok {
 					if _, hasUnit := invRange["investmentUnit"]; !hasUnit {
 						invRange["investmentUnit"] = "Lakhs"
 					}
-					transformed["investmentRange"] = invRange
+					transformed.InvestmentRange = invRange
 				} else if inv, ok := listing["investment"].(map[string]interface{}); ok {
 					invRange := map[string]interface{}{
 						"minInvestment":  inv["minInvestment"],
 						"maxInvestment":  inv["maxInvestment"],
 						"investmentUnit": "Lakhs",
 					}
-					transformed["investmentRange"] = invRange
+					transformed.InvestmentRange = invRange
 				}
 
 				// Fix logo alt text
-				if logo, ok := transformed["logo"].(map[string]interface{}); ok {
-					if alt, ok := logo["alt"].(string); !ok || alt == "" {
-						if n, ok := transformed["name"].(string); ok {
-							logo["alt"] = n
+				if transformed.Logo != nil {
+					if alt, ok := transformed.Logo["alt"].(string); !ok || alt == "" {
+						if transformed.Brand != "" {
+							transformed.Logo["alt"] = transformed.Brand
 						}
 					}
 				}
@@ -1852,11 +1880,8 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				listingDesc := ""
 				if sd, ok := listing["short_description"].(string); ok && sd != "" {
 					listingDesc = sd
-				} else if d, ok := listing["description"].(string); ok {
-					listingDesc = d
 				}
 				listing["short_description"] = listingDesc
-				listing["description"] = listingDesc
 
 				// Map color and category from industry nested object to top-level keys for card styling
 				if industry, ok := listing["industry"].(map[string]interface{}); ok {
