@@ -1040,17 +1040,25 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedApplication
 
-	if len(transformedMembership) > 0 || len(transformedEligibility) > 0 || len(transformedApplication) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "membership_section",
-			"enabled": true,
-			"data": map[string]interface{}{
-				"Membership":             transformedMembership,
-				"Eligibility_Criteria":   transformedEligibility,
-				"Membership_Application": transformedApplication,
-			},
-		})
+	if transformedMembership == nil {
+		transformedMembership = []interface{}{}
 	}
+	if transformedEligibility == nil {
+		transformedEligibility = []interface{}{}
+	}
+	if transformedApplication == nil {
+		transformedApplication = []interface{}{}
+	}
+
+	sections = append(sections, map[string]interface{}{
+		"type":    "membership_section",
+		"enabled": true,
+		"data": map[string]interface{}{
+			"Membership":             transformedMembership,
+			"Eligibility_Criteria":   transformedEligibility,
+			"Membership_Application": transformedApplication,
+		},
+	})
 
 	// 4. services_and_institutional_offerings
 	var transformedServices []interface{}
@@ -1065,13 +1073,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedServices
 
-	if len(transformedServices) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "services_and_institutional_offerings",
-			"enabled": true,
-			"data":    transformedServices,
-		})
+	if transformedServices == nil {
+		transformedServices = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "services_and_institutional_offerings",
+		"enabled": true,
+		"data":    transformedServices,
+	})
 
 	// 5. programs_and_initiatives_section
 	var transformedPrograms map[string]interface{}
@@ -1098,13 +1107,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedPrograms
 
-	if len(transformedPrograms) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "programs_and_initiatives_section",
-			"enabled": true,
-			"data":    transformedPrograms,
-		})
+	if transformedPrograms == nil {
+		transformedPrograms = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "programs_and_initiatives_section",
+		"enabled": true,
+		"data":    transformedPrograms,
+	})
 
 	// 6. publications_section
 	var transformedPublications map[string]interface{}
@@ -1131,13 +1141,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedPublications
 
-	if len(transformedPublications) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "publications_section",
-			"enabled": true,
-			"data":    transformedPublications,
-		})
+	if transformedPublications == nil {
+		transformedPublications = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "publications_section",
+		"enabled": true,
+		"data":    transformedPublications,
+	})
 
 	// 7. regional_structure_section
 	chaptersList := getArrayVal(regional_structure, "chapters")
@@ -1154,17 +1165,18 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedChapters
 
-	if len(transformedChapters) > 0 || getStringVal(regional_structure, "governance_model", "") != "" || getStringVal(regional_structure, "headquarters", "") != "" {
-		sections = append(sections, map[string]interface{}{
-			"type":    "regional_structure_section",
-			"enabled": true,
-			"data": map[string]interface{}{
-				"governance_model": getStringVal(regional_structure, "governance_model", ""),
-				"headquarters":     getStringVal(regional_structure, "headquarters", ""),
-				"chapters":         transformedChapters,
-			},
-		})
+	if transformedChapters == nil {
+		transformedChapters = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "regional_structure_section",
+		"enabled": true,
+		"data": map[string]interface{}{
+			"governance_model": getStringVal(regional_structure, "governance_model", ""),
+			"headquarters":     getStringVal(regional_structure, "headquarters", ""),
+			"chapters":         transformedChapters,
+		},
+	})
 
 	// 8. events_engagement_section
 	var transformedEvents map[string]interface{}
@@ -1191,13 +1203,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedEvents
 
-	if len(transformedEvents) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "events_engagement_section",
-			"enabled": true,
-			"data":    transformedEvents,
-		})
+	if transformedEvents == nil {
+		transformedEvents = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "events_engagement_section",
+		"enabled": true,
+		"data":    transformedEvents,
+	})
 
 	// 9. compliance_policy_section
 	var transformedPolicies map[string]interface{}
@@ -1224,13 +1237,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedPolicies
 
-	if len(transformedPolicies) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "compliance_policy_section",
-			"enabled": true,
-			"data":    transformedPolicies,
-		})
+	if transformedPolicies == nil {
+		transformedPolicies = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "compliance_policy_section",
+		"enabled": true,
+		"data":    transformedPolicies,
+	})
 
 	// 10. partnership_affiliations_section
 	var transformedPartners []interface{}
@@ -1247,13 +1261,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedPartners
 
-	if len(transformedPartners) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "partnership_affiliations_section",
-			"enabled": true,
-			"data":    transformedPartners,
-		})
+	if transformedPartners == nil {
+		transformedPartners = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "partnership_affiliations_section",
+		"enabled": true,
+		"data":    transformedPartners,
+	})
 
 	// 11. awards_recognition_section
 	var transformedAwards []interface{}
@@ -1269,13 +1284,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedAwards
 
-	if len(transformedAwards) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "awards_recognition_section",
-			"enabled": true,
-			"data":    transformedAwards,
-		})
+	if transformedAwards == nil {
+		transformedAwards = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "awards_recognition_section",
+		"enabled": true,
+		"data":    transformedAwards,
+	})
 
 	// 12. digital_presence_section
 	var transformedDigital []interface{}
@@ -1292,13 +1308,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedDigital
 
-	if len(transformedDigital) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "digital_presence_section",
-			"enabled": true,
-			"data":    transformedDigital,
-		})
+	if transformedDigital == nil {
+		transformedDigital = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "digital_presence_section",
+		"enabled": true,
+		"data":    transformedDigital,
+	})
 
 	// 13. transparency_verification_section
 	var transformedTransparency []interface{}
@@ -1314,23 +1331,24 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedTransparency
 
-	if len(transformedTransparency) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "transparency_verification_section",
-			"enabled": true,
-			"data":    transformedTransparency,
-		})
+	if transformedTransparency == nil {
+		transformedTransparency = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "transparency_verification_section",
+		"enabled": true,
+		"data":    transformedTransparency,
+	})
 
 	// 14. members_structure_tree — only shown when governance data exists in DB
-	if len(governance) > 0 {
-
-		sections = append(sections, map[string]interface{}{
-			"type":    "members_structure_tree",
-			"enabled": true,
-			"data":    governance,
-		})
+	if governance == nil {
+		governance = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "members_structure_tree",
+		"enabled": true,
+		"data":    governance,
+	})
 
 	// 15. recommended_business_associations
 	var transformedRecs []interface{}
@@ -1397,13 +1415,14 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	}
 
-	if insightsData != nil {
-		sections = append(sections, map[string]interface{}{
-			"type":    "market_insights_section",
-			"enabled": true,
-			"data":    insightsData,
-		})
+	if insightsData == nil {
+		insightsData = map[string]interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "market_insights_section",
+		"enabled": true,
+		"data":    insightsData,
+	})
 
 
 	// 17. featured_business_categories
@@ -1461,15 +1480,16 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			}
 		}
 	}
-	if len(detailQuestions) > 0 {
-		sections = append(sections, map[string]interface{}{
-			"type":    "category_questions",
-			"enabled": true,
-			"data": map[string]interface{}{
-				"questions": detailQuestions,
-			},
-		})
+	if detailQuestions == nil {
+		detailQuestions = []interface{}{}
 	}
+	sections = append(sections, map[string]interface{}{
+		"type":    "category_questions",
+		"enabled": true,
+		"data": map[string]interface{}{
+			"questions": detailQuestions,
+		},
+	})
 
 	detailData := map[string]interface{}{
 		"pageId":   "association_individual",
