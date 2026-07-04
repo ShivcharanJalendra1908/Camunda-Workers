@@ -351,7 +351,9 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		if longDesc == "" {
 			longDesc = shortDescription.String
 		}
-		cleanDesc := cleanDescription(longDesc)
+		// DO NOT truncate the long description, just trim space and suffixes if needed, but don't limit length
+		cleanDesc := strings.TrimSpace(longDesc)
+		cleanDesc = strings.TrimRight(cleanDesc, ".,;:")
 
 		doc := map[string]interface{}{
 			"franchise_id":      id,

@@ -258,6 +258,18 @@ func safeSubstring(s string, start, end int) string {
 }
 
 // ===== VALIDATION FUNCTION =====
+func (h *Handler) appendEllipsis(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return text
+	}
+	text = strings.TrimRight(text, ".,;:- ")
+	if !strings.HasSuffix(text, "...") {
+		text += "..."
+	}
+	return text
+}
+
 func (h *Handler) validateInput(input *Input) error {
 
 	if err := ozzo.Validate(input.PageType,
@@ -1824,7 +1836,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				if sd, ok := listing["short_description"].(string); ok && sd != "" {
 					listingDesc = sd
 				}
-				transformed.Description = listingDesc
+				transformed.Description = h.appendEllipsis(listingDesc)
 
 				// Logo
 				if logo, ok := listing["logo"].(map[string]interface{}); ok {
@@ -2512,7 +2524,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		} else if d, ok := assoc["description"].(string); ok {
 			desc = d
 		}
-		transformed.Description = desc
+		transformed.Description = h.appendEllipsis(desc)
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
