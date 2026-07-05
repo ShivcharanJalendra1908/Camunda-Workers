@@ -138,6 +138,15 @@ func (h *Handler) validateBaseInput(input *BaseInput) error {
 			"CREATE_ENQUIRY",
 			"UPDATE_ENQUIRY_STATUS",
 			"GET_ENQUIRIES",
+			"GET_PROFILE",
+			"UPDATE_PERSONAL",
+			"UPDATE_PROFESSIONAL",
+			"UPDATE_COMPANY",
+			"UPDATE_USER_INVESTMENT",
+			"UPDATE_PREFERENCES",
+			"INSERT_PROFILE_AUDIT",
+			"DELETE_ACCOUNT",
+			"DELETE_KEYCLOAK_USER",
 		}),
 	); err != nil {
 		return appErrs.NewValidationError("operationType", err.Error())
@@ -579,6 +588,26 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		result, err = h.handleUpdateEnquiryStatus(ctxExec, sanitizedVariables)
 	case "GET_ENQUIRIES":
 		result, err = h.handleGetEnquiries(ctxExec, sanitizedVariables)
+
+	// USER PROFILE OPERATIONS
+	case "GET_PROFILE":
+		result, err = h.handleGetProfile(ctxExec, sanitizedVariables)
+	case "UPDATE_PERSONAL":
+		result, err = h.handleUpdatePersonalDetails(ctxExec, sanitizedVariables)
+	case "UPDATE_PROFESSIONAL":
+		result, err = h.handleUpdateProfessionalDetails(ctxExec, sanitizedVariables)
+	case "UPDATE_COMPANY":
+		result, err = h.handleUpdateCompanyDetails(ctxExec, sanitizedVariables)
+	case "UPDATE_USER_INVESTMENT":
+		result, err = h.handleUpdateInvestmentDetails(ctxExec, sanitizedVariables)
+	case "UPDATE_PREFERENCES":
+		result, err = h.handleUpdatePreferences(ctxExec, sanitizedVariables)
+	case "INSERT_PROFILE_AUDIT":
+		result, err = h.handleInsertProfileAudit(ctxExec, sanitizedVariables)
+	case "DELETE_ACCOUNT":
+		result, err = h.handleDeleteAccount(ctxExec, sanitizedVariables)
+	case "DELETE_KEYCLOAK_USER":
+		result, err = h.handleDeleteKeycloakUser(ctxExec, sanitizedVariables)
 
 	default:
 		span.SetAttributes(attribute.String("error.operation_type", baseInput.OperationType))

@@ -20,10 +20,12 @@ import (
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
+	"camunda-workers/internal/common/encryption"
 	// "camunda-workers/internal/common/flagsmith"
 	"camunda-workers/internal/common/idempotency"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/validation"
+	"camunda-workers/internal/common/workflow"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -42,9 +44,10 @@ type WorkflowHandler struct {
 	keyGenerator *idempotency.KeyGenerator
 	redisClient  *redis.Client
 	config       *config.Config
+	fle          *encryption.FLEService
 }
 
-func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client, cfg *config.Config) *WorkflowHandler {
+func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client, cfg *config.Config, fle *encryption.FLEService) *WorkflowHandler {
 	var redisStore *idempotency.RedisStore
 	if redisClient != nil {
 		redisStore = idempotency.NewRedisStore(redisClient)
@@ -59,6 +62,7 @@ func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClie
 		keyGenerator: idempotency.NewKeyGenerator(),
 		redisClient:  redisClient,
 		config:       cfg,
+		fle:          fle,
 	}
 }
 
@@ -252,8 +256,8 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 
 func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	var input struct {
-		UserID      string                 `json:"userId"`
-		ProfileData map[string]interface{} `json:"profileData" binding:"required"`
+		Action      string                 `json:"action" binding:"required,oneof=retrieve update_personal update_professional update_company update_investment update_preferences delete_account"`
+		ProfileData map[string]interface{} `json:"profileData"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -262,20 +266,219 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	}
 
 	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
+	if claims == nil || claims.UserID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "AUTH_REQUIRED", "message": "Not authenticated"})
+		return
+	}
+
+	userID := claims.UserID
+
+	// delete_account requires no profileData
+	if input.Action == "delete_account" {
+		input.ProfileData = nil
+	}
+
+	// Non-retrieve actions require profileData
+	if input.Action != "retrieve" && input.Action != "delete_account" {
+		if len(input.ProfileData) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "profileData is required for action: " + input.Action})
+			return
+		}
+	}
+
+	// FLE: encrypt PII fields before sending to Camunda
+	if h.fle != nil && h.fle.Enabled() && input.ProfileData != nil {
+		if err := h.fle.EncryptProfileData(input.ProfileData); err != nil {
+			h.logger.Error("FLE encryption failed", map[string]interface{}{
+				"error":  err.Error(),
+				"userId": userID,
+			})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "INTERNAL_ERROR", "message": "Failed to process profile data"})
+			return
+		}
+	}
+
+	correlationKey := uuid.New().String()
+	ctx := c.Request.Context()
+
+	// Subscribe BEFORE starting workflow (race condition prevention)
+	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
+	pubsub := h.redisClient.Subscribe(ctx, channel)
+	defer pubsub.Close()
+
+	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer confirmCancel()
+	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
+		h.logger.Warn("Subscription confirm timeout, proceeding anyway", map[string]interface{}{
+			"channel": channel,
+			"error":   err.Error(),
+		})
 	}
 
 	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
-		"profileData":  input.ProfileData,
-		"sessionId":    claims.SessionID,
-		"sourceSystem": claims.SourceSystem,
-		"requestId":    h.getRequestID(c),
+		"userId":        userID,
+		"action":        input.Action,
+		"profileData":   input.ProfileData,
+		"correlationKey": correlationKey,
+		"sessionId":     claims.SessionID,
+		"sourceSystem":  claims.SourceSystem,
+		"requestId":     h.getRequestID(c),
 	}
 
-	response := h.startWorkflow(c.Request.Context(), "user-profile-update", variables)
-	c.JSON(http.StatusOK, response)
+	// Start workflow in background (non-blocking)
+	go h.startWorkflow(ctx, "user-profile-update", variables)
+
+	select {
+	case msg := <-pubsub.Channel():
+		var envelope workflow.WorkflowResponse
+		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
+			h.logger.Error("Failed to parse workflow response", map[string]interface{}{
+				"error": err.Error(),
+			})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "INTERNAL_ERROR", "message": "Failed to parse response"})
+			return
+		}
+
+		if envelope.Response == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "INTERNAL_ERROR", "message": "Workflow returned nil response"})
+			return
+		}
+
+		// FLE: decrypt PII fields in response
+		if h.fle != nil && h.fle.Enabled() {
+			if err := h.fle.DecryptProfileData(envelope.Response); err != nil {
+				h.logger.Warn("FLE decryption failed on response", map[string]interface{}{
+					"error": err.Error(),
+				})
+				// Return response anyway - decryption failure is non-fatal for display
+			}
+		}
+
+		c.JSON(http.StatusOK, envelope.Response)
+
+	case <-time.After(30 * time.Second):
+		h.logger.Warn("Profile update workflow timeout", map[string]interface{}{
+			"correlationKey": correlationKey,
+			"userId":         userID,
+		})
+		c.JSON(http.StatusGatewayTimeout, gin.H{
+			"error":          "TIMEOUT",
+			"message":        "Profile update timed out. Please try again.",
+			"correlationKey": correlationKey,
+		})
+
+	case <-ctx.Done():
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "TIMEOUT", "message": "Request context cancelled"})
+	}
+}
+
+// GetWorkflowCompletionStatus checks if a workflow response is cached in Redis.
+// GET /user/workflow/:workflowId
+func (h *WorkflowHandler) GetWorkflowCompletionStatus(c *gin.Context) {
+	workflowID := c.Param("workflowId")
+	if workflowID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workflowId is required"})
+		return
+	}
+
+	claims := middleware.ExtractClaims(c)
+	if claims == nil || claims.UserID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "AUTH_REQUIRED", "message": "Not authenticated"})
+		return
+	}
+
+	// Check Redis cache key (send-api-response worker stores backup with 2min TTL)
+	cacheKey := fmt.Sprintf("workflow:response:cache:%s", workflowID)
+	ctx := c.Request.Context()
+	cached, err := h.redisClient.Get(ctx, cacheKey).Result()
+	if err != nil {
+		// Cache miss — workflow is still pending or expired
+		c.JSON(http.StatusNotFound, gin.H{
+			"success":   false,
+			"status":    "pending",
+			"message":   "Workflow result not available yet or expired",
+			"workflowId": workflowID,
+		})
+		return
+	}
+
+	var envelope struct {
+		Response     map[string]interface{} `json:"response"`
+		CookieHeader string                 `json:"cookieHeader,omitempty"`
+		RequestID    string                 `json:"requestId,omitempty"`
+	}
+	if err := json.Unmarshal([]byte(cached), &envelope); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "INTERNAL_ERROR", "message": "Failed to parse cached response"})
+		return
+	}
+
+	// FLE: decrypt PII fields in cached response
+	if h.fle != nil && h.fle.Enabled() && envelope.Response != nil {
+		if err := h.fle.DecryptProfileData(envelope.Response); err != nil {
+			h.logger.Warn("FLE decryption failed on cached response", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"status":    "completed",
+		"data":      envelope.Response,
+		"workflowId": workflowID,
+	})
+}
+
+// GetPreferenceOptions returns the available options for user preferences from dropdowns config.
+// GET /user/preferences/options
+func (h *WorkflowHandler) GetPreferenceOptions(c *gin.Context) {
+	if h.config.Dropdowns == nil {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]interface{}{}})
+		return
+	}
+
+	type Option struct {
+		Value string `json:"value"`
+		Label string `json:"label"`
+	}
+
+	type PreferenceOptions struct {
+		Theme           []Option `json:"theme"`
+		Language        []Option `json:"language"`
+		Timezone        []Option `json:"timezone"`
+		Industry        []Option `json:"industry"`
+		InvestmentRange []Option `json:"investmentRange"`
+	}
+
+	options := PreferenceOptions{}
+
+	if dd, ok := h.config.Dropdowns.FindDropdownByName("theme"); ok {
+		for _, opt := range dd {
+			options.Theme = append(options.Theme, Option{Value: opt.Value, Label: opt.Label})
+		}
+	}
+	if dd, ok := h.config.Dropdowns.FindDropdownByName("language"); ok {
+		for _, opt := range dd {
+			options.Language = append(options.Language, Option{Value: opt.Value, Label: opt.Label})
+		}
+	}
+	if dd, ok := h.config.Dropdowns.FindDropdownByName("timezone"); ok {
+		for _, opt := range dd {
+			options.Timezone = append(options.Timezone, Option{Value: opt.Value, Label: opt.Label})
+		}
+	}
+	if dd, ok := h.config.Dropdowns.FindDropdownByName("industry"); ok {
+		for _, opt := range dd {
+			options.Industry = append(options.Industry, Option{Value: opt.Value, Label: opt.Label})
+		}
+	}
+	if dd, ok := h.config.Dropdowns.FindDropdownByName("investment_range"); ok {
+		for _, opt := range dd {
+			options.InvestmentRange = append(options.InvestmentRange, Option{Value: opt.Value, Label: opt.Label})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": options})
 }
 
 func (h *WorkflowHandler) StartPasswordReset(c *gin.Context) {

@@ -923,3 +923,113 @@ type EnquiriesOutput struct {
 	Success    bool      `json:"success"`
 	Message    string    `json:"message"`
 }
+
+// ============================================================================
+// USER PROFILE MODELS
+// ============================================================================
+
+// ProfileData is the generic profile payload passed by BPMN workflow.
+// The action field determines which handler to invoke.
+type ProfileData struct {
+	Action      string                 `json:"action"`
+	UserId      string                 `json:"userId"`
+	ProfileData map[string]interface{} `json:"profileData"`
+	RequestId   string                 `json:"requestId,omitempty"`
+}
+
+// --- GET_PROFILE ---
+
+type GetProfileInput struct {
+	OperationType string `json:"operation_type"`
+	UserId        string `json:"userId"`
+}
+
+type GetProfileOutput struct {
+	Success        bool                   `json:"success"`
+	Message        string                 `json:"message"`
+	User           map[string]interface{} `json:"user"`
+	Professional   map[string]interface{} `json:"professional,omitempty"`
+	Company        map[string]interface{} `json:"company,omitempty"`
+	Investment     map[string]interface{} `json:"investment,omitempty"`
+	Preferences    map[string]interface{} `json:"preferences,omitempty"`
+}
+
+// --- UPDATE_PERSONAL ---
+
+type UpdatePersonalInput struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	ProfileData   map[string]interface{} `json:"profileData"`
+}
+
+// --- UPDATE_PROFESSIONAL ---
+
+type UpdateProfessionalInput struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	ProfileData   map[string]interface{} `json:"profileData"`
+}
+
+// --- UPDATE_COMPANY ---
+
+type UpdateCompanyInput struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	ProfileData   map[string]interface{} `json:"profileData"`
+}
+
+// --- UPDATE_INVESTMENT ---
+
+type UpdateInvestmentInput2 struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	ProfileData   map[string]interface{} `json:"profileData"`
+}
+
+// --- UPDATE_PREFERENCES ---
+
+type UpdatePreferencesInput struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	ProfileData   map[string]interface{} `json:"profileData"`
+}
+
+// --- INSERT_PROFILE_AUDIT ---
+
+type InsertProfileAuditInput struct {
+	OperationType string                 `json:"operation_type"`
+	UserId        string                 `json:"userId"`
+	Action        string                 `json:"action"`
+	Field         string                 `json:"field,omitempty"`
+	OldValue      string                 `json:"old_value,omitempty"`
+	NewValue      string                 `json:"new_value,omitempty"`
+	Changes       map[string]interface{} `json:"changes,omitempty"`
+	Source        string                 `json:"source,omitempty"`
+	RequestId     string                 `json:"request_id,omitempty"`
+}
+
+type InsertProfileAuditOutput struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	AuditId string `json:"audit_id,omitempty"`
+}
+
+// --- DELETE_ACCOUNT ---
+
+type DeleteAccountInput struct {
+	OperationType string `json:"operation_type"`
+	UserId        string `json:"userId"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+// --- DELETE_KEYCLOAK_USER ---
+
+type DeleteKeycloakUserInput struct {
+	OperationType string `json:"operation_type"`
+	UserId        string `json:"userId"`
+}
+
+type DeleteKeycloakUserOutput struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}

@@ -24,6 +24,12 @@ type Config struct {
 
 	// Encryption
 	EncryptionKey string `yaml:"encryption_key"`
+
+	// Keycloak Admin API (for DELETE_KEYCLOAK_USER operation)
+	KeycloakAdminURL      string `yaml:"keycloak_admin_url"`
+	KeycloakRealm         string `yaml:"keycloak_realm"`
+	KeycloakAdminClientID string `yaml:"keycloak_admin_client_id"`
+	KeycloakAdminSecret   string `yaml:"keycloak_admin_secret"`
 }
 
 func DefaultConfig() *Config {

@@ -408,6 +408,11 @@ workers:
     max_jobs_active: 5
     timeout: 10000
 
+  validate-profile-data:
+    enabled: true
+    max_jobs_active: 5
+    timeout: 5000
+
   check-readiness-score:
     enabled: true
     max_jobs_active: 5

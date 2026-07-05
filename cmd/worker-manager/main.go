@@ -57,6 +57,7 @@ import (
 	sn "camunda-workers/internal/workers/application/send-notification"
 	vad "camunda-workers/internal/workers/application/validate-application-data"
 	ved "camunda-workers/internal/workers/application/validate-enquiry-data"
+	vpd "camunda-workers/internal/workers/application/validate-profile-data"
 
 	// AI/ML Workers (5)
 	ais "camunda-workers/internal/workers/ai-conversation/ai-search"
@@ -445,8 +446,12 @@ func main() {
 	// Franchise PostgreSQL Worker
 	if taskType := "franchise-postgres"; cfg.Workers[taskType].Enabled {
 		fpConfig := &franchisepostgres.Config{
-			RequestTimeout: time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
-			MaxJobsActive:  cfg.Workers[taskType].MaxJobsActive,
+			RequestTimeout:       time.Duration(cfg.Workers[taskType].Timeout) * time.Millisecond,
+			MaxJobsActive:        cfg.Workers[taskType].MaxJobsActive,
+			KeycloakAdminURL:     cfg.Auth.Keycloak.URL,
+			KeycloakRealm:        cfg.Auth.Keycloak.Realm,
+			KeycloakAdminClientID: cfg.Auth.Keycloak.AdminClientID,
+			KeycloakAdminSecret:  cfg.Auth.Keycloak.AdminClientSecret,
 		}
 		handler := franchisepostgres.NewHandler(pg.DB, log, fpConfig, taskType)
 		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.Handle, zapLog)
@@ -522,6 +527,11 @@ func main() {
 			Timeout: time.Duration(cfg.Workers[ved.TaskType].Timeout) * time.Millisecond,
 		}, log)
 		startWorker(zeebeClient, ved.TaskType, cfg.Workers[ved.TaskType], handler.Handle, zapLog)
+	}
+
+	if cfg.Workers[vpd.TaskType].Enabled {
+		handler := vpd.NewHandler(&vpd.Config{}, log)
+		startWorker(zeebeClient, vpd.TaskType, cfg.Workers[vpd.TaskType], handler.Handle, zapLog)
 	}
 
 	// Validate Entity Data V2 Worker
@@ -784,7 +794,7 @@ func main() {
 		Open()
 
 	zapLog.Info("All workers registered successfully",
-		zap.Int("totalWorkers", 31))
+		zap.Int("totalWorkers", 32))
 
 	// ============================================================================
 	// START IDEMPOTENCY CLEANUP JOB
@@ -827,7 +837,7 @@ func main() {
 				"timestamp": time.Now().Format(time.RFC3339),
 				"service":   "worker-manager",
 				"version":   cfg.App.Version,
-				"workers":   31, // Updated count
+				"workers":   32, // Updated count
 			})
 		})
 
@@ -837,7 +847,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":    "ready",
 				"timestamp": time.Now().Format(time.RFC3339),
-				"workers":   31, // Updated count
+				"workers":   32, // Updated count
 			})
 		})
 

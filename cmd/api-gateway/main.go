@@ -18,6 +18,7 @@ import (
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/database"
+	"camunda-workers/internal/common/encryption"
 	"camunda-workers/internal/common/flagsmith"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
@@ -237,13 +238,39 @@ func main() {
 	})
 
 	// ============================================================================
+	// ============================================================================
+	// Initialize FLE Service (Field-Level Encryption for PII)
+	// ============================================================================
+	var fleService *encryption.FLEService
+	if cfg.FLE != nil {
+		fleFields := make(map[string]encryption.FieldConfig)
+		for name, fieldCfg := range cfg.FLE.Fields {
+			fleFields[name] = encryption.FieldConfig{Key: fieldCfg.Key}
+		}
+		fleCfg := encryption.FLEConfig{
+			Enabled: cfg.FLE.Enabled,
+			Fields:  fleFields,
+		}
+		fleService, err = encryption.NewFLEService(fleCfg)
+		if err != nil {
+			log.Warn("FLE service initialization failed, PII encryption disabled", map[string]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			log.Info("FLE service initialized", map[string]interface{}{
+				"enabled": fleService.Enabled(),
+			})
+		}
+	}
+
 	// Initialize handlers
 	// ============================================================================
 	workflowHandler := handlers.NewWorkflowHandler(
 		camundaClient,
 		log,
 		redisClient.GetClient(),
-		cfg)
+		cfg,
+		fleService)
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, postgresDB.DB)
@@ -397,10 +424,25 @@ func main() {
 			userGroup.PUT("/profile", workflowHandler.StartProfileUpdate)
 			userGroup.DELETE("/account", workflowHandler.StartAccountDeletion)
 
-			// Temporary placeholders
+			// Workflow completion status
+			userGroup.GET("/workflow/:workflowId", workflowHandler.GetWorkflowCompletionStatus)
+
+			// Profile
 			userGroup.GET("/profile", userHandler.GetProfile)
 			userGroup.GET("/session/validate", userHandler.ValidateSession)
-			userGroup.GET("/preferences", placeholderHandler("GET /user/preferences"))
+
+			// Preferences
+			userGroup.GET("/preferences", userHandler.GetPreferences)
+			userGroup.GET("/preferences/options", workflowHandler.GetPreferenceOptions)
+
+			// Audit Log
+			userGroup.GET("/audit-log", userHandler.GetAuditLog)
+
+			// Feedback
+			userGroup.POST("/feedback", userHandler.SubmitFeedback)
+
+			// Dashboard
+			userGroup.GET("/dashboard", userHandler.GetDashboard)
 		}
 
 		// ========================================================================
