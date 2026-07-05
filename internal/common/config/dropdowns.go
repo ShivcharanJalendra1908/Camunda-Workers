@@ -15,9 +15,16 @@ type DropdownOption struct {
 	Value string `mapstructure:"value" yaml:"value"`
 }
 
+// PlanInfo holds the label and entitlements for a subscription plan.
+type PlanInfo struct {
+	Label        string   `mapstructure:"label" yaml:"label"`
+	Entitlements []string `mapstructure:"entitlements" yaml:"entitlements"`
+}
+
 // DropdownConfig holds all dropdown configurations.
 type DropdownConfig struct {
-	Dropdowns map[string][]DropdownOption `mapstructure:"dropdowns" yaml:"dropdowns"`
+	Dropdowns       map[string][]DropdownOption  `mapstructure:"dropdowns" yaml:"dropdowns"`
+	PlanEntitlements map[string]PlanInfo         `mapstructure:"plan_entitlements" yaml:"plan_entitlements"`
 }
 
 // LoadDropdowns loads dropdown configuration from config/dropdowns.yaml.
@@ -180,6 +187,43 @@ func (d *DropdownConfig) FindDropdownByName(name string) ([]DropdownOption, bool
 		}
 	}
 	return nil, false
+}
+
+// GetPlanEntitlements returns the entitlements for a given subscription tier.
+// Returns the entitlements list and true if found, nil and false otherwise.
+func (d *DropdownConfig) GetPlanEntitlements(tier string) ([]string, bool) {
+	if d == nil || d.PlanEntitlements == nil {
+		return nil, false
+	}
+	// Exact match first
+	if plan, exists := d.PlanEntitlements[tier]; exists {
+		return plan.Entitlements, true
+	}
+	// Case-insensitive match
+	lower := strings.ToLower(tier)
+	for name, plan := range d.PlanEntitlements {
+		if strings.ToLower(name) == lower {
+			return plan.Entitlements, true
+		}
+	}
+	return nil, false
+}
+
+// GetPlanLabel returns the display label for a given subscription tier.
+func (d *DropdownConfig) GetPlanLabel(tier string) string {
+	if d == nil || d.PlanEntitlements == nil {
+		return tier
+	}
+	if plan, exists := d.PlanEntitlements[tier]; exists {
+		return plan.Label
+	}
+	lower := strings.ToLower(tier)
+	for name, plan := range d.PlanEntitlements {
+		if strings.ToLower(name) == lower {
+			return plan.Label
+		}
+	}
+	return tier
 }
 
 // GetDropdownFilePath returns the path to dropdowns.yaml.

@@ -275,7 +275,7 @@ func main() {
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, postgresDB.DB)
 
-	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log)
+	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log, cfg)
 
 	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain, cfg)
 

@@ -228,3 +228,47 @@ dropdowns:
       value: "headshot"
     - label: "Other"
       value: "other"
+
+  # ----------------------------------------------------------
+  # SUBSCRIPTION PLAN ENTITLEMENTS
+  # ----------------------------------------------------------
+  plan_entitlements:
+    free:
+      label: "Free"
+      entitlements:
+        - "Browse franchise listings"
+        - "View basic franchise details"
+        - "Submit applications (limited)"
+    basic:
+      label: "Basic"
+      entitlements:
+        - "Browse franchise listings"
+        - "View full franchise details"
+        - "Submit unlimited applications"
+        - "View application status"
+        - "Save favorite franchises"
+    premium:
+      label: "Premium"
+      entitlements:
+        - "Browse franchise listings"
+        - "View full franchise details"
+        - "Submit unlimited applications"
+        - "View application status"
+        - "Save favorite franchises"
+        - "Advanced analytics dashboard"
+        - "Priority support"
+        - "Export data"
+    enterprise:
+      label: "Enterprise"
+      entitlements:
+        - "Browse franchise listings"
+        - "View full franchise details"
+        - "Submit unlimited applications"
+        - "View application status"
+        - "Save favorite franchises"
+        - "Advanced analytics dashboard"
+        - "Priority support"
+        - "Export data"
+        - "Custom integrations"
+        - "White-label options"
+        - "Dedicated account manager"

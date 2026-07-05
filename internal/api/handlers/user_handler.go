@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"camunda-workers/internal/common/auth/session"
+	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/logger"
 
 	"github.com/gin-gonic/gin"
@@ -20,13 +21,15 @@ type UserHandler struct {
 	redisClient *redis.Client
 	db          *sql.DB
 	log         logger.Logger
+	cfg         *config.Config
 }
 
-func NewUserHandler(redisClient *redis.Client, db *sql.DB, log logger.Logger) *UserHandler {
+func NewUserHandler(redisClient *redis.Client, db *sql.DB, log logger.Logger, cfg *config.Config) *UserHandler {
 	return &UserHandler{
 		redisClient: redisClient,
 		db:          db,
 		log:         log,
+		cfg:         cfg,
 	}
 }
 
@@ -383,16 +386,19 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	type DashboardData struct {
-		Name             string  `json:"name"`
-		Email            string  `json:"email"`
-		Phone            string  `json:"phone"`
-		SubscriptionTier string  `json:"subscriptionTier"`
-		IsActive         bool    `json:"isActive"`
-		Company          string  `json:"company,omitempty"`
-		JobTitle         string  `json:"jobTitle,omitempty"`
-		Industry         string  `json:"industry,omitempty"`
-		InvestmentRange  string  `json:"investmentRange,omitempty"`
-		IsFranchisee     bool    `json:"isFranchisee"`
+		Name             string   `json:"name"`
+		Email            string   `json:"email"`
+		Phone            string   `json:"phone"`
+		SubscriptionTier string   `json:"subscriptionTier"`
+		PlanLabel        string   `json:"planLabel"`
+		Entitlements     []string `json:"entitlements"`
+		ExpiresAt        *string  `json:"expiresAt,omitempty"`
+		IsActive         bool     `json:"isActive"`
+		Occupation       string   `json:"occupation,omitempty"`
+		Designation      string   `json:"designation,omitempty"`
+		Industry         string   `json:"industry,omitempty"`
+		IsFranchisee     bool     `json:"isFranchisee"`
+		PaymentHistory   []map[string]string `json:"paymentHistory"`
 	}
 
 	var data DashboardData
@@ -416,30 +422,45 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 		return
 	}
 
-	// Fetch subscription tier
+	// Fetch subscription tier + expiry
+	var expiresAt sql.NullTime
 	_ = h.db.QueryRowContext(ctx, `
-		SELECT tier FROM user_subscriptions
+		SELECT tier, expires_at FROM user_subscriptions
 		WHERE user_id = $1 AND is_valid = true
-		ORDER BY created_at DESC LIMIT 1`, userID).Scan(&data.SubscriptionTier)
+		ORDER BY created_at DESC LIMIT 1`, userID).Scan(&data.SubscriptionTier, &expiresAt)
 	if data.SubscriptionTier == "" {
 		data.SubscriptionTier = "free"
 	}
+	if expiresAt.Valid {
+		t := expiresAt.Time.Format(time.RFC3339)
+		data.ExpiresAt = &t
+	}
 
-	// Fetch professional info
-	_ = h.db.QueryRowContext(ctx, `
-		SELECT company, job_title, industry
-		FROM user_professional
-		WHERE user_id = $1`, userID).Scan(&data.Company, &data.JobTitle, &data.Industry)
+	// Load plan entitlements from config
+	if h.cfg != nil && h.cfg.Dropdowns != nil {
+		data.PlanLabel = h.cfg.Dropdowns.GetPlanLabel(data.SubscriptionTier)
+		if entitlements, ok := h.cfg.Dropdowns.GetPlanEntitlements(data.SubscriptionTier); ok {
+			data.Entitlements = entitlements
+		}
+	}
+	if data.PlanLabel == "" {
+		data.PlanLabel = data.SubscriptionTier
+	}
 
-	// Fetch investment info
+	// Fetch professional info (correct table: user_professional_details)
 	_ = h.db.QueryRowContext(ctx, `
-		SELECT preferred_investment_range
-		FROM user_investment
-		WHERE user_id = $1`, userID).Scan(&data.InvestmentRange)
+		SELECT occupation, designation, industry
+		FROM user_professional_details
+		WHERE user_id = $1`, userID).Scan(&data.Occupation, &data.Designation, &data.Industry)
 
 	// Check franchisee status
 	_ = h.db.QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM franchises WHERE owner_id = $1 AND archived_at IS NULL)`, userID).Scan(&data.IsFranchisee)
+
+	// Payment history placeholder
+	data.PaymentHistory = []map[string]string{
+		{"message": "Coming soon — payment history will be available after payment gateway integration."},
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
