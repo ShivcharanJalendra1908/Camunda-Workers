@@ -335,7 +335,7 @@ services:
 
       - name: request-size-limiting
         config:
-          allowed_payload_size: 5
+          allowed_payload_size: 3
           size_unit: megabytes
 
       - name: response-transformer

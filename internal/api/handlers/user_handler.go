@@ -187,29 +187,44 @@ func (h *UserHandler) GetPreferences(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	type UserPreferences struct {
-		Theme    string `json:"theme"`
-		Language string `json:"language"`
-		Timezone string `json:"timezone"`
+		Theme                string `json:"theme"`
+		Language             string `json:"language"`
+		Timezone             string `json:"timezone"`
+		EmailNotifications   bool   `json:"emailNotifications"`
+		PushNotifications    bool   `json:"pushNotifications"`
+		SMSNotifications     bool   `json:"smsNotifications"`
+		NotificationSettings map[string]interface{} `json:"notificationSettings,omitempty"`
 	}
 
 	var prefs UserPreferences
+	var notificationSettings sql.NullString
 	err := h.db.QueryRowContext(ctx, `
 		SELECT
 			COALESCE(theme, ''),
 			COALESCE(language, ''),
-			COALESCE(timezone, '')
+			COALESCE(timezone, ''),
+			email_notifications,
+			push_notifications,
+			sms_notifications,
+			notification_settings
 		FROM user_preferences
-		WHERE user_id = $1`, userID).Scan(&prefs.Theme, &prefs.Language, &prefs.Timezone)
+		WHERE user_id = $1`, userID).Scan(
+		&prefs.Theme, &prefs.Language, &prefs.Timezone,
+		&prefs.EmailNotifications, &prefs.PushNotifications, &prefs.SMSNotifications,
+		&notificationSettings)
 
 	if err == sql.ErrNoRows {
-		// Return defaults
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data": UserPreferences{
-				Theme:    "light",
-				Language: "en",
-				Timezone: "UTC",
+				Theme:              "light",
+				Language:           "en",
+				Timezone:           "UTC",
+				EmailNotifications: true,
+				PushNotifications:  true,
+				SMSNotifications:   false,
 			},
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 		return
 	}
@@ -226,9 +241,17 @@ func (h *UserHandler) GetPreferences(c *gin.Context) {
 		return
 	}
 
+	if notificationSettings.Valid && notificationSettings.String != "" {
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(notificationSettings.String), &settings); err == nil {
+			prefs.NotificationSettings = settings
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    prefs,
+		"success":   true,
+		"data":      prefs,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -261,7 +284,7 @@ func (h *UserHandler) GetAuditLog(c *gin.Context) {
 	offset := (page - 1) * limit
 
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT id, operation_type, operation_status, changes, error_message, created_at
+		SELECT id, action, field, old_value, new_value, changes, source, request_id, created_at
 		FROM profile_audit_log
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -281,18 +304,21 @@ func (h *UserHandler) GetAuditLog(c *gin.Context) {
 	defer rows.Close()
 
 	type AuditEntry struct {
-		ID              string          `json:"id"`
-		OperationType   string          `json:"operationType"`
-		OperationStatus string          `json:"operationStatus"`
-		Changes         json.RawMessage `json:"changes"`
-		ErrorMessage    string          `json:"errorMessage,omitempty"`
-		CreatedAt       time.Time       `json:"createdAt"`
+		ID        string          `json:"id"`
+		Action    string          `json:"action"`
+		Field     string          `json:"field,omitempty"`
+		OldValue  string          `json:"oldValue,omitempty"`
+		NewValue  string          `json:"newValue,omitempty"`
+		Changes   json.RawMessage `json:"changes,omitempty"`
+		Source    string          `json:"source,omitempty"`
+		RequestID string          `json:"requestId,omitempty"`
+		CreatedAt time.Time       `json:"createdAt"`
 	}
 
 	var entries []AuditEntry
 	for rows.Next() {
 		var entry AuditEntry
-		if err := rows.Scan(&entry.ID, &entry.OperationType, &entry.OperationStatus, &entry.Changes, &entry.ErrorMessage, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Action, &entry.Field, &entry.OldValue, &entry.NewValue, &entry.Changes, &entry.Source, &entry.RequestID, &entry.CreatedAt); err != nil {
 			h.log.Error("Failed to scan audit log entry", map[string]interface{}{"error": err.Error()})
 			continue
 		}
@@ -307,11 +333,12 @@ func (h *UserHandler) GetAuditLog(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"entries": entries,
-			"total":   total,
-			"page":    page,
-			"limit":   limit,
+			"items":      entries,
+			"totalCount": total,
+			"page":       page,
+			"limit":      limit,
 		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -364,7 +391,9 @@ func (h *UserHandler) SubmitFeedback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":    true,
 		"feedbackId": feedbackID,
+		"status":     "open",
 		"message":    "Feedback submitted successfully",
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -463,8 +492,9 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data":    data,
+		"success":   true,
+		"data":      data,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
 

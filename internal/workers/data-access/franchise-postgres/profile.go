@@ -745,26 +745,62 @@ func (h *Handler) handleDeleteAccount(ctx context.Context, variables string) (*B
 	}
 
 	// 2. Anonymize professional details
-	_, _ = tx.ExecContext(ctx, `
-		DELETE FROM user_professional_details WHERE user_id = $1`, userID)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_professional_details WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete professional details during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
 
 	// 3. Anonymize company details
-	_, _ = tx.ExecContext(ctx, `
-		DELETE FROM user_company_details WHERE user_id = $1`, userID)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_company_details WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete company details during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
 
 	// 4. Anonymize investment details
-	_, _ = tx.ExecContext(ctx, `
-		DELETE FROM user_investment_details WHERE user_id = $1`, userID)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_investment_details WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete investment details during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
 
 	// 5. Anonymize preferences
-	_, _ = tx.ExecContext(ctx, `
-		DELETE FROM user_preferences WHERE user_id = $1`, userID)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_preferences WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete preferences during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
 
 	// 6. Delete identities
-	_, _ = tx.ExecContext(ctx, `
-		DELETE FROM identities WHERE user_id = $1`, userID)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM identities WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete identities during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
 
-	// 7. Delete sessions (Redis-only, but log the intent)
+	// 7. Delete feedback
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM feedback WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete feedback during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
+
+	// 8. Delete consents
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM user_consents WHERE user_id = $1`, userID); err != nil {
+		h.logger.Warn("Failed to delete consents during account deletion", map[string]interface{}{
+			"userId": userID.String(), "error": err.Error(),
+		})
+	}
+
+	// 9. Delete sessions (Redis-only, but log the intent)
 	h.logger.Info("DPDPA: Account anonymized, Redis sessions should be cleared", map[string]interface{}{
 		"userId": userID.String(),
 	})

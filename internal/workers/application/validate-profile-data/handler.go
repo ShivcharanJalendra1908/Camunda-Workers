@@ -295,6 +295,47 @@ func (h *Handler) validateUpdateInvestment(input *Input) *Output {
 		}
 	}
 
+	if v, ok := pd["min_investment"].(string); ok {
+		if len(v) > 100 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "min_investment must be max 100 characters"}
+		}
+	}
+	if v, ok := pd["max_investment"].(string); ok {
+		if len(v) > 100 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "max_investment must be max 100 characters"}
+		}
+	}
+	if v, ok := pd["liquid_capital_available"].(string); ok {
+		if len(v) > 100 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "liquid_capital_available must be max 100 characters"}
+		}
+	}
+	if v, ok := pd["funding_source"].(string); ok {
+		if len(v) > 100 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "funding_source must be max 100 characters"}
+		}
+	}
+	if v, ok := pd["roi_timeline"].(string); ok {
+		if len(v) > 50 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "roi_timeline must be max 50 characters"}
+		}
+	}
+	if v, ok := pd["expected_annual_roi"].(string); ok {
+		if len(v) > 50 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "expected_annual_roi must be max 50 characters"}
+		}
+	}
+	if v, ok := pd["preferred_sectors"].([]interface{}); ok {
+		if len(v) > 20 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "preferred_sectors must have at most 20 items"}
+		}
+	}
+	if v, ok := pd["preferred_categories"].([]interface{}); ok {
+		if len(v) > 20 {
+			return &Output{IsValid: false, ErrorCode: "VALIDATION_ERROR", ErrorMessage: "preferred_categories must have at most 20 items"}
+		}
+	}
+
 	return &Output{IsValid: true, ValidatedData: pd}
 }
 
@@ -328,6 +369,25 @@ func (h *Handler) validateUpdatePreferences(input *Input) *Output {
 }
 
 func (h *Handler) validateDeleteAccount(input *Input) *Output {
-	// profileData is optional for delete_account (reason)
-	return &Output{IsValid: true, ValidatedData: input.ProfileData}
+	pd := input.ProfileData
+
+	// confirmDelete must be true
+	if confirmDelete, ok := pd["confirmDelete"].(bool); !ok || !confirmDelete {
+		return &Output{
+			IsValid:      false,
+			ErrorCode:    "VALIDATION_ERROR",
+			ErrorMessage: "confirmDelete must be true to delete account",
+		}
+	}
+
+	// reason is optional but if present, validate length
+	if reason, ok := pd["reason"].(string); ok && len(reason) > 500 {
+		return &Output{
+			IsValid:      false,
+			ErrorCode:    "VALIDATION_ERROR",
+			ErrorMessage: "reason must be max 500 characters",
+		}
+	}
+
+	return &Output{IsValid: true, ValidatedData: pd}
 }
