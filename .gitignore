@@ -41,4 +41,5 @@ deployments/docker/ollama/*.gguf
 # Temp directories
 /tmp_gocache/
 /tmp_puppeteer/
+/user-profile/
 
