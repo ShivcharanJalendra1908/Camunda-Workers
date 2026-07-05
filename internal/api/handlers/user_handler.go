@@ -453,9 +453,9 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 		FROM user_professional_details
 		WHERE user_id = $1`, userID).Scan(&data.Occupation, &data.Designation, &data.Industry)
 
-	// Check franchisee status
+	// Check franchisee status (using created_by since owner_id doesn't exist in schema)
 	_ = h.db.QueryRowContext(ctx, `
-		SELECT EXISTS(SELECT 1 FROM franchises WHERE owner_id = $1 AND archived_at IS NULL)`, userID).Scan(&data.IsFranchisee)
+		SELECT EXISTS(SELECT 1 FROM franchises WHERE created_by = $1 AND status != 'deleted')`, userID).Scan(&data.IsFranchisee)
 
 	// Payment history placeholder
 	data.PaymentHistory = []map[string]string{
@@ -467,7 +467,4 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 		"data":    data,
 	})
 }
-
-// suppress unused import warning during review
-var _ = json.Marshal
 
