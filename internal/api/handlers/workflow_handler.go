@@ -17,6 +17,7 @@ import (
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/api/middleware"
 	"camunda-workers/internal/common/auth/session"
+	awsutil "camunda-workers/internal/common/aws"
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
@@ -45,9 +46,10 @@ type WorkflowHandler struct {
 	redisClient  *redis.Client
 	config       *config.Config
 	fle          *encryption.FLEService
+	s3Client     *awsutil.S3Client
 }
 
-func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client, cfg *config.Config, fle *encryption.FLEService) *WorkflowHandler {
+func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClient *redis.Client, cfg *config.Config, fle *encryption.FLEService, s3Client *awsutil.S3Client) *WorkflowHandler {
 	var redisStore *idempotency.RedisStore
 	if redisClient != nil {
 		redisStore = idempotency.NewRedisStore(redisClient)
@@ -63,6 +65,7 @@ func NewWorkflowHandler(camunda *camunda.Client, logger logger.Logger, redisClie
 		redisClient:  redisClient,
 		config:       cfg,
 		fle:          fle,
+		s3Client:     s3Client,
 	}
 }
 
@@ -255,16 +258,6 @@ func (h *WorkflowHandler) StartDiscovery(c *gin.Context) {
 // ============================================================================
 
 func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
-	var input struct {
-		Action      string                 `json:"action" binding:"required,oneof=retrieve update_personal update_professional update_company update_investment update_preferences delete_account"`
-		ProfileData map[string]interface{} `json:"profileData"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	claims := middleware.ExtractClaims(c)
 	if claims == nil || claims.UserID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "AUTH_REQUIRED", "message": "Not authenticated"})
@@ -272,23 +265,146 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 	}
 
 	userID := claims.UserID
+	contentType := c.GetHeader("Content-Type")
+
+	var action string
+	var profileData map[string]interface{}
+
+	if strings.Contains(contentType, "multipart/form-data") {
+		// Multipart form — used when photo upload is included
+		if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse multipart form: " + err.Error()})
+			return
+		}
+
+		action = c.PostForm("action")
+		if action == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "action field is required"})
+			return
+		}
+
+		// Parse profileData JSON from form field
+		if pdStr := c.PostForm("profileData"); pdStr != "" {
+			if err := json.Unmarshal([]byte(pdStr), &profileData); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid profileData JSON: " + err.Error()})
+				return
+			}
+		}
+
+		// Handle photo upload if present (only for update_personal action)
+		if action == "update_personal" {
+			file, _, err := c.Request.FormFile("photo")
+			if err == nil {
+				defer file.Close()
+
+				// Read photo data
+				photoBytes, err := io.ReadAll(io.LimitReader(file, 4*1024*1024))
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "PHOTO_READ_FAILED", "message": "Failed to read uploaded photo"})
+					return
+				}
+
+				// Get photo config from S3 config
+				photoConfig := middleware.PhotoSecurityConfig{
+					MaxFileSize:  3145728, // 3MB default
+					AllowedTypes: []string{"image/jpeg", "image/png", "image/webp"},
+					MaxWidth:     200,
+					MaxHeight:    200,
+				}
+				if h.config != nil && h.config.Integrations.AWS.S3.Enabled {
+					if h.config.Integrations.AWS.S3.MaxFileSize > 0 {
+						photoConfig.MaxFileSize = h.config.Integrations.AWS.S3.MaxFileSize
+					}
+					if len(h.config.Integrations.AWS.S3.AllowedTypes) > 0 {
+						photoConfig.AllowedTypes = h.config.Integrations.AWS.S3.AllowedTypes
+					}
+					if h.config.Integrations.AWS.S3.MaxWidth > 0 {
+						photoConfig.MaxWidth = h.config.Integrations.AWS.S3.MaxWidth
+					}
+					if h.config.Integrations.AWS.S3.MaxHeight > 0 {
+						photoConfig.MaxHeight = h.config.Integrations.AWS.S3.MaxHeight
+					}
+				}
+
+				// Validate photo security
+				result := middleware.ValidatePhoto(photoBytes, photoConfig)
+				if !result.Valid {
+					c.JSON(http.StatusBadRequest, gin.H{
+						"success": false,
+						"error":   result.ErrorCode,
+						"message": result.Error,
+					})
+					return
+				}
+
+				// Check if S3 is available
+				if h.s3Client == nil {
+					c.JSON(http.StatusServiceUnavailable, gin.H{
+						"error":   "PHOTO_STORAGE_UNAVAILABLE",
+						"message": "Photo upload is not available. S3 is not configured.",
+					})
+					return
+				}
+
+				// Upload to S3
+				ext := extensionFromContentType(result.ContentType)
+				key := awsutil.MakePhotoKey(userID, ext)
+
+				uploadResult, err := h.s3Client.UploadPhoto(c.Request.Context(), key, result.ContentType, bytes.NewReader(photoBytes), int64(len(photoBytes)))
+				if err != nil {
+					h.logger.Error("S3 photo upload failed", map[string]interface{}{
+						"error":  err.Error(),
+						"userId": userID,
+					})
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "PHOTO_UPLOAD_FAILED", "message": "Failed to upload profile photo"})
+					return
+				}
+
+				// Inject photo URL into profileData
+				if profileData == nil {
+					profileData = make(map[string]interface{})
+				}
+				profileData["profile_image"] = uploadResult.URL
+
+				h.logger.Info("Profile photo uploaded", map[string]interface{}{
+					"userId": userID,
+					"key":    uploadResult.Key,
+					"url":    uploadResult.URL,
+				})
+			}
+		}
+	} else {
+		// JSON body — standard workflow
+		var input struct {
+			Action      string                 `json:"action" binding:"required,oneof=retrieve update_personal update_professional update_company update_investment update_preferences delete_account"`
+			ProfileData map[string]interface{} `json:"profileData"`
+		}
+
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		action = input.Action
+		profileData = input.ProfileData
+	}
 
 	// delete_account requires no profileData
-	if input.Action == "delete_account" {
-		input.ProfileData = nil
+	if action == "delete_account" {
+		profileData = nil
 	}
 
 	// Non-retrieve actions require profileData
-	if input.Action != "retrieve" && input.Action != "delete_account" {
-		if len(input.ProfileData) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "profileData is required for action: " + input.Action})
+	if action != "retrieve" && action != "delete_account" {
+		if len(profileData) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "profileData is required for action: " + action})
 			return
 		}
 	}
 
 	// FLE: encrypt PII fields before sending to Camunda
-	if h.fle != nil && h.fle.Enabled() && input.ProfileData != nil {
-		if err := h.fle.EncryptProfileData(input.ProfileData); err != nil {
+	if h.fle != nil && h.fle.Enabled() && profileData != nil {
+		if err := h.fle.EncryptProfileData(profileData); err != nil {
 			h.logger.Error("FLE encryption failed", map[string]interface{}{
 				"error":  err.Error(),
 				"userId": userID,
@@ -317,8 +433,8 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 
 	variables := map[string]interface{}{
 		"userId":        userID,
-		"action":        input.Action,
-		"profileData":   input.ProfileData,
+		"action":        action,
+		"profileData":   profileData,
 		"correlationKey": correlationKey,
 		"sessionId":     claims.SessionID,
 		"sourceSystem":  claims.SourceSystem,
@@ -350,7 +466,6 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 				h.logger.Warn("FLE decryption failed on response", map[string]interface{}{
 					"error": err.Error(),
 				})
-				// Return response anyway - decryption failure is non-fatal for display
 			}
 		}
 
@@ -369,6 +484,20 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 
 	case <-ctx.Done():
 		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "TIMEOUT", "message": "Request context cancelled"})
+	}
+}
+
+// extensionFromContentType returns a file extension for the given MIME type.
+func extensionFromContentType(ct string) string {
+	switch ct {
+	case "image/jpeg":
+		return "jpg"
+	case "image/png":
+		return "png"
+	case "image/webp":
+		return "webp"
+	default:
+		return "jpg"
 	}
 }
 

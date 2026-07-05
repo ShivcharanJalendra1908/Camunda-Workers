@@ -23,6 +23,8 @@ import (
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/observability"
 
+	awsutil "camunda-workers/internal/common/aws"
+
 	operateactions "camunda-workers/internal/workers/operate/actions"
 	operatequeries "camunda-workers/internal/workers/operate/queries"
 	operatews "camunda-workers/internal/workers/operate/ws"
@@ -263,6 +265,28 @@ func main() {
 		}
 	}
 
+	// Initialize S3 Client (for profile photo uploads)
+	// ============================================================================
+	var s3Client *awsutil.S3Client
+	if cfg.Integrations.AWS.S3.Enabled {
+		s3Region := cfg.Integrations.AWS.S3.Region
+		if s3Region == "" {
+			s3Region = cfg.Integrations.AWS.Region
+		}
+		s3Client, err = awsutil.NewS3Client(context.Background(), s3Region, cfg.Integrations.AWS.S3.Bucket)
+		if err != nil {
+			log.Warn("S3 client initialization failed, photo uploads disabled", map[string]interface{}{
+				"error":  err.Error(),
+				"bucket": cfg.Integrations.AWS.S3.Bucket,
+			})
+		} else {
+			log.Info("S3 client initialized", map[string]interface{}{
+				"bucket": cfg.Integrations.AWS.S3.Bucket,
+				"region": s3Region,
+			})
+		}
+	}
+
 	// Initialize handlers
 	// ============================================================================
 	workflowHandler := handlers.NewWorkflowHandler(
@@ -270,7 +294,8 @@ func main() {
 		log,
 		redisClient.GetClient(),
 		cfg,
-		fleService)
+		fleService,
+		s3Client)
 
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, postgresDB.DB)

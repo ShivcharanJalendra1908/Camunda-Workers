@@ -415,10 +415,15 @@ type IntegrationConfig struct {
 			SMSType            string `mapstructure:"smsType"`
 		} `mapstructure:"sns"`
 		S3 struct {
-			Enabled    bool   `mapstructure:"enabled"`
-			Bucket     string `mapstructure:"bucket"`
-			Region     string `mapstructure:"region"`
-			PresignTTL int    `mapstructure:"presignTtl"`
+			Enabled      bool     `mapstructure:"enabled"`
+			Bucket       string   `mapstructure:"bucket"`
+			Region       string   `mapstructure:"region"`
+			PresignTTL   int      `mapstructure:"presignTtl"`
+			MaxFileSize  int64    `mapstructure:"maxFileSize"`
+			AllowedTypes []string `mapstructure:"allowedTypes"`
+			MaxWidth     int      `mapstructure:"maxWidth"`
+			MaxHeight    int      `mapstructure:"maxHeight"`
+			KeyPrefix    string   `mapstructure:"keyPrefix"`
 		} `mapstructure:"s3"`
 	} `mapstructure:"aws"`
 

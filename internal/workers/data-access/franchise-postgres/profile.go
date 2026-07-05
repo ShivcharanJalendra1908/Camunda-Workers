@@ -307,6 +307,14 @@ func (h *Handler) handleUpdatePersonalDetails(ctx context.Context, variables str
 		args = append(args, h.sanitizer.SanitizeString(v))
 		argPos++
 	}
+	if v, ok := pd["profile_image"].(string); ok {
+		if err := h.validateString("profile_image", v, 0, 500); err != nil {
+			return nil, err
+		}
+		query += fmt.Sprintf(", profile_image = $%d", argPos)
+		args = append(args, h.sanitizer.SanitizeString(v))
+		argPos++
+	}
 
 	query += fmt.Sprintf(" WHERE id = $%d", argPos)
 	args = append(args, userID)

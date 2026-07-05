@@ -185,6 +185,19 @@ integrations:
       enabled: true
       default_sms_sender_id: "FranchiseHub"
       region: "us-east-1"
+    s3:
+      enabled: false  # Flip to true when AWS credentials are configured
+      bucket: "lemici-profile-photos"
+      region: "ap-south-1"
+      maxFileSize: 3145728  # 3MB
+      allowedTypes:
+        - "image/jpeg"
+        - "image/png"
+        - "image/webp"
+      maxWidth: 200
+      maxHeight: 200
+      presignTtl: 3600
+      keyPrefix: "profile-photos"
   
   # SMTP (Fallback/Development) - Commented out old AWS SES SMTP
   # smtp:
