@@ -75,6 +75,24 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// 6️⃣ LOAD DROPDOWNS CONFIG
+	if dropdowns, err := LoadDropdowns(); err == nil {
+		cfg.Dropdowns = dropdowns
+	} else {
+		fmt.Printf("⚠️  dropdowns.yaml not loaded: %v\n", err)
+	}
+
+	// 7️⃣ POPULATE FLE CONFIG FROM SECURITY.ENCRYPTION
+	if cfg.Security.Encryption.FLEEnabled {
+		cfg.FLE = &FLEConfig{
+			Enabled: true,
+			Fields:  make(map[string]FLEFieldEncryptionConfig),
+		}
+		for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
+			cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+		}
+	}
+
 	return &cfg, nil
 }
 
@@ -562,6 +580,22 @@ func LoadFromFile(path string) (*Config, error) {
 
 	if err := validateConfig(&cfg); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Load dropdowns
+	if dropdowns, err := LoadDropdowns(); err == nil {
+		cfg.Dropdowns = dropdowns
+	}
+
+	// Populate FLE config
+	if cfg.Security.Encryption.FLEEnabled {
+		cfg.FLE = &FLEConfig{
+			Enabled: true,
+			Fields:  make(map[string]FLEFieldEncryptionConfig),
+		}
+		for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
+			cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+		}
 	}
 
 	return &cfg, nil

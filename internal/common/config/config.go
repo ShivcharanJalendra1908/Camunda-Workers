@@ -31,6 +31,8 @@ type Config struct {
 	Pagination      PaginationConfig        `mapstructure:"pagination"`
 	Flagsmith       FlagsmithConfig         `mapstructure:"flagsmith"`
 	Guest           GuestQuotaConfig        `mapstructure:"guest"`
+	Dropdowns       *DropdownConfig         `mapstructure:"-"` // loaded from config/dropdowns.yaml
+	FLE             *FLEConfig              `mapstructure:"-"` // loaded from security.encryption section
 }
 
 // ============================================================================
@@ -361,6 +363,19 @@ type EncryptionConfig struct {
 	IV           string `mapstructure:"iv"`
 	KeyRotation  bool   `mapstructure:"keyRotation"`
 	RotationDays int    `mapstructure:"rotationDays"`
+	FLEEnabled   bool   `mapstructure:"fle_enabled"`
+	FLEFields    map[string]FLEFieldEncryptionConfig `mapstructure:"fields"`
+}
+
+// FLEFieldEncryptionConfig holds the encryption key for a single FLE-protected field.
+type FLEFieldEncryptionConfig struct {
+	Key string `mapstructure:"key"` // base64-encoded 64-byte key
+}
+
+// FLEConfig is the top-level FLE configuration (loaded from security.encryption).
+type FLEConfig struct {
+	Enabled bool                                    `mapstructure:"fle_enabled"`
+	Fields  map[string]FLEFieldEncryptionConfig     `mapstructure:"fields"`
 }
 
 // ============================================================================

@@ -1,0 +1,230 @@
+# ============================================================
+# LeMiCi IQ — Dropdown Configuration
+# ============================================================
+# Single source of truth for all dropdown options used in the
+# User Profile workflow and API validation.
+#
+# Validated by: validate-profile-data worker
+# Loaded by: internal/common/config/dropdowns.go
+# ============================================================
+
+dropdowns:
+  # ----------------------------------------------------------
+  # USER PROFILE — Professional Details
+  # ----------------------------------------------------------
+  occupation:
+    - label: "Software Engineer"
+      value: "software_engineer"
+    - label: "Business Analyst"
+      value: "business_analyst"
+    - label: "Product Manager"
+      value: "product_manager"
+    - label: "Data Scientist"
+      value: "data_scientist"
+    - label: "Marketing Manager"
+      value: "marketing_manager"
+    - label: "Sales Executive"
+      value: "sales_executive"
+    - label: "Financial Advisor"
+      value: "financial_advisor"
+    - label: "Consultant"
+      value: "consultant"
+    - label: "Entrepreneur"
+      value: "entrepreneur"
+    - label: "Teacher"
+      value: "teacher"
+    - label: "Doctor"
+      value: "doctor"
+    - label: "Lawyer"
+      value: "lawyer"
+    - label: "Engineer"
+      value: "engineer"
+    - label: "Architect"
+      value: "architect"
+    - label: "Designer"
+      value: "designer"
+    - label: "Accountant"
+      value: "accountant"
+    - label: "HR Professional"
+      value: "hr_professional"
+    - label: "Operations Manager"
+      value: "operations_manager"
+    - label: "Other"
+      value: "other"
+
+  designation:
+    - label: "Junior"
+      value: "junior"
+    - label: "Mid-Level"
+      value: "mid_level"
+    - label: "Senior"
+      value: "senior"
+    - label: "Lead"
+      value: "lead"
+    - label: "Manager"
+      value: "manager"
+    - label: "Director"
+      value: "director"
+    - label: "VP"
+      value: "vp"
+    - label: "C-Level"
+      value: "c_level"
+    - label: "Founder"
+      value: "founder"
+    - label: "Co-Founder"
+      value: "co_founder"
+    - label: "Intern"
+      value: "intern"
+    - label: "Fresher"
+      value: "fresher"
+
+  experience_level:
+    - label: "0-2 years"
+      value: "0-2"
+    - label: "2-5 years"
+      value: "2-5"
+    - label: "5-10 years"
+      value: "5-10"
+    - label: "10-15 years"
+      value: "10-15"
+    - label: "15-20 years"
+      value: "15-20"
+    - label: "20+ years"
+      value: "20+"
+
+  # ----------------------------------------------------------
+  # USER PROFILE — Company Details
+  # ----------------------------------------------------------
+  business_type:
+    - label: "Sole Proprietorship"
+      value: "sole_proprietorship"
+    - label: "Partnership"
+      value: "partnership"
+    - label: "Limited Liability Partnership"
+      value: "llp"
+    - label: "Private Limited Company"
+      value: "private_limited"
+    - label: "Public Limited Company"
+      value: "public_limited"
+    - label: "One Person Company"
+      value: "opc"
+    - label: "Hindu Undivided Family"
+      value: "huf"
+    - label: "Trust"
+      value: "trust"
+    - label: "Society"
+      value: "society"
+    - label: "Other"
+      value: "other"
+
+  # ----------------------------------------------------------
+  # USER PROFILE — Investment Details
+  # ----------------------------------------------------------
+  funding_source:
+    - label: "Self Funded"
+      value: "self_funded"
+    - label: "Family/Friends"
+      value: "family_friends"
+    - label: "Bank Loan"
+      value: "bank_loan"
+    - label: "NBFC"
+      value: "nbfc"
+    - label: "Angel Investor"
+      value: "angel_investor"
+    - label: "Venture Capital"
+      value: "venture_capital"
+    - label: "Government Scheme"
+      value: "government_scheme"
+    - label: "Crowdfunding"
+      value: "crowdfunding"
+    - label: "Other"
+      value: "other"
+
+  roi_timeline:
+    - label: "6 months"
+      value: "6_months"
+    - label: "1 year"
+      value: "1_year"
+    - label: "2 years"
+      value: "2_years"
+    - label: "3 years"
+      value: "3_years"
+    - label: "5+ years"
+      value: "5_plus_years"
+
+  # ----------------------------------------------------------
+  # USER PROFILE — Preferences
+  # ----------------------------------------------------------
+  theme:
+    - label: "Light"
+      value: "light"
+    - label: "Dark"
+      value: "dark"
+    - label: "Auto"
+      value: "auto"
+
+  language:
+    - label: "English"
+      value: "en"
+    - label: "Hindi"
+      value: "hi"
+    - label: "Bengali"
+      value: "bn"
+    - label: "Telugu"
+      value: "te"
+    - label: "Marathi"
+      value: "mr"
+    - label: "Tamil"
+      value: "ta"
+    - label: "Gujarati"
+      value: "gu"
+    - label: "Kannada"
+      value: "kn"
+    - label: "Malayalam"
+      value: "ml"
+    - label: "Punjabi"
+      value: "pa"
+
+  # ----------------------------------------------------------
+  # FEEDBACK
+  # ----------------------------------------------------------
+  feedback_category:
+    - label: "Bug Report"
+      value: "bug_report"
+    - label: "Feature Request"
+      value: "feature_request"
+    - label: "General Feedback"
+      value: "general_feedback"
+    - label: "Performance Issue"
+      value: "performance_issue"
+    - label: "Usability Issue"
+      value: "usability_issue"
+    - label: "Content Issue"
+      value: "content_issue"
+    - label: "Other"
+      value: "other"
+
+  feedback_severity:
+    - label: "Low"
+      value: "low"
+    - label: "Medium"
+      value: "medium"
+    - label: "High"
+      value: "high"
+    - label: "Critical"
+      value: "critical"
+
+  # ----------------------------------------------------------
+  # PROFILE PHOTO
+  # ----------------------------------------------------------
+  photo_type:
+    - label: "Selfie"
+      value: "selfie"
+    - label: "Team Photo"
+      value: "team"
+    - label: "Office"
+      value: "office"
+    - label: "Professional Headshot"
+      value: "headshot"
+    - label: "Other"
+      value: "other"
