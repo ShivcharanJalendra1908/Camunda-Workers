@@ -291,6 +291,12 @@ security:
       - "127.0.0.1"
       - "::1"
 
+  # Field-Level Encryption (FLE) for PII
+  # Single AES-256-GCM key (base64-encoded 64 bytes) applied to all encrypted fields
+  encryption:
+    fle_enabled: true
+    default_key: "tpRaN2xQD2WFXkzFOHUZ3Dc75MbljYlQs/xUzgECgqLu7ADsVtUTaDb2RS87TXYxVzyxeKT5/3k5iBEAxcveig=="
+
 # ============================================================================
 # MONITORING & OBSERVABILITY
 # ============================================================================

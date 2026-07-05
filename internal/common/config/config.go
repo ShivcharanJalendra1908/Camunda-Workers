@@ -364,6 +364,7 @@ type EncryptionConfig struct {
 	KeyRotation  bool   `mapstructure:"keyRotation"`
 	RotationDays int    `mapstructure:"rotationDays"`
 	FLEEnabled   bool   `mapstructure:"fle_enabled"`
+	DefaultKey   string `mapstructure:"default_key"` // single key applied to all FLE fields
 	FLEFields    map[string]FLEFieldEncryptionConfig `mapstructure:"fields"`
 }
 

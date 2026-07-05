@@ -88,8 +88,20 @@ func Load() (*Config, error) {
 			Enabled: true,
 			Fields:  make(map[string]FLEFieldEncryptionConfig),
 		}
-		for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
-			cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+		// If default_key is set, apply it to all FLE fields
+		if cfg.Security.Encryption.DefaultKey != "" {
+			fleFields := []string{"email", "name", "phone", "location", "company", "jobTitle", "businessName", "cinNumber", "gstNumber"}
+			for _, fname := range fleFields {
+				if fieldCfg, ok := cfg.Security.Encryption.FLEFields[fname]; ok && fieldCfg.Key != "" {
+					cfg.FLE.Fields[fname] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+				} else {
+					cfg.FLE.Fields[fname] = FLEFieldEncryptionConfig{Key: cfg.Security.Encryption.DefaultKey}
+				}
+			}
+		} else {
+			for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
+				cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+			}
 		}
 	}
 
@@ -593,8 +605,19 @@ func LoadFromFile(path string) (*Config, error) {
 			Enabled: true,
 			Fields:  make(map[string]FLEFieldEncryptionConfig),
 		}
-		for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
-			cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+		if cfg.Security.Encryption.DefaultKey != "" {
+			fleFields := []string{"email", "name", "phone", "location", "company", "jobTitle", "businessName", "cinNumber", "gstNumber"}
+			for _, fname := range fleFields {
+				if fieldCfg, ok := cfg.Security.Encryption.FLEFields[fname]; ok && fieldCfg.Key != "" {
+					cfg.FLE.Fields[fname] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+				} else {
+					cfg.FLE.Fields[fname] = FLEFieldEncryptionConfig{Key: cfg.Security.Encryption.DefaultKey}
+				}
+			}
+		} else {
+			for fieldName, fieldCfg := range cfg.Security.Encryption.FLEFields {
+				cfg.FLE.Fields[fieldName] = FLEFieldEncryptionConfig{Key: fieldCfg.Key}
+			}
 		}
 	}
 
