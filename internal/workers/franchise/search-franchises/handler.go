@@ -432,7 +432,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	}
 
 	// ✅ ENTITY TYPE FILTER
-	if input.EntityType != "" {
+	if input.EntityType != "" && input.EntityType != "all" {
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"term": map[string]interface{}{
 				"entity_type": input.EntityType,
@@ -727,6 +727,8 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 			et = "association"
 		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
 			et = "master_franchise"
+		case "all":
+			et = "all"
 		default:
 			et = strings.TrimSuffix(et, "s")
 			if et == "master-franchise" || et == "master franchise" || et == "masterfranchise" {

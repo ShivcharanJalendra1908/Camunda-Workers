@@ -595,7 +595,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	softBoosts := []interface{}{}
 
 	// Entity Type filter
-	if params.EntityType != "" {
+	if params.EntityType != "" && params.EntityType != "all" {
 		filterClauses = append(filterClauses, map[string]interface{}{
 			"term": map[string]interface{}{"entity_type": params.EntityType},
 		})
@@ -917,12 +917,19 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 	params := h.paramExtractor.ParseWithContext(response, input.Query)
 
 	// Fallback to payload EntityType if LLM did not extract it
-	if params.EntityType == "" && input.EntityType != "" {
-		et := strings.ToLower(input.EntityType)
-		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
-			et = "master_franchise"
+	if params.EntityType == "" {
+		if input.Query == "" || input.Query == "*" {
+			if input.EntityType != "" {
+				et := strings.ToLower(input.EntityType)
+				if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+					et = "master_franchise"
+				}
+				params.EntityType = et
+			}
+		} else {
+			// If there is a search query but no entity type mentioned, return mixed results.
+			params.EntityType = "all"
 		}
-		params.EntityType = et
 	}
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{

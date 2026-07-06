@@ -16,9 +16,9 @@ volumes:
 
 services:
 
-# ============================================================================
-# CAMUNDA 8
-# ============================================================================
+  # ============================================================================
+  # CAMUNDA 8
+  # ============================================================================
 
   zeebe:
     image: camunda/zeebe:8.3.9
@@ -76,9 +76,9 @@ services:
       start_period: 180s
     restart: on-failure:5
 
-# ============================================================================
-# INFRASTRUCTURE
-# ============================================================================
+  # ============================================================================
+  # INFRASTRUCTURE
+  # ============================================================================
 
   postgres:
     image: postgres:15-alpine
@@ -99,7 +99,6 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/01-init-multiple-databases.sh:/docker-entrypoint-initdb.d/01-init-multiple-databases.sh:ro
-      - ./postgres/20-auth-schema.sql:/docker-entrypoint-initdb.d/20-auth-schema.sql:ro
       - ./postgres/schema-v2.sql:/docker-entrypoint-initdb.d/schema-v2.sql:ro
       - ../../data/postgres:/csv-data:ro
     networks:
@@ -314,9 +313,9 @@ services:
       - ./ollama/Modelfile:/models/Modelfile
       - ./ollama/qwen-extractor.gguf:/models/qwen-extractor.gguf
 
-# ============================================================================
-# API GATEWAY (HTTP Handler)
-# ============================================================================
+  # ============================================================================
+  # API GATEWAY (HTTP Handler)
+  # ============================================================================
 
   api-gateway:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-gateway-dev:latest
@@ -365,16 +364,16 @@ services:
       retries: 3
       start_period: 60s
     restart: on-failure:3
-    
-# ============================================================================
-# WORKERS 
-# ============================================================================
+
+  # ============================================================================
+  # WORKERS 
+  # ============================================================================
 
   camunda-workers:
     image: 177925987307.dkr.ecr.us-east-1.amazonaws.com/backend-worker-dev:latest
     container_name: camunda-workers
     # ports:
-      # - "8080:8080"
+    # - "8080:8080"
     environment:
       APP_NAME: camunda-workers
       APP_ENVIRONMENT: development
@@ -458,9 +457,9 @@ services:
   #     timeout: 5s
   #     retries: 3
 
-# ============================================================================
-# KONG API GATEWAY (ONLY GATEWAY)
-# ============================================================================
+  # ============================================================================
+  # KONG API GATEWAY (ONLY GATEWAY)
+  # ============================================================================
 
   kong:
     image: kong:3.6
@@ -475,30 +474,30 @@ services:
     volumes:
       - ../../configs/kong/kong.yaml:/kong/declarative/kong.yml:ro
     environment:
-        KONG_DATABASE: "off"
-        KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
-        KONG_PROXY_ACCESS_LOG: /dev/stdout
-        KONG_ADMIN_ACCESS_LOG: /dev/stdout
-        KONG_PROXY_ERROR_LOG: /dev/stderr
-        KONG_ADMIN_ERROR_LOG: /dev/stderr
-        KONG_ADMIN_LISTEN: 127.0.0.1:8001
-        KONG_LOG_LEVEL: info
-        KONG_SLASHING_MODE: "escaped"
-        KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
-        KONG_REAL_IP_HEADER: X-Forwarded-For
-        KONG_REAL_IP_RECURSIVE: "on"
-        KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
-        KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "512k"
-        KONG_NGINX_PROXY_PROXY_BUFFERS: "8 512k"
-        KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "512k"
-        KONG_NGINX_PROXY_CLIENT_HEADER_BUFFER_SIZE: "512k"
-        KONG_NGINX_PROXY_LARGE_CLIENT_HEADER_BUFFERS: "4 512k"
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 127.0.0.1:8001
+      KONG_LOG_LEVEL: info
+      KONG_SLASHING_MODE: "escaped"
+      KONG_TRUSTED_IPS: "0.0.0.0/0, ::/0"
+      KONG_REAL_IP_HEADER: X-Forwarded-For
+      KONG_REAL_IP_RECURSIVE: "on"
+      KONG_PLUGINS: "bundled,cors,rate-limiting,correlation-id,request-size-limiting,response-transformer,ip-restriction,proxy-cache,opentelemetry"
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "512k"
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "8 512k"
+      KONG_NGINX_PROXY_PROXY_BUSY_BUFFERS_SIZE: "512k"
+      KONG_NGINX_PROXY_CLIENT_HEADER_BUFFER_SIZE: "512k"
+      KONG_NGINX_PROXY_LARGE_CLIENT_HEADER_BUFFERS: "4 512k"
 
     ports:
       - "80:8000"
       # - "8001:8001"
     healthcheck:
-      test: ["CMD", "kong", "health"]
+      test: [ "CMD", "kong", "health" ]
       interval: 30s
       timeout: 10s
       retries: 5
