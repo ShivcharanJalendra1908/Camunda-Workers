@@ -214,6 +214,27 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			ORDER BY franchise_count DESC, c.display_order ASC
 			LIMIT 8
 		`, industrySlug, entityType)
+	} else if entityType == "association" {
+		rows, err = db.QueryContext(ctx, `
+			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
+			       COUNT(DISTINCT l.id) as franchise_count
+			FROM categories c
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $1 AND l.status = 'live'
+			WHERE c.id IN (
+				'358a01d0-0e4c-4908-b0a4-2ef7cc31346f', -- Business & Professional Services
+				'7a831aa6-b99b-43b9-9d21-785397da5461', -- Trade & Industry
+				'5f8acc01-d95b-4daf-9ef7-0716b05effdb', -- Lifestyle & Consumer
+				'af6a73e1-e578-4363-b1d1-52be9820fdc0', -- Education & Knowledge
+				'82c0f26b-d890-4c15-8940-7ab4ebb6fac5', -- Technology & Media
+				'851942b3-0956-49e0-b969-ae303c7e1101', -- Finance & Real Estate
+				'bb773692-7aa0-4688-83d5-5a5939dafa85', -- Health & Wellness
+				'2951db45-ac11-4fd2-a021-6064e28afb4b'  -- Food & Hospitality
+			) AND c.is_active = true
+			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
+			ORDER BY c.display_order ASC
+			LIMIT 8
+		`, entityType)
 	} else {
 		rows, err = db.QueryContext(ctx, `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
