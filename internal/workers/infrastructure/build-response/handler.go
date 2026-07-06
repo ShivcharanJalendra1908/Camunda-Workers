@@ -386,7 +386,7 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		combinedData["franchises"] = input.FranchiseListings
 	}
 	if len(input.FeaturedCategories) > 0 {
-		combinedData["categories"] = input.FeaturedCategories
+		combinedData["featuredCategories"] = input.FeaturedCategories
 	}
 	if len(input.UnderstandingCategory) > 0 {
 		combinedData["categoryQuestions"] = input.UnderstandingCategory
@@ -928,9 +928,9 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 
 	basicInfo := h.extractMap(data, "basicInfo")
 	recommended := h.extractArray(data, "recommended")
-	categories := h.extractArray(data, "categories")
+	categories := h.extractArray(data, "featuredCategories")
 	if len(categories) == 0 {
-		categories = h.extractArray(data, "featuredCategories")
+		categories = h.extractArray(data, "categories")
 	}
 	marketInsights := h.extractArray(data, "marketInsights")
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
@@ -2415,9 +2415,9 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 	recommended := h.extractArray(data, "recommended")
 	marketInsights := h.extractArray(data, "marketInsights")
-	categories := h.extractArray(data, "categories")
+	categories := h.extractArray(data, "featuredCategories")
 	if len(categories) == 0 {
-		categories = h.extractArray(data, "featuredCategories")
+		categories = h.extractArray(data, "categories")
 	}
 
 	page := 1
