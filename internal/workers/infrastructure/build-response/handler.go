@@ -979,7 +979,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	}
 	if logoURL == "" {
-		logoURL = getStringVal(basicInfo, "logo_url", "/AssociationImages/FeaturedAssociations/kassia.svg")
+		logoURL = getStringVal(basicInfo, "logo_url", "")
 	}
 
 	tags := getArrayVal(overview, "key_functions")
@@ -1423,7 +1423,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 					"id":       getStringVal(rMap, "id", ""),
 					"name":     getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
 					"slug":     getStringVal(rMap, "slug", ""),
-					"icon_url": getStringVal(rMap, "logo_url", "/AssociationImages/FeaturedAssociations/ficci.svg"),
+					"icon_url": getStringVal(rMap, "logo_url", ""),
 				})
 			}
 		}
@@ -1497,7 +1497,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 					"id":       getStringVal(cMap, "id", ""),
 					"name":     getStringVal(cMap, "name", ""),
 					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", "/AssociationImages/FeaturedBusinessCategories/technology.svg"),
+					"icon_url": getStringVal(cMap, "icon_url", ""),
 				})
 			}
 		}
@@ -2636,7 +2636,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 					"id":       getStringVal(cMap, "id", ""),
 					"name":     getStringVal(cMap, "name", ""),
 					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", "/AssociationImages/FeaturedBusinessCategories/technology.svg"),
+					"icon_url": getStringVal(cMap, "icon_url", ""),
 				})
 			}
 		}
