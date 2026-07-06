@@ -2683,7 +2683,7 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			}
 		}
 	}
-	
+
 	sections = append(sections, map[string]interface{}{
 		"type":    "category_questions",
 		"enabled": true,
