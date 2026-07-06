@@ -929,6 +929,9 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	basicInfo := h.extractMap(data, "basicInfo")
 	recommended := h.extractArray(data, "recommended")
 	categories := h.extractArray(data, "categories")
+	if len(categories) == 0 {
+		categories = h.extractArray(data, "featuredCategories")
+	}
 	marketInsights := h.extractArray(data, "marketInsights")
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 
@@ -1508,17 +1511,6 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 
 	// 18. category_questions
 	detailQuestions := []interface{}{}
-	faqList := getArrayVal(metadata, "faqs")
-	if len(faqList) > 0 {
-		for _, fItem := range faqList {
-			if fm, ok := fItem.(map[string]interface{}); ok {
-				detailQuestions = append(detailQuestions, map[string]interface{}{
-					"question": getStringVal(fm, "question", ""),
-					"answer":   getStringVal(fm, "answer", ""),
-				})
-			}
-		}
-	}
 	if len(categoryQuestions) > 0 {
 		for _, qItem := range categoryQuestions {
 			if qm, ok := qItem.(map[string]interface{}); ok {
