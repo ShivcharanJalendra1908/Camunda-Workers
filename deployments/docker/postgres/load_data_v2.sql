@@ -49,7 +49,7 @@ ON CONFLICT (email) DO NOTHING;
 \COPY franchises(id, total_outlets, parent_company, business_type, established_year, units_count, leader_name, leader_role) FROM '/tmp/franchises.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(parent_company, business_type, established_year, total_outlets, units_count, leader_name, leader_role));
 
 \echo 'Loading associations.csv...'
-\COPY associations(id, association_type, sector_represented, member_count, membership_fee_min, membership_fee_max, industry_id) FROM '/tmp/associations.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(sector_represented, member_count, membership_fee_min, membership_fee_max, industry_id));
+\COPY associations(id, association_type, sector_represented, member_count, membership_fee_min, membership_fee_max, industry_id, association_metadata) FROM '/tmp/associations.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(sector_represented, member_count, membership_fee_min, membership_fee_max, industry_id, association_metadata));
 
 \echo 'Loading master_franchises.csv...'
 \COPY master_franchises(id, territory_rights, sub_franchise_fee_split, master_fee, min_sub_franchises_required) FROM '/tmp/master_franchises.csv' WITH (FORMAT csv, HEADER true, NULL '');

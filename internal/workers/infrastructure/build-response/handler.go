@@ -897,6 +897,15 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		}
 		transformed.YearOfEstablishment = estYear
 
+		// color
+		color := ""
+		if ind, ok := assoc["industry"].(map[string]interface{}); ok {
+			if hex, ok := ind["color_hex"].(string); ok {
+				color = hex
+			}
+		}
+		transformed.Color = color
+
 		transformedAssociations = append(transformedAssociations, transformed)
 	}
 
@@ -1632,6 +1641,7 @@ type TransformedAssociationListing struct {
 	Location            interface{}            `json:"location,omitempty"`
 	Logo                map[string]interface{} `json:"logo,omitempty"`
 	Tags                interface{}            `json:"tags,omitempty"`
+	Color               string                 `json:"color,omitempty"`
 }
 
 func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map[string]interface{} {
@@ -2614,6 +2624,15 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		}
 		// No estYear fallback
 		transformed.YearOfEstablishment = estYear
+
+		// color
+		color := ""
+		if ind, ok := assoc["industry"].(map[string]interface{}); ok {
+			if hex, ok := ind["color_hex"].(string); ok {
+				color = hex
+			}
+		}
+		transformed.Color = color
 
 		transformedAssociations = append(transformedAssociations, transformed)
 	}

@@ -272,6 +272,7 @@ CREATE TABLE associations (
     member_type VARCHAR(150),
     member_size_classification VARCHAR(150),
     industry_id UUID REFERENCES industries(id) ON DELETE SET NULL,
+    association_metadata JSONB DEFAULT '{}'::jsonb,
     CONSTRAINT chk_member_count_positive CHECK (member_count >= 0),
     CONSTRAINT chk_membership_fee_min_positive CHECK (membership_fee_min >= 0),
     CONSTRAINT chk_membership_fee_max_positive CHECK (membership_fee_max >= 0),

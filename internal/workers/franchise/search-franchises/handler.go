@@ -9,6 +9,7 @@ import (
 
 	"camunda-workers/internal/common/database"
 	"camunda-workers/internal/common/errors"
+	"camunda-workers/internal/common/location"
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/common/validation"
 
@@ -269,15 +270,28 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 	// ✅ TEXT SEARCH (MULTI-MATCH)
 	if input.Query != "" {
-		multiMatch := map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":     input.Query,
-				"fields":    []string{"name^3", "description^2", "tags"},
-				"type":      "best_fields",
-				"fuzziness": h.config.Fuzziness,
-			},
+		cleanQuery := input.Query
+		if location.DetectCityFromQuery(input.Query) != "" {
+			cleanQuery = location.StripLocationFromQuery(input.Query)
 		}
-		mustClauses = append(mustClauses, multiMatch)
+		
+		// Strip entity keywords so they don't cause generic matches for all associations/franchises
+		cleanQuery = strings.ReplaceAll(strings.ToLower(cleanQuery), "master franchise", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "franchise", "")
+		cleanQuery = strings.ReplaceAll(cleanQuery, "association", "")
+		cleanQuery = strings.TrimSpace(cleanQuery)
+
+		if cleanQuery != "" {
+			multiMatch := map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query":     cleanQuery,
+					"fields":    []string{"name^3", "description^2", "tags"},
+					"type":      "best_fields",
+					"fuzziness": h.config.Fuzziness,
+				},
+			}
+			mustClauses = append(mustClauses, multiMatch)
+		}
 	}
 
 	// ✅ LOCATION FILTER (keyword field or country field)
