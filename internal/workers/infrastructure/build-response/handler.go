@@ -1524,7 +1524,6 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			if qm, ok := qItem.(map[string]interface{}); ok {
 				detailQuestions = append(detailQuestions, map[string]interface{}{
 					"question": getStringVal(qm, "question", ""),
-					"answer":   getStringVal(qm, "answer", ""),
 				})
 			} else if qStr, ok := qItem.(string); ok {
 				detailQuestions = append(detailQuestions, map[string]interface{}{
