@@ -11,6 +11,7 @@ import (
 
 	"camunda-workers/internal/common/auth/session"
 	"camunda-workers/internal/common/config"
+	"camunda-workers/internal/common/encryption"
 	"camunda-workers/internal/common/logger"
 
 	"github.com/gin-gonic/gin"
@@ -22,14 +23,16 @@ type UserHandler struct {
 	db          *sql.DB
 	log         logger.Logger
 	cfg         *config.Config
+	fle         *encryption.FLEService
 }
 
-func NewUserHandler(redisClient *redis.Client, db *sql.DB, log logger.Logger, cfg *config.Config) *UserHandler {
+func NewUserHandler(redisClient *redis.Client, db *sql.DB, log logger.Logger, cfg *config.Config, fle *encryption.FLEService) *UserHandler {
 	return &UserHandler{
 		redisClient: redisClient,
 		db:          db,
 		log:         log,
 		cfg:         cfg,
+		fle:         fle,
 	}
 }
 
@@ -40,11 +43,71 @@ type UserProfileResponse struct {
 }
 
 type UserProfile struct {
-	Name             string `json:"name"`
-	Email            string `json:"email"`
-	Phone            string `json:"phone"`
-	SubscriptionTier string `json:"subscriptionTier"`
-	IsActive         bool   `json:"isActive"`
+	ID                string                    `json:"id"`
+	Email             string                    `json:"email"`
+	EmailVerified     bool                      `json:"emailVerified"`
+	Name              string                    `json:"name"`
+	Phone             string                    `json:"phone"`
+	Status            string                    `json:"status"`
+	ProfileImage      string                    `json:"profileImage,omitempty"`
+	Location          string                    `json:"location,omitempty"`
+	Professional      *ProfessionalProfile      `json:"professional,omitempty"`
+	Company           *CompanyProfile           `json:"company,omitempty"`
+	Investment        *InvestmentProfile        `json:"investment,omitempty"`
+	Preferences       *PreferencesProfile       `json:"preferences,omitempty"`
+	Subscription      *SubscriptionProfile      `json:"subscription,omitempty"`
+	CreatedAt         time.Time                 `json:"createdAt"`
+	UpdatedAt         time.Time                 `json:"updatedAt"`
+}
+
+type ProfessionalProfile struct {
+	Occupation      string `json:"occupation,omitempty"`
+	Designation     string `json:"designation,omitempty"`
+	Experience      string `json:"experience,omitempty"`
+	PriorExperience bool   `json:"priorExperience"`
+	IndustryID      string `json:"industryId,omitempty"`
+	Industry        string `json:"industry,omitempty"`
+}
+
+type CompanyProfile struct {
+	BusinessName       string `json:"businessName,omitempty"`
+	BusinessType       string `json:"businessType,omitempty"`
+	IndustrySector     string `json:"industrySector,omitempty"`
+	YearEstablished    int64  `json:"yearEstablished,omitempty"`
+	CINRegistration    string `json:"cinRegistration,omitempty"`
+	GSTNumber          string `json:"gstNumber,omitempty"`
+	AnnualTurnover     string `json:"annualTurnover,omitempty"`
+	CompanyWebsite     string `json:"companyWebsite,omitempty"`
+	CompanyPhone       string `json:"companyPhone,omitempty"`
+	RegisteredAddress  string `json:"registeredAddress,omitempty"`
+	CompanyDescription string `json:"companyDescription,omitempty"`
+}
+
+type InvestmentProfile struct {
+	MinInvestment          string   `json:"minInvestment,omitempty"`
+	MaxInvestment          string   `json:"maxInvestment,omitempty"`
+	LiquidCapitalAvailable string   `json:"liquidCapitalAvailable,omitempty"`
+	FundingSource          string   `json:"fundingSource,omitempty"`
+	ROITimeline            string   `json:"roiTimeline,omitempty"`
+	ExpectedAnnualROI      string   `json:"expectedAnnualRoi,omitempty"`
+	PreferredSectors       []string `json:"preferredSectors,omitempty"`
+	PreferredCategories    []string `json:"preferredCategories,omitempty"`
+}
+
+type PreferencesProfile struct {
+	Theme                string                 `json:"theme,omitempty"`
+	Language             string                 `json:"language,omitempty"`
+	Timezone             string                 `json:"timezone,omitempty"`
+	EmailNotifications   bool                   `json:"emailNotifications"`
+	PushNotifications    bool                   `json:"pushNotifications"`
+	SMSNotifications     bool                   `json:"smsNotifications"`
+	NotificationSettings map[string]interface{} `json:"notificationSettings,omitempty"`
+}
+
+type SubscriptionProfile struct {
+	Tier      string     `json:"tier"`
+	IsValid   bool       `json:"isValid"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 }
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
@@ -60,20 +123,19 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	// 1. Fetch Fresh Data from Database
-	var name, phone, email sql.NullString
+	// 1. Fetch core user record
+	var name, phone, email, location, profileImage sql.NullString
 	var status string
+	var createdAt, updatedAt time.Time
 	err := h.db.QueryRowContext(ctx, `
-		SELECT name, email, phone, status 
-		FROM users 
-		WHERE id = $1`, userID).Scan(&name, &email, &phone, &status)
-
+		SELECT name, email, phone, location, profile_image, status, created_at, updated_at
+		FROM users WHERE id = $1`, userID).Scan(
+		&name, &email, &phone, &location, &profileImage, &status, &createdAt, &updatedAt)
 	if err != nil {
 		h.log.Error("Failed to fetch user profile from DB", map[string]interface{}{
 			"userId": userID,
 			"error":  err.Error(),
 		})
-		// Fallback for unexpected DB errors
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "INTERNAL_ERROR",
@@ -82,27 +144,202 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	// 2. Fetch Subscription Tier
-	var subscriptionTier string
-	_ = h.db.QueryRowContext(ctx, `
-		SELECT tier FROM user_subscriptions 
-		WHERE user_id = $1 AND is_valid = true 
-		ORDER BY created_at DESC LIMIT 1`, userID).Scan(&subscriptionTier)
-	if subscriptionTier == "" {
-		subscriptionTier = "free"
+	profile := UserProfile{
+		ID:            userID.(string),
+		Email:         email.String,
+		Name:          name.String,
+		Phone:         phone.String,
+		Status:        status,
+		Location:      location.String,
+		ProfileImage:  profileImage.String,
+		EmailVerified: false,
+		CreatedAt:     createdAt,
+		UpdatedAt:     updatedAt,
 	}
 
+	// FLE decryption for PII fields
+	if h.fle != nil {
+		profile.Email, _ = h.fle.DecryptField("email", profile.Email)
+		profile.Name, _ = h.fle.DecryptField("name", profile.Name)
+		profile.Phone, _ = h.fle.DecryptField("phone", profile.Phone)
+		profile.Location, _ = h.fle.DecryptField("location", profile.Location)
+	}
+
+	// 2. Fetch professional details
+	profile.Professional = h.fetchProfessionalProfile(ctx, userID)
+
+	// 3. Fetch company details
+	profile.Company = h.fetchCompanyProfile(ctx, userID)
+
+	// 4. Fetch investment details
+	profile.Investment = h.fetchInvestmentProfile(ctx, userID)
+
+	// 5. Fetch preferences
+	profile.Preferences = h.fetchPreferencesProfile(ctx, userID)
+
+	// 6. Fetch subscription
+	profile.Subscription = h.fetchSubscriptionProfile(ctx, userID)
+
 	c.JSON(http.StatusOK, UserProfileResponse{
-		Success: true,
-		Data: UserProfile{
-			Name:             name.String,
-			Email:            email.String,
-			Phone:            phone.String,
-			SubscriptionTier: subscriptionTier,
-			IsActive:         status == "active",
-		},
+		Success:   true,
+		Data:      profile,
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (h *UserHandler) fetchProfessionalProfile(ctx context.Context, userID interface{}) *ProfessionalProfile {
+	var occupation, designation, experience, industry, industryID sql.NullString
+	var priorExperience bool
+
+	err := h.db.QueryRowContext(ctx, `
+		SELECT occupation, designation, experience, prior_experience, industry_id, industry
+		FROM user_professional_details WHERE user_id = $1`, userID,
+	).Scan(&occupation, &designation, &experience, &priorExperience, &industryID, &industry)
+	if err != nil {
+		return nil
+	}
+
+	p := &ProfessionalProfile{
+		Occupation:      occupation.String,
+		Designation:     designation.String,
+		Experience:      experience.String,
+		PriorExperience: priorExperience,
+		IndustryID:      industryID.String,
+		Industry:        industry.String,
+	}
+
+	if h.fle != nil {
+		p.Occupation, _ = h.fle.DecryptField("jobTitle", p.Occupation)
+	}
+
+	return p
+}
+
+func (h *UserHandler) fetchCompanyProfile(ctx context.Context, userID interface{}) *CompanyProfile {
+	var businessName, businessType, industrySector sql.NullString
+	var yearEstablished sql.NullInt64
+	var cinRegistration, gstNumber, annualTurnover, companyWebsite, companyPhone sql.NullString
+	var registeredAddress, companyDescription sql.NullString
+
+	err := h.db.QueryRowContext(ctx, `
+		SELECT business_name, business_type, industry_sector, year_established,
+		       cin_registration, gst_number, annual_turnover, company_website,
+		       company_phone, registered_address, company_description
+		FROM user_company_details WHERE user_id = $1`, userID,
+	).Scan(&businessName, &businessType, &industrySector, &yearEstablished,
+		&cinRegistration, &gstNumber, &annualTurnover, &companyWebsite,
+		&companyPhone, &registeredAddress, &companyDescription)
+	if err != nil {
+		return nil
+	}
+
+	c := &CompanyProfile{
+		BusinessName:       businessName.String,
+		BusinessType:       businessType.String,
+		IndustrySector:     industrySector.String,
+		YearEstablished:    yearEstablished.Int64,
+		CINRegistration:    cinRegistration.String,
+		GSTNumber:          gstNumber.String,
+		AnnualTurnover:     annualTurnover.String,
+		CompanyWebsite:     companyWebsite.String,
+		CompanyPhone:       companyPhone.String,
+		RegisteredAddress:  registeredAddress.String,
+		CompanyDescription: companyDescription.String,
+	}
+
+	if h.fle != nil {
+		c.BusinessName, _ = h.fle.DecryptField("businessName", c.BusinessName)
+		c.CINRegistration, _ = h.fle.DecryptField("cinNumber", c.CINRegistration)
+		c.GSTNumber, _ = h.fle.DecryptField("gstNumber", c.GSTNumber)
+	}
+
+	return c
+}
+
+func (h *UserHandler) fetchInvestmentProfile(ctx context.Context, userID interface{}) *InvestmentProfile {
+	var minInvestment, maxInvestment, liquidCapital, fundingSource sql.NullString
+	var roiTimeline, expectedAnnualROI sql.NullString
+	var preferredSectors, preferredCategories []string
+
+	err := h.db.QueryRowContext(ctx, `
+		SELECT min_investment, max_investment, liquid_capital_available, funding_source,
+		       roi_timeline, expected_annual_roi, preferred_sectors, preferred_categories
+		FROM user_investment_details WHERE user_id = $1`, userID,
+	).Scan(&minInvestment, &maxInvestment, &liquidCapital, &fundingSource,
+		&roiTimeline, &expectedAnnualROI, &preferredSectors, &preferredCategories)
+	if err != nil {
+		return nil
+	}
+
+	return &InvestmentProfile{
+		MinInvestment:          minInvestment.String,
+		MaxInvestment:          maxInvestment.String,
+		LiquidCapitalAvailable: liquidCapital.String,
+		FundingSource:          fundingSource.String,
+		ROITimeline:            roiTimeline.String,
+		ExpectedAnnualROI:      expectedAnnualROI.String,
+		PreferredSectors:       preferredSectors,
+		PreferredCategories:    preferredCategories,
+	}
+}
+
+func (h *UserHandler) fetchPreferencesProfile(ctx context.Context, userID interface{}) *PreferencesProfile {
+	var theme, language, timezone sql.NullString
+	var emailNotifs, pushNotifs, smsNotifs bool
+	var notificationSettings sql.NullString
+
+	err := h.db.QueryRowContext(ctx, `
+		SELECT theme, email_notifications, push_notifications, sms_notifications,
+		       language, timezone, notification_settings
+		FROM user_preferences WHERE user_id = $1`, userID,
+	).Scan(&theme, &emailNotifs, &pushNotifs, &smsNotifs,
+		&language, &timezone, &notificationSettings)
+	if err != nil {
+		return nil
+	}
+
+	p := &PreferencesProfile{
+		Theme:              theme.String,
+		Language:           language.String,
+		Timezone:           timezone.String,
+		EmailNotifications: emailNotifs,
+		PushNotifications:  pushNotifs,
+		SMSNotifications:   smsNotifs,
+	}
+
+	if notificationSettings.Valid && notificationSettings.String != "" {
+		var settings map[string]interface{}
+		if err := json.Unmarshal([]byte(notificationSettings.String), &settings); err == nil {
+			p.NotificationSettings = settings
+		}
+	}
+
+	return p
+}
+
+func (h *UserHandler) fetchSubscriptionProfile(ctx context.Context, userID interface{}) *SubscriptionProfile {
+	var tier string
+	var isValid bool
+	var expiresAt sql.NullTime
+
+	_ = h.db.QueryRowContext(ctx, `
+		SELECT tier, is_valid, expires_at FROM user_subscriptions
+		WHERE user_id = $1 AND is_valid = true
+		ORDER BY created_at DESC LIMIT 1`, userID,
+	).Scan(&tier, &isValid, &expiresAt)
+	if tier == "" {
+		tier = "free"
+		isValid = true
+	}
+
+	s := &SubscriptionProfile{
+		Tier:    tier,
+		IsValid: isValid,
+	}
+	if expiresAt.Valid {
+		s.ExpiresAt = &expiresAt.Time
+	}
+	return s
 }
 
 func (h *UserHandler) getSessionFromRedis(ctx context.Context, sessionID string) (*session.Session, error) {
