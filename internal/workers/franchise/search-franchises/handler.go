@@ -190,6 +190,25 @@ func (h *Handler) sanitizeInput(input *Input) {
 }
 
 func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
+	// ✅ INFER LOCATION AND ENTITY TYPE FROM QUERY
+	if input.Query != "" {
+		if input.Location == "" {
+			detectedCity := location.DetectCityFromQuery(input.Query)
+			if detectedCity != "" {
+				input.Location = detectedCity
+			}
+		}
+
+		lowerQuery := strings.ToLower(input.Query)
+		if input.EntityType == "" || input.EntityType == "all" {
+			if strings.Contains(lowerQuery, "association") {
+				input.EntityType = "association"
+			} else if strings.Contains(lowerQuery, "franchise") {
+				input.EntityType = "franchise"
+			}
+		}
+	}
+
 	query := map[string]interface{}{
 		"bool": map[string]interface{}{
 			"must":   []map[string]interface{}{},
@@ -296,20 +315,23 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 	// ✅ LOCATION FILTER (keyword field or country field)
 	if input.Location != "" {
+		locationTerms := location.BuildLocationTerms(input.Location)
+		var lowerTerms []string
+		for _, t := range locationTerms {
+			lowerTerms = append(lowerTerms, strings.ToLower(t))
+		}
+
 		locationFilter := map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
-						"term": map[string]interface{}{
-							"location": strings.ToLower(input.Location),
+						"terms": map[string]interface{}{
+							"location": lowerTerms,
 						},
 					},
 					{
-						"term": map[string]interface{}{
-							"location": map[string]interface{}{
-								"value":            input.Location,
-								"case_insensitive": true,
-							},
+						"terms": map[string]interface{}{
+							"location.keyword": locationTerms,
 						},
 					},
 					{
