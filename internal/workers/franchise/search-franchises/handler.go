@@ -300,140 +300,24 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 	// ✅ TEXT SEARCH (MULTI-MATCH)
 	if input.Query != "" {
-		cleanQuery := input.Query
-		detectedCity := location.DetectCityFromQuery(input.Query)
-		if detectedCity != "" {
-			stripped := location.StripLocationFromQuery(input.Query)
-			if strings.TrimSpace(stripped) == "" {
-				cleanQuery = input.Query
-			} else {
-				cleanQuery = stripped
-			}
-			// If AI extraction was skipped and input.Location is empty, populate it!
-			if input.Location == "" {
-				input.Location = detectedCity
-			}
-		}
-
-		// Strip entity keywords using word-boundary regex so "franchises" is fully removed (not just "franchise" → "s")
-		cleanQuery = strings.ToLower(cleanQuery)
-		entityPatterns := []string{`master\s+franchises?`, `franchises?`, `associations?`}
-		for _, pattern := range entityPatterns {
-			re := regexp.MustCompile(`(?i)\b` + pattern + `\b`)
-			cleanQuery = re.ReplaceAllString(cleanQuery, "")
-		}
-
-		// Strip common prepositions/stopwords that remain after location and entity removal
-		prepositions := []string{"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on"}
-		words := strings.Fields(cleanQuery)
-		var filteredWords []string
-		for _, w := range words {
-			isPreposition := false
-			for _, p := range prepositions {
-				if w == p {
-					isPreposition = true
-					break
-				}
-			}
-			if !isPreposition {
-				filteredWords = append(filteredWords, w)
-			}
-		}
-		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
-
-		// If cleanQuery is empty after stripping but location was detected,
-		// use the city name as search text (production behavior: search "Delhi" in name/description/tags)
-		if cleanQuery == "" {
-			if detectedCity != "" {
-				cleanQuery = detectedCity
-			} else if input.Location != "" {
-				cleanQuery = input.Location
-			}
-		}
-
-		if cleanQuery != "" {
-			multiMatch := map[string]interface{}{
-				"multi_match": map[string]interface{}{
-					"query":     cleanQuery,
-					"fields":    []string{"name^3", "description^2", "tags"},
-					"type":      "best_fields",
-					"fuzziness": h.config.Fuzziness,
-				},
-			}
-			mustClauses = append(mustClauses, multiMatch)
-		}
-	}
-
-	// ✅ LOCATION FILTER (strict must filter)
-	if input.Location != "" {
-		normalizedLocation := input.Location
-		if extracted := location.DetectCityFromQuery(input.Location); extracted != "" {
-			normalizedLocation = extracted
-		}
-
-		locationTerms := location.BuildLocationTerms(normalizedLocation)
-		var lowerTerms []string
-		for _, t := range locationTerms {
-			lowerTerms = append(lowerTerms, strings.ToLower(t))
-		}
-
-		locationFilter := map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{
-						"terms": map[string]interface{}{
-							"location": lowerTerms,
-						},
-					},
-					{
-						"terms": map[string]interface{}{
-							"locations": lowerTerms,
-						},
-					},
-					{
-						"term": map[string]interface{}{
-							"location": map[string]interface{}{
-								"value":            normalizedLocation,
-								"case_insensitive": true,
-							},
-						},
-					},
-					{
-						"term": map[string]interface{}{
-							"locations": map[string]interface{}{
-								"value":            normalizedLocation,
-								"case_insensitive": true,
-							},
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"location": normalizedLocation,
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"locations": normalizedLocation,
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"country": normalizedLocation,
-						},
-					},
-					{
-						"term": map[string]interface{}{
-							"country.keyword": map[string]interface{}{
-								"value":            normalizedLocation,
-								"case_insensitive": true,
-							},
-						},
-					},
-				},
-				"minimum_should_match": 1,
+		multiMatch := map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query":     input.Query,
+				"fields":    []string{"name^3", "description^2", "tags"},
+				"type":      "best_fields",
+				"fuzziness": h.config.Fuzziness,
 			},
 		}
-		// Location is a strict filter based on DB columns
+		mustClauses = append(mustClauses, multiMatch)
+	}
+
+	// ✅ LOCATION FILTER (keyword field)
+	if input.Location != "" {
+		locationFilter := map[string]interface{}{
+			"term": map[string]interface{}{
+				"location": strings.ToLower(input.Location),
+			},
+		}
 		mustClauses = append(mustClauses, locationFilter)
 	}
 
