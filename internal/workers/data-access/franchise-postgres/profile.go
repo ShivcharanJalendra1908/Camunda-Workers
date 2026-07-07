@@ -33,12 +33,12 @@ func (h *Handler) handleGetProfile(ctx context.Context, variables string) (*GetP
 	var name, phone, location, profileImage sql.NullString
 	var email string
 	var status string
-	var createdAt time.Time
+	var createdAt, updatedAt time.Time
 
 	err = h.db.QueryRowContext(ctx, `
-		SELECT name, email, phone, location, profile_image, status, created_at
+		SELECT name, email, phone, location, profile_image, status, created_at, updated_at
 		FROM users WHERE id = $1`, userID,
-	).Scan(&name, &email, &phone, &location, &profileImage, &status, &createdAt)
+	).Scan(&name, &email, &phone, &location, &profileImage, &status, &createdAt, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("%w: user not found", ErrFranchiseNotFound)
@@ -51,6 +51,7 @@ func (h *Handler) handleGetProfile(ctx context.Context, variables string) (*GetP
 		"email":      email,
 		"status":     status,
 		"created_at": createdAt,
+		"updated_at": updatedAt,
 	}
 	if name.Valid {
 		user["name"] = name.String
