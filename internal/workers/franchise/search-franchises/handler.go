@@ -364,15 +364,20 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 	}
 
-	// ✅ LOCATION FILTER (boost, not strict — franchise ES docs lack location field)
+	// ✅ LOCATION FILTER (strict must filter)
 	if input.Location != "" {
-		locationTerms := location.BuildLocationTerms(input.Location)
+		normalizedLocation := input.Location
+		if extracted := location.DetectCityFromQuery(input.Location); extracted != "" {
+			normalizedLocation = extracted
+		}
+
+		locationTerms := location.BuildLocationTerms(normalizedLocation)
 		var lowerTerms []string
 		for _, t := range locationTerms {
 			lowerTerms = append(lowerTerms, strings.ToLower(t))
 		}
 
-		locationBoost := map[string]interface{}{
+		locationFilter := map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
@@ -388,7 +393,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					{
 						"term": map[string]interface{}{
 							"location": map[string]interface{}{
-								"value":            input.Location,
+								"value":            normalizedLocation,
 								"case_insensitive": true,
 							},
 						},
@@ -396,30 +401,30 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					{
 						"term": map[string]interface{}{
 							"locations": map[string]interface{}{
-								"value":            input.Location,
+								"value":            normalizedLocation,
 								"case_insensitive": true,
 							},
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"location": input.Location,
+							"location": normalizedLocation,
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"locations": input.Location,
+							"locations": normalizedLocation,
 						},
 					},
 					{
 						"match": map[string]interface{}{
-							"country": input.Location,
+							"country": normalizedLocation,
 						},
 					},
 					{
 						"term": map[string]interface{}{
 							"country.keyword": map[string]interface{}{
-								"value":            input.Location,
+								"value":            normalizedLocation,
 								"case_insensitive": true,
 							},
 						},
@@ -428,8 +433,8 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				"minimum_should_match": 1,
 			},
 		}
-		// Use as should-boost (not must) — franchises do not have location field populated in ES
-		shouldClauses = append(shouldClauses, locationBoost)
+		// Location is a strict filter based on DB columns
+		mustClauses = append(mustClauses, locationFilter)
 	}
 
 	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)
