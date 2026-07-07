@@ -670,11 +670,13 @@ func (h *UserHandler) GetDashboard(c *gin.Context) {
 	var data DashboardData
 
 	// Fetch user profile
+	var status string
 	err := h.db.QueryRowContext(ctx, `
 		SELECT name, email, phone, status
 		FROM users WHERE id = $1`, userID).Scan(
-		&data.Name, &data.Email, &data.Phone, &data.IsActive,
+		&data.Name, &data.Email, &data.Phone, &status,
 	)
+	data.IsActive = status == "active"
 	if err != nil {
 		h.log.Error("Failed to fetch dashboard user", map[string]interface{}{
 			"userId": userID,
