@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"context"
@@ -21,13 +21,13 @@ const (
 	anomBurstPrefix = "anom:token:"
 )
 
-// GuestAnomalyMiddleware runs anomaly detection checks S1–S5 before quota enforcement.
+// GuestAnomalyMiddleware runs anomaly detection checks S1â€“S5 before quota enforcement.
 //
-// S5: Blocklist check (cheapest — single EXISTS)
+// S5: Blocklist check (cheapest â€” single EXISTS)
 // S3: Burst detection (INCR, 3+ in 60s = block)
 // S1: Unique tokens per IP/24 (HyperLogLog, 20+ = block)
 // S2: Unique IPs per token (HyperLogLog, 3+ = block)
-// S4: Token absence — log warning, use fallback (don't block)
+// S4: Token absence â€” log warning, use fallback (don't block)
 //
 // On Redis failure: fail open (don't punish users for infra issues).
 func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, auditRepo *database.GuestAuditRepo) gin.HandlerFunc {
@@ -50,9 +50,9 @@ func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, audit
 		key := identity.CompositeKey
 
 		// S4: Token absence warning (logged by guest_signal, not blocking)
-		// This is informational only — already handled by signal middleware
+		// This is informational only â€” already handled by signal middleware
 
-		// ── S5: Blocklist check ──────────────────────────────────────────────
+		// â”€â”€ S5: Blocklist check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		if isBlocked(ctx, redisClient, key, anomalyCfg.BlockTTLSeconds) {
 			blocked := &models.GuestAuditEvent{
 				SessionID:    "",
@@ -72,7 +72,7 @@ func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, audit
 			return
 		}
 
-		// ── S3: Burst detection ──────────────────────────────────────────────
+		// â”€â”€ S3: Burst detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		burstCount, err := checkBurst(ctx, redisClient, key,
 			anomalyCfg.S3BurstThreshold,
 			time.Duration(anomalyCfg.S3BurstWindowSeconds)*time.Second)
@@ -95,7 +95,7 @@ func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, audit
 			return
 		}
 
-		// ── S1: Unique tokens per IP/24 ─────────────────────────────────────
+		// â”€â”€ S1: Unique tokens per IP/24 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		if identity.FallbackIP != "" {
 			// S1 checks: how many unique tokens are using this IP/24?
 			tokenCount, err := countTokensPerIP(ctx, redisClient, identity.FallbackIP, key,
@@ -120,7 +120,7 @@ func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, audit
 			}
 		}
 
-		// ── S2: Unique IPs per token ────────────────────────────────────────
+		// â”€â”€ S2: Unique IPs per token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		if identity.HasToken {
 			currentIP := ipSlash24(c.ClientIP())
 			ipCount, err := countIPsPerToken(ctx, redisClient, identity.CompositeKey, currentIP,
@@ -149,7 +149,7 @@ func GuestAnomalyMiddleware(redisClient *redis.Client, cfg *config.Config, audit
 	}
 }
 
-// ── Anomaly helpers ──────────────────────────────────────────────────────────
+// â”€â”€ Anomaly helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func getGuestIdentity(c *gin.Context) *models.GuestIdentity {
 	val, exists := c.Get(models.CompositeKeyContext)
@@ -198,7 +198,7 @@ func countTokensPerIP(ctx context.Context, client *redis.Client, ipSlash24, comp
 	key := anomIPTokenPrefix + ipSlash24 + ":tokens"
 	// Register this token under the IP
 	client.PFAdd(ctx, key, compositeKey)
-	// Set TTL on first registration (HyperLogLog doesn't track this, so always set — cheap no-op if exists)
+	// Set TTL on first registration (HyperLogLog doesn't track this, so always set â€” cheap no-op if exists)
 	client.Expire(ctx, key, ttl)
 	return client.PFCount(ctx, key).Result()
 }

@@ -1,4 +1,4 @@
-// internal/api/handlers/workflow_handler.go
+﻿// internal/api/handlers/workflow_handler.go
 package handlers
 
 import (
@@ -472,7 +472,7 @@ func (h *WorkflowHandler) StartUnifiedOnboarding(c *gin.Context) {
 		et = "franchise"
 	case "association", "associations":
 		et = "association"
-	case "master-franchise", "master_franchises", "master franchises", "masterfranchise", "master_franchise":
+	case "master-franchise", "master_franchises", "master franchises", "master franchise", "masterfranchise", "master_franchise":
 		et = "master_franchise"
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entity type. Must be 'franchise', 'association', or 'master_franchise'"})
@@ -1710,10 +1710,10 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	})
 
 	// No code = Keycloak error (session expired, auth failed, user cancelled)
-	// → Redirect directly to fresh login initiation
+	// â†’ Redirect directly to fresh login initiation
 	// Skip bridge page here for login-page timeouts to avoid double-login frustration
 	if code == "" || state == "" {
-		h.logger.Warn("OAuth callback missing code/state — redirecting to fresh login", map[string]interface{}{
+		h.logger.Warn("OAuth callback missing code/state â€” redirecting to fresh login", map[string]interface{}{
 			"requestId": c.GetString("requestId"),
 			"error":     errParam,
 		})
@@ -1723,7 +1723,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 	}
 
 	// Read redirectUrl from the Redis session set during initiate
-	// This is a non-destructive read — the Zeebe worker atomically GETDELs it for PKCE
+	// This is a non-destructive read â€” the Zeebe worker atomically GETDELs it for PKCE
 	stateKey := fmt.Sprintf("oauth:state:%s", state)
 	sessionRaw, err := h.redisClient.Get(c.Request.Context(), stateKey).Result()
 	if err == nil {
@@ -1749,7 +1749,7 @@ func (h *WorkflowHandler) HandleKeycloakCallback(c *gin.Context) {
 }
 
 // initiateFreshLogin starts a new login workflow and redirects the user
-// directly to the Keycloak login page — Amazon/Flipkart style seamless re-login.
+// directly to the Keycloak login page â€” Amazon/Flipkart style seamless re-login.
 func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	ctx := c.Request.Context()
 	correlationKey := uuid.New().String()
@@ -1762,7 +1762,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer confirmCancel()
 	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
-		// Redis unavailable — fall back to home page
+		// Redis unavailable â€” fall back to home page
 		h.logger.Warn("initiateFreshLogin: Redis subscription confirm failed", map[string]interface{}{"err": err.Error()})
 		c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
 		return
@@ -1837,7 +1837,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 					authURL += "?prompt=login&max_age=0"
 				}
 
-				// ✅ Timeout cookie set karo
+				// âœ… Timeout cookie set karo
 				http.SetCookie(c.Writer, &http.Cookie{
 					Name:     "session_timeout",
 					Value:    "true",
@@ -1857,7 +1857,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 		h.logger.Warn("initiateFreshLogin: timed out waiting for auth URL", map[string]interface{}{"correlationKey": correlationKey})
 	}
 
-	// ✅ Fallback cookie
+	// âœ… Fallback cookie
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     "session_timeout",
 		Value:    "true",
@@ -1868,7 +1868,7 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
-	// Final fallback — home page (config driven, no hardcoding)
+	// Final fallback â€” home page (config driven, no hardcoding)
 	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
 }
 
@@ -2017,7 +2017,7 @@ func (h *WorkflowHandler) renderRedirectPage(c *gin.Context, redirectURL string,
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 }
 
-// extractClaimsFromJWT — JWT se sub (User UUID) aur sid (Session ID) nikalta hai
+// extractClaimsFromJWT â€” JWT se sub (User UUID) aur sid (Session ID) nikalta hai
 func extractClaimsFromJWT(token string) (string, string) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -2037,7 +2037,7 @@ func extractClaimsFromJWT(token string) (string, string) {
 	return claims.Sub, claims.Sid
 }
 
-// revokeUserPreviousKeycloakSessions — successful login ke baad user ke purane sessions hatao
+// revokeUserPreviousKeycloakSessions â€” successful login ke baad user ke purane sessions hatao
 func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context, keycloakUserID string, currentKeycloakSid string) {
 	cfg := h.config.Auth.Keycloak
 
@@ -2082,7 +2082,7 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 		return
 	}
 
-	// Case A: sid available hai — delete everything EXCEPT sid
+	// Case A: sid available hai â€” delete everything EXCEPT sid
 	if currentKeycloakSid != "" {
 		for _, s := range sessions {
 			if s.ID == currentKeycloakSid {
@@ -2093,7 +2093,7 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 		return
 	}
 
-	// Case B: sid missing hai (fallback) — keep latest start time
+	// Case B: sid missing hai (fallback) â€” keep latest start time
 	if len(sessions) <= 1 {
 		return
 	}
@@ -2113,7 +2113,7 @@ func (h *WorkflowHandler) revokeUserPreviousKeycloakSessions(ctx context.Context
 	}
 }
 
-// revokeSingleKeycloakSession — individual session deletion helper
+// revokeSingleKeycloakSession â€” individual session deletion helper
 func (h *WorkflowHandler) revokeSingleKeycloakSession(ctx context.Context, adminToken string, sessionID string) {
 	cfg := h.config.Auth.Keycloak
 	delURL := fmt.Sprintf("%s/admin/realms/%s/sessions/%s", cfg.URL, cfg.Realm, sessionID)
@@ -2135,7 +2135,7 @@ func (h *WorkflowHandler) revokeSingleKeycloakSession(ctx context.Context, admin
 	}
 }
 
-// getKeycloakAdminToken — shared helper, admin credentials se token lao
+// getKeycloakAdminToken â€” shared helper, admin credentials se token lao
 func (h *WorkflowHandler) getKeycloakAdminToken() string {
 	cfg := h.config.Auth.Keycloak
 

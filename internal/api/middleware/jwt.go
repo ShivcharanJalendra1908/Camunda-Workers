@@ -1,4 +1,4 @@
-// internal/api/middleware/jwt.go
+﻿// internal/api/middleware/jwt.go
 // Complete JWT authentication package with middleware, validation, and utilities
 
 package middleware
@@ -469,7 +469,7 @@ func respondWithError(c *gin.Context, status int, code, message string, details 
 
 // enforceUserAgentBinding controls whether UserAgent mismatches invalidate the session.
 // false = observe/log only (safe for prod transition)
-// true  = enforce — mismatch kills session, clears cookie, returns 401
+// true  = enforce â€” mismatch kills session, clears cookie, returns 401
 const enforceUserAgentBinding = false
 
 // sessionCookieName is the name of the session cookie issued to clients.
@@ -646,7 +646,7 @@ func BlacklistMiddleware(blacklist TokenBlacklist) gin.HandlerFunc {
 // 				}
 // 			}
 
-// 			// Session invalid/expired → delete cookie
+// 			// Session invalid/expired â†’ delete cookie
 // 			c.SetCookie(sessionCookieName, "", -1, sessionCookiePath, "", sessionCookieSecure, sessionCookieHTTPOnly)
 // 		}
 
@@ -887,7 +887,7 @@ func SessionOrJWTAuth(jwtConfig config.JWTConfig, redisClient *redis.Client) gin
 				}
 			}
 
-			// Session invalid/expired → delete cookie with SameSite=None
+			// Session invalid/expired â†’ delete cookie with SameSite=None
 			cookie := &http.Cookie{
 				Name:     constants.SessionCookieName,
 				Value:    "",

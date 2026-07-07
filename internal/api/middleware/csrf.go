@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"camunda-workers/internal/common/constants"
@@ -32,12 +32,12 @@ func CSRFTokenIssuer(redisClient *redis.Client) gin.HandlerFunc {
 		// Try to get existing CSRF token from Redis
 		csrfToken, err := redisClient.Get(ctx, key).Result()
 		if err != nil && err != redis.Nil {
-			// Redis failure → don't break request
+			// Redis failure â†’ don't break request
 			c.Next()
 			return
 		}
 
-		// If not found → generate and store
+		// If not found â†’ generate and store
 		if csrfToken == "" {
 			csrfToken = uuid.New().String()
 			// if err := redisClient.Set(ctx, key, csrfToken, time.Hour).Err(); err != nil {

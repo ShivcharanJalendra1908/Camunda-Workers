@@ -274,8 +274,12 @@ func normalizeIndustry(industry string, category string) string {
 	// 1. If category itself is a known top-level industry, use that!
 	// This handles cases where LLM says Industry: "Retail", Category: "Food & Beverage"
 	// but in our DB "Food & Beverage" is a top-level industry.
-	if normalized, ok := industryNormalizationMap[catLower]; ok {
-		return normalized
+	// Only override if the original industry is generic or invalid.
+	_, isValidInd := industryNormalizationMap[lower]
+	if lower == "" || lower == "other" || !isValidInd {
+		if normalized, ok := industryNormalizationMap[catLower]; ok {
+			return normalized
+		}
 	}
 
 	// 2. Health & Fitness — category se decide karo
@@ -499,7 +503,7 @@ func (pe *ParameterExtractor) isHQOnlyLocation(queryLower, city string) bool {
 		"head office", "headquarters", "hq", "corporate office", "parent company",
 		"based out of", "based in", "headquartered", "unka office", "brand ka office",
 		"company is from", "brand is based", "office is in", "office is located",
-		"main branch",
+		"main branch", "registered office", "corporate headquarters", "regd office",
 	}
 
 	for _, term := range searchTerms {
@@ -630,6 +634,15 @@ var stateNames = map[string]string{
 	"telangana": "Telangana", "uttar pradesh": "Uttar Pradesh",
 	"up": "Uttar Pradesh", "uttarakhand": "Uttarakhand",
 	"west bengal": "West Bengal",
+	// North-East states
+	"nagaland": "Nagaland", "manipur": "Manipur",
+	"meghalaya": "Meghalaya", "mizoram": "Mizoram",
+	"tripura": "Tripura", "sikkim": "Sikkim",
+	"arunachal pradesh": "Arunachal Pradesh",
+	// UTs
+	"puducherry": "Puducherry", "j&k": "Jammu and Kashmir",
+	"jammu & kashmir": "Jammu and Kashmir", "ladakh": "Ladakh",
+	"chandigarh-ut": "Chandigarh", "andaman & nicobar": "Andaman and Nicobar",
 }
 
 var zoneNames = map[string]bool{
@@ -677,7 +690,7 @@ func (pe *ParameterExtractor) parseLocationString(locStr string) *LocationFilter
 				if canon, ok := location.CanonicalCityMap[proper]; ok {
 					canonical = canon
 				}
-				cityProper = strings.ToUpper(canonical[:1]) + strings.ToLower(canonical[1:])
+				cityProper = titleCase(canonical)
 				break
 			}
 		}
@@ -870,6 +883,49 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 		}
 	}
 
+	// FIX: Area, ROI, Rating, Staff, Outlets fallback
+	if params.Space == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
+			if val > 0 { params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5} }
+		}
+	}
+	if params.ROI == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*%\s*roi\b|\broi\s*([0-9.]+)\s*%\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			v := matches[1]
+			if v == "" { v = matches[2] }
+			val, _ := strconv.ParseFloat(v, 64)
+			if val > 0 { params.ROI = &RangeFilter{Min: val, Max: val + 10} }
+		}
+	}
+	if params.Rating == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(star|rating)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(matches[1], 64)
+			if val > 0 { params.Rating = &val }
+		}
+	}
+	if params.Staff == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(staff|employees)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(matches[1], 64)
+			if val > 0 { params.Staff = &RangeFilter{Min: val, Max: val * 3} }
+		}
+	}
+	if params.Outlets == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(outlets|units|stores)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.Atoi(matches[1])
+			if val > 0 { params.Outlets = &val }
+		}
+	}
+
+	// FIX: Member_Count directionality (under 500, at least 500, etc.)
+	if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		val, _ := strconv.ParseFloat(matches[2], 64)
+		if val > 0 { params.MemberCount = &RangeFilter{Min: 0, Max: val} }
+	} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		val, _ := strconv.ParseFloat(matches[2], 64)
+		if val > 0 { params.MemberCount = &RangeFilter{Min: val, Max: val * 5} }
+	}
+
 	// Always scan original query for all mentioned industries to support multi-industry search
 	var allIndustries []string
 	seenInd := make(map[string]bool)
@@ -936,10 +992,12 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	}
 
 	// FIX 3: Zone/State/City Fallback from query (Deterministic Order)
-	if params.Location == nil || params.Location.City == "" {
-		var foundLocations []string
+	var foundLocations []string
+	if params.Location != nil && params.Location.City != "" {
+		foundLocations = append(foundLocations, params.Location.City)
+	}
 
-		// 1. Check for Zones
+	// 1. Check for Zones
 		for _, zone := range pe.sortedZones {
 			if strings.Contains(queryLower, zone) {
 				if !pe.isCityUserLocation(queryLower, zone) {
@@ -1013,7 +1071,6 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 				}
 				fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
 			}
-		}
 	}
 
 	return params
@@ -1059,6 +1116,17 @@ func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *Investme
 		if val > 0 {
 			return &InvestmentFilter{Min: val * 0.5, Max: val * 1.5}
 		}
+	}
+
+	// 5. Semantic Check (low budget, premium)
+	if regexp.MustCompile(`(?i)\b(low budget|cheap)\b`).MatchString(query) {
+		return &InvestmentFilter{Min: 0, Max: 2500000} // 25L
+	}
+	if regexp.MustCompile(`(?i)\b(normal|mid budget|mid range)\b`).MatchString(query) {
+		return &InvestmentFilter{Min: 2500000, Max: 7500000} // 25L - 75L
+	}
+	if regexp.MustCompile(`(?i)\b(high budget|luxury|expensive|premium)\b`).MatchString(query) {
+		return &InvestmentFilter{Min: 7500000, Max: 500000000} // 75L - 50Cr
 	}
 
 	return nil

@@ -542,35 +542,46 @@ func DetectCityFromQuery(query string) string {
 }
 
 func BuildLocationTerms(city string) []string {
-	cityLower := strings.ToLower(strings.TrimSpace(city))
-	if len(cityLower) == 0 {
+	if strings.TrimSpace(city) == "" {
 		return []string{}
 	}
+	
+	var allTerms []string
+	parts := strings.Split(city, ",")
+	
+	for _, part := range parts {
+		cityLower := strings.ToLower(strings.TrimSpace(part))
+		if len(cityLower) == 0 {
+			continue
+		}
 
-	terms := []string{strings.Title(cityLower)}
+		terms := []string{strings.Title(cityLower)}
 
-	if state, ok := CityStateMap[cityLower]; ok {
-		terms = append(terms, state)
-	}
-	if zone, ok := CityZoneMap[cityLower]; ok {
-		terms = append(terms, zone)
-		// Extract raw zone name (e.g. "North Indian Cities" -> "North India")
-		rawZone := strings.Replace(zone, "Indian Cities", "India", 1)
-		terms = append(terms, rawZone)
-	}
-	if aliases, ok := CityAliases[cityLower]; ok {
-		terms = append(terms, aliases...)
+		if state, ok := CityStateMap[cityLower]; ok {
+			terms = append(terms, state)
+		}
+		if zone, ok := CityZoneMap[cityLower]; ok {
+			terms = append(terms, zone)
+			// Extract raw zone name (e.g. "North Indian Cities" -> "North India")
+			rawZone := strings.Replace(zone, "Indian Cities", "India", 1)
+			terms = append(terms, rawZone)
+		}
+		if aliases, ok := CityAliases[cityLower]; ok {
+			terms = append(terms, aliases...)
+		}
+
+		// If it's Delhi, add NCR region cities explicitly
+		if cityLower == "delhi" || cityLower == "new delhi" || cityLower == "delhi ncr" {
+			terms = append(terms, "Gurgaon", "Gurugram", "Noida", "Faridabad", "Ghaziabad")
+		}
+		
+		allTerms = append(allTerms, terms...)
 	}
 
 	// Always append Pan India terms since they are valid for all city searches
-	terms = append(terms, "Pan India", "Pan-India", "All major Indian cities")
+	allTerms = append(allTerms, "Pan India", "Pan-India", "All major Indian cities")
 
-	// If it's Delhi, add NCR region cities explicitly
-	if cityLower == "delhi" || cityLower == "new delhi" || cityLower == "delhi ncr" {
-		terms = append(terms, "Gurgaon", "Gurugram", "Noida", "Faridabad", "Ghaziabad")
-	}
-
-	return dedup(terms)
+	return dedup(allTerms)
 }
 
 func dedup(terms []string) []string {

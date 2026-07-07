@@ -1,0 +1,182 @@
+[
+  {
+    "name": "Federation of Indian Chambers of Commerce & Industry (FICCI)",
+    "website": "https://www.ficci.in",
+    "source_description": "FICCI is the voice of India's business and industry. Established in 1927, it is the largest and oldest apex business organisation in India, with a nationwide membership of over 250,000 companies.",
+    "db_description": "FICCI is the voice of India's business and industry. Established in 1927 on the advice of Mahatma Gandhi by Indian businessmen G.D. Birla and Purshottamdas Thakurdas, it is the largest and oldest apex business organisation in India."
+  },
+  {
+    "name": "Associated Chambers of Commerce & Industry of India (ASSOCHAM)",
+    "website": "https://www.assocham.org",
+    "source_description": "ASSOCHAM, established in 1920, is one of the oldest and most reputed apex trade and industry bodies in India. It represents the interests of industry and trade, interfaces with government on policy issues.",
+    "db_description": "ASSOCHAM, established in 1920 by a group of chambers led by the Calcutta Traders Association, is one of the oldest and most reputed apex trade and industry bodies in India, representing over 4.5 lakh direct and indirect members."
+  },
+  {
+    "name": "PHD Chamber of Commerce and Industry (PHDCCI)",
+    "website": "https://www.phdcci.in",
+    "source_description": "PHD Chamber of Commerce and Industry is a proactive and vibrant apex organisation at the national level, working closely with industry and the government for over 117 years. It represents northern India's business interests.",
+    "db_description": "PHD Chamber of Commerce and Industry, established in 1905, is a proactive multi-State apex organisation working at the grass-root level with strong national and international linkages, with a direct membership of over 1,30,000."
+  },
+  {
+    "name": "Federation of Indian Export Organisations (FIEO)",
+    "website": "https://www.fieo.org",
+    "source_description": "FIEO is the apex body of export promotion organisations in India, set up jointly by the Ministry of Commerce & Industry, Government of India and private trade and industry. It promotes India's exports globally.",
+    "db_description": "FIEO is the apex trade promotion organisation in India, set up jointly by the Ministry of Commerce & Industry, Government of India, and private trade and industry in 1965. It serves the interests of about 200,000 exporters directly and indirectly."
+  },
+  {
+    "name": "National Association of Software and Service Companies (NASSCOM)",
+    "website": "https://www.nasscom.in",
+    "source_description": "NASSCOM is the premier trade body and the chamber of commerce of the IT-BPM industries in India. Founded in 1988, it represents approximately 95% of the industry's revenue and works to shape and contribute to policy framework that promote development of the IT sector.",
+    "db_description": "NASSCOM is the premier trade body and chamber of commerce of the IT-BPM industries in India. Founded in 1988 by industry leaders including Harish Mehta, Ashank Desai, Nandan Nilekani, KV Ramani and Saurabh Srivastava, it represents over 3,000 member companies."
+  },
+  {
+    "name": "Indian Drug Manufacturers' Association (IDMA)",
+    "website": "https://www.idma-assn.org",
+    "source_description": "IDMA, established in 1961, is the largest and most representative apex organisation for the pharmaceutical manufacturing sector in India. It represents interests of over 800 member companies and facilitates interactions between the industry and government.",
+    "db_description": "IDMA, founded in 1961, is the largest and most representative apex organisation for the pharmaceutical manufacturing sector in India, amalgamating 8 State Boards with over 11,000 members across the country."
+  },
+  {
+    "name": "Organisation of Pharmaceutical Producers of India (OPPI)",
+    "website": "https://www.indiaoppi.com",
+    "source_description": "OPPI is the apex body of research-based pharmaceutical companies in India. Founded in 1965, it promotes an innovative environment for research and development of new medicines and formulates sound policies to advance the pharmaceutical industry.",
+    "db_description": "OPPI is the apex body of research-based global pharmaceutical companies in India, established in 1965. Member firms account for around 60% of the total pharmaceuticals market and 50% of drug export industry."
+  },
+  {
+    "name": "Indian Pharmaceutical Alliance (IPA)",
+    "website": "https://www.ipa-india.org",
+    "source_description": "IPA represents the interests of large research-based Indian pharmaceutical companies. Founded in 1999, it is committed to promoting the Indian pharmaceutical sector and advocates for strong intellectual property rights and innovation.",
+    "db_description": "IPA was founded in August 1999 by Dilip G Shah along with Cipla, Dr. Reddy's, Lupin, Piramal, Ranbaxy and Wockhardt to promote the cause of generic drugs in India. It now represents 24 leading Indian pharma companies."
+  },
+  {
+    "name": "All India Organisation of Chemists & Druggists (AIOCD)",
+    "website": "https://aiocd.com",
+    "source_description": "AIOCD is the national apex organisation for licensed chemists and druggists in India. Established in 1961, it represents over 1.2 million retail chemist stores across the country and advocates for the interests of pharmacy retail trade.",
+    "db_description": "AIOCD is the national apex organisation for licensed chemists and druggists in India, established in 1961, representing about 800,000 members - stockists, pharmacies and retailers across the country."
+  },
+  {
+    "name": "Pharmaceuticals Export Promotion Council of India (PHARMEXCIL)",
+    "website": "https://pharmexdl.com",
+    "source_description": "PHARMEXCIL was set up in 2004 by the Ministry of Commerce & Industry to boost India's pharma exports. It assists member companies in their export endeavours through market studies, trade delegations, and participation in global trade fairs.",
+    "db_description": "PHARMEXCIL was set up in 2004 by the Ministry of Commerce & Industry to boost India's pharma exports, assisting member companies through market studies, trade delegations, and global trade fair participation."
+  },
+  {
+    "name": "Society of Indian Automobile Manufacturers (SIAM)",
+    "website": "https://www.siam.in",
+    "source_description": "SIAM is the apex national body representing all major vehicle and vehicular engine manufacturers in India. Established in 1960, it plays a catalytic role in ensuring the sustainable development of the Indian automobile industry.",
+    "db_description": "SIAM is a not-for-profit apex national body representing all major vehicle and vehicular engine manufacturers in India, registered under Societies Registration Act 1860 with charitable status under the Income Tax Act."
+  },
+  {
+    "name": "Automotive Component Manufacturers Association of India (ACMA)",
+    "website": "https://www.acma.in",
+    "source_description": "ACMA is the apex industry body representing the interests of the automotive component industry in India. It represents around 850+ organised players and over 10,000 SMEs in the auto components sector.",
+    "db_description": "ACMA is the apex industry body representing the interests of the automotive component industry in India, representing the USD 80.2 billion auto component industry comprising organised players and SMEs."
+  },
+  {
+    "name": "Federation of Automobile Dealers Associations (FADA)",
+    "website": "https://www.fada.in",
+    "source_description": "FADA is the apex national body for automobile dealers in India, representing over 15,000 automobile dealers across all categories of vehicles. It was incorporated in 1964 and works to protect and promote the interests of the dealer community.",
+    "db_description": "FADA, founded in 1964, is the apex national body of the automobile retail industry in India, representing over 15,000 automobile dealerships and 30,000+ outlets, accounting for around 90% of market share."
+  },
+  {
+    "name": "Confederation of Indian Textile Industry (CITI)",
+    "website": "https://www.citiindia.com",
+    "source_description": "CITI is the apex body of the entire Indian textile industry. It represents all segments of the textile industry from fibre to finished products and is a significant voice in shaping textile policy in India.",
+    "db_description": "CITI is the apex body of the entire Indian textile industry, founded in 1942, representing the complete value chain from cotton farmers and spinning units to garment exporters and textile machinery makers."
+  },
+  {
+    "name": "Apparel Export Promotion Council (AEPC)",
+    "website": "https://www.aepcindia.com",
+    "source_description": "AEPC is the official body of the apparel exporters of India and provides support to Indian apparel exporters in their efforts to build, develop and promote India's apparel export business. Set up in 1978 by the Ministry of Commerce.",
+    "db_description": "AEPC is the official body of apparel exporters in India, incorporated in 1978 under the Foreign Trade (Development and Regulation) Act, operating under the Ministry of Textiles to promote garment exports."
+  },
+  {
+    "name": "Cotton Textiles Export Promotion Council (TEXPROCIL)",
+    "website": "https://www.texprocil.org",
+    "source_description": "TEXPROCIL, set up in 1954, is the apex export promotion body for cotton textiles from India. It assists member exporters in their export endeavours, provides market information, and represents the industry to government bodies.",
+    "db_description": "TEXPROCIL, set up in 1954, is the apex export promotion body for cotton textiles from India, assisting member exporters with market information and representation to government bodies."
+  },
+  {
+    "name": "Chemicals & Allied Products Export Promotion Council (CAPEXIL)",
+    "website": "https://capexil.org",
+    "source_description": "CAPEXIL, set up in 1958 under the Ministry of Commerce & Industry, promotes exports of chemicals, pharmaceuticals, dyes, cosmetics, ceramics and other allied products from India.",
+    "db_description": "CAPEXIL, set up in March 1958 by the Ministry of Commerce & Industry, promotes exports of chemicals, dyes, ceramics, paper, rubber and other allied products from India."
+  },
+  {
+    "name": "Indian Chemical Council (ICC)",
+    "website": "https://www.indianchemicalcouncil.com",
+    "source_description": "Indian Chemical Council (ICC), established in 1938, is the apex body of the Indian chemical industry. It represents the interests of manufacturers and promotes sustainable practices within the chemical manufacturing sector.",
+    "db_description": "Indian Chemical Council (ICC) is the apex body of the Indian chemical industry, representing manufacturers and promoting sustainable practices within the sector, publishing an 84th Annual Report for 2024-25."
+  },
+  {
+    "name": "Engineering Export Promotion Council of India (EEPC India)",
+    "website": "https://www.eepcindia.org",
+    "source_description": "EEPC India, set up in 1955, is the premier export promotion body for engineering goods, products and services in India. It helps engineering exporters penetrate global markets and facilitates export of over $100 billion worth of engineering products.",
+    "db_description": "EEPC India, set up in 1955, is the premier export promotion body for engineering goods, products and services in India, serving over 12,000 members through regional offices across the country."
+  },
+  {
+    "name": "Indian Electrical & Electronics Manufacturers' Association (IEEMA)",
+    "website": "https://www.ieema.org",
+    "source_description": "IEEMA is the representative body of manufacturers of electrical, industrial electronics and allied equipment in India. It was established in 1948 and represents the interests of over 750 member companies in the power equipment sector.",
+    "db_description": "IEEMA is the representative body of manufacturers of electrical, industrial electronics and allied equipment in India, established in 1948. Members contribute over 90% of installed electrical equipment in the country with combined turnover exceeding USD 50 billion."
+  },
+  {
+    "name": "Indian Machine Tool Manufacturers' Association (IMTMA)",
+    "website": "https://www.imtma.in",
+    "source_description": "IMTMA is the apex body of machine tool manufacturers in India. Founded in 1946, it promotes the interests of the Indian machine tool industry and organises IMTEX, one of Asia's premier machine tool exhibitions.",
+    "db_description": "IMTMA, founded in 1946, is the apex body of machine tool manufacturers in India, promoting the industry for nearly eight decades and organising IMTEX, one of Asia's premier machine tool exhibitions."
+  },
+  {
+    "name": "All India Plastics Manufacturers Association (AIPMA)",
+    "website": "https://www.aipma.net",
+    "source_description": "AIPMA is the largest and most representative body of the plastics industry in Asia, established in 1945. It represents over 35,000 member companies involved in manufacturing, processing, and trading of plastics products.",
+    "db_description": "AIPMA is the largest and most representative body of the plastics industry in Asia, established in 1945, known for organising Plastivision India - the country's leading plastics exhibition."
+  },
+  {
+    "name": "Confederation of Real Estate Developers' Associations of India (CREDAI)",
+    "website": "https://www.credai.org",
+    "source_description": "CREDAI is the apex body for private real estate developers in India. With over 13,000 members across 217 chapters in 21 states, it advocates for the housing sector and works towards making housing affordable and accessible for all.",
+    "db_description": "CREDAI, established in 1999, is the apex body for private real estate developers in India, advocating for the housing sector with state chapters and youth/women's wings nationwide."
+  },
+  {
+    "name": "National Real Estate Development Council (NAREDCO)",
+    "website": "https://www.naredco.in",
+    "source_description": "NAREDCO is the apex national body for real estate developers, established in 1998 under the aegis of the Ministry of Housing and Urban Affairs. It facilitates dialogue between the government and real estate sector.",
+    "db_description": "NAREDCO is an autonomous self-regulatory body for real estate developers, established in 1998 under the aegis of the Ministry of Housing and Urban Affairs, with the Union Minister as Ex-officio Chief Patron."
+  },
+  {
+    "name": "Indian Banks' Association (IBA)",
+    "website": "https://www.iba.org.in",
+    "source_description": "Indian Banks' Association (IBA), formed in 1946, is a voluntary association of banks operating in India. It serves as a forum for co-operation and co-ordination among banks and provides representation on matters of common interest to the banking industry.",
+    "db_description": "Indian Banks' Association, founded in 1946 and headquartered in Mumbai, is a voluntary association of banks promoting coordination, standardization and transparency in India's banking sector."
+  },
+  {
+    "name": "Association of Mutual Funds in India (AMFI)",
+    "website": "https://www.amfiindia.com",
+    "source_description": "AMFI is an apex body of all Asset Management Companies (AMCs) which have been registered with SEBI. Established in 1995, it is dedicated to developing the Indian Mutual Fund Industry on professional, healthy and ethical lines.",
+    "db_description": "AMFI is the apex body of all SEBI-registered Asset Management Companies, established in 1995, dedicated to developing the Indian mutual fund industry on professional, healthy and ethical lines."
+  },
+  {
+    "name": "Indian Medical Association (IMA)",
+    "website": "https://www.ima-india.org",
+    "source_description": "IMA is the national voluntary organization of Doctors of Modern Scientific System of Medicine. Established in 1928, it represents over 3.5 lakh doctors across the country and acts as a voice for medical professionals.",
+    "db_description": "IMA, established in 1928 (originally All India Medical Association, renamed 1930), is the largest association of medical doctors in India with approximately 350,000 member doctors across 1,700 active local branches in 29 states/UTs."
+  },
+  {
+    "name": "Federation of Hotel & Restaurant Associations of India (FHRAI)",
+    "website": "https://www.fhrai.com",
+    "source_description": "FHRAI is the apex body of hotels and restaurants in India, established in 1955. It represents over 65,000 hotels and restaurants across the country and works towards building a progressive hospitality industry.",
+    "db_description": "FHRAI, founded in 1955 by legendary hotelier Rai Bahadur M.S. Oberoi, is the apex body of hotels and restaurants in India, representing 1,00,000 hotels and 5,00,000 restaurants nationwide."
+  },
+  {
+    "name": "All India Glass Manufacturers' Federation (AIGMF)",
+    "website": "https://www.aigmf.com",
+    "source_description": "AIGMF, established in 1927, is the apex body of glass manufacturers in India. It represents all segments of the glass industry including flat glass, container glass, and specialty glass, and promotes the development of the sector.",
+    "db_description": "AIGMF is the sole representative body of all segments of the Indian glass industry including large, medium, and small manufacturers. It works to promote and protect the interests of the glass industry in India."
+  },
+  {
+    "name": "iSPIRT (Indian Software Product Industry Round Table)",
+    "website": "https://ispirt.in",
+    "source_description": "iSPIRT is a think tank and volunteer organisation for software product companies in India. Founded by software industry veterans, it focuses on policy advocacy, market development, and playbooks for product entrepreneurs, and also drives initiatives like India Stack.",
+    "db_description": "ISPIRT is a think tank and volunteer organisation for software product companies in India. Founded by software industry veterans, it focuses on policy advocacy, market development, and playbooks for product entrepreneurs, and also drives initiatives like India Stack."
+  }
+]

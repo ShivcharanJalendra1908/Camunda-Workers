@@ -1,4 +1,4 @@
-package resolver
+﻿package resolver
 
 import (
 	"context"
@@ -45,14 +45,14 @@ func (r *DBResolver) Resolve(
 
 	var userID uuid.UUID
 
-	// 1. Identity lookup — already exists?
+	// 1. Identity lookup â€” already exists?
 	err = tx.QueryRow(ctx, `
         SELECT user_id FROM public.identities
         WHERE provider = $1 AND provider_user_id = $2
     `, identity.Provider, identity.ProviderUserID).Scan(&userID)
 
 	if err == nil {
-		// Existing user — check if name is missing and update if needed
+		// Existing user â€” check if name is missing and update if needed
 		fullName := strings.TrimSpace(identity.FirstName + " " + identity.LastName)
 		if fullName != "" {
 			_, err = tx.Exec(ctx, `
@@ -70,7 +70,7 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 2. Email-based linking — same email se aaya hai?
+	// 2. Email-based linking â€” same email se aaya hai?
 	err = tx.QueryRow(ctx, `
         SELECT id FROM public.users
         WHERE email = $1 FOR UPDATE
@@ -102,7 +102,7 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 3. Bilkul naya user — create karo
+	// 3. Bilkul naya user â€” create karo
 	fullName := strings.TrimSpace(identity.FirstName + " " + identity.LastName)
 	err = tx.QueryRow(ctx, `
         INSERT INTO public.users (email, email_verified, name)
@@ -129,7 +129,7 @@ func (r *DBResolver) Resolve(
 		return "", err
 	}
 
-	// 5. Free subscription — naye user ko automatically free tier
+	// 5. Free subscription â€” naye user ko automatically free tier
 	_, err = tx.Exec(ctx, `
         INSERT INTO public.user_subscriptions (user_id, tier, is_valid)
         VALUES ($1, 'free', true)

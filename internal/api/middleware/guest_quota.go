@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"context"
@@ -35,17 +35,17 @@ const (
 // and queries-per-session limit.
 //
 // Flow:
-//  1. Check if request has valid auth session cookie → skip ALL guest quota (c.Next())
+//  1. Check if request has valid auth session cookie â†’ skip ALL guest quota (c.Next())
 //  2. Extract guest identity from context (set by GuestSignalMiddleware)
 //  3. Check existing session:
-//     - If client sends X-Guest-Session-ID and it matches active session → resume, incr queries
-//     - If no session or mismatch → new session, consume credit
-//  4. Check credits: if creditsUsed > limit → 429 SIGNUP_REQUIRED
+//     - If client sends X-Guest-Session-ID and it matches active session â†’ resume, incr queries
+//     - If no session or mismatch â†’ new session, consume credit
+//  4. Check credits: if creditsUsed > limit â†’ 429 SIGNUP_REQUIRED
 //  5. Set response headers with quota info
 func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGroup string) gin.HandlerFunc {
 	groupCfg, exists := cfg.Guest.RouteGroups[routeGroup]
 	if !exists {
-		// Unknown route group — fail open (should not happen with valid config)
+		// Unknown route group â€” fail open (should not happen with valid config)
 		return func(c *gin.Context) {
 			fmt.Printf("[GUEST_QUOTA] unknown_route_group group=%s\n", routeGroup)
 			c.Next()
@@ -55,13 +55,13 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 	scripts := database.NewQuotaScripts()
 
 	return func(c *gin.Context) {
-		// ── Step 1: Skip if user has valid auth session ──────────────────────
+		// â”€â”€ Step 1: Skip if user has valid auth session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		if isAuthSessionValid(c.Request.Context(), c, redisClient) {
 			c.Next()
 			return
 		}
 
-		// ── Step 2: Get guest identity ───────────────────────────────────────
+		// â”€â”€ Step 2: Get guest identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		identity := getGuestIdentity(c)
 		if identity == nil {
 			c.Next()
@@ -71,7 +71,7 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 		ctx := c.Request.Context()
 		key := identity.CompositeKey
 
-		// ── Step 3: Check for existing session ───────────────────────────────
+		// â”€â”€ Step 3: Check for existing session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		clientSessionID := c.GetHeader(HeaderGuestSessionID)
 
 		if clientSessionID != "" {
@@ -92,28 +92,28 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 			}
 
 			if err == nil && !resumeResult.Allowed && resumeResult.QueriesUsed >= int64(groupCfg.QueriesPerSession) {
-				// Queries exhausted — delete old session, fall through to new session + consume credit
+				// Queries exhausted â€” delete old session, fall through to new session + consume credit
 				redisClient.Del(ctx, sessionKey)
 			}
 
-			// Session didn't match or queries exhausted — fall through to new session
+			// Session didn't match or queries exhausted â€” fall through to new session
 		}
 
-		// ── Step 4: New session — consume a credit ───────────────────────────
+		// â”€â”€ Step 4: New session â€” consume a credit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		quotaKey := fmt.Sprintf("quota:%s:%s", routeGroup, key)
 		ttlSeconds := int64(groupCfg.CreditWindowDays) * 24 * 60 * 60
 		quotaResult, err := scripts.QuotaIncr(ctx, *redisClient, quotaKey,
 			groupCfg.CreditsPerWindow, ttlSeconds)
 
 		if err != nil {
-			// Redis failure — fail open
+			// Redis failure â€” fail open
 			fmt.Printf("[GUEST_QUOTA] redis_error group=%s key=%s error=%v\n", routeGroup, key, err)
 			c.Next()
 			return
 		}
 
 		if !quotaResult.Allowed {
-			// Credits exhausted — read remaining TTL for accurate reset_in_seconds
+			// Credits exhausted â€” read remaining TTL for accurate reset_in_seconds
 			ttl, ttlErr := redisClient.TTL(ctx, quotaKey).Result()
 			resetInSec := groupCfg.CreditWindowDays * 24 * 60 * 60
 			if ttlErr == nil && ttl > 0 {
@@ -126,7 +126,7 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 
 		creditsUsed := quotaResult.CreditsUsed
 
-		// ── Step 5: Create new session ───────────────────────────────────────
+		// â”€â”€ Step 5: Create new session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		newSessionID := generateSessionID()
 		sessionKey := fmt.Sprintf("guest:active_session:%s:%s", routeGroup, key)
 		queryKey := fmt.Sprintf("session:%s:queries", newSessionID)
@@ -134,14 +134,14 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 		created, err := scripts.SessionCreate(ctx, *redisClient, sessionKey, queryKey, newSessionID,
 			groupCfg.ActiveSessionTTL, groupCfg.SessionQueriesTTL)
 		if err != nil {
-			// Redis failure — fail open
+			// Redis failure â€” fail open
 			fmt.Printf("[GUEST_QUOTA] session_create_error group=%s key=%s error=%v\n", routeGroup, key, err)
 			c.Next()
 			return
 		}
 
 		if !created {
-			// Lost race — another request created session first. Read and use that session.
+			// Lost race â€” another request created session first. Read and use that session.
 			existingID, _ := redisClient.Get(ctx, sessionKey).Result()
 			if existingID != "" {
 				// Resume the winning session's query counter
@@ -153,7 +153,7 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 			}
 		}
 
-		// ── Step 6: Set response headers ─────────────────────────────────────
+		// â”€â”€ Step 6: Set response headers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 		setGuestResponseHeaders(c, newSessionID, 1, int64(groupCfg.QueriesPerSession),
 			creditsUsed, int64(groupCfg.CreditsPerWindow), true)
 
@@ -161,7 +161,7 @@ func GuestQuotaMiddleware(redisClient *redis.Client, cfg *config.Config, routeGr
 	}
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // isAuthSessionValid checks if the request has a valid auth session (fast Redis GET).
 func isAuthSessionValid(ctx context.Context, c *gin.Context, redisClient *redis.Client) bool {

@@ -1,4 +1,4 @@
-package middleware
+﻿package middleware
 
 import (
 	"crypto/sha256"
@@ -66,7 +66,7 @@ func GuestSignalMiddleware(cfg *config.Config) gin.HandlerFunc {
 			compositeKey = buildFallbackCompositeKey(ip, ua, deviceSalt)
 			identity.FallbackIP = ipSlash24(ip)
 
-			// S4: Token absence — log warning for anomaly tracking
+			// S4: Token absence â€” log warning for anomaly tracking
 			fmt.Printf("[GUEST_S4] token_absent ip=%s\n", ipSlash24(ip))
 		}
 
@@ -97,7 +97,7 @@ func buildFallbackCompositeKey(ip, ua, salt string) string {
 func ipSlash24(ip string) string {
 	ip = strings.TrimSpace(ip)
 
-	// IPv4: "a.b.c.d" → "a.b.c"
+	// IPv4: "a.b.c.d" â†’ "a.b.c"
 	if strings.Count(ip, ".") >= 2 {
 		parts := strings.SplitN(ip, ".", 4)
 		if len(parts) >= 3 {
@@ -105,7 +105,7 @@ func ipSlash24(ip string) string {
 		}
 	}
 
-	// IPv6: "2001:db8:85a3::1" → "2001:db8:85a3"
+	// IPv6: "2001:db8:85a3::1" â†’ "2001:db8:85a3"
 	if strings.Count(ip, ":") >= 2 {
 		parts := strings.SplitN(ip, ":", 4)
 		if len(parts) >= 3 {

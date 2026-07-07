@@ -1,4 +1,4 @@
-// internal/api/middleware/middleware.go
+﻿// internal/api/middleware/middleware.go
 package middleware
 
 import (
@@ -280,7 +280,7 @@ func IdempotencyMiddleware(redisClient *redis.Client) gin.HandlerFunc {
 			return
 		}
 
-		// ✅ FIXED: Proper response capture
+		// âœ… FIXED: Proper response capture
 		blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
 		c.Writer = blw
 
@@ -300,7 +300,7 @@ func IdempotencyMiddleware(redisClient *redis.Client) gin.HandlerFunc {
 	}
 }
 
-// ✅ FIXED: Better response writer
+// âœ… FIXED: Better response writer
 type bodyLogWriter struct {
 	gin.ResponseWriter
 	body *bytes.Buffer

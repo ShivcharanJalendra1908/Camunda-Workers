@@ -1,4 +1,4 @@
-// internal/common/auth/keycloak.go
+﻿// internal/common/auth/keycloak.go
 package auth
 
 import (
@@ -27,8 +27,8 @@ type KeycloakClient struct {
 	realm             string
 	clientID          string
 	clientSecret      string
-	adminClientID     string // ← ADD
-	adminClientSecret string // ← ADD
+	adminClientID     string // â† ADD
+	adminClientSecret string // â† ADD
 	httpClient        *http.Client
 	cb                *circuitbreaker.CircuitBreaker
 	mu                sync.RWMutex
@@ -120,8 +120,8 @@ func NewKeycloakClient(baseURL, realm, clientID, clientSecret, adminClientID, ad
 		realm:             realm,
 		clientID:          clientID,
 		clientSecret:      clientSecret,
-		adminClientID:     adminClientID,     // ← ADD
-		adminClientSecret: adminClientSecret, // ← ADD
+		adminClientID:     adminClientID,     // â† ADD
+		adminClientSecret: adminClientSecret, // â† ADD
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -206,7 +206,7 @@ func (k *KeycloakClient) getAccessToken(ctx context.Context) error {
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")
 
-	// ✅ FIX: Use admin credentials for admin operations
+	// âœ… FIX: Use admin credentials for admin operations
 	if k.adminClientID != "" && k.adminClientSecret != "" {
 		data.Set("client_id", k.adminClientID)
 		data.Set("client_secret", k.adminClientSecret)

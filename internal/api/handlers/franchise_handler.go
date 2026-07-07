@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func NewFranchiseHandler(
 }
 
 // ========================================================================
-// 🔥 SINGLE WORKFLOW EXECUTION METHOD - WORKS FOR ALL WORKFLOWS
+// ðŸ”¥ SINGLE WORKFLOW EXECUTION METHOD - WORKS FOR ALL WORKFLOWS
 // ========================================================================
 
 func (h *FranchiseHandler) executeWorkflow(
@@ -67,11 +67,11 @@ func (h *FranchiseHandler) executeWorkflow(
 	correlationKey := variables["correlationKey"].(string)
 	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
 
-	// ✅ STEP 1: Subscribe to Redis FIRST (before workflow starts)
+	// âœ… STEP 1: Subscribe to Redis FIRST (before workflow starts)
 	pubsub := h.redisClient.Subscribe(ctx, channel)
 	defer pubsub.Close()
 
-	// ✅ STEP 2: Wait for subscription confirmation WITHOUT consuming messages.
+	// âœ… STEP 2: Wait for subscription confirmation WITHOUT consuming messages.
 	// pubsub.Receive() is safe for the subscription event but we must NOT use it
 	// if a message might arrive at the same time (race on warm connections).
 	// Use ReceiveMessage only for the subscribe-confirmation event type.
@@ -84,13 +84,13 @@ func (h *FranchiseHandler) executeWorkflow(
 		})
 	}
 
-	h.logger.Info("✅ Subscribed to Redis channel BEFORE workflow", map[string]interface{}{
+	h.logger.Info("âœ… Subscribed to Redis channel BEFORE workflow", map[string]interface{}{
 		"channel":        channel,
 		"correlationKey": correlationKey,
 		"processID":      processID,
 	})
 
-	// ✅ STEP 3: NOW start the workflow (subscription is ready)
+	// âœ… STEP 3: NOW start the workflow (subscription is ready)
 	instance, err := h.camundaClient.StartProcessInstance(ctx, processID, variables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
@@ -102,7 +102,7 @@ func (h *FranchiseHandler) executeWorkflow(
 		"correlationKey": correlationKey,
 	})
 
-	// ✅ STEP 4: Wait for response with dual fallback
+	// âœ… STEP 4: Wait for response with dual fallback
 	responseChan := pubsub.Channel()
 	timeoutDuration := 30 * time.Second
 
@@ -139,7 +139,7 @@ func (h *FranchiseHandler) executeWorkflow(
 		if err != nil {
 			return nil, err
 		}
-		h.logger.Info("✅ Received response from Redis", map[string]interface{}{
+		h.logger.Info("âœ… Received response from Redis", map[string]interface{}{
 			"correlationKey": correlationKey,
 			"channel":        channel,
 			"success":        response["success"],
@@ -147,7 +147,7 @@ func (h *FranchiseHandler) executeWorkflow(
 		return response, nil
 
 	case <-time.After(timeoutDuration):
-		// ✅ Fallback: Try cache
+		// âœ… Fallback: Try cache
 		cacheKey := fmt.Sprintf("workflow:response:cache:%s", correlationKey)
 		cached, err := h.redisClient.Get(ctx, cacheKey).Result()
 		if err == nil {
@@ -172,7 +172,7 @@ func (h *FranchiseHandler) executeWorkflow(
 }
 
 // ========================================================================
-// 📱 HOME PAGE
+// ðŸ“± HOME PAGE
 // ========================================================================
 
 func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
@@ -213,7 +213,7 @@ func (h *FranchiseHandler) GetHomePageData(c *gin.Context) {
 }
 
 // ========================================================================
-// 📋 LISTING PAGE
+// ðŸ“‹ LISTING PAGE
 // ========================================================================
 
 func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
@@ -230,7 +230,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	}
 	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
 	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
-	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // ← NEW
+	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // â† NEW
 	locationParam := strings.TrimSpace(c.Query("location"))
 
 	page := 1
@@ -271,7 +271,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		}
 	}
 
-	// Resolve industrySlug + categorySlug from subCategorySlug if both missing  ← NEW
+	// Resolve industrySlug + categorySlug from subCategorySlug if both missing  â† NEW
 	if subCategorySlug != "" {
 		if industrySlug == "" {
 			var resolvedIndustry string
@@ -312,7 +312,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 		"subCategorySlug": subCategorySlug,
 		"location":        locationParam,
 		"page":            page,
-		"pageSize":        pageSize, // ← "limit" -> "pageSize"     //"limit":          limit,
+		"pageSize":        pageSize, // â† "limit" -> "pageSize"     //"limit":          limit,
 		"offset":          offset,
 		"userId":          c.GetString("userId"),
 		"lang":            c.GetHeader("X-Lang"),
@@ -333,7 +333,7 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 }
 
 // ========================================================================
-// 📄 DETAIL PAGE
+// ðŸ“„ DETAIL PAGE
 // ========================================================================
 
 func findStringField(val interface{}, targetKey string) string {
@@ -476,7 +476,7 @@ func (h *FranchiseHandler) GetFranchiseDetailPage(c *gin.Context) {
 }
 
 // ========================================================================
-// 🔍 SEARCH OPERATIONS
+// ðŸ” SEARCH OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
@@ -616,7 +616,7 @@ func (h *FranchiseHandler) SimpleSearch(c *gin.Context) {
 }
 
 // ========================================================================
-// 🏢 MVP WORKFLOW HELPER (for other operations)
+// ðŸ¢ MVP WORKFLOW HELPER (for other operations)
 // ========================================================================
 
 func (h *FranchiseHandler) executeMVPWorkflow(
@@ -643,7 +643,7 @@ func (h *FranchiseHandler) executeMVPWorkflow(
 }
 
 // ========================================================================
-// 🏢 FRANCHISE OPERATIONS
+// ðŸ¢ FRANCHISE OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetByID(c *gin.Context) {
@@ -708,7 +708,7 @@ func (h *FranchiseHandler) GetFranchiseVerification(c *gin.Context) {
 }
 
 // ========================================================================
-// 📊 STATISTICS & ANALYTICS
+// ðŸ“Š STATISTICS & ANALYTICS
 // ========================================================================
 
 func (h *FranchiseHandler) GetStats(c *gin.Context) {
@@ -728,7 +728,7 @@ func (h *FranchiseHandler) GetStats(c *gin.Context) {
 }
 
 // ========================================================================
-// 🗂️ CATEGORIES & INDUSTRIES
+// ðŸ—‚ï¸ CATEGORIES & INDUSTRIES
 // ========================================================================
 
 func (h *FranchiseHandler) GetCategories(c *gin.Context) {
@@ -779,7 +779,7 @@ func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
 		"operation":      "get_industries",
-		"search":         c.Query("search"), // ?search=food — optional
+		"search":         c.Query("search"), // ?search=food â€” optional
 		"lang":           c.GetHeader("X-Lang"),
 		"userId":         c.GetString("userId"),
 		"traceId":        c.GetString("traceId"),
@@ -799,7 +799,7 @@ func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 }
 
 // ========================================================================
-// ⭐ FEATURED & RECOMMENDED
+// â­ FEATURED & RECOMMENDED
 // ========================================================================
 
 func (h *FranchiseHandler) GetFeatured(c *gin.Context) {
@@ -868,7 +868,7 @@ func (h *FranchiseHandler) GetSuggestions(c *gin.Context) {
 }
 
 // ========================================================================
-// 👤 USER OPERATIONS
+// ðŸ‘¤ USER OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetUserProfile(c *gin.Context) {
@@ -917,7 +917,7 @@ func (h *FranchiseHandler) UpdateUserProfile(c *gin.Context) {
 }
 
 // ========================================================================
-// ❤️ USER FAVORITES
+// â¤ï¸ USER FAVORITES
 // ========================================================================
 
 func (h *FranchiseHandler) AddToFavorites(c *gin.Context) {
@@ -1018,7 +1018,7 @@ func (h *FranchiseHandler) GetFavorites(c *gin.Context) {
 }
 
 // ========================================================================
-// 🔍 SAVED SEARCHES
+// ðŸ” SAVED SEARCHES
 // ========================================================================
 
 func (h *FranchiseHandler) SaveSearch(c *gin.Context) {
@@ -1083,7 +1083,7 @@ func (h *FranchiseHandler) DeleteSavedSearch(c *gin.Context) {
 }
 
 // ========================================================================
-// 🆕 BATCH OPERATIONS
+// ðŸ†• BATCH OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) BatchGetFranchises(c *gin.Context) {
@@ -1120,7 +1120,7 @@ func (h *FranchiseHandler) BatchGetFranchises(c *gin.Context) {
 }
 
 // ========================================================================
-// 🏷️ TAGS OPERATIONS
+// ðŸ·ï¸ TAGS OPERATIONS
 // ========================================================================
 
 func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
@@ -1145,7 +1145,7 @@ func (h *FranchiseHandler) GetPopularTags(c *gin.Context) {
 }
 
 // ========================================================================
-// 🏷️ ENQUIRY PAGE
+// ðŸ·ï¸ ENQUIRY PAGE
 // ========================================================================
 
 // SubmitFranchiseEnquiry handles franchise enquiry submissions.
@@ -1171,7 +1171,7 @@ func (h *FranchiseHandler) SubmitFranchiseEnquiry(c *gin.Context) {
 		entityType = "franchise"
 	}
 
-	// userId is OPTIONAL — empty string for anonymous users.
+	// userId is OPTIONAL â€” empty string for anonymous users.
 	userID := c.GetString("userId")
 	isAnonymous := userID == ""
 
@@ -1351,7 +1351,7 @@ func (h *FranchiseHandler) CheckBookmark(c *gin.Context) {
 		return
 	}
 	if userID == "" {
-		// Not logged in — return false without error
+		// Not logged in â€” return false without error
 		c.JSON(http.StatusOK, gin.H{
 			"success":      true,
 			"isBookmarked": false,
@@ -1601,7 +1601,7 @@ func (h *FranchiseHandler) GetUserRating(c *gin.Context) {
 // SHARE ENDPOINTS
 // ============================================================
 
-// ShareFranchise POST /api/franchises/:id/share (public — no auth needed)
+// ShareFranchise POST /api/franchises/:id/share (public â€” no auth needed)
 func (h *FranchiseHandler) ShareFranchise(c *gin.Context) {
 	entityID := c.Param("id")
 	entityType := c.Param("entityType")
@@ -1619,13 +1619,13 @@ func (h *FranchiseHandler) ShareFranchise(c *gin.Context) {
 	var body struct {
 		Platform string `json:"platform"` // whatsapp, twitter, linkedin, email, copy_link
 	}
-	// body optional — default to copy_link
+	// body optional â€” default to copy_link
 	_ = c.ShouldBindJSON(&body)
 	if body.Platform == "" {
 		body.Platform = "copy_link"
 	}
 
-	// userID optional — anonymous share allowed
+	// userID optional â€” anonymous share allowed
 	userID := c.GetString("userId")
 
 	response, err := h.executeUserActionWorkflow(c, "share_franchise", map[string]interface{}{
@@ -1684,7 +1684,7 @@ func (h *FranchiseHandler) GetUserShares(c *gin.Context) {
 }
 
 // ============================================================
-// HELPER — executeUserActionWorkflow
+// HELPER â€” executeUserActionWorkflow
 // Dedicated workflow executor for user actions
 // Uses franchise-user-actions BPMN process
 // ============================================================
@@ -1713,7 +1713,7 @@ func (h *FranchiseHandler) executeUserActionWorkflow(
 }
 
 // ========================================================================
-// 🔄 HEALTH CHECK
+// ðŸ”„ HEALTH CHECK
 // ========================================================================
 
 func (h *FranchiseHandler) HealthCheck(c *gin.Context) {
@@ -1734,7 +1734,7 @@ func (h *FranchiseHandler) HealthCheck(c *gin.Context) {
 }
 
 // ========================================================================
-// 🛠️ HELPER METHODS
+// ðŸ› ï¸ HELPER METHODS
 // ========================================================================
 
 func (h *FranchiseHandler) validationError(c *gin.Context, message string) {
@@ -1811,7 +1811,7 @@ func (h *FranchiseHandler) validateSearchFilters(filters *models.FranchiseSearch
 }
 
 // ========================================================================
-// 🔌 COMPATIBILITY METHODS (Not Used - For Registry Interface)
+// ðŸ”Œ COMPATIBILITY METHODS (Not Used - For Registry Interface)
 // ========================================================================
 
 // These methods exist only for backward compatibility with registry
@@ -1828,7 +1828,7 @@ func (h *FranchiseHandler) PendingResponsesCount() int {
 }
 
 // ========================================================================
-// 🎁 OFFERINGS MANAGEMENT
+// ðŸŽ OFFERINGS MANAGEMENT
 // ========================================================================
 
 func (h *FranchiseHandler) GetOfferings(c *gin.Context) {
@@ -2228,7 +2228,7 @@ func (h *FranchiseHandler) RedeemOffering(c *gin.Context) {
 }
 
 // ========================================================================
-// 👥 MEMBERSHIPS MANAGEMENT
+// ðŸ‘¥ MEMBERSHIPS MANAGEMENT
 // ========================================================================
 
 func (h *FranchiseHandler) GetMemberships(c *gin.Context) {
@@ -2385,7 +2385,7 @@ func (h *FranchiseHandler) UpdateMembershipStatus(c *gin.Context) {
 }
 
 // ========================================================================
-// 🌐 WEBSITE VERIFICATION (VC-02)
+// ðŸŒ WEBSITE VERIFICATION (VC-02)
 // ========================================================================
 
 func (h *FranchiseHandler) VerifyWebsite(c *gin.Context) {
@@ -2449,7 +2449,7 @@ func (h *FranchiseHandler) VerifyWebsite(c *gin.Context) {
 }
 
 // ========================================================================
-// 🛡️ PLATFORM ADMIN QUEUES & TRANSITIONS
+// ðŸ›¡ï¸ PLATFORM ADMIN QUEUES & TRANSITIONS
 // ========================================================================
 
 func (h *FranchiseHandler) ListReviewQueue(c *gin.Context) {
@@ -2460,7 +2460,7 @@ func (h *FranchiseHandler) ListReviewQueue(c *gin.Context) {
 		et = "franchise"
 	case "associations":
 		et = "association"
-	case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+	case "master-franchise", "master_franchises", "master franchises", "master franchise", "masterfranchise":
 		et = "master_franchise"
 	default:
 		et = strings.TrimSuffix(et, "s")

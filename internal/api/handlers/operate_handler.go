@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"net/http"
@@ -61,7 +61,7 @@ func (h *OperateHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/ws", h.hub.ServeWS)
 }
 
-// ── Deployed Processes ────────────────────────────────────────────────────────
+// â”€â”€ Deployed Processes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // ListProcesses GET /operate/processes
 // Returns all deployed BPMN processes with instance counts.
@@ -105,7 +105,7 @@ func (h *OperateHandler) GetProcessXML(c *gin.Context) {
 	c.String(http.StatusOK, xml)
 }
 
-// ── Process Instances ─────────────────────────────────────────────────────────
+// â”€â”€ Process Instances â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // ListInstances GET /operate/instances?bpmnProcessId=&state=&page=1&pageSize=20
 func (h *OperateHandler) ListInstances(c *gin.Context) {
@@ -188,7 +188,7 @@ func (h *OperateHandler) GetElementInstances(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": elements})
 }
 
-// ── Variables ─────────────────────────────────────────────────────────────────
+// â”€â”€ Variables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // ListVariables GET /operate/instances/:key/variables
 func (h *OperateHandler) ListVariables(c *gin.Context) {
@@ -223,7 +223,7 @@ func (h *OperateHandler) SetVariables(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "variables updated"})
 }
 
-// ── Jobs ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // ListJobs GET /operate/instances/:key/jobs
 func (h *OperateHandler) ListJobs(c *gin.Context) {
@@ -289,9 +289,9 @@ func (h *OperateHandler) UpdateJobTimeout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "timeout updated"})
 }
 
-// ── Incidents ─────────────────────────────────────────────────────────────────
+// â”€â”€ Incidents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// ListAllIncidents GET /operate/incidents  — all active incidents
+// ListAllIncidents GET /operate/incidents  â€” all active incidents
 func (h *OperateHandler) ListAllIncidents(c *gin.Context) {
 	resp, err := h.q.ListActiveIncidents(c.Request.Context(), nil)
 	if err != nil {
@@ -346,7 +346,7 @@ func (h *OperateHandler) ResolveIncident(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "incident resolved"})
 }
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 func parseKey(c *gin.Context, param string) (int64, error) {
 	v, err := strconv.ParseInt(c.Param(param), 10, 64)

@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"camunda-workers/internal/common/config"

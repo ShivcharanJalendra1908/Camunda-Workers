@@ -1,4 +1,4 @@
-// internal/api/handlers/oauth_handler.go
+﻿// internal/api/handlers/oauth_handler.go
 package handlers
 
 import (

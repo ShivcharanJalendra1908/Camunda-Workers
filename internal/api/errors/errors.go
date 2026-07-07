@@ -1,4 +1,4 @@
-package apierrors
+﻿package apierrors
 
 import "net/http"
 
