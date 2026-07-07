@@ -301,12 +301,17 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	// ✅ TEXT SEARCH (MULTI-MATCH)
 	if input.Query != "" {
 		cleanQuery := input.Query
-		if location.DetectCityFromQuery(input.Query) != "" {
+		detectedCity := location.DetectCityFromQuery(input.Query)
+		if detectedCity != "" {
 			stripped := location.StripLocationFromQuery(input.Query)
 			if strings.TrimSpace(stripped) == "" {
 				cleanQuery = input.Query
 			} else {
 				cleanQuery = stripped
+			}
+			// If AI extraction was skipped and input.Location is empty, populate it!
+			if input.Location == "" {
+				input.Location = detectedCity
 			}
 		}
 
