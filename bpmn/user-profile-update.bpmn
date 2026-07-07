@@ -54,7 +54,7 @@
       - correlationKey must be passed by the Gateway handler for send-api-response to work.
       - operation_type values for write tasks match the franchise-postgres worker's switch cases
         (UPDATE_PERSONAL, UPDATE_PROFESSIONAL, UPDATE_COMPANY,
-        UPDATE_INVESTMENT, INSERT_PROFILE_AUDIT).
+        UPDATE_USER_INVESTMENT, INSERT_PROFILE_AUDIT).
       - Task_DeleteKeycloakUser uses the existing franchise-postgres worker.
         operation_type = DELETE_KEYCLOAK_USER.
       - All send-api-response tasks use retries="0" — if Redis publish fails, retries won't help.
@@ -217,7 +217,7 @@
       <extensionElements>
         <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;UPDATE_INVESTMENT&quot;" target="operation_type" />
+          <zeebe:input source="=&quot;UPDATE_USER_INVESTMENT&quot;" target="operation_type" />
           <zeebe:input source="=userId" target="userId" />
           <zeebe:input source="=profileData" target="profileData" />
           <zeebe:output source="=updatedFields" target="updatedFields" />
