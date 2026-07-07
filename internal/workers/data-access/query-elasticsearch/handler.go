@@ -594,6 +594,10 @@ func (h *Handler) validateFilterRecursive(obj interface{}, path string, depth in
 		// These types are safe
 		return nil
 
+	case nil:
+		// Ignore nil values (can happen when AI returns null for a field)
+		return nil
+
 	default:
 		// Reject unexpected types
 		return appErrs.NewValidationError(path, fmt.Sprintf("unsupported type: %T", v))
