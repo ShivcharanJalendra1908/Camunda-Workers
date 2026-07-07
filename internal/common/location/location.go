@@ -547,7 +547,7 @@ func BuildLocationTerms(city string) []string {
 		return []string{}
 	}
 
-	terms := []string{strings.Title(cityLower), "Pan India", "Pan-India", "All major Indian cities"}
+	terms := []string{strings.Title(cityLower)}
 
 	if state, ok := CityStateMap[cityLower]; ok {
 		terms = append(terms, state)

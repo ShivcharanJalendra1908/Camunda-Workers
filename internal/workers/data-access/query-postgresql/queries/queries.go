@@ -1040,8 +1040,9 @@ func CategoryQuestionsByIndustry(
 		}
 	}
 
-	// Fallback to generic questions if none found
-	if len(questions) == 0 {
+	// Pad with generic questions if fewer than 8 found
+	if len(questions) < 8 {
+		needed := 8 - len(questions)
 		rows, err := db.QueryContext(queryCtx, `
 			SELECT question
 			FROM category_questions
@@ -1051,14 +1052,24 @@ func CategoryQuestionsByIndustry(
 			ORDER BY
 				CASE WHEN intent_tag = $1 THEN 0 ELSE 1 END,
 				created_at
-			LIMIT 8
-		`, intentTag, entityType)
+			LIMIT $3
+		`, intentTag, entityType, needed)
 		if err == nil {
 			defer rows.Close()
 			for rows.Next() {
 				var q string
 				if err := rows.Scan(&q); err == nil && q != "" {
-					questions = append(questions, q)
+					// simple duplicate check
+					isDup := false
+					for _, existing := range questions {
+						if existing == q {
+							isDup = true
+							break
+						}
+					}
+					if !isDup {
+						questions = append(questions, q)
+					}
 				}
 			}
 		}
