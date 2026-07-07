@@ -389,11 +389,6 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 		profileData = input.ProfileData
 	}
 
-	// delete_account requires no profileData
-	if action == "delete_account" {
-		profileData = nil
-	}
-
 	// Non-retrieve actions require profileData
 	if action != "retrieve" && action != "delete_account" {
 		if len(profileData) == 0 {
