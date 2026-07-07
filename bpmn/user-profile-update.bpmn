@@ -109,7 +109,7 @@
       <outgoing>Flow_ToUpdateCompany</outgoing>
       <outgoing>Flow_ToUpdateInvestment</outgoing>
       <outgoing>Flow_ToUpdatePreferences</outgoing>
-      <outgoing>Flow_ToDeleteAccount</outgoing>
+      <outgoing>Flow_ToDeleteKeycloak</outgoing>
       <outgoing>Flow_ToUnsupportedAction</outgoing>
     </exclusiveGateway>
 
@@ -274,8 +274,8 @@
           <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
-      <incoming>Flow_ToDeleteAccount</incoming>
-      <outgoing>Flow_DeleteAccount_ToKeycloak</outgoing>
+      <incoming>Flow_DeleteKeycloak_ToAccount</incoming>
+      <outgoing>Flow_DeleteAccount_ToAudit</outgoing>
     </serviceTask>
 
     <boundaryEvent id="BoundaryError_DeleteAccount" name="Delete&#xA;Error" attachedToRef="Task_DeleteAccount">
@@ -295,8 +295,8 @@
           <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
-      <incoming>Flow_DeleteAccount_ToKeycloak</incoming>
-      <outgoing>Flow_DeleteKeycloak_ToAudit</outgoing>
+      <incoming>Flow_ToDeleteKeycloak</incoming>
+      <outgoing>Flow_DeleteKeycloak_ToAccount</outgoing>
     </serviceTask>
 
     <boundaryEvent id="BoundaryError_DeleteKeycloak" name="Keycloak&#xA;Delete Error" attachedToRef="Task_DeleteKeycloakUser">
@@ -311,7 +311,7 @@
       <incoming>Flow_UpdateCompany_ToAudit</incoming>
       <incoming>Flow_UpdateInvestment_ToAudit</incoming>
       <incoming>Flow_UpdatePreferences_ToAudit</incoming>
-      <incoming>Flow_DeleteKeycloak_ToAudit</incoming>
+      <incoming>Flow_DeleteAccount_ToAudit</incoming>
       <outgoing>Flow_MergeToAuditDecision</outgoing>
     </exclusiveGateway>
 
@@ -449,7 +449,7 @@
     <sequenceFlow id="Flow_ToUpdatePreferences" name="update_preferences" sourceRef="Gateway_ActionRouter" targetRef="Task_UpdatePreferences">
       <conditionExpression xsi:type="tFormalExpression">=action = "update_preferences"</conditionExpression>
     </sequenceFlow>
-    <sequenceFlow id="Flow_ToDeleteAccount" name="delete_account" sourceRef="Gateway_ActionRouter" targetRef="Task_DeleteAccount">
+    <sequenceFlow id="Flow_ToDeleteKeycloak" name="delete_account" sourceRef="Gateway_ActionRouter" targetRef="Task_DeleteKeycloakUser">
       <conditionExpression xsi:type="tFormalExpression">=action = "delete_account"</conditionExpression>
     </sequenceFlow>
     <sequenceFlow id="Flow_ToUnsupportedAction" name="default" sourceRef="Gateway_ActionRouter" targetRef="Task_UnsupportedAction" />
@@ -463,7 +463,7 @@
     <sequenceFlow id="Flow_UpdateCompany_ToAudit" sourceRef="Task_UpdateCompanyDetails" targetRef="Gateway_NeedsAuditMerge" />
     <sequenceFlow id="Flow_UpdateInvestment_ToAudit" sourceRef="Task_UpdateInvestmentDetails" targetRef="Gateway_NeedsAuditMerge" />
     <sequenceFlow id="Flow_UpdatePreferences_ToAudit" sourceRef="Task_UpdatePreferences" targetRef="Gateway_NeedsAuditMerge" />
-    <sequenceFlow id="Flow_DeleteKeycloak_ToAudit" sourceRef="Task_DeleteKeycloakUser" targetRef="Gateway_NeedsAuditMerge" />
+    <sequenceFlow id="Flow_DeleteAccount_ToAudit" sourceRef="Task_DeleteAccount" targetRef="Gateway_NeedsAuditMerge" />
 
     <!-- Audit Merge to Decision -->
     <sequenceFlow id="Flow_MergeToAuditDecision" sourceRef="Gateway_NeedsAuditMerge" targetRef="Gateway_NeedsAuditDecision" />
@@ -477,7 +477,7 @@
     </sequenceFlow>
 
     <!-- Delete Account flow -->
-    <sequenceFlow id="Flow_DeleteAccount_ToKeycloak" sourceRef="Task_DeleteAccount" targetRef="Task_DeleteKeycloakUser" />
+    <sequenceFlow id="Flow_DeleteKeycloak_ToAccount" sourceRef="Task_DeleteKeycloakUser" targetRef="Task_DeleteAccount" />
 
     <!-- Audit to Response Merge -->
     <sequenceFlow id="Flow_Audit_ToSendResponse" sourceRef="Task_WriteAuditLog" targetRef="Gateway_ResponseMerge" />
@@ -578,12 +578,12 @@
 
       <!-- Delete Account Task -->
       <bpmndi:BPMNShape id="Shape_DeleteAccount" bpmnElement="Task_DeleteAccount">
-        <dc:Bounds x="590" y="800" width="120" height="80" />
+        <dc:Bounds x="590" y="920" width="120" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Delete Keycloak User Task -->
       <bpmndi:BPMNShape id="Shape_DeleteKeycloakUser" bpmnElement="Task_DeleteKeycloakUser">
-        <dc:Bounds x="590" y="920" width="120" height="80" />
+        <dc:Bounds x="590" y="800" width="120" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Unsupported Action Task -->
@@ -758,7 +758,7 @@
           <dc:Bounds x="510" y="700" width="92" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_ToDeleteAccount" bpmnElement="Flow_ToDeleteAccount">
+      <bpmndi:BPMNEdge id="Edge_ToDeleteKeycloak" bpmnElement="Flow_ToDeleteKeycloak">
         <di:waypoint x="495" y="515" />
         <di:waypoint x="495" y="840" />
         <di:waypoint x="590" y="840" />
@@ -812,7 +812,7 @@
         <di:waypoint x="750" y="490" />
         <di:waypoint x="810" y="490" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_DeleteKeycloak_ToAudit" bpmnElement="Flow_DeleteKeycloak_ToAudit">
+      <bpmndi:BPMNEdge id="Edge_DeleteAccount_ToAudit" bpmnElement="Flow_DeleteAccount_ToAudit">
         <di:waypoint x="710" y="960" />
         <di:waypoint x="730" y="960" />
         <di:waypoint x="730" y="490" />
@@ -825,8 +825,8 @@
         <di:waypoint x="910" y="490" />
       </bpmndi:BPMNEdge>
 
-      <!-- Delete Account flow -->
-      <bpmndi:BPMNEdge id="Edge_DeleteAccount_ToKeycloak" bpmnElement="Flow_DeleteAccount_ToKeycloak">
+      <!-- Delete Keycloak to Delete Account flow -->
+      <bpmndi:BPMNEdge id="Edge_DeleteKeycloak_ToAccount" bpmnElement="Flow_DeleteKeycloak_ToAccount">
         <di:waypoint x="650" y="880" />
         <di:waypoint x="650" y="920" />
       </bpmndi:BPMNEdge>
