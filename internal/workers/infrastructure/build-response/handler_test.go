@@ -310,11 +310,6 @@ func TestHandler_Execute_ErrorCases(t *testing.T) {
 			expectedError: "unknown page type: unknown",
 		},
 		{
-			name:          "empty page type",
-			input:         createTestInput("", nil),
-			expectedError: "pageType is required",
-		},
-		{
 			name:  "empty data for home page",
 			input: createTestInput("home", nil),
 		},

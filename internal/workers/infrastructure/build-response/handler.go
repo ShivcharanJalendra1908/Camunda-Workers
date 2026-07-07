@@ -272,12 +272,13 @@ func (h *Handler) appendEllipsis(text string) string {
 
 func (h *Handler) validateInput(input *Input) error {
 
-	if err := ozzo.Validate(input.PageType,
-		ozzo.Required.Error("pageType is required"),
-		ozzo.In("home", "listing", "detail", "search", "industries").Error("must be one of: home, listing, detail, search, industries"),
-		validation.SafeSQLString,
-	); err != nil {
-		return appErrs.NewValidationError("pageType", err.Error())
+	if input.PageType != "" {
+		if err := ozzo.Validate(input.PageType,
+			ozzo.In("home", "listing", "detail", "search", "industries", "api", "form").Error("must be one of: home, listing, detail, search, industries, api, form"),
+			validation.SafeSQLString,
+		); err != nil {
+			return appErrs.NewValidationError("pageType", err.Error())
+		}
 	}
 
 	if input.Data != nil {
@@ -475,10 +476,10 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		response = h.buildSearchResponse(combinedData)
 	case "industries":
 		response = h.buildIndustriesResponse(combinedData)
+	case "", "api", "form":
+		// Generic API Response
+		response = combinedData
 	default:
-		if input.PageType == "" {
-			return nil, fmt.Errorf("pageType is required")
-		}
 		return nil, fmt.Errorf("unknown page type: %s", input.PageType)
 	}
 
