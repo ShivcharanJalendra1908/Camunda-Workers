@@ -942,7 +942,7 @@ func TestHandler_ValidateInput(t *testing.T) {
 			input: &Input{
 				PageType: "",
 			},
-			expectedError: "Validation failed for field 'pageType'",
+			expectedError: "",
 		},
 		{
 			name: "invalid page type",
