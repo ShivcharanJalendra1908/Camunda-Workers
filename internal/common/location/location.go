@@ -554,9 +554,20 @@ func BuildLocationTerms(city string) []string {
 	}
 	if zone, ok := CityZoneMap[cityLower]; ok {
 		terms = append(terms, zone)
+		// Extract raw zone name (e.g. "North Indian Cities" -> "North India")
+		rawZone := strings.Replace(zone, "Indian Cities", "India", 1)
+		terms = append(terms, rawZone)
 	}
 	if aliases, ok := CityAliases[cityLower]; ok {
 		terms = append(terms, aliases...)
+	}
+
+	// Always append Pan India terms since they are valid for all city searches
+	terms = append(terms, "Pan India", "Pan-India", "All major Indian cities")
+
+	// If it's Delhi, add NCR region cities explicitly
+	if cityLower == "delhi" || cityLower == "new delhi" || cityLower == "delhi ncr" {
+		terms = append(terms, "Gurgaon", "Gurugram", "Noida", "Faridabad", "Ghaziabad")
 	}
 
 	return dedup(terms)
