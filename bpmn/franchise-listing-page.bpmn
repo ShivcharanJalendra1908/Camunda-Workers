@@ -182,10 +182,10 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_To_AICheck" sourceRef="Start_Listing" targetRef="Gateway_AICheck" />
     <bpmn:sequenceFlow id="Flow_To_AISearch" sourceRef="Gateway_AICheck" targetRef="Task_AISearch">
-      <bpmn:conditionExpression>=searchQuery != null and searchQuery != ""</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=searchQuery != null and searchQuery != "" and count(split(searchQuery, " ")) &gt; 5</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Skip_AI" sourceRef="Gateway_AICheck" targetRef="Gateway_Merge">
-      <bpmn:conditionExpression>=searchQuery = null or searchQuery = ""</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=searchQuery = null or searchQuery = "" or count(split(searchQuery, " ")) &lt;= 5</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_AI_To_Merge" sourceRef="Task_AISearch" targetRef="Gateway_Merge" />
     <bpmn:sequenceFlow id="Flow_To_Parallel" sourceRef="Gateway_Merge" targetRef="Gateway_Parallel" />
