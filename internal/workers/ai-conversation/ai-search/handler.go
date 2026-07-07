@@ -916,7 +916,21 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 	// CHANGED: ParseWithFallback → ParseWithContext (original query pass karo)
 	params := h.paramExtractor.ParseWithContext(response, input.Query)
 
-	// Fallback to payload EntityType if LLM did not extract it
+	// Force sanitization of LLM hallucinated EntityTypes (e.g. "Food & Beverage")
+	if params.EntityType != "" {
+		et := strings.ToLower(params.EntityType)
+		if strings.Contains(et, "association") {
+			params.EntityType = "association"
+		} else if strings.Contains(et, "master") {
+			params.EntityType = "master_franchise"
+		} else if strings.Contains(et, "franchise") {
+			params.EntityType = "franchise"
+		} else {
+			params.EntityType = "" // Invalid, clear it
+		}
+	}
+
+	// Fallback to payload EntityType if LLM did not extract it (or if it was cleared)
 	if params.EntityType == "" {
 		if input.Query == "" || input.Query == "*" {
 			if input.EntityType != "" {
@@ -927,8 +941,17 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 				params.EntityType = et
 			}
 		} else {
-			// If there is a search query but no entity type mentioned, return mixed results.
-			params.EntityType = "all"
+			// Try to infer from query
+			lowerQ := strings.ToLower(input.Query)
+			if strings.Contains(lowerQ, "association") {
+				params.EntityType = "association"
+			} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
+				params.EntityType = "master_franchise"
+			} else if strings.Contains(lowerQ, "franchise") {
+				params.EntityType = "franchise"
+			} else {
+				params.EntityType = "all"
+			}
 		}
 	}
 
