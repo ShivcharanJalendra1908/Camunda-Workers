@@ -191,6 +191,16 @@ func (h *Handler) sanitizeInput(input *Input) {
 }
 
 func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
+	// ✅ NORMALIZE ENTITY TYPE (frontend may send plural forms)
+	switch strings.ToLower(input.EntityType) {
+	case "franchises":
+		input.EntityType = "franchise"
+	case "associations":
+		input.EntityType = "association"
+	case "master_franchises", "master-franchises":
+		input.EntityType = "master_franchise"
+	}
+
 	// ✅ INFER LOCATION AND ENTITY TYPE FROM QUERY
 	if input.Query != "" {
 		if input.Location == "" {
@@ -293,7 +303,6 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		cleanQuery := input.Query
 		if location.DetectCityFromQuery(input.Query) != "" {
 			stripped := location.StripLocationFromQuery(input.Query)
-			// Retain the query for text search if stripping makes it empty (so it matches names like 'Delhivery')
 			if strings.TrimSpace(stripped) == "" {
 				cleanQuery = input.Query
 			} else {
@@ -327,6 +336,12 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
+		// If cleanQuery is empty after stripping but location was detected,
+		// use the city name as search text (production behavior: search "Delhi" in name/description/tags)
+		if cleanQuery == "" && input.Location != "" {
+			cleanQuery = input.Location
+		}
+
 		if cleanQuery != "" {
 			multiMatch := map[string]interface{}{
 				"multi_match": map[string]interface{}{
@@ -340,7 +355,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 	}
 
-	// ✅ LOCATION FILTER (keyword field or country field)
+	// ✅ LOCATION FILTER (boost, not strict — franchise ES docs may lack location field)
 	if input.Location != "" {
 		locationTerms := location.BuildLocationTerms(input.Location)
 		var lowerTerms []string
@@ -348,7 +363,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 			lowerTerms = append(lowerTerms, strings.ToLower(t))
 		}
 
-		locationFilter := map[string]interface{}{
+		locationBoost := map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
@@ -358,7 +373,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					},
 					{
 						"terms": map[string]interface{}{
-							"locations": lowerTerms, // Check plural field too
+							"locations": lowerTerms,
 						},
 					},
 					{
@@ -368,7 +383,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					},
 					{
 						"terms": map[string]interface{}{
-							"locations.keyword": locationTerms, // Check plural field too
+							"locations.keyword": locationTerms,
 						},
 					},
 					{
@@ -378,7 +393,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					},
 					{
 						"match": map[string]interface{}{
-							"locations": input.Location, // Check plural field too
+							"locations": input.Location,
 						},
 					},
 					{
@@ -398,7 +413,8 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				"minimum_should_match": 1,
 			},
 		}
-		mustClauses = append(mustClauses, locationFilter)
+		// Use as should-boost (not must) — franchises may not have location field populated
+		shouldClauses = append(shouldClauses, locationBoost)
 	}
 
 	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)

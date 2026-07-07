@@ -83,6 +83,16 @@ func Execute(ctx context.Context, esClient *elasticsearch.Client, queryType mode
 // ============================================================
 
 func getEntityTypeFilter(entityType string) interface{} {
+	// Normalize plural forms
+	switch strings.ToLower(entityType) {
+	case "franchises":
+		entityType = "franchise"
+	case "associations":
+		entityType = "association"
+	case "master_franchises", "master-franchises":
+		entityType = "master_franchise"
+	}
+
 	if entityType == "franchise" {
 		return map[string]interface{}{
 			"bool": map[string]interface{}{
