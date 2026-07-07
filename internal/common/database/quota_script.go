@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"context"
@@ -15,11 +15,11 @@ import (
 // quotaIncrScript atomically checks credits, increments if allowed, and returns the result.
 // Uses EXPIRE on first increment to set a rolling 30-day window from the guest's first request.
 // Keys:
-//   [1] quota:{routeGroup}:{compositeKey}  — credit counter (rolling window)
+//   [1] quota:{routeGroup}:{compositeKey}  â€” credit counter (rolling window)
 //
 // Args:
-//   [1] creditsLimit  — max credits per window (3)
-//   [2] ttlSeconds    — TTL in seconds (e.g. 2592000 for 30 days)
+//   [1] creditsLimit  â€” max credits per window (3)
+//   [2] ttlSeconds    â€” TTL in seconds (e.g. 2592000 for 30 days)
 //
 // Returns: (creditsUsed int64, allowed bool)
 //   allowed = 1 if increment succeeded (creditsUsed <= creditsLimit)
@@ -56,13 +56,13 @@ return {new_val, 1}
 // sessionCreateScript atomically sets session pointer with SET NX (prevents concurrent overwrite)
 // and initializes query counter.
 // Keys:
-//   [1] guest:active_session:{compositeKey}  — current session pointer
-//   [2] session:{sessionID}:queries          — query count for this session
+//   [1] guest:active_session:{compositeKey}  â€” current session pointer
+//   [2] session:{sessionID}:queries          â€” query count for this session
 //
 // Args:
-//   [1] sessionID     — new session ID (gsess_xxx)
-//   [2] activeTTL     — TTL for active session pointer (seconds)
-//   [3] queryTTL      — TTL for query counter (seconds)
+//   [1] sessionID     â€” new session ID (gsess_xxx)
+//   [2] activeTTL     â€” TTL for active session pointer (seconds)
+//   [3] queryTTL      â€” TTL for query counter (seconds)
 //
 // Returns: 1 on success (SET NX succeeded), 0 if key already existed (race condition)
 var sessionCreateScript = redis.NewScript(`
@@ -76,7 +76,7 @@ local queryTTL = tonumber(ARGV[3])
 local wasSet = redis.call('SET', sessionKey, sessionID, 'EX', activeTTL, 'NX')
 
 if not wasSet then
-    -- Another request already created a session — return 0 (caller reads existing)
+    -- Another request already created a session â€” return 0 (caller reads existing)
     return 0
 end
 
@@ -88,12 +88,12 @@ return 1
 
 // sessionResumeScript atomically validates session ownership and increments query count.
 // Keys:
-//   [1] guest:active_session:{compositeKey}  — current session pointer
-//   [2] session:{sessionID}:queries          — query count for this session
+//   [1] guest:active_session:{compositeKey}  â€” current session pointer
+//   [2] session:{sessionID}:queries          â€” query count for this session
 //
 // Args:
-//   [1] clientSessionID — session ID from client's X-Guest-Session-ID header
-//   [2] queriesLimit    — max queries per session (6)
+//   [1] clientSessionID â€” session ID from client's X-Guest-Session-ID header
+//   [2] queriesLimit    â€” max queries per session (6)
 //
 // Returns: (queriesUsed int64, allowed bool)
 //   allowed = 1 if session matches and queries within limit
@@ -172,7 +172,7 @@ func (s *QuotaScripts) QuotaIncr(ctx context.Context, client redis.Client, key s
 
 // SessionCreate atomically creates a new session with query counter initialized to 1.
 // Uses SET NX to prevent concurrent session overwrite. Returns whether this call created
-// the session (true) or lost the race (false — caller should read existing session).
+// the session (true) or lost the race (false â€” caller should read existing session).
 func (s *QuotaScripts) SessionCreate(ctx context.Context, client redis.Client, sessionKey, queryKey, sessionID string, activeTTL, queryTTL time.Duration) (created bool, err error) {
 	result, err := s.sessionCreate.Run(ctx, &client, []string{sessionKey, queryKey},
 		sessionID, int(activeTTL.Seconds()), int(queryTTL.Seconds())).Int()

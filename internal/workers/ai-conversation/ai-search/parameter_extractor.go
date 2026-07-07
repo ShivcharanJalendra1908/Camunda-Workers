@@ -812,7 +812,7 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 
 	if v, ok := ftOut.EntityType.(string); ok && strings.TrimSpace(v) != "" {
 		et := strings.ToLower(strings.TrimSpace(v))
-		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
 			et = "master_franchise"
 		}
 		params.EntityType = et

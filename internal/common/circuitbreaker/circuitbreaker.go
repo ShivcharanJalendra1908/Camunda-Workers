@@ -1,4 +1,4 @@
-// internal/common/circuitbreaker/circuitbreaker.go
+﻿// internal/common/circuitbreaker/circuitbreaker.go
 package circuitbreaker
 
 import (

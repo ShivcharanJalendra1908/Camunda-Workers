@@ -1,4 +1,4 @@
-// internal/common/database/elasticsearch.go
+﻿// internal/common/database/elasticsearch.go
 package database
 
 import (

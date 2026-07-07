@@ -1,4 +1,4 @@
-package types
+﻿package types
  
 // Identity represents a normalized external authentication identity
 // returned by an OAuth provider. It contains facts only, no decisions.

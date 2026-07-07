@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func (r *GuestAuditRepo) LogEvent(event *models.GuestAuditEvent) {
 	select {
 	case r.queue <- event:
 	default:
-		// Queue full — drop event rather than blocking the request
+		// Queue full â€” drop event rather than blocking the request
 	}
 }
 

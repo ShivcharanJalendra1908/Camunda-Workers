@@ -1,4 +1,4 @@
-// internal/common/aws/ses.go
+﻿// internal/common/aws/ses.go
 package aws
 
 import (

@@ -1,4 +1,4 @@
-// internal/common/circuitbreaker/manager.go
+﻿// internal/common/circuitbreaker/manager.go
 package circuitbreaker
 
 import (

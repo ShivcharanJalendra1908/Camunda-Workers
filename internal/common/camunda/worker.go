@@ -1,4 +1,4 @@
-// internal/common/camunda/worker.go
+﻿// internal/common/camunda/worker.go
 package camunda
 
 import (

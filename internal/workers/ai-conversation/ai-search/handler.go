@@ -837,7 +837,7 @@ func (h *Handler) parseInput(job entities.Job) (*SearchInput, error) {
 			et = "franchise"
 		case "associations":
 			et = "association"
-		case "master-franchise", "master_franchises", "master franchises", "masterfranchise":
+		case "master-franchise", "master_franchises", "master franchises", "master franchise", "masterfranchise":
 			et = "master_franchise"
 		default:
 			et = strings.TrimSuffix(et, "s")
@@ -868,7 +868,7 @@ func (h *Handler) validateInput(input *SearchInput) error {
 func (h *Handler) extractParametersWithFallback(ctx context.Context, input *SearchInput) *ExtractedParameters {
 	if input.EntityType != "" {
 		et := strings.ToLower(input.EntityType)
-		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
 			et = "master_franchise"
 		}
 		input.EntityType = et
@@ -935,7 +935,7 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		if input.Query == "" || input.Query == "*" {
 			if input.EntityType != "" {
 				et := strings.ToLower(input.EntityType)
-				if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "masterfranchise" {
+				if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
 					et = "master_franchise"
 				}
 				params.EntityType = et

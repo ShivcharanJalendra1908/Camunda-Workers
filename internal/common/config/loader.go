@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"fmt"
@@ -36,22 +36,22 @@ func Load() (*Config, error) {
 		os.Setenv("APP_ENVIRONMENT", "demo")
 	}
 
-	// 1️⃣ LOAD BASE CONFIG
+	// 1ï¸âƒ£ LOAD BASE CONFIG
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading base config: %w", err)
 		}
 	}
 
-	// 2️⃣ LOAD ENV CONFIG
+	// 2ï¸âƒ£ LOAD ENV CONFIG
 	envConfigFile := fmt.Sprintf("config.%s", env)
 	viper.SetConfigName(envConfigFile)
 	_ = viper.MergeInConfig()
 
-	// 3️⃣ EXPAND ENV PLACEHOLDERS
+	// 3ï¸âƒ£ EXPAND ENV PLACEHOLDERS
 	expandEnvVarsWithDefault(viper.GetViper())
 
-	// 4️⃣ Unmarshal final config
+	// 4ï¸âƒ£ Unmarshal final config
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
@@ -59,10 +59,10 @@ func Load() (*Config, error) {
 
 	applyDefaults(&cfg)
 
-	// 5️⃣ DIRECT OVERRIDE FROM ENV VARS (Critical for Docker)
+	// 5ï¸âƒ£ DIRECT OVERRIDE FROM ENV VARS (Critical for Docker)
 	overrideEmptyConfig(&cfg)
 
-	// ✅ FIX: Set GatewayAddress from BrokerAddress if not set
+	// âœ… FIX: Set GatewayAddress from BrokerAddress if not set
 	if cfg.Camunda.GatewayAddress == "" && cfg.Camunda.BrokerAddress != "" {
 		cfg.Camunda.GatewayAddress = cfg.Camunda.BrokerAddress
 	}
@@ -112,13 +112,13 @@ func loadEnvFile() {
 	for _, path := range possiblePaths {
 		if _, err := os.Stat(path); err == nil {
 			if err := godotenv.Load(path); err == nil {
-				fmt.Printf("✅ Loaded .env from: %s\n", path)
+				fmt.Printf("âœ… Loaded .env from: %s\n", path)
 				return
 			}
 		}
 	}
 
-	fmt.Printf("⚠️  .env file not found, using system environment variables\n")
+	fmt.Printf("âš ï¸  .env file not found, using system environment variables\n")
 }
 
 // findProjectRoot finds project root by looking for go.mod
@@ -555,7 +555,7 @@ func LoadFromFile(path string) (*Config, error) {
 	applyDefaults(&cfg)
 	overrideEmptyConfig(&cfg)
 
-	// ✅ FIX: Set GatewayAddress from BrokerAddress if not set
+	// âœ… FIX: Set GatewayAddress from BrokerAddress if not set
 	if cfg.Camunda.GatewayAddress == "" && cfg.Camunda.BrokerAddress != "" {
 		cfg.Camunda.GatewayAddress = cfg.Camunda.BrokerAddress
 	}
