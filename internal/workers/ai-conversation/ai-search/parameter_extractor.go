@@ -78,6 +78,7 @@ RULES:
 9. ROI should be just the percentage number (e.g., 20).
 10. Exclusivity_Type and Territory_Scope for Master Franchises (e.g., "state level", "exclusive").
 11. Only set Verified or Trusted_Seller to true if explicitly used.
+12. Semantic Budgets: If the user says "low budget" or "cheap", set Maximum_Investment to "25L". If they say "normal", "mid budget", or "mid range", set Minimum_Investment to "25L" and Maximum_Investment to "75L". If they say "high budget", "luxury", "expensive", or "premium", set Minimum_Investment to "75L".
 
 DATA STRUCTURE (Return ONLY valid JSON matching this):
 {
