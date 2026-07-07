@@ -259,11 +259,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					"minimum_should_match": 1,
 				},
 			}
-			if input.Query != "" {
-				shouldClauses = append(shouldClauses, industryFilter)
-			} else {
-				mustClauses = append(mustClauses, industryFilter)
-			}
+			mustClauses = append(mustClauses, industryFilter)
 		}
 	}
 
@@ -291,11 +287,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				},
 			},
 		}
-		if input.Query != "" {
-			shouldClauses = append(shouldClauses, categoryFilter)
-		} else {
-			mustClauses = append(mustClauses, categoryFilter)
-		}
+		mustClauses = append(mustClauses, categoryFilter)
 	}
 
 	// ✅ TEXT SEARCH (MULTI-MATCH)
