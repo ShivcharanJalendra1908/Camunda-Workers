@@ -355,7 +355,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 	}
 
-	// ✅ LOCATION FILTER (boost, not strict — franchise ES docs may lack location field)
+	// ✅ LOCATION FILTER (strict must filter)
 	if input.Location != "" {
 		locationTerms := location.BuildLocationTerms(input.Location)
 		var lowerTerms []string
@@ -363,7 +363,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 			lowerTerms = append(lowerTerms, strings.ToLower(t))
 		}
 
-		locationBoost := map[string]interface{}{
+		locationFilter := map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
@@ -377,13 +377,19 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 						},
 					},
 					{
-						"terms": map[string]interface{}{
-							"location.keyword": locationTerms,
+						"term": map[string]interface{}{
+							"location": map[string]interface{}{
+								"value":            input.Location,
+								"case_insensitive": true,
+							},
 						},
 					},
 					{
-						"terms": map[string]interface{}{
-							"locations.keyword": locationTerms,
+						"term": map[string]interface{}{
+							"locations": map[string]interface{}{
+								"value":            input.Location,
+								"case_insensitive": true,
+							},
 						},
 					},
 					{
@@ -413,8 +419,8 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 				"minimum_should_match": 1,
 			},
 		}
-		// Use as should-boost (not must) — franchises may not have location field populated
-		shouldClauses = append(shouldClauses, locationBoost)
+		// Location is a strict filter based on DB columns
+		mustClauses = append(mustClauses, locationFilter)
 	}
 
 	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)
