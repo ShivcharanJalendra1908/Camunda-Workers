@@ -38,18 +38,31 @@
     </bpmn:parallelGateway>
     <bpmn:serviceTask id="Task_GetListings" name="Get Franchise Listings">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:taskDefinition type="search-franchises" />
         <zeebe:ioMapping>
-          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then &#34;SEARCH_WITH_FILTERS&#34; else &#34;FRANCHISE_LISTING&#34;" target="queryType" />
-          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then filters else null" target="filters" />
-          <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then limit else pageSize" target="pageSize" />
-          <zeebe:input source="=if searchQuery != null and searchQuery != &#34;&#34; then (page - 1) * limit else offset" target="offset" />
-          <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then industrySlug else null" target="industrySlug" />
-          <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then categorySlug else null" target="categorySlug" />
-             <zeebe:input source="=if searchQuery = null or searchQuery = &#34;&#34; then subCategorySlug else null" target="subCategorySlug" />
-          <zeebe:output source="=data" target="franchises" />
-          <zeebe:output source="=total" target="totalCount" />
+          <zeebe:input source="=searchQuery" target="query" />
+          <zeebe:input source="=if filters != null and filters.category != null and filters.category != &#34;&#34; then filters.category else if categorySlug != null then categorySlug else if category != null then category else &#34;&#34;" target="category" />
+          <zeebe:input source="=if filters != null and filters.industrySlug != null and filters.industrySlug != &#34;&#34; then filters.industrySlug else if industrySlug != null then industrySlug else if industry != null then industry else &#34;&#34;" target="industry" />
+          <zeebe:input source="=if filters != null and filters.location != null and filters.location != &#34;&#34; then filters.location else if location != null then location else &#34;&#34;" target="location" />
+          <zeebe:input source="=if page != null then page else 1" target="page" />
+          <zeebe:input source="=if limit != null then limit else if pageSize != null then pageSize else 10" target="limit" />
+          <zeebe:input source="=userId" target="user_id" />
+          <zeebe:input source="=sessionId" target="session_id" />
+          <zeebe:input source="=if filters != null and filters.entityType != null and filters.entityType != &#34;&#34; then filters.entityType else if entityType != null then entityType else &#34;franchise&#34;" target="entityType" />
+          <zeebe:input source="=if filters != null and filters.exclusivityType != null then filters.exclusivityType else exclusivityType" target="exclusivityType" />
+          <zeebe:input source="=if filters != null and filters.territoryScope != null then filters.territoryScope else territoryScope" target="territoryScope" />
+          <zeebe:input source="=if filters != null and filters.minUnits != null then filters.minUnits else minUnits" target="minUnits" />
+          <zeebe:input source="=if filters != null and filters.localBrandsOnly != null then filters.localBrandsOnly else localBrandsOnly" target="localBrandsOnly" />
+          <zeebe:input source="=if filters != null and filters.minInvestment != null then filters.minInvestment else minInvestment" target="minInvestment" />
+          <zeebe:input source="=if filters != null and filters.maxInvestment != null then filters.maxInvestment else maxInvestment" target="maxInvestment" />
+          <zeebe:input source="=if filters != null and filters.minSpace != null then filters.minSpace else minSpace" target="minSpace" />
+          <zeebe:input source="=if filters != null and filters.maxSpace != null then filters.maxSpace else maxSpace" target="maxSpace" />
+          <zeebe:input source="=if filters != null and filters.minRating != null then filters.minRating else minRating" target="minRating" />
+          <zeebe:input source="=if filters != null and filters.minFee != null then filters.minFee else minFee" target="minFee" />
+          <zeebe:input source="=if filters != null and filters.maxFee != null then filters.maxFee else maxFee" target="maxFee" />
+          <zeebe:input source="=if filters != null and filters.subCategorySlug != null and filters.subCategorySlug != &#34;&#34; then filters.subCategorySlug else if subCategorySlug != null then subCategorySlug else &#34;&#34;" target="subCategory" />
+          <zeebe:output source="=search_results" target="franchises" />
+          <zeebe:output source="=total_count" target="totalCount" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Listings</bpmn:incoming>
@@ -169,10 +182,10 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_To_AICheck" sourceRef="Start_Listing" targetRef="Gateway_AICheck" />
     <bpmn:sequenceFlow id="Flow_To_AISearch" sourceRef="Gateway_AICheck" targetRef="Task_AISearch">
-      <bpmn:conditionExpression>=searchQuery != null and searchQuery != ""</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=searchQuery != null and searchQuery != "" and count(split(searchQuery, " ")) > 5</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Skip_AI" sourceRef="Gateway_AICheck" targetRef="Gateway_Merge">
-      <bpmn:conditionExpression>=searchQuery = null or searchQuery = ""</bpmn:conditionExpression>
+      <bpmn:conditionExpression>=searchQuery = null or searchQuery = "" or count(split(searchQuery, " ")) <= 5</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_AI_To_Merge" sourceRef="Task_AISearch" targetRef="Gateway_Merge" />
     <bpmn:sequenceFlow id="Flow_To_Parallel" sourceRef="Gateway_Merge" targetRef="Gateway_Parallel" />

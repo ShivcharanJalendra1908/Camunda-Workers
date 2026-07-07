@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -293,12 +294,32 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		if location.DetectCityFromQuery(input.Query) != "" {
 			cleanQuery = location.StripLocationFromQuery(input.Query)
 		}
-		
-		// Strip entity keywords so they don't cause generic matches for all associations/franchises
-		cleanQuery = strings.ReplaceAll(strings.ToLower(cleanQuery), "master franchise", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "franchise", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "association", "")
-		cleanQuery = strings.TrimSpace(cleanQuery)
+
+		// Strip entity keywords using word-boundary regex so "franchises" is fully removed (not just "franchise" → "s")
+		cleanQuery = strings.ToLower(cleanQuery)
+		entityPatterns := []string{`master\s+franchises?`, `franchises?`, `associations?`}
+		for _, pattern := range entityPatterns {
+			re := regexp.MustCompile(`(?i)\b` + pattern + `\b`)
+			cleanQuery = re.ReplaceAllString(cleanQuery, "")
+		}
+
+		// Strip common prepositions/stopwords that remain after location and entity removal
+		prepositions := []string{"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on"}
+		words := strings.Fields(cleanQuery)
+		var filteredWords []string
+		for _, w := range words {
+			isPreposition := false
+			for _, p := range prepositions {
+				if w == p {
+					isPreposition = true
+					break
+				}
+			}
+			if !isPreposition {
+				filteredWords = append(filteredWords, w)
+			}
+		}
+		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
 		if cleanQuery != "" {
 			multiMatch := map[string]interface{}{
