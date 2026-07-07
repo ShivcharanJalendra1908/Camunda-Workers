@@ -19,9 +19,10 @@ type BaseInput struct {
 }
 
 type BaseOutput struct {
-	ID      string `json:"id,omitempty"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	ID            string   `json:"id,omitempty"`
+	Success       bool     `json:"success"`
+	Message       string   `json:"message"`
+	UpdatedFields []string `json:"updatedFields,omitempty"`
 }
 
 // ============================================================================

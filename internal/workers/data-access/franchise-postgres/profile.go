@@ -325,8 +325,9 @@ func (h *Handler) handleUpdatePersonalDetails(ctx context.Context, variables str
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Personal details updated successfully",
+		Success:       true,
+		Message:       "Personal details updated successfully",
+		UpdatedFields: h.collectUpdatedFields(pd, "name", "phone", "location"),
 	}, nil
 }
 
@@ -394,8 +395,9 @@ func (h *Handler) handleUpdateProfessionalDetails(ctx context.Context, variables
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Professional details updated successfully",
+		Success:       true,
+		Message:       "Professional details updated successfully",
+		UpdatedFields: h.collectUpdatedFields(pd, "occupation", "designation", "experience", "prior_experience", "industry", "industry_id"),
 	}, nil
 }
 
@@ -492,8 +494,9 @@ func (h *Handler) handleUpdateCompanyDetails(ctx context.Context, variables stri
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Company details updated successfully",
+		Success:       true,
+		Message:       "Company details updated successfully",
+		UpdatedFields: h.collectUpdatedFields(pd, "business_name", "business_type", "industry_sector", "year_established", "cin_registration", "gst_number", "annual_turnover", "company_website", "company_phone", "registered_address", "company_description"),
 	}, nil
 }
 
@@ -578,8 +581,9 @@ func (h *Handler) handleUpdateInvestmentDetails(ctx context.Context, variables s
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Investment details updated successfully",
+		Success:       true,
+		Message:       "Investment details updated successfully",
+		UpdatedFields: h.collectUpdatedFields(pd, "investment_range_min", "investment_range_max", "liquid_capital_available", "funding_source", "roi_timeline", "expected_roi", "preferred_sectors", "preferred_categories"),
 	}, nil
 }
 
@@ -653,8 +657,9 @@ func (h *Handler) handleUpdatePreferences(ctx context.Context, variables string)
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Preferences updated successfully",
+		Success:       true,
+		Message:       "Preferences updated successfully",
+		UpdatedFields: h.collectUpdatedFields(pd, "theme", "email_notifications", "push_notifications", "sms_notifications", "language", "timezone", "notification_settings"),
 	}, nil
 }
 
@@ -931,4 +936,15 @@ func (h *Handler) getKeycloakAdminToken(ctx context.Context) (string, error) {
 // stripBearer removes "Bearer " prefix if present
 func stripBearer(token string) string {
 	return strings.TrimPrefix(token, "Bearer ")
+}
+
+// collectUpdatedFields returns the subset of candidateFields that are present (non-nil) in pd.
+func (h *Handler) collectUpdatedFields(pd map[string]interface{}, candidateFields ...string) []string {
+	var updated []string
+	for _, f := range candidateFields {
+		if _, ok := pd[f]; ok {
+			updated = append(updated, f)
+		}
+	}
+	return updated
 }
