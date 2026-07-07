@@ -37,13 +37,19 @@ CREATE TABLE IF NOT EXISTS users (
     id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     email           TEXT        NOT NULL,
     email_verified  boolean     NOT NULL DEFAULT false,
+    phone_verified  boolean     DEFAULT false,
     status          text        NOT NULL DEFAULT 'active',
-    name            varchar(255),
-    phone           varchar(20),
+    name            VARCHAR(500),
+    phone           VARCHAR(100),
+    location        varchar(255),
+    profile_image   varchar(500),
+    archived_at     TIMESTAMPTZ DEFAULT NULL,
     created_at      timestamptz NOT NULL DEFAULT NOW(),
     updated_at      timestamptz NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT users_email_unique UNIQUE (email)
+    CONSTRAINT users_email_unique UNIQUE (email),
+    CONSTRAINT chk_users_status
+        CHECK (status IN ('active', 'inactive', 'suspended', 'pending', 'archived'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -829,10 +835,11 @@ CREATE TABLE IF NOT EXISTS contact_messages (
     name        VARCHAR(255)  NOT NULL,
     email       TEXT          NOT NULL,
     company     VARCHAR(255),
-    phone       VARCHAR(20),
+    phone       VARCHAR(100),
     message     TEXT          NOT NULL,
     ip_address  VARCHAR(45),                        
-    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    retain_until TIMESTAMP WITH TIME ZONE DEFAULT (NOW() + INTERVAL '90 days')
 );
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at ON contact_messages (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contact_messages_ip_created ON contact_messages (ip_address, created_at DESC);
@@ -844,7 +851,8 @@ CREATE TABLE IF NOT EXISTS public_form_submissions (
     phone VARCHAR(50),
     form_data JSONB NOT NULL DEFAULT '{}'::jsonb,
     status VARCHAR(50) DEFAULT 'new',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    retain_until TIMESTAMP DEFAULT (NOW() + INTERVAL '90 days')
 );
 CREATE INDEX idx_public_form_submissions_type ON public_form_submissions(form_type);
 CREATE INDEX idx_public_form_submissions_email ON public_form_submissions(email);
@@ -979,3 +987,215 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_guest_audit_events() IS 'Deletes guest audit events past their retention period. Run via cron job daily.';
+
+-- ============================================================
+-- USER PROFILE EXTENDED TABLES
+-- ============================================================
+
+-- ========================================
+-- USER PROFESSIONAL DETAILS
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_professional_details (
+    user_id           UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    occupation        VARCHAR(255),
+    designation       VARCHAR(255),
+    experience        VARCHAR(50),
+    prior_experience  BOOLEAN DEFAULT false,
+    industry_id       UUID REFERENCES industries(id) ON DELETE SET NULL,
+    industry          VARCHAR(255),
+    created_at        TIMESTAMPTZ DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER update_user_professional_details_updated_at
+    BEFORE UPDATE ON user_professional_details
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE user_professional_details IS
+    'Extended professional information for users. Occupation, designation, experience, and industry classification.';
+
+-- ========================================
+-- USER COMPANY DETAILS
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_company_details (
+    user_id              UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    business_name        VARCHAR(500),
+    business_type        VARCHAR(100),
+    industry_sector      VARCHAR(255),
+    year_established     INTEGER,
+    cin_registration     VARCHAR(100),
+    gst_number           VARCHAR(100),
+    annual_turnover      VARCHAR(50),
+    company_website      VARCHAR(500),
+    company_phone        VARCHAR(100),
+    registered_address   TEXT,
+    company_description  TEXT,
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER update_user_company_details_updated_at
+    BEFORE UPDATE ON user_company_details
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE user_company_details IS
+    'Extended company/business information for users. Business name, type, industry, registration details, and contact information.';
+
+-- ========================================
+-- USER INVESTMENT DETAILS
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_investment_details (
+    user_id                    UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    min_investment             VARCHAR(100),
+    max_investment             VARCHAR(100),
+    liquid_capital_available   VARCHAR(100),
+    funding_source             VARCHAR(100),
+    roi_timeline               VARCHAR(50),
+    expected_annual_roi        VARCHAR(50),
+    preferred_sectors          TEXT[],
+    preferred_categories       TEXT[],
+    created_at                 TIMESTAMPTZ DEFAULT NOW(),
+    updated_at                 TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER update_user_investment_details_updated_at
+    BEFORE UPDATE ON user_investment_details
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE user_investment_details IS
+    'Investment preferences and financial information for users. Investment ranges, funding sources, ROI expectations, and preferred sectors.';
+
+-- ========================================
+-- USER PREFERENCES
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id                 UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    theme                   VARCHAR(20) DEFAULT 'system',
+    email_notifications     BOOLEAN DEFAULT true,
+    push_notifications      BOOLEAN DEFAULT true,
+    sms_notifications       BOOLEAN DEFAULT false,
+    language                VARCHAR(10) DEFAULT 'en',
+    timezone                VARCHAR(50),
+    notification_settings   JSONB DEFAULT '{}'::jsonb,
+    created_at              TIMESTAMPTZ DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER update_user_preferences_updated_at
+    BEFORE UPDATE ON user_preferences
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE user_preferences IS
+    'User preferences for theme, language, timezone, and notification settings.';
+
+-- ========================================
+-- PROFILE AUDIT LOG
+-- ========================================
+CREATE TABLE IF NOT EXISTS profile_audit_log (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action      VARCHAR(50) NOT NULL,
+    field       VARCHAR(100),
+    old_value   TEXT,
+    new_value   TEXT,
+    changes     JSONB,
+    source      VARCHAR(50),
+    request_id  VARCHAR(100),
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_profile_audit_log_user ON profile_audit_log(user_id);
+CREATE INDEX idx_profile_audit_log_action ON profile_audit_log(action);
+CREATE INDEX idx_profile_audit_log_created_at ON profile_audit_log(created_at DESC);
+CREATE INDEX idx_profile_audit_log_request ON profile_audit_log(request_id);
+
+COMMENT ON TABLE profile_audit_log IS
+    'Immutable audit log for all user profile changes. Tracks old/new values for compliance and debugging.';
+
+-- ========================================
+-- USER CONSENTS (GDPR Article 7 / DPDPA Section 6)
+-- ========================================
+CREATE TABLE IF NOT EXISTS user_consents (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    consent_type    VARCHAR(100) NOT NULL,
+    version         VARCHAR(50) NOT NULL,
+    granted         BOOLEAN NOT NULL DEFAULT true,
+    granted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    withdrawn_at    TIMESTAMPTZ,
+    ip_address      VARCHAR(45),
+    source          VARCHAR(50) NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_consents_user ON user_consents(user_id);
+CREATE INDEX idx_user_consents_type ON user_consents(consent_type);
+CREATE INDEX idx_user_consents_granted ON user_consents(granted, granted_at DESC);
+
+COMMENT ON TABLE user_consents IS
+    'GDPR Article 7 / DPDPA Section 6 compliance. Records what users consented to, when, which version, and withdrawal events.';
+
+-- ========================================
+-- FEEDBACK
+-- ========================================
+CREATE TABLE IF NOT EXISTS feedback (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+    type        VARCHAR(50) NOT NULL,
+    message     TEXT NOT NULL,
+    status      VARCHAR(20) DEFAULT 'open',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_feedback_user ON feedback(user_id);
+CREATE INDEX idx_feedback_status ON feedback(status);
+
+COMMENT ON TABLE feedback IS
+    'User feedback submissions. Types and statuses validated at app layer via config/dropdowns.yaml.';
+
+-- ============================================================
+-- DPDPA CLEANUP FUNCTIONS FOR ANONYMOUS PII TABLES
+-- ============================================================
+
+-- Cleanup expired contact messages (90-day retention)
+CREATE OR REPLACE FUNCTION cleanup_expired_contact_messages()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM contact_messages WHERE retain_until < NOW();
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION cleanup_expired_contact_messages() IS
+    'Deletes contact messages past their 90-day retention period. Run via cron job daily. DPDPA compliance.';
+
+-- Cleanup expired public form submissions (90-day retention)
+CREATE OR REPLACE FUNCTION cleanup_expired_form_submissions()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM public_form_submissions WHERE retain_until < NOW();
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION cleanup_expired_form_submissions() IS
+    'Deletes public form submissions past their 90-day retention period. Run via cron job daily. DPDPA compliance.';
+
+-- Anonymize old share IPs (365-day retention)
+CREATE OR REPLACE FUNCTION cleanup_expired_share_ips()
+RETURNS void AS $$
+BEGIN
+    UPDATE listing_shares
+    SET ip_address = NULL
+    WHERE ip_address IS NOT NULL
+      AND shared_at < NOW() - INTERVAL '365 days';
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION cleanup_expired_share_ips() IS
+    'Anonymizes IP addresses in listing_shares past their 365-day retention period. Run via cron job weekly. DPDPA compliance.';
+
+-- Cleanup expired notifications (180-day retention)
+CREATE OR REPLACE FUNCTION cleanup_expired_notifications()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM notifications WHERE sent_at < NOW() - INTERVAL '180 days';
+END;
+$$ LANGUAGE plpgsql;
+COMMENT ON FUNCTION cleanup_expired_notifications() IS
+    'Deletes notifications past their 180-day retention period. Run via cron job daily. DPDPA compliance.';
