@@ -900,8 +900,15 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		// color
 		color := ""
 		if ind, ok := assoc["industry"].(map[string]interface{}); ok {
-			if hex, ok := ind["color_hex"].(string); ok {
+			if hex, ok := ind["color_hex"].(string); ok && hex != "" {
 				color = hex
+			} else if c, ok := ind["color"].(string); ok && c != "" {
+				color = c
+			}
+		}
+		if color == "" {
+			if c, ok := assoc["color"].(string); ok && c != "" {
+				color = c
 			}
 		}
 		transformed.Color = color
@@ -1934,7 +1941,9 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 
 				// Map color and category from industry nested object to top-level keys for card styling
 				if industry, ok := listing["industry"].(map[string]interface{}); ok {
-					if color, ok := industry["color"].(string); ok && color != "" {
+					if color, ok := industry["color_hex"].(string); ok && color != "" {
+						listing["color"] = color
+					} else if color, ok := industry["color"].(string); ok && color != "" {
 						listing["color"] = color
 					}
 					if catName, ok := industry["name"].(string); ok && catName != "" {
@@ -2628,8 +2637,15 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		// color
 		color := ""
 		if ind, ok := assoc["industry"].(map[string]interface{}); ok {
-			if hex, ok := ind["color_hex"].(string); ok {
+			if hex, ok := ind["color_hex"].(string); ok && hex != "" {
 				color = hex
+			} else if c, ok := ind["color"].(string); ok && c != "" {
+				color = c
+			}
+		}
+		if color == "" {
+			if c, ok := assoc["color"].(string); ok && c != "" {
+				color = c
 			}
 		}
 		transformed.Color = color
