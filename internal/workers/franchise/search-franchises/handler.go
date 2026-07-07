@@ -292,7 +292,13 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 	if input.Query != "" {
 		cleanQuery := input.Query
 		if location.DetectCityFromQuery(input.Query) != "" {
-			cleanQuery = location.StripLocationFromQuery(input.Query)
+			stripped := location.StripLocationFromQuery(input.Query)
+			// Retain the query for text search if stripping makes it empty (so it matches names like 'Delhivery')
+			if strings.TrimSpace(stripped) == "" {
+				cleanQuery = input.Query
+			} else {
+				cleanQuery = stripped
+			}
 		}
 
 		// Strip entity keywords using word-boundary regex so "franchises" is fully removed (not just "franchise" → "s")
@@ -352,12 +358,27 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 					},
 					{
 						"terms": map[string]interface{}{
+							"locations": lowerTerms, // Check plural field too
+						},
+					},
+					{
+						"terms": map[string]interface{}{
 							"location.keyword": locationTerms,
+						},
+					},
+					{
+						"terms": map[string]interface{}{
+							"locations.keyword": locationTerms, // Check plural field too
 						},
 					},
 					{
 						"match": map[string]interface{}{
 							"location": input.Location,
+						},
+					},
+					{
+						"match": map[string]interface{}{
+							"locations": input.Location, // Check plural field too
 						},
 					},
 					{
