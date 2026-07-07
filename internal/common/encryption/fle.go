@@ -271,15 +271,14 @@ func (f *FLEService) DecryptStructFields(v interface{}) error {
 // This is the single source of truth for which fields are encrypted.
 func getFLEFieldMap() map[string]string {
 	return map[string]string{
-		"email":        "email",
-		"name":         "name",
-		"phone":        "phone",
-		"location":     "location",
-		"company":      "company",
-		"jobTitle":     "jobTitle",
-		"businessName": "businessName",
-		"cinNumber":    "cinNumber",
-		"gstNumber":    "gstNumber",
+		"email":            "email",
+		"name":             "name",
+		"phone":            "phone",
+		"location":         "location",
+		"occupation":       "occupation",
+		"business_name":    "business_name",
+		"cin_registration": "cin_registration",
+		"gst_number":       "gst_number",
 	}
 }
 
