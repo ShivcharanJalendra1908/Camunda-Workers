@@ -226,7 +226,7 @@ CREATE TABLE listings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise')),
-    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
+    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
     CONSTRAINT chk_logo_url_circle CHECK (logo_url_circle IS NULL OR logo_url_circle ~* '^https?://' OR logo_url_circle ~* '^/'),
     CONSTRAINT chk_logo_url_square CHECK (logo_url_square IS NULL OR logo_url_square ~* '^https?://' OR logo_url_square ~* '^/'),
     CONSTRAINT chk_founded_year_valid CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
@@ -612,6 +612,7 @@ CREATE TABLE notifications (
     idempotency_key VARCHAR(255) UNIQUE,
     metadata JSONB DEFAULT '{}'::jsonb,
     sent_date DATE GENERATED ALWAYS AS (sent_at::DATE) STORED,
+    retain_until TIMESTAMP DEFAULT (NOW() + INTERVAL '180 days'),
     CONSTRAINT chk_channel_valid CHECK (channel IN ('email', 'sms', 'push', 'in_app'))
 );
 CREATE UNIQUE INDEX uq_notification_daily ON notifications(notification_type, recipient_id, COALESCE(application_id::TEXT, 'NULL'), sent_date);
@@ -645,7 +646,8 @@ CREATE TABLE listing_shares (
     listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
     share_platform VARCHAR(50) DEFAULT 'copy_link',
     ip_address VARCHAR(45),
-    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    retain_until TIMESTAMP DEFAULT (NOW() + INTERVAL '365 days')
 );
 CREATE INDEX idx_listing_shares_listing ON listing_shares(listing_id);
 CREATE INDEX idx_listing_shares_user ON listing_shares(user_id);
@@ -1194,7 +1196,7 @@ COMMENT ON FUNCTION cleanup_expired_share_ips() IS
 CREATE OR REPLACE FUNCTION cleanup_expired_notifications()
 RETURNS void AS $$
 BEGIN
-    DELETE FROM notifications WHERE sent_at < NOW() - INTERVAL '180 days';
+    DELETE FROM notifications WHERE retain_until < NOW();
 END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_notifications() IS
