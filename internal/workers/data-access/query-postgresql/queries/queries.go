@@ -85,7 +85,7 @@ func IndustriesTop9(ctx context.Context, db *sql.DB, params map[string]interface
     ) f ON f.industry_id = i.id
     WHERE i.is_active = true
     ORDER BY f.franchise_count DESC
-    LIMIT 10
+    LIMIT 9
     `
 
 	rows, err := db.QueryContext(ctx, query, entityType)
