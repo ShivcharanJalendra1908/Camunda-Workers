@@ -450,7 +450,7 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 	var pendingEnquiryID string
 	err = h.db.QueryRowContext(ctx, `
 		SELECT id FROM enquiries
-		WHERE user_id = $1 AND entity_id = $2 AND status = 'PENDING'
+		WHERE user_id = $1 AND listing_id = $2 AND status = 'PENDING'
 		LIMIT 1
 	`, input.SeekerID, input.FranchiseID).Scan(&pendingEnquiryID)
 
@@ -482,7 +482,7 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 	var totalEnquiries int
 	err = h.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM enquiries
-		WHERE user_id = $1 AND entity_id = $2
+		WHERE user_id = $1 AND listing_id = $2
 	`, input.SeekerID, input.FranchiseID).Scan(&totalEnquiries)
 	if err != nil {
 		h.logger.Error("Failed to count enquiries", map[string]interface{}{
@@ -538,9 +538,9 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 	// ===== STEP 4: INSERT ENQUIRY =====
 	insertQuery := `
 		INSERT INTO enquiries (
-			id, user_id, entity_id, status, message, preferred_contact, last_activity_at, created_at, updated_at
+			id, user_id, listing_id, status, message, preferred_contact, last_activity_at, created_at, updated_at
 		) VALUES ($1, $2, $3, 'PENDING', $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT (user_id, entity_id) WHERE status = 'PENDING'
+		ON CONFLICT (user_id, listing_id) WHERE status = 'PENDING'
 		DO NOTHING`
 
 	res, err := tx.ExecContext(ctx, insertQuery,
@@ -569,7 +569,7 @@ func (h *Handler) execute(ctx context.Context, input *Input, idempotencyKey stri
 		var existingID string
 		queryErr := tx.QueryRowContext(ctx, `
 			SELECT id FROM enquiries
-			WHERE user_id = $1 AND entity_id = $2 AND status = 'PENDING'
+			WHERE user_id = $1 AND listing_id = $2 AND status = 'PENDING'
 			LIMIT 1
 		`, input.SeekerID, input.FranchiseID).Scan(&existingID)
 
