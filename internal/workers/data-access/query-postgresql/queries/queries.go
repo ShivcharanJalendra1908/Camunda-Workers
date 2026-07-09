@@ -374,7 +374,8 @@ SELECT
 	a.legal_status,
 	a.headquarters_address,
 	a.regional_presence,
-	a.contact_phone
+	a.contact_phone,
+	a.association_metadata
 FROM listings l
 LEFT JOIN franchises f ON l.id = f.id
 LEFT JOIN associations a ON l.id = a.id
@@ -402,6 +403,7 @@ WHERE l.id = $1
 		associationType, sectorRepresented  sql.NullString
 		legalStatus, headquartersAddress    sql.NullString
 		regionalPresence, contactPhone      sql.NullString
+		associationMetadata                 []byte
 	)
 
 	err = db.QueryRowContext(ctx, query, franchiseID).Scan(
@@ -426,6 +428,7 @@ WHERE l.id = $1
 		&headquartersAddress,
 		&regionalPresence,
 		&contactPhone,
+		&associationMetadata,
 	)
 
 	if err != nil {
@@ -436,6 +439,10 @@ WHERE l.id = $1
 	}
 
 	overview := map[string]interface{}{}
+
+	if len(associationMetadata) > 0 && string(associationMetadata) != "null" {
+		overview["association_metadata"] = string(associationMetadata)
+	}
 
 	if email.Valid {
 		decryptedEmail := email.String
