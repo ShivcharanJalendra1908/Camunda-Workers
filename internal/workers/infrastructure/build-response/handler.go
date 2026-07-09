@@ -944,6 +944,7 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	sections := []interface{}{}
 
 	basicInfo := h.extractMap(data, "basicInfo")
+	pgOverview := h.extractMap(data, "overview")
 	recommended := h.extractArray(data, "recommended")
 	categories := h.extractArray(data, "featuredCategories")
 	if len(categories) == 0 {
@@ -952,8 +953,8 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	marketInsights := h.extractArray(data, "marketInsights")
 	categoryQuestions := h.extractArray(data, "categoryQuestions")
 
-	// Parse association_metadata JSON column safely
-	metadataVal := basicInfo["association_metadata"]
+	// Parse association_metadata JSON column safely from pgOverview
+	metadataVal := pgOverview["association_metadata"]
 	var metadata map[string]interface{}
 	if m, ok := metadataVal.(map[string]interface{}); ok {
 		metadata = m
