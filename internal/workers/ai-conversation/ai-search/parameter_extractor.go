@@ -69,7 +69,7 @@ Industry → Category → Subcategory
 RULES:
 1. Return ONLY valid JSON. No markdown, no conversational text.
 2. If a value is missing, use null. DO NOT use empty strings.
-3. Determine Entity_Type. If the user mentions "association" -> set to "association". If they mention "master franchise", "master", or "exclusive" -> set to "master-franchise". If they mention "franchise" -> set to "franchise". Otherwise -> set to null.
+3. Determine Entity_Type. If the user mentions "association", "chamber", "federation", "society", "trust", "council", "forum", or "consortium" -> set to "association". If they mention "master franchise", "master", or "exclusive" -> set to "master-franchise". If they mention "franchise" -> set to "franchise". Otherwise -> set to null.
 4. For investments and fees, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
 5. Determine Minimum_Investment / Maximum_Investment for franchises.
 6. Determine Minimum_Membership_Fee / Maximum_Membership_Fee for associations.

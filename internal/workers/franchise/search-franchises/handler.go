@@ -212,7 +212,16 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 		lowerQuery := strings.ToLower(input.Query)
 		if input.EntityType == "" || input.EntityType == "all" {
-			if strings.Contains(lowerQuery, "association") {
+			assocKeywords := []string{"association", "chamber", "federation", "society", "council", "forum", "consortium", "trust"}
+			isAssoc := false
+			for _, kw := range assocKeywords {
+				if strings.Contains(lowerQuery, kw) {
+					isAssoc = true
+					break
+				}
+			}
+
+			if isAssoc {
 				input.EntityType = "association"
 			} else if strings.Contains(lowerQuery, "franchise") {
 				input.EntityType = "franchise"
@@ -309,7 +318,7 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 		// Strip entity keywords
 		cleanQuery = strings.ToLower(cleanQuery)
-		entityPatterns := []string{`master\s+franchises?`, `franchises?`, `associations?`}
+		entityPatterns := []string{`master\s+franchises?`, `franchises?`}
 		for _, pattern := range entityPatterns {
 			re := regexp.MustCompile(`(?i)\b` + pattern + `\b`)
 			cleanQuery = re.ReplaceAllString(cleanQuery, "")
