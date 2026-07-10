@@ -281,3 +281,117 @@ b6094e38-bc3f-414c-886b-c64d56c8a535,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Proper
 10ca6b78-3b78-45e0-b611-61d3891033aa,ca02fc79-4b0f-46d9-a2ae-ba767deaa976,Real Estate Advisory &,real-estate-advisory,NULL,4,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
 9b8d85ae-f431-4ae1-b331-dacb1de064c6,456e1a68-37c2-454d-948f-a46294d6ba3a,Financial & Legal Consulting,financial-legal-consulting,NULL,5,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
 cf11d1fd-5d66-4a60-be05-d2caa70b8ebc,5dbe61d1-daa6-4f30-acba-d9094a3f9de3,Strength & CrossFit Gyms,strength-crossfit-gyms,NULL,9,TRUE,2025-01-01 13:14:00,2025-01-01 13:14:00
+10869084-97e9-4203-8705-e72ddeb6fb81,81ea5567-9881-4aa0-bbac-2acd30890eb8,Manufacturing Network,manufacturing-network,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+23c3a569-1263-4a6f-aef6-6c845d969dca,ba8a64f6-b213-4d52-b09a-7b6e51474e6f,Multi-Sector Business Chamber,multi-sector-business-chamber,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+7f5f7747-53c0-4466-b4d8-9794e1c3b31c,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Regional SME Association (Karnataka),regional-sme-association-karnataka,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+fa985609-8753-422d-ba68-accae8acbe24,0230fbbf-393f-4508-8756-658d94f2bad4,IT-BPM Industry,it-bpm-industry,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+ca9d3747-103e-4cd8-8378-9334f330030a,81ea5567-9881-4aa0-bbac-2acd30890eb8,Regional Industrial Association,regional-industrial-association,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+cef43ed8-ba85-4279-9fd7-9b919e8ba53f,81ea5567-9881-4aa0-bbac-2acd30890eb8,IT Hardware Manufacturing,it-hardware-manufacturing,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+82998671-c7ef-4a57-837d-ea99bd435f38,0230fbbf-393f-4508-8756-658d94f2bad4,Cybersecurity & Data Protection,cybersecurity-data-protection,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+069d2ac4-d72b-4bda-89a7-42129de2bb09,81ea5567-9881-4aa0-bbac-2acd30890eb8,Pharmaceutical Manufacturing,pharmaceutical-manufacturing,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+c649a47e-9893-4d4a-825f-0730209e0640,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Pharmaceutical Industry,pharmaceutical-industry,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+ab4d50c8-b5f9-4812-b85b-9841d4c09deb,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Pharmaceuticals),export-promotion-pharmaceuticals,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a8862542-6ed7-4051-86b8-5f0422133b22,81ea5567-9881-4aa0-bbac-2acd30890eb8,Auto Component Manufacturing,auto-component-manufacturing,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+5ace5bf5-de5b-4d87-81f2-f263437d7e49,23bf8133-731c-4bc9-91f8-7aaea8c33405,Automobile Dealers,automobile-dealers,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+50b856bc-4142-413e-ae45-ee94478b59bb,81ea5567-9881-4aa0-bbac-2acd30890eb8,Textiles & Apparel Manufacturing,textiles-apparel-manufacturing,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+f051c735-96c2-488c-a7f3-94a9e3832376,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion,export-promotion,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+52fa8825-ab9b-455b-ae7c-04b17920c816,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Chemicals),export-promotion-chemicals,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+38aef6d1-fc22-45f5-ba34-cbfcb8e7c649,81ea5567-9881-4aa0-bbac-2acd30890eb8,Plastics Manufacturing,plastics-manufacturing,NULL,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+93b4a31b-cd5b-48d1-8547-e6588affb9fc,14a1a104-b6cb-4f81-a036-c02de2f1650d,Real Estate,real-estate,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+d39d8b8f-3457-4873-9a43-c83f075a4f49,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Banking,banking,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+9a681006-7d06-401b-bf1f-31aaa4cba2dc,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Mutual Funds & Asset Management,mutual-funds-asset-management,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+2f6d98b6-b558-4625-8728-7418614dfeba,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Capital Markets,capital-markets,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+83dfe473-103b-4ccc-8762-0b3106c2189e,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Insurance,insurance,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+4b61d7ab-837c-4731-aee5-a54bf4e508a7,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Medical Professionals,medical-professionals,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+e0834a25-a3e3-4229-9ec6-d026e111fee9,56ad2fb8-bd76-4344-b937-13860f1a9626,Nursing Education & Profession,nursing-education-profession,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+9351002a-62e6-4723-90c4-2bf7f70f269e,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Hospitals & Healthcare Providers,hospitals-healthcare-providers,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+e76b0fb2-89e0-4196-82c9-85e9d39a0fbf,56ad2fb8-bd76-4344-b937-13860f1a9626,Dental Education & Profession,dental-education-profession,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+8a80c5e9-92ef-4648-ad82-76535bac1358,ba5fa33a-353f-4852-85e1-86c2195d36b9,Hotels & Restaurants,hotels-restaurants,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+74865aa8-35bd-441c-9d51-87d2490b4e85,ba5fa33a-353f-4852-85e1-86c2195d36b9,Travel & Tourism,travel-tourism,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+7e7c6d23-b23a-4392-9996-160ba12a1224,96f1923b-9a4c-428a-ae28-2d7417a85b98,Academic Institutions (Universities),academic-institutions-universities,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+d5338cd1-f046-4693-92c7-89d9dcf52e23,78a9eece-4926-4926-a60a-ef3c50646c14,Technical Education Regulation,technical-education-regulation,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+4a809f16-f701-437b-9c77-c8379f42a0b8,27a82ebc-66ae-4692-a327-df3efe586527,Advertising & Media Standards,advertising-media-standards,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+9d3c6558-a65d-4be6-845d-3ce2b44be039,3e39115d-2aa1-4b01-89d0-0fa258294d02,Print & News Media,print-news-media,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+002f6ef1-1c75-49f5-92a0-9423d9eb5506,81ea5567-9881-4aa0-bbac-2acd30890eb8,Food Processing Industry,food-processing-industry,NULL,8,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+ee39f7fc-10c6-4250-9b95-ebb8bec9d049,fcce1293-4ca9-43e6-8c25-cbd5b6afaba1,Seeds & Agri Inputs,seeds-agri-inputs,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+910c498f-96f8-4aa1-a24a-6a8ea5beec04,5b7b8098-7cf6-451d-9767-ba9087bdbcd2,Wind Energy & Renewable Power,wind-energy-renewable-power,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+7ad5d37b-2348-4738-9b21-0fe4874868d9,5b7b8098-7cf6-451d-9767-ba9087bdbcd2,Solar Energy & Renewable Power,solar-energy-renewable-power,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+10b60190-c7f2-4e91-8bec-2d152e042af5,81ea5567-9881-4aa0-bbac-2acd30890eb8,Road Transport & Logistics,road-transport-logistics,NULL,9,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+2de13bbe-eaf7-405d-8603-fcff259a2032,81ea5567-9881-4aa0-bbac-2acd30890eb8,Shipping & Maritime Logistics,shipping-maritime-logistics,NULL,10,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+9eb55809-342c-466c-a2a5-88b5829c2914,81ea5567-9881-4aa0-bbac-2acd30890eb8,Air Cargo & Freight Logistics,air-cargo-freight-logistics,NULL,11,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a0787537-30d3-4195-82f5-db9118ca563f,23bf8133-731c-4bc9-91f8-7aaea8c33405,Organized Retail,organized-retail,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+92abc36a-6311-4f9e-a7b0-2c64e024de78,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Multi-Sector Industry Body,multi-sector-industry-body,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+4eef98db-0791-497a-99f4-36c202c3d78d,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,MSMEs,msmes,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+43ab6576-aaad-487f-b15e-cfd26347f638,0230fbbf-393f-4508-8756-658d94f2bad4,Telecommunications,telecommunications,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+21ab74d8-07ab-4af5-8679-0191b359030a,05e8bb83-f6ed-4305-994b-4895d5582b5e,Horticulture Development,horticulture-development,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+2a805ff5-4bf6-4415-b646-03a580b83cea,fcce1293-4ca9-43e6-8c25-cbd5b6afaba1,Fresh Produce & Horticulture,fresh-produce-horticulture,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+b10a1f92-085a-4a8a-8e3f-70f6dc9ba224,b1d15032-5ce5-4b01-be5b-f56f93656219,Agricultural & Spice Exports,agricultural-spice-exports,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+bc4b1389-7f02-41b5-8e62-ed3a43a995db,6a875994-bad2-49d8-a052-ee2548d7c2e5,Cricket,cricket,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+f2ce25a3-d101-41bd-867b-83e91a3ff790,6a875994-bad2-49d8-a052-ee2548d7c2e5,Football,football,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+2d859d22-ae23-4eb5-bcff-2d0f345b6eb5,6a875994-bad2-49d8-a052-ee2548d7c2e5,Hockey,hockey,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+1b18d5b5-cff3-4842-b982-4493cc8cdd06,6a875994-bad2-49d8-a052-ee2548d7c2e5,Athletics,athletics,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+73b64a55-ffdf-4f82-b7d5-388385de0fb3,6a875994-bad2-49d8-a052-ee2548d7c2e5,Badminton,badminton,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a1dc6e7f-d5b8-4a3a-889f-1eb90d4df2be,6a875994-bad2-49d8-a052-ee2548d7c2e5,Table Tennis,table-tennis,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+2b1ac193-acdb-4212-9f6c-adccf95755a1,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Digital Health & HealthTech,digital-health-healthtech,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+27e69f25-220e-47fa-b0a2-7e0ee8cee9b8,23bf8133-731c-4bc9-91f8-7aaea8c33405,Franchise Business,franchise-business,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+7deb9665-5b80-41ba-a887-cfd94a61d70e,ba8a64f6-b213-4d52-b09a-7b6e51474e6f,Regional/Industry Chamber,regional-industry-chamber,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+833da1a2-4734-4bc6-8631-158ab0c4732e,fcce1293-4ca9-43e6-8c25-cbd5b6afaba1,Agribusiness & Food Processing,agribusiness-food-processing,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+179c6d1b-c309-4216-b99d-b4c4489f0468,fcce1293-4ca9-43e6-8c25-cbd5b6afaba1,Agrochemicals & Crop Protection,agrochemicals-crop-protection,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+995be951-bf83-41a4-be84-1cc7a4cb23e0,f0b75e19-3199-4ad3-acc7-8134350aca8f,Steel Manufacturing,steel-manufacturing,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+f51f95fc-63d3-4131-a301-98e89e33122f,f0b75e19-3199-4ad3-acc7-8134350aca8f,Mining & Minerals,mining-minerals,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+b25228cb-f0ce-4ce4-9e2f-246db7f65f2d,d74d948d-e6bc-4fdb-ae62-51b5be8354c2,Architecture Profession,architecture-profession,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+0ac781fb-1fb6-46b4-b118-d9d5f1d1471b,c8a357fe-cb73-4521-9749-1e62888d97df,Chartered Accountancy,chartered-accountancy,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+39d5d36a-f5ef-4622-9c42-d7bb6d77c1df,c8a357fe-cb73-4521-9749-1e62888d97df,Company Secretaries,company-secretaries,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+8db577e9-9c0c-4ccc-b3eb-087512dd157d,c8a357fe-cb73-4521-9749-1e62888d97df,Cost & Management Accounting,cost-management-accounting,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+abcc2001-1f93-497c-8ec6-04487da39a2b,d74d948d-e6bc-4fdb-ae62-51b5be8354c2,Legal Profession,legal-profession,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+6a3d0442-e466-4251-b8f6-06dc9236c96a,0230fbbf-393f-4508-8756-658d94f2bad4,Software & Digital,software-digital,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+02629d77-b636-484d-8fe2-820f11d5a3a6,81ea5567-9881-4aa0-bbac-2acd30890eb8,Sugar & Agro-Processing,sugar-agro-processing,NULL,12,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+cfdce750-d60e-43e0-a6ad-f909f7af69aa,75a25758-42f5-4181-9e10-65dfbed2741a,Skill Development & Training,skill-development-training,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+3d49b7ff-4156-4b13-a917-b57b63cddbd9,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Public Health,public-health,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+cf46a7c6-5d59-4a8b-9fce-725113952f24,0230fbbf-393f-4508-8756-658d94f2bad4,Cybersecurity & Information Sharing,cybersecurity-information-sharing,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+de2950e7-e6f7-4aa9-98ed-819d7f815a38,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Biotechnology & Life Sciences,biotechnology-life-sciences,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+418029a1-d510-4e44-9c40-0e2863ef2d35,0230fbbf-393f-4508-8756-658d94f2bad4,Space & Satellite Technology,space-satellite-technology,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a49ad8b8-b713-4938-8447-74d9f5efcf1e,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Medical Professionals (Ophthalmology),medical-professionals-ophthalmology,NULL,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+be1466ae-ad04-41f1-82a8-09d815c03d81,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Women Entrepreneurship,women-entrepreneurship,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+4b84d9a6-ae2a-45f5-acd3-da266eb0666d,c0eababa-f5cd-4671-a0ea-98d124a42dca,Cooperative Movement,cooperative-movement,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+e10a3cb7-0e55-4352-9192-8815c7a860ab,0230fbbf-393f-4508-8756-658d94f2bad4,"AVGC-XR (Animation, Gaming & XR)",avgc-xr-animation-gaming-xr,7,,TRUE,,
+83d5cbe4-161b-451c-ae2e-03baac1e7bd8,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Fintech & Digital Payments,fintech-digital-payments,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+83f2ae01-c840-441e-a40c-c8dbb782d7f1,c8a357fe-cb73-4521-9749-1e62888d97df,Interior Design,interior-design,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+328ab13f-fd09-4e99-9ff9-65aa196a0332,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Highways, Roads & Transportation Infrastructure",highways-roads-transportation-infrastructure,2,,TRUE,,
+7902313d-cfde-453d-89de-aa5c7b5e21dd,75a25758-42f5-4181-9e10-65dfbed2741a,Cold Chain & Temperature-Controlled Logistics,cold-chain-temperature-controlled-logistics,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+8a26e12f-1c41-4901-b4cd-5f1ef8f012b4,c1add6c5-c90e-4552-aed9-9c6336367cdd,AYUSH & Traditional Medicine Industry,ayush-traditional-medicine-industry,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+ddc43567-3bdc-444d-993c-2e6ca8a69254,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Microfinance,microfinance,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+71dac5e2-4abb-454f-8639-aaacd0dc7dbd,0230fbbf-393f-4508-8756-658d94f2bad4,Artificial Intelligence (AI) & Emerging Technologies,artificial-intelligence-ai-emerging-technologies,NULL,8,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+da149742-a515-4fb5-afec-3a1bcd7e26da,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Apex Body),export-promotion-apex-body,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+39957be6-e4f8-4682-9349-56e440d73645,0230fbbf-393f-4508-8756-658d94f2bad4,Internet & Digital Services,internet-digital-services,NULL,9,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+db47aad1-488d-4fb6-8fbf-7339b18280ac,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Staffing & Recruitment,staffing-recruitment,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+61d23c0b-eb0a-4a8d-8a5e-a6542430cb9f,c8a357fe-cb73-4521-9749-1e62888d97df,Human Resource Development,human-resource-development,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+b062dcaf-9d2c-4ea8-9f29-c74f1ca1989e,14a1a104-b6cb-4f81-a036-c02de2f1650d,Construction & Building,construction-building,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+8fa38008-42fb-48c1-a822-d2de4ed88200,ba5fa33a-353f-4852-85e1-86c2195d36b9,Airlines,airlines,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+b72a7f36-547e-4fcb-a3d0-2a09c151ce07,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Gems & Jewellery),export-promotion-gems-jewellery,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+7d42173b-f520-4334-937e-e2733b774ce7,23bf8133-731c-4bc9-91f8-7aaea8c33405,Gems & Jewellery Trade,gems-jewellery-trade,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+80a7caeb-0fb6-4606-b44d-8a3a51fb01ee,6a875994-bad2-49d8-a052-ee2548d7c2e5,Wrestling,wrestling,NULL,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+829c266d-21c0-4e3f-944e-f4f92dd90e7c,6a875994-bad2-49d8-a052-ee2548d7c2e5,Volleyball,volleyball,NULL,8,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+1392f256-ba28-41b3-a969-c75069060ea9,6a875994-bad2-49d8-a052-ee2548d7c2e5,Boxing,boxing,NULL,9,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+1462659b-bc46-4bd7-9395-e1e4175690fd,6a875994-bad2-49d8-a052-ee2548d7c2e5,Weightlifting,weightlifting,NULL,10,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+6d7a3022-a6c5-44bb-b496-8370da22faa1,81ea5567-9881-4aa0-bbac-2acd30890eb8,Paper & Pulp Manufacturing,paper-pulp-manufacturing,NULL,13,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+f94b6884-367e-428f-a6bd-8b494f2d5a65,c9c0d7ff-fc15-4ee5-9c11-4898deaffd55,Energy & Environmental Research,energy-environmental-research,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+3522f95f-b7e0-4b09-b28f-8254f319538c,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Entrepreneurship & Startup Network,entrepreneurship-startup-network,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+76e92016-72ce-4a3c-8354-b2c405d89ab8,81ea5567-9881-4aa0-bbac-2acd30890eb8,Furniture Manufacturing,furniture-manufacturing,NULL,14,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a3589112-7e4f-4659-95de-6e6688616186,fcce1293-4ca9-43e6-8c25-cbd5b6afaba1,Dairy Industry,dairy-industry,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+ec43079c-7ae0-401d-b0b2-fd48bf448616,81ea5567-9881-4aa0-bbac-2acd30890eb8,Printing & Packaging,printing-packaging,NULL,15,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+02c87426-f13f-432f-812a-5aa51e1c34d6,81ea5567-9881-4aa0-bbac-2acd30890eb8,Fire & Security Systems,fire-security-systems,NULL,16,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+34a39613-71a2-4286-92af-760f33c133f0,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Carpets & Handmade Textiles),export-promotion-carpets-handmade-textiles,NULL,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+e48b8ae1-ac93-4498-b2c6-721f0174e1a0,b1d15032-5ce5-4b01-be5b-f56f93656219,Export Promotion (Handloom Textiles),export-promotion-handloom-textiles,NULL,8,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+befb3a52-c725-4886-afa1-9d00222ee905,f0b75e19-3199-4ad3-acc7-8134350aca8f,Metals & Mining Sectoral Forum,metals-mining-sectoral-forum,NULL,3,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+
+f8f933aa-f224-483a-9522-5b3f4328c23f,ba8a64f6-b213-4d52-b09a-7b6e51474e6f,"Regional & Multi-Sector Chamber",regional-multi-sector-chamber,NULL,101,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+d4adc10a-a578-41d7-8a21-29e690238bd6,23bf8133-731c-4bc9-91f8-7aaea8c33405,"Distribution & Retail Trade",distribution-retail-trade,NULL,102,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+5103e121-0d75-4bd5-9474-43421ef72cad,7cba06bf-ba08-4dcf-936c-9bd399d00215,"Retail Traders",retail-traders,NULL,103,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+0770bdfe-d381-463a-bafd-3b84f030cd1e,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Malls & Shopping Centers",malls-shopping-centers,NULL,104,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+c1ccafc6-4b43-48b8-813e-d36bbb31171a,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,"SME Development",sme-development,NULL,105,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+a624374f-ab44-4723-8207-1de7c3ce848c,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,"MSMEs & Industrial Enterprises",msmes-industrial-enterprises,NULL,106,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+f27355dc-2a3a-40df-83b1-6e359ff3dfb1,f0b75e19-3199-4ad3-acc7-8134350aca8f,"Aluminum Industry",aluminum-industry,NULL,107,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+994b77eb-d870-442f-99ab-36554a7b95d7,f0b75e19-3199-4ad3-acc7-8134350aca8f,"Iron & Steel",iron-steel,NULL,108,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+c9c25c32-2924-4b50-a821-511fe1b7fe8e,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,"Private Equity & Venture Capital",private-equity-venture-capital,NULL,109,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00d7c352df-6c91-4560-af60-a235fb6ab7dc,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Highways, Roads & Transportation Infrastructure",highways-roads-transportation-infrastructure,NULL,110,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+fc1f9da2-a39c-4ec7-9dbd-0df0b5fc9db7,0230fbbf-393f-4508-8756-658d94f2bad4,"AVGC-XR (Animation, Gaming & XR)",avgc-xr-animation-gaming-xr,NULL,111,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
