@@ -1060,6 +1060,9 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 
 	phoneVal := getStringVal(contact_details, "phone_number", "")
 	if phoneVal == "" {
+		phoneVal = getStringVal(contact_details, "email", "")
+	}
+	if phoneVal == "" {
 		phoneVal = getStringVal(overview, "contact_phone", "")
 	}
 	if phoneVal == "" {
@@ -1122,6 +1125,30 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		}
 	} // end transformedApplication
 
+	metricsList := getArrayVal(membership_details, "overview_metrics")
+	var transformedOverviewMetrics []interface{}
+	if len(metricsList) > 0 {
+		for _, mItem := range metricsList {
+			if mm, ok := mItem.(map[string]interface{}); ok {
+				transformedOverviewMetrics = append(transformedOverviewMetrics, map[string]interface{}{
+					"label": getStringVal(mm, "label", ""),
+					"value": getStringVal(mm, "value", ""),
+				})
+			}
+		}
+	} // end transformedOverviewMetrics
+
+	benefitsList := getArrayVal(membership_details, "benefits")
+	var transformedBenefits []interface{}
+	if len(benefitsList) > 0 {
+		for _, bItem := range benefitsList {
+			// benefits is usually an array of strings
+			if bs, ok := bItem.(string); ok {
+				transformedBenefits = append(transformedBenefits, bs)
+			}
+		}
+	} // end transformedBenefits
+
 	if transformedMembership == nil {
 		transformedMembership = []interface{}{}
 	}
@@ -1131,6 +1158,12 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	if transformedApplication == nil {
 		transformedApplication = []interface{}{}
 	}
+	if transformedOverviewMetrics == nil {
+		transformedOverviewMetrics = []interface{}{}
+	}
+	if transformedBenefits == nil {
+		transformedBenefits = []interface{}{}
+	}
 
 	sections = append(sections, map[string]interface{}{
 		"type":    "membership_section",
@@ -1139,6 +1172,8 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 			"Membership":             transformedMembership,
 			"Eligibility_Criteria":   transformedEligibility,
 			"Membership_Application": transformedApplication,
+			"Overview_Metrics":       transformedOverviewMetrics,
+			"Benefits":               transformedBenefits,
 		},
 	})
 
