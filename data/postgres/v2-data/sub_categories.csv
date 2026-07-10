@@ -354,10 +354,10 @@ de2950e7-e6f7-4aa9-98ed-819d7f815a38,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Biotec
 a49ad8b8-b713-4938-8447-74d9f5efcf1e,99d6a9d9-5fb6-495a-8523-56d296b10dbd,Medical Professionals (Ophthalmology),medical-professionals-ophthalmology,NULL,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 be1466ae-ad04-41f1-82a8-09d815c03d81,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,Women Entrepreneurship,women-entrepreneurship,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 4b84d9a6-ae2a-45f5-acd3-da266eb0666d,c0eababa-f5cd-4671-a0ea-98d124a42dca,Cooperative Movement,cooperative-movement,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
-e10a3cb7-0e55-4352-9192-8815c7a860ab,0230fbbf-393f-4508-8756-658d94f2bad4,"AVGC-XR (Animation, Gaming & XR)",avgc-xr-animation-gaming-xr,,7,TRUE,,
+e10a3cb7-0e55-4352-9192-8815c7a860ab,0230fbbf-393f-4508-8756-658d94f2bad4,AVGC-XR (Animation Gaming & XR),avgc-xr-animation-gaming-xr,,7,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 83d5cbe4-161b-451c-ae2e-03baac1e7bd8,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Fintech & Digital Payments,fintech-digital-payments,NULL,5,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 83f2ae01-c840-441e-a40c-c8dbb782d7f1,c8a357fe-cb73-4521-9749-1e62888d97df,Interior Design,interior-design,NULL,4,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
-328ab13f-fd09-4e99-9ff9-65aa196a0332,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Highways, Roads & Transportation Infrastructure",highways-roads-transportation-infrastructure,2,,TRUE,,
+328ab13f-fd09-4e99-9ff9-65aa196a0332,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Highways, Roads & Transportation Infrastructure",highways-roads-transportation-infrastructure,2,,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 7902313d-cfde-453d-89de-aa5c7b5e21dd,75a25758-42f5-4181-9e10-65dfbed2741a,Cold Chain & Temperature-Controlled Logistics,cold-chain-temperature-controlled-logistics,NULL,2,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 8a26e12f-1c41-4901-b4cd-5f1ef8f012b4,c1add6c5-c90e-4552-aed9-9c6336367cdd,AYUSH & Traditional Medicine Industry,ayush-traditional-medicine-industry,NULL,1,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 ddc43567-3bdc-444d-993c-2e6ca8a69254,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,Microfinance,microfinance,NULL,6,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
@@ -394,4 +394,4 @@ a624374f-ab44-4723-8207-1de7c3ce848c,4703ad1d-bd11-4a10-87c2-07e2a6f4f7dc,"MSMEs
 f27355dc-2a3a-40df-83b1-6e359ff3dfb1,f0b75e19-3199-4ad3-acc7-8134350aca8f,"Aluminum Industry",aluminum-industry,NULL,107,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 994b77eb-d870-442f-99ab-36554a7b95d7,f0b75e19-3199-4ad3-acc7-8134350aca8f,"Iron & Steel",iron-steel,NULL,108,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
 c9c25c32-2924-4b50-a821-511fe1b7fe8e,1d9d9662-d6ef-4c75-8a14-67b0823a13a7,"Private Equity & Venture Capital",private-equity-venture-capital,NULL,109,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00d7c352df-6c91-4560-af60-a235fb6ab7dc,14a1a104-b6cb-4f81-a036-c02de2f1650d,"Highways, Roads & Transportation Infrastructure",highways-roads-transportation-infrastructure,NULL,110,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
-fc1f9da2-a39c-4ec7-9dbd-0df0b5fc9db7,0230fbbf-393f-4508-8756-658d94f2bad4,"AVGC-XR (Animation, Gaming & XR)",avgc-xr-animation-gaming-xr,NULL,111,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
+fc1f9da2-a39c-4ec7-9dbd-0df0b5fc9db7,0230fbbf-393f-4508-8756-658d94f2bad4,AVGC-XR (Animation Gaming & XR),avgc-xr-animation-gaming-xr,NULL,111,TRUE,2026-06-30 00:00:00,2026-06-30 00:00:00
