@@ -468,14 +468,50 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		cleanQuery = strings.TrimSpace(cleanQuery)
 
 		if cleanQuery != "" {
-			mustClauses = append(mustClauses, map[string]interface{}{
-				"multi_match": map[string]interface{}{
-					"query": cleanQuery,
-					"fields": []string{"name^5", "tags^3", "description", "industry.name"},
-					"fuzziness": "AUTO",
-					// By default operator is OR, so it won't break if it contains "under 10 lakh"
+			textMatch := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						// 1. Root fields match
+						map[string]interface{}{
+							"multi_match": map[string]interface{}{
+								"query":     cleanQuery,
+								"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
+								"fuzziness": "AUTO",
+							},
+						},
+						// 2. Categories nested match
+						map[string]interface{}{
+							"nested": map[string]interface{}{
+								"path": "categories",
+								"query": map[string]interface{}{
+									"match": map[string]interface{}{
+										"categories.name": map[string]interface{}{
+											"query":     cleanQuery,
+											"fuzziness": "AUTO",
+										},
+									},
+								},
+							},
+						},
+						// 3. Subcategories nested match
+						map[string]interface{}{
+							"nested": map[string]interface{}{
+								"path": "sub_categories",
+								"query": map[string]interface{}{
+									"match": map[string]interface{}{
+										"sub_categories.name": map[string]interface{}{
+											"query":     cleanQuery,
+											"fuzziness": "AUTO",
+										},
+									},
+								},
+							},
+						},
+					},
+					"minimum_should_match": 1,
 				},
-			})
+			}
+			mustClauses = append(mustClauses, textMatch)
 		}
 	}
 
@@ -538,6 +574,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 							},
 						},
 					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"categories.name": map[string]interface{}{
+										"query":     params.Category,
+										"fuzziness": "AUTO",
+									},
+								},
+							},
+						},
+					},
 				},
 				"minimum_should_match": 1,
 			},
@@ -562,6 +611,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 							"name": map[string]interface{}{
 								"query":     params.Subcategory,
 								"fuzziness": "AUTO",
+							},
+						},
+					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "sub_categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"sub_categories.name": map[string]interface{}{
+										"query":     params.Subcategory,
+										"fuzziness": "AUTO",
+									},
+								},
 							},
 						},
 					},

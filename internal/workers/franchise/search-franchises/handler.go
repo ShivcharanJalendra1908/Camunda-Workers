@@ -351,15 +351,51 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 
 		if cleanQuery != "" {
-			multiMatch := map[string]interface{}{
-				"multi_match": map[string]interface{}{
-					"query":     cleanQuery,
-					"fields":    []string{"name^3", "description^2", "tags"},
-					"type":      "best_fields",
-					"fuzziness": h.config.Fuzziness,
+			textMatch := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should": []interface{}{
+						// 1. Root fields match
+						map[string]interface{}{
+							"multi_match": map[string]interface{}{
+								"query":     cleanQuery,
+								"fields":    []string{"name^3", "description^2", "tags", "industry.name^2"},
+								"type":      "best_fields",
+								"fuzziness": h.config.Fuzziness,
+							},
+						},
+						// 2. Categories nested match
+						map[string]interface{}{
+							"nested": map[string]interface{}{
+								"path": "categories",
+								"query": map[string]interface{}{
+									"match": map[string]interface{}{
+										"categories.name": map[string]interface{}{
+											"query":     cleanQuery,
+											"fuzziness": h.config.Fuzziness,
+										},
+									},
+								},
+							},
+						},
+						// 3. Subcategories nested match
+						map[string]interface{}{
+							"nested": map[string]interface{}{
+								"path": "sub_categories",
+								"query": map[string]interface{}{
+									"match": map[string]interface{}{
+										"sub_categories.name": map[string]interface{}{
+											"query":     cleanQuery,
+											"fuzziness": h.config.Fuzziness,
+										},
+									},
+								},
+							},
+						},
+					},
+					"minimum_should_match": 1,
 				},
 			}
-			mustClauses = append(mustClauses, multiMatch)
+			mustClauses = append(mustClauses, textMatch)
 		}
 	}
 
