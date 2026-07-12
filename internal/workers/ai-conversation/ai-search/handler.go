@@ -470,9 +470,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		if cleanQuery != "" {
 			textMatch := map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should": []interface{}{
+					"should": []map[string]interface{}{
 						// 1. Root fields match
-						map[string]interface{}{
+						{
 							"multi_match": map[string]interface{}{
 								"query":     cleanQuery,
 								"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
@@ -480,9 +480,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 							},
 						},
 						// 2. Categories nested match
-						map[string]interface{}{
+						{
 							"nested": map[string]interface{}{
-								"path": "categories",
+								"path":            "categories",
+								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
@@ -494,9 +495,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 							},
 						},
 						// 3. Subcategories nested match
-						map[string]interface{}{
+						{
 							"nested": map[string]interface{}{
-								"path": "sub_categories",
+								"path":            "sub_categories",
+								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
@@ -576,7 +578,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 					},
 					map[string]interface{}{
 						"nested": map[string]interface{}{
-							"path": "categories",
+							"path":            "categories",
+							"ignore_unmapped": true,
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"categories.name": map[string]interface{}{
@@ -616,7 +619,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 					},
 					map[string]interface{}{
 						"nested": map[string]interface{}{
-							"path": "sub_categories",
+							"path":            "sub_categories",
+							"ignore_unmapped": true,
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"sub_categories.name": map[string]interface{}{
