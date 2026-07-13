@@ -74,7 +74,7 @@ type OllamaRequest struct {
 	Stream    bool                   `json:"stream"`
 	Options   map[string]interface{} `json:"options,omitempty"`
 	Format    string                 `json:"format,omitempty"`
-	KeepAlive interface{}          `json:"keep_alive,omitempty"`
+	KeepAlive interface{}            `json:"keep_alive,omitempty"`
 }
 
 type OllamaResponse struct {
@@ -458,7 +458,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	mustClauses := []interface{}{}
 	shouldClauses := []interface{}{}
 
-	// Always enforce a text match on the user's raw query (minus location) 
+	// Always enforce a text match on the user's raw query (minus location)
 	// This acts as a safety net if the LLM categorizes "pizza" as F&B but drops "pizza" from Category
 	if params.OriginalQuery != "" {
 		cleanQuery := location.StripLocationFromQuery(params.OriginalQuery)
@@ -670,8 +670,12 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// Member Count (Associations)
 	if params.MemberCount != nil {
 		memRange := map[string]interface{}{}
-		if params.MemberCount.Min > 0 { memRange["gte"] = params.MemberCount.Min }
-		if params.MemberCount.Max > 0 { memRange["lte"] = params.MemberCount.Max }
+		if params.MemberCount.Min > 0 {
+			memRange["gte"] = params.MemberCount.Min
+		}
+		if params.MemberCount.Max > 0 {
+			memRange["lte"] = params.MemberCount.Max
+		}
 		if len(memRange) > 0 {
 			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{"member_count": memRange},
