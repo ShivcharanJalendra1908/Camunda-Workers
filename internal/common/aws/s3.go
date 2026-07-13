@@ -98,6 +98,26 @@ func (s *S3Client) DeletePhoto(ctx context.Context, photoURL string) error {
 	return nil
 }
 
+// DeletePhotoByKey removes a photo from S3 by its object key.
+// Used for async cleanup of old photos after replacement or account deletion.
+func (s *S3Client) DeletePhotoByKey(ctx context.Context, key string) error {
+	if s == nil || s.client == nil {
+		return fmt.Errorf("S3 client not initialized")
+	}
+	if key == "" {
+		return nil // No key to delete
+	}
+
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("S3 delete failed for key %q: %w", key, err)
+	}
+	return nil
+}
+
 // GeneratePresignedURL generates a temporary pre-signed URL.
 func (s *S3Client) GeneratePresignedURL(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	if s == nil || s.client == nil {

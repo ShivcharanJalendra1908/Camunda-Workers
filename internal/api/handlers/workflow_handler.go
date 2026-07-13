@@ -470,6 +470,9 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 			h.constructPhotoURLs(envelope.Response)
 		}
 
+		// Async cleanup: delete old S3 photo after DB write confirmed
+		h.launchOldPhotoCleanup(envelope.Response)
+
 		c.JSON(http.StatusOK, envelope.Response)
 
 	case <-time.After(30 * time.Second):
@@ -538,6 +541,49 @@ func (h *WorkflowHandler) constructPhotoURLs(response map[string]interface{}) {
 			}
 		}
 	}
+}
+
+// launchOldPhotoCleanup extracts the old photo key from the workflow response
+// and launches a goroutine to delete it from S3. Non-fatal — if deletion fails,
+// S3 lifecycle rules will clean up orphaned objects.
+func (h *WorkflowHandler) launchOldPhotoCleanup(response map[string]interface{}) {
+	if response == nil || h.s3Client == nil {
+		return
+	}
+
+	// Check for oldProfileImage in response or nested response object
+	var oldKey string
+	if resp, ok := response["response"].(map[string]interface{}); ok {
+		if key, ok := resp["oldProfileImage"].(string); ok {
+			oldKey = key
+		}
+	}
+	if oldKey == "" {
+		if key, ok := response["oldProfileImage"].(string); ok {
+			oldKey = key
+		}
+	}
+
+	// No old photo to delete (first upload or no change)
+	newKey := ""
+	if resp, ok := response["response"].(map[string]interface{}); ok {
+		if key, ok := resp["profile_image"].(string); ok {
+			newKey = key
+		}
+	}
+
+	if oldKey == "" || oldKey == newKey {
+		return
+	}
+
+	go func() {
+		if err := h.s3Client.DeletePhotoByKey(context.Background(), oldKey); err != nil {
+			h.logger.Warn("Failed to delete old photo from S3", map[string]interface{}{
+				"oldKey": oldKey,
+				"error":  err.Error(),
+			})
+		}
+	}()
 }
 
 // GetWorkflowCompletionStatus checks if a workflow response is cached in Redis.

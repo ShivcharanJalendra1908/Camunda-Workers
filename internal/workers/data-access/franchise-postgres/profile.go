@@ -279,6 +279,10 @@ func (h *Handler) handleUpdatePersonalDetails(ctx context.Context, variables str
 		return nil, fmt.Errorf("%w: profileData cannot be empty", ErrValidationError)
 	}
 
+	// Read old profile_image before UPDATE (for async S3 cleanup)
+	var oldProfileImage string
+	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(profile_image, '') FROM users WHERE id = $1`, userID).Scan(&oldProfileImage)
+
 	// Build dynamic UPDATE for users table (name, phone, location)
 	query := "UPDATE users SET updated_at = NOW()"
 	args := []interface{}{}
@@ -326,9 +330,10 @@ func (h *Handler) handleUpdatePersonalDetails(ctx context.Context, variables str
 	}
 
 	return &BaseOutput{
-		Success:       true,
-		Message:       "Personal details updated successfully",
-		UpdatedFields: h.collectUpdatedFields(pd, "name", "phone", "location"),
+		Success:         true,
+		Message:         "Personal details updated successfully",
+		UpdatedFields:   h.collectUpdatedFields(pd, "name", "phone", "location"),
+		OldProfileImage: oldProfileImage,
 	}, nil
 }
 
@@ -726,6 +731,10 @@ func (h *Handler) handleDeleteAccount(ctx context.Context, variables string) (*B
 		return nil, err
 	}
 
+	// Read old profile_image before anonymization (for async S3 cleanup)
+	var oldProfileImage string
+	_ = h.db.QueryRowContext(ctx, `SELECT COALESCE(profile_image, '') FROM users WHERE id = $1`, userID).Scan(&oldProfileImage)
+
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("%w: begin transaction: %v", ErrDatabaseError, err)
@@ -816,8 +825,9 @@ func (h *Handler) handleDeleteAccount(ctx context.Context, variables string) (*B
 	}
 
 	return &BaseOutput{
-		Success: true,
-		Message: "Account anonymized successfully per DPDPA",
+		Success:         true,
+		Message:         "Account anonymized successfully per DPDPA",
+		OldProfileImage: oldProfileImage,
 	}, nil
 }
 
