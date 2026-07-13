@@ -419,6 +419,7 @@ type IntegrationConfig struct {
 			Enabled      bool     `mapstructure:"enabled"`
 			Bucket       string   `mapstructure:"bucket"`
 			Region       string   `mapstructure:"region"`
+			CDNBaseURL   string   `mapstructure:"cdnBaseURL"`
 			PresignTTL   int      `mapstructure:"presignTtl"`
 			MaxFileSize  int64    `mapstructure:"maxFileSize"`
 			AllowedTypes []string `mapstructure:"allowedTypes"`

@@ -189,6 +189,7 @@ integrations:
       enabled: false  # Flip to true when AWS credentials are configured
       bucket: "lemici-profile-photos"
       region: "ap-south-1"
+      cdnBaseURL: "${CDN_BASE_URL}"  # CloudFront or CDN URL for photo delivery
       maxFileSize: 3145728  # 3MB
       allowedTypes:
         - "image/jpeg"

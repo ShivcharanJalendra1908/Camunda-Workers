@@ -44,11 +44,10 @@ func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) 
 // UploadResult contains the result of a successful S3 upload.
 type UploadResult struct {
 	Key  string
-	URL  string
 	Size int64
 }
 
-// UploadPhoto uploads a file to S3 and returns the object key and URL.
+// UploadPhoto uploads a file to S3 and returns the object key.
 func (s *S3Client) UploadPhoto(ctx context.Context, key string, contentType string, body io.Reader, size int64) (*UploadResult, error) {
 	if s == nil || s.client == nil {
 		return nil, fmt.Errorf("S3 client not initialized")
@@ -57,10 +56,11 @@ func (s *S3Client) UploadPhoto(ctx context.Context, key string, contentType stri
 	contentType = sanitizeContentType(contentType)
 
 	input := &s3.PutObjectInput{
-		Bucket:      aws.String(s.bucket),
-		Key:         aws.String(key),
-		Body:        body,
-		ContentType: aws.String(contentType),
+		Bucket:       aws.String(s.bucket),
+		Key:          aws.String(key),
+		Body:         body,
+		ContentType:  aws.String(contentType),
+		CacheControl: aws.String("max-age=31536000, immutable"),
 		Metadata: map[string]string{
 			"uploaded-at": time.Now().UTC().Format(time.RFC3339),
 		},
@@ -71,11 +71,8 @@ func (s *S3Client) UploadPhoto(ctx context.Context, key string, contentType stri
 		return nil, fmt.Errorf("S3 upload failed for key %q: %w", key, err)
 	}
 
-	url := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", s.bucket, key)
-
 	return &UploadResult{
 		Key:  key,
-		URL:  url,
 		Size: size,
 	}, nil
 }
@@ -138,6 +135,16 @@ func (s *S3Client) keyFromURL(photoURL string) string {
 		}
 	}
 	return ""
+}
+
+// BuildPhotoURL constructs the full CDN URL from a stored S3 key.
+// Called at read time only — never stored in DB.
+// Returns empty string if key is empty (no photo uploaded).
+func BuildPhotoURL(cdnBaseURL, key string) string {
+	if key == "" || cdnBaseURL == "" {
+		return ""
+	}
+	return strings.TrimRight(cdnBaseURL, "/") + "/" + strings.TrimLeft(key, "/")
 }
 
 // MakePhotoKey generates the S3 object key for a profile photo.
