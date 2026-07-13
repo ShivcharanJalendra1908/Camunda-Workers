@@ -360,16 +360,15 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 					return
 				}
 
-				// Inject photo URL into profileData
+				// Inject photo key into profileData (key only, not URL — CDN URL constructed at read time)
 				if profileData == nil {
 					profileData = make(map[string]interface{})
 				}
-				profileData["profile_image"] = uploadResult.URL
+				profileData["profile_image"] = uploadResult.Key
 
 				h.logger.Info("Profile photo uploaded", map[string]interface{}{
 					"userId": userID,
 					"key":    uploadResult.Key,
-					"url":    uploadResult.URL,
 				})
 			}
 		}
@@ -464,6 +463,13 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 			}
 		}
 
+		// Construct CDN URLs from S3 keys at read time
+		if resp, ok := envelope.Response["response"].(map[string]interface{}); ok {
+			h.constructPhotoURLs(resp)
+		} else {
+			h.constructPhotoURLs(envelope.Response)
+		}
+
 		c.JSON(http.StatusOK, envelope.Response)
 
 	case <-time.After(30 * time.Second):
@@ -493,6 +499,44 @@ func extensionFromContentType(ct string) string {
 		return "webp"
 	default:
 		return "jpg"
+	}
+}
+
+// constructPhotoURLs walks a response map and replaces S3 keys with CDN URLs
+// for photo fields. This is called at read time — keys are stored in DB, URLs
+// are constructed dynamically from config.
+func (h *WorkflowHandler) constructPhotoURLs(response map[string]interface{}) {
+	if response == nil || h.config == nil {
+		return
+	}
+	cdnBaseURL := h.config.Integrations.AWS.S3.CDNBaseURL
+	if cdnBaseURL == "" {
+		return
+	}
+
+	photoFields := []string{"profile_image", "photoUrl", "photo_url"}
+	for _, field := range photoFields {
+		if key, ok := response[field].(string); ok && key != "" {
+			response[field] = awsutil.BuildPhotoURL(cdnBaseURL, key)
+		}
+	}
+
+	// Handle nested "user" object in BPMN responses
+	if user, ok := response["user"].(map[string]interface{}); ok {
+		for _, field := range photoFields {
+			if key, ok := user[field].(string); ok && key != "" {
+				user[field] = awsutil.BuildPhotoURL(cdnBaseURL, key)
+			}
+		}
+	}
+
+	// Handle nested "data" object in completion status responses
+	if data, ok := response["data"].(map[string]interface{}); ok {
+		for _, field := range photoFields {
+			if key, ok := data[field].(string); ok && key != "" {
+				data[field] = awsutil.BuildPhotoURL(cdnBaseURL, key)
+			}
+		}
 	}
 }
 
@@ -543,6 +587,11 @@ func (h *WorkflowHandler) GetWorkflowCompletionStatus(c *gin.Context) {
 				"error": err.Error(),
 			})
 		}
+	}
+
+	// Construct CDN URLs from S3 keys at read time
+	if envelope.Response != nil {
+		h.constructPhotoURLs(envelope.Response)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
