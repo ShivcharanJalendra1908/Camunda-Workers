@@ -256,7 +256,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}()
 
 	go func() {
-		basicQuery := h.buildBasicQuery(input.Query)
+		basicQuery := h.buildBasicQuery(input.Query, input.EntityType)
 		results, err := h.executeSearch(ctx, basicQuery)
 		if err != nil {
 			errChan <- err
@@ -352,11 +352,30 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 // QUERY BUILDERS
 // ============================================================
 
-func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
+func (h *Handler) buildBasicQuery(query string, entityType string) map[string]interface{} {
 	if query == "*" || strings.TrimSpace(query) == "" {
+		boolQuery := map[string]interface{}{"match_all": map[string]interface{}{}}
+		
+		var filterClauses []interface{}
+		if entityType != "" && entityType != "all" {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"term": map[string]interface{}{"entity_type": entityType},
+			})
+		}
+		
+		queryMap := map[string]interface{}{}
+		if len(filterClauses) > 0 {
+			queryMap["bool"] = map[string]interface{}{
+				"must": []interface{}{boolQuery},
+				"filter": filterClauses,
+			}
+		} else {
+			queryMap = boolQuery
+		}
+
 		return map[string]interface{}{
 			"size":  h.config.DefaultPageSize,
-			"query": map[string]interface{}{"match_all": map[string]interface{}{}},
+			"query": queryMap,
 			"sort": []interface{}{
 				map[string]interface{}{"rating": "desc"},
 				map[string]interface{}{"total_outlets": "desc"},
@@ -372,6 +391,19 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		strings.EqualFold(strings.TrimSpace(cleanQuery), strings.TrimSpace(detectedCity))
 
 	if isPureLocation && detectedCity != "" {
+		filterClauses := []interface{}{
+			map[string]interface{}{
+				"terms": map[string]interface{}{
+					"location": location.BuildLocationTerms(detectedCity),
+				},
+			},
+		}
+		if entityType != "" && entityType != "all" {
+			filterClauses = append(filterClauses, map[string]interface{}{
+				"term": map[string]interface{}{"entity_type": entityType},
+			})
+		}
+
 		return map[string]interface{}{
 			"size": h.config.DefaultPageSize,
 			"query": map[string]interface{}{
@@ -379,13 +411,7 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 					"must": []interface{}{
 						map[string]interface{}{"match_all": map[string]interface{}{}},
 					},
-					"filter": []interface{}{
-						map[string]interface{}{
-							"terms": map[string]interface{}{
-								"location": location.BuildLocationTerms(detectedCity),
-							},
-						},
-					},
+					"filter": filterClauses,
 				},
 			},
 			"sort": []interface{}{
@@ -422,12 +448,20 @@ func (h *Handler) buildBasicQuery(query string) map[string]interface{} {
 		"minimum_should_match": 1,
 	}
 
+	var filterClauses []interface{}
 	if detectedCity != "" {
-		boolQuery["filter"] = []interface{}{
-			map[string]interface{}{
-				"terms": map[string]interface{}{"location": location.BuildLocationTerms(detectedCity)},
-			},
-		}
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"terms": map[string]interface{}{"location": location.BuildLocationTerms(detectedCity)},
+		})
+	}
+	if entityType != "" && entityType != "all" {
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"term": map[string]interface{}{"entity_type": entityType},
+		})
+	}
+
+	if len(filterClauses) > 0 {
+		boolQuery["filter"] = filterClauses
 	}
 
 	return map[string]interface{}{
@@ -483,7 +517,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 						{
 							"nested": map[string]interface{}{
 								"path":            "categories",
-								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
@@ -498,7 +531,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 						{
 							"nested": map[string]interface{}{
 								"path":            "sub_categories",
-								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
@@ -517,11 +549,11 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Industry match (boost instead of strict filter to allow multiple industries in text search)
+	// Industry match (must instead of should to enforce strict filtering)
 	if params.Industry != "" {
 		industrySlug := GetIndustrySlug(params.Industry)
 
-		shouldClauses = append(shouldClauses, map[string]interface{}{
+		mustClauses = append(mustClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
 				"should": []interface{}{
 					map[string]interface{}{
@@ -579,7 +611,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 					map[string]interface{}{
 						"nested": map[string]interface{}{
 							"path":            "categories",
-							"ignore_unmapped": true,
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"categories.name": map[string]interface{}{
@@ -620,7 +651,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 					map[string]interface{}{
 						"nested": map[string]interface{}{
 							"path":            "sub_categories",
-							"ignore_unmapped": true,
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"sub_categories.name": map[string]interface{}{
@@ -968,7 +998,7 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		return cached
 	}
 
-	prompt := h.paramExtractor.BuildPrompt(input.Query)
+	prompt := h.paramExtractor.BuildPrompt(input.Query, input.EntityType)
 
 	response, err := h.llmService.Extract(ctx, prompt)
 	if err != nil {
@@ -1002,27 +1032,36 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 
 	// Fallback to payload EntityType if LLM did not extract it (or if it was cleared)
 	if params.EntityType == "" {
-		if input.Query == "" || input.Query == "*" {
-			if input.EntityType != "" {
-				et := strings.ToLower(input.EntityType)
-				if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
-					et = "master_franchise"
-				}
-				params.EntityType = et
+		if input.EntityType != "" {
+			et := strings.ToLower(input.EntityType)
+			if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
+				et = "master_franchise"
 			}
+			params.EntityType = et
 		} else {
-			// Try to infer from query
-			lowerQ := strings.ToLower(input.Query)
-			if strings.Contains(lowerQ, "association") {
-				params.EntityType = "association"
-			} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
-				params.EntityType = "master_franchise"
-			} else if strings.Contains(lowerQ, "franchise") {
-				params.EntityType = "franchise"
-			} else {
+			if input.Query == "" || input.Query == "*" {
 				params.EntityType = "all"
+			} else {
+				// Try to infer from query
+				lowerQ := strings.ToLower(input.Query)
+				if strings.Contains(lowerQ, "association") {
+					params.EntityType = "association"
+				} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
+					params.EntityType = "master_franchise"
+				} else if strings.Contains(lowerQ, "franchise") {
+					params.EntityType = "franchise"
+				} else {
+					params.EntityType = "all"
+				}
 			}
 		}
+	} else if input.EntityType != "" && input.EntityType != "all" {
+		// If LLM extracted something but input explicitly provides an entity type, input wins
+		et := strings.ToLower(input.EntityType)
+		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
+			et = "master_franchise"
+		}
+		params.EntityType = et
 	}
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{

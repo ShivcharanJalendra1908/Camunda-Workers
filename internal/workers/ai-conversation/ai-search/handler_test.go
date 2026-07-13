@@ -82,7 +82,7 @@ func TestParameterExtractor_BuildPrompt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			prompt := pe.BuildPrompt(tt.query)
+			prompt := pe.BuildPrompt(tt.query, "franchise")
 			for _, want := range tt.wantContains {
 				assert.Contains(t, prompt, want)
 			}

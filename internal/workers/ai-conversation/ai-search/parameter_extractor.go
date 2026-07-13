@@ -55,10 +55,12 @@ func NewParameterExtractor(config *Config) *ParameterExtractor {
 	return pe
 }
 
-func (pe *ParameterExtractor) BuildPrompt(query string) string {
+func (pe *ParameterExtractor) BuildPrompt(query string, entityType string) string {
 	q := strings.TrimSpace(query)
 	if len(strings.Fields(q)) == 1 {
-		q = q + " franchise"
+		if entityType != "association" {
+			q = q + " franchise"
+		}
 	}
 
 	return `You are a highly accurate entity extraction AI for a franchise, association, and master-franchise search engine. Extract search parameters from the user's query and output them EXACTLY in the specified JSON format.
@@ -198,8 +200,17 @@ var industryNormalizationMap = map[string]string{
 	"dealers":                          "Dealers & Distributors",
 	"distributors":                     "Dealers & Distributors",
 	"agriculture":                      "Agriculture",
-	"agriculture & sustainability":     "Agriculture",
 	"food":                             "Food & Beverage",
+	"energy & utilities":               "Energy & Utilities",
+	"energy":                           "Energy & Utilities",
+	"utilities":                        "Energy & Utilities",
+	"metals & mining":                  "Metals & Mining",
+	"metals":                           "Metals & Mining",
+	"mining":                           "Metals & Mining",
+	"cooperative sector":               "Cooperative Sector",
+	"cooperative":                      "Cooperative Sector",
+	"international trade":              "International Trade",
+	"trade":                            "International Trade",
 }
 
 // industrySlugMap - ES exact slugs from industries.csv
@@ -224,6 +235,10 @@ var industrySlugMap = map[string]string{
 	"Logistics / Manufacturing": "logistics-manufacturing",
 	"Agriculture":               "agriculture",
 	"Media / Communication":     "media-communication",
+	"Energy & Utilities":        "energy-utilities",
+	"Metals & Mining":           "metals-mining",
+	"Cooperative Sector":        "cooperative-sector",
+	"International Trade":       "international-trade",
 }
 
 func getSlugFallback(industryName string) string {
