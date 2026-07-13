@@ -12,6 +12,7 @@ import (
 
 	apierrors "camunda-workers/internal/api/errors"
 	"camunda-workers/internal/common/auth/session"
+	awsutil "camunda-workers/internal/common/aws"
 	"camunda-workers/internal/common/camunda"
 	"camunda-workers/internal/common/config"
 	"camunda-workers/internal/common/constants"
@@ -298,6 +299,8 @@ func (h *OAuthHandler) getUserByID(ctx context.Context, userID string) (*models.
 		}
 		return nil, err
 	}
+	// Construct CDN URL from S3 key at read time
+	user.ProfileImage = awsutil.BuildPhotoURL(h.config.Integrations.AWS.S3.CDNBaseURL, user.ProfileImage)
 	return &user, nil
 }
 

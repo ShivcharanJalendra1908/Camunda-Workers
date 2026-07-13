@@ -14,6 +14,8 @@ import (
 	"camunda-workers/internal/common/encryption"
 	"camunda-workers/internal/common/logger"
 
+	awsutil "camunda-workers/internal/common/aws"
+
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 )
@@ -151,7 +153,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		Phone:         phone.String,
 		Status:        status,
 		Location:      location.String,
-		ProfileImage:  profileImage.String,
+		ProfileImage:  awsutil.BuildPhotoURL(h.cfg.Integrations.AWS.S3.CDNBaseURL, profileImage.String),
 		EmailVerified: false,
 		CreatedAt:     createdAt,
 		UpdatedAt:     updatedAt,
