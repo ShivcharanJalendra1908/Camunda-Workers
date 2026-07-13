@@ -481,13 +481,13 @@ func (h *WorkflowHandler) StartProfileUpdate(c *gin.Context) {
 			"userId":         userID,
 		})
 		c.JSON(http.StatusGatewayTimeout, gin.H{
-			"error":          "TIMEOUT",
+			"error":          "WORKFLOW_TIMEOUT",
 			"message":        "Profile update timed out. Please try again.",
 			"correlationKey": correlationKey,
 		})
 
 	case <-ctx.Done():
-		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "TIMEOUT", "message": "Request context cancelled"})
+		c.JSON(http.StatusGatewayTimeout, gin.H{"error": "WORKFLOW_TIMEOUT", "message": "Request context cancelled"})
 	}
 }
 
@@ -734,7 +734,6 @@ func (h *WorkflowHandler) StartPasswordReset(c *gin.Context) {
 
 func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 	var input struct {
-		UserID string `json:"userId"`
 		Reason string `json:"reason"`
 	}
 
@@ -744,12 +743,13 @@ func (h *WorkflowHandler) StartAccountDeletion(c *gin.Context) {
 	}
 
 	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
+	if claims == nil || claims.UserID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
 	}
 
 	variables := map[string]interface{}{
-		"userId":       getOrDefault(input.UserID, claims.UserID),
+		"userId":       claims.UserID,
 		"reason":       input.Reason,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,
@@ -962,7 +962,6 @@ func (h *WorkflowHandler) StartUnifiedOnboarding(c *gin.Context) {
 func (h *WorkflowHandler) StartApplicationProcessing(c *gin.Context) {
 	var input struct {
 		FranchiseID     string                 `json:"franchiseId" binding:"required"`
-		SeekerID        string                 `json:"seekerId"`
 		ApplicationData map[string]interface{} `json:"applicationData" binding:"required"`
 	}
 
@@ -977,22 +976,15 @@ func (h *WorkflowHandler) StartApplicationProcessing(c *gin.Context) {
 		return
 	}
 
-	// Validate seeker ID if provided
-	if input.SeekerID != "" {
-		if err := h.validateUUID(input.SeekerID); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid seeker ID: " + err.Error()})
-			return
-		}
-	}
-
 	claims := middleware.ExtractClaims(c)
-	if claims == nil {
-		claims = &middleware.Claims{}
+	if claims == nil || claims.UserID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
 	}
 
 	variables := map[string]interface{}{
 		"franchiseId":     input.FranchiseID,
-		"seekerId":        getOrDefault(input.SeekerID, claims.UserID),
+		"seekerId":        claims.UserID,
 		"applicationData": input.ApplicationData,
 		"sessionId":       claims.SessionID,
 		"sourceSystem":    claims.SourceSystem,
