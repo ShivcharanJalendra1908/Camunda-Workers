@@ -235,8 +235,8 @@ var exifGPSMarkers = []string{
 	"IfDh",
 }
 
-// StripEXIFGPS checks if the image contains EXIF GPS data (for logging, not stripping).
-func StripEXIFGPS(data []byte) bool {
+// HasEXIFData checks if the image contains EXIF data (detection only).
+func HasEXIFData(data []byte) bool {
 	// JPEG APP1 marker: FF E1
 	if len(data) < 4 || data[0] != 0xFF || data[1] != 0xE1 {
 		return false
@@ -248,6 +248,85 @@ func StripEXIFGPS(data []byte) bool {
 		}
 	}
 	return false
+}
+
+// StripEXIF removes EXIF metadata (including GPS) from JPEG bytes.
+// Returns the cleaned bytes. Non-JPEG files are returned as-is.
+// This protects user location privacy (DPDPA compliance).
+func StripEXIF(data []byte) []byte {
+	if len(data) < 4 {
+		return data
+	}
+
+	// Only process JPEG files
+	if data[0] != 0xFF || data[1] != 0xD8 {
+		return data
+	}
+
+	// Walk JPEG markers to find and remove APP1 (EXIF) segment
+	// JPEG format: FF D8 (SOI) ... markers ... FF D9 (EOI)
+	result := make([]byte, 0, len(data))
+	result = append(result, data[:2]...) // Copy SOI marker (FF D8)
+
+	i := 2 // Skip SOI
+	for i < len(data)-1 {
+		// Find next marker (FF xx)
+		if data[i] != 0xFF {
+			result = append(result, data[i])
+			i++
+			continue
+		}
+
+		// Skip padding FF bytes
+		for i < len(data) && data[i] == 0xFF {
+			i++
+		}
+		if i >= len(data) {
+			break
+		}
+
+		marker := data[i]
+		i++
+
+		// SOS (FF DA) or EOI (FF D9) — copy rest of file
+		if marker == 0xDA || marker == 0xD9 {
+			result = append(result, 0xFF, marker)
+			result = append(result, data[i:]...)
+			return result
+		}
+
+		// Read segment length (2 bytes, big-endian)
+		if i+1 >= len(data) {
+			result = append(result, 0xFF, marker)
+			result = append(result, data[i:]...)
+			return result
+		}
+		segLen := int(data[i])<<8 | int(data[i+1])
+		segStart := i
+		segEnd := i + segLen
+		if segEnd > len(data) {
+			segEnd = len(data)
+		}
+
+		// APP1 (FF E1) — check if it's EXIF, skip if so
+		if marker == 0xE1 {
+			isEXIF := segEnd > segStart+8 &&
+				string(data[segStart+2:segStart+6]) == "Exif" &&
+				data[segStart+6] == 0x00 && data[segStart+7] == 0x00
+			if isEXIF {
+				// Skip this segment (EXIF data stripped)
+				i = segEnd
+				continue
+			}
+		}
+
+		// All other markers — copy as-is
+		result = append(result, 0xFF, marker)
+		result = append(result, data[segStart:segEnd]...)
+		i = segEnd
+	}
+
+	return result
 }
 
 // PhotoSecurityMiddleware returns a gin.HandlerFunc that validates uploaded photos.
@@ -286,13 +365,14 @@ func PhotoSecurityMiddleware(config PhotoSecurityConfig) gin.HandlerFunc {
 			return
 		}
 
-		// Check for GPS data (log warning, don't reject)
-		if StripEXIFGPS(data) {
-			// GPS data detected — strip before upload (handled by handler)
+		// Strip EXIF data (including GPS) — DPDPA privacy compliance
+		// This removes metadata before upload, protecting user location
+		if HasEXIFData(data) {
 			c.Set("photoHasGPS", true)
+			data = StripEXIF(data)
 		}
 
-		// Store validated data in context for handler
+		// Store validated + sanitized data in context for handler
 		c.Set("photoData", data)
 		c.Set("photoContentType", result.ContentType)
 		c.Set("photoFilename", header.Filename)
