@@ -139,6 +139,16 @@ func (h *Handler) validateInput(input *Input) error {
 		}
 	}
 
+	// Subcategory validation
+	if input.Subcategory != "" {
+		if err := ozzo.Validate(input.Subcategory,
+			ozzo.Length(0, 100).Error("subcategory must be max 100 characters"),
+			validation.SafeSQLString,
+		); err != nil {
+			return errors.NewValidationError("subcategory", err.Error())
+		}
+	}
+
 	// Industry validation
 	if input.Industry != "" {
 		if err := ozzo.Validate(input.Industry,
@@ -181,6 +191,9 @@ func (h *Handler) sanitizeInput(input *Input) {
 	}
 	if input.Category != "" {
 		input.Category = h.sanitizer.SanitizeString(input.Category)
+	}
+	if input.Subcategory != "" {
+		input.Subcategory = h.sanitizer.SanitizeString(input.Subcategory)
 	}
 	if input.Industry != "" {
 		input.Industry = h.sanitizer.SanitizeString(input.Industry)
@@ -299,6 +312,33 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		mustClauses = append(mustClauses, categoryFilter)
 	}
 
+	// ✅ SUBCATEGORY FILTER (NESTED)
+	if input.Subcategory != "" {
+		subcategoryFilter := map[string]interface{}{
+			"nested": map[string]interface{}{
+				"path": "sub_categories",
+				"query": map[string]interface{}{
+					"bool": map[string]interface{}{
+						"should": []map[string]interface{}{
+							{
+								"term": map[string]interface{}{
+									"sub_categories.slug": strings.ToLower(input.Subcategory),
+								},
+							},
+							{
+								"match": map[string]interface{}{
+									"sub_categories.name": input.Subcategory,
+								},
+							},
+						},
+						"minimum_should_match": 1,
+					},
+				},
+			},
+		}
+		mustClauses = append(mustClauses, subcategoryFilter)
+	}
+
 	// ✅ TEXT SEARCH (MULTI-MATCH)
 	if input.Query != "" {
 		cleanQuery := input.Query
@@ -367,7 +407,6 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 						{
 							"nested": map[string]interface{}{
 								"path":            "categories",
-								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
@@ -382,7 +421,6 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 						{
 							"nested": map[string]interface{}{
 								"path":            "sub_categories",
-								"ignore_unmapped": true,
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
@@ -538,20 +576,26 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		})
 	}
 
-	// ✅ FEE RANGE
+	// ✅ FEE RANGE (Overlap Logic for membership_fee_min & max)
 	if input.MinFee > 0 || input.MaxFee > 0 {
-		rangeFilter := map[string]interface{}{}
 		if input.MinFee > 0 {
-			rangeFilter["gte"] = input.MinFee
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_max": map[string]interface{}{
+						"gte": input.MinFee,
+					},
+				},
+			})
 		}
 		if input.MaxFee > 0 {
-			rangeFilter["lte"] = input.MaxFee
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_min": map[string]interface{}{
+						"lte": input.MaxFee,
+					},
+				},
+			})
 		}
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"range": map[string]interface{}{
-				"membership_fee_min": rangeFilter,
-			},
-		})
 	}
 
 	// ✅ RATING FILTER

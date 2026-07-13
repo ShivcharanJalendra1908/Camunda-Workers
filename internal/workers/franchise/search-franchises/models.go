@@ -4,6 +4,7 @@ package searchfranchises
 type Input struct {
 	Query         string   `json:"query"`
 	Category      string   `json:"category"`
+	Subcategory   string   `json:"subcategory"`
 	Industry      string   `json:"industry"` // ✅ NEW FIELD
 	Location      string   `json:"location"`
 	MinInvestment float64  `json:"min_investment"`
