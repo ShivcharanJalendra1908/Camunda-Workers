@@ -377,7 +377,7 @@ func TestBuildElasticsearchQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			q, err := handler.buildElasticsearchQuery(tt.params)
+			q, err := handler.buildElasticsearchQuery(tt.params, false)
 			assert.NoError(t, err)
 			assert.Contains(t, q["query"].(map[string]interface{}), tt.wantQueryType)
 		})
@@ -511,17 +511,17 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("Zero range values", func(t *testing.T) {
 		q, err := h.buildElasticsearchQuery(&ExtractedParameters{
 			ROI: &RangeFilter{Min: 0, Max: 0}, Investment: &InvestmentFilter{Min: 0, Max: 0},
-		})
+		}, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, q)
 	})
 	t.Run("Empty text fields → match_all", func(t *testing.T) {
-		q, err := h.buildElasticsearchQuery(&ExtractedParameters{Location: &LocationFilter{City: ""}})
+		q, err := h.buildElasticsearchQuery(&ExtractedParameters{Location: &LocationFilter{City: ""}}, false)
 		assert.NoError(t, err)
 		assert.Contains(t, q["query"].(map[string]interface{}), "match_all")
 	})
 	t.Run("Empty struct → no post_filter", func(t *testing.T) {
-		q, err := h.buildElasticsearchQuery(&ExtractedParameters{})
+		q, err := h.buildElasticsearchQuery(&ExtractedParameters{}, false)
 		assert.NoError(t, err)
 		assert.NotContains(t, q, "post_filter")
 	})
@@ -541,7 +541,7 @@ func BenchmarkBuildElasticsearchQuery(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = h.buildElasticsearchQuery(p)
+		_, _ = h.buildElasticsearchQuery(p, false)
 	}
 }
 

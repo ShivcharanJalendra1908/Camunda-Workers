@@ -303,12 +303,28 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	var finalResults *SearchResults
 	if hasExtractedParams {
-		refinedQuery, err := h.buildElasticsearchQuery(params)
+		// Phase 1: Try Refined Exact Match (useFuzzy = false)
+		refinedQuery, err := h.buildElasticsearchQuery(params, false)
 		if err != nil {
 			h.logger.Warn("Refined query failed, using basic", map[string]interface{}{"error": err.Error()})
 			finalResults = basicResults
 		} else {
 			refinedResults, err := h.executeSearch(ctx, refinedQuery)
+			
+			// Phase 2: If Exact Match has 0 results, retry with Fuzzy
+			if err == nil && refinedResults != nil && refinedResults.Total == 0 {
+				h.logger.Info("Refined exact match returned 0 results, retrying with fuzzy", map[string]interface{}{
+					"query": input.Query,
+				})
+				fuzzyQuery, fuzzyErr := h.buildElasticsearchQuery(params, true)
+				if fuzzyErr == nil {
+					fuzzyResults, execErr := h.executeSearch(ctx, fuzzyQuery)
+					if execErr == nil && fuzzyResults != nil {
+						refinedResults = fuzzyResults
+					}
+				}
+			}
+
 			if err != nil || refinedResults == nil || refinedResults.Total == 0 {
 				refinedTotal := int64(0)
 				if refinedResults != nil {
@@ -496,7 +512,7 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 	}
 }
 
-func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[string]interface{}, error) {
+func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy bool) (map[string]interface{}, error) {
 	if params == nil {
 		params = &ExtractedParameters{}
 	}
@@ -548,63 +564,101 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
 		if cleanQuery != "" {
-			textMatch := map[string]interface{}{
-				"bool": map[string]interface{}{
-					"should": []map[string]interface{}{
-						// 1. Exact slug match (for acronyms like ima, ficci)
-						{
-							"term": map[string]interface{}{
-								"slug": map[string]interface{}{
-									"value": strings.ToLower(cleanQuery),
-									"boost": 50,
-								},
+			shouldQueries := []map[string]interface{}{
+				// 1. Exact slug match (for acronyms like ima, ficci)
+				{
+					"term": map[string]interface{}{
+						"slug": map[string]interface{}{
+							"value": strings.ToLower(cleanQuery),
+							"boost": 50,
+						},
+					},
+				},
+				// 2. Exact phrase match on name
+				{
+					"match_phrase": map[string]interface{}{
+						"name": map[string]interface{}{
+							"query": cleanQuery,
+							"boost": 20,
+						},
+					},
+				},
+				// 3. Exact text match on name, tags, industry (no fuzziness)
+				{
+					"multi_match": map[string]interface{}{
+						"query":  cleanQuery,
+						"fields": []string{"name^5", "tags^3", "description", "industry.name^2"},
+					},
+				},
+				// 4. Categories nested match (no fuzziness)
+				{
+					"nested": map[string]interface{}{
+						"path": "categories",
+						"query": map[string]interface{}{
+							"match": map[string]interface{}{
+								"categories.name": cleanQuery,
 							},
 						},
-						// 2. Exact phrase match on name
-						{
-							"match_phrase": map[string]interface{}{
-								"name": map[string]interface{}{
-									"query": cleanQuery,
-									"boost": 20,
-								},
+					},
+				},
+				// 5. Subcategories nested match (no fuzziness)
+				{
+					"nested": map[string]interface{}{
+						"path": "sub_categories",
+						"query": map[string]interface{}{
+							"match": map[string]interface{}{
+								"sub_categories.name": cleanQuery,
 							},
 						},
-						// 3. Exact text match on name, tags, industry (no fuzziness)
-						{
-							"multi_match": map[string]interface{}{
-								"query":  cleanQuery,
-								"fields": []string{"name^5", "tags^3", "description", "industry.name^2"},
-							},
+					},
+				},
+			}
+
+			if useFuzzy {
+				shouldQueries = append(shouldQueries,
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":     cleanQuery,
+							"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
+							"fuzziness": "AUTO",
 						},
-						// 4. Categories nested match (no fuzziness)
-						{
-							"nested": map[string]interface{}{
-								"path": "categories",
-								"query": map[string]interface{}{
-									"match": map[string]interface{}{
-										"categories.name": cleanQuery,
-									},
-								},
-							},
-						},
-						// 5. Subcategories nested match (no fuzziness)
-						{
-							"nested": map[string]interface{}{
-								"path": "sub_categories",
-								"query": map[string]interface{}{
-									"match": map[string]interface{}{
-										"sub_categories.name": cleanQuery,
+					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"categories.name": map[string]interface{}{
+										"query":     cleanQuery,
+										"fuzziness": "AUTO",
 									},
 								},
 							},
 						},
 					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "sub_categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"sub_categories.name": map[string]interface{}{
+										"query":     cleanQuery,
+										"fuzziness": "AUTO",
+									},
+								},
+							},
+						},
+					},
+				)
+			}
+
+			textMatch := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldQueries,
 					"minimum_should_match": 1,
 				},
 			}
-			// Use shouldClauses (boost) instead of mustClauses (strict filter)
-			// because industry/location/member_count must-filters already handle strict filtering
-			shouldClauses = append(shouldClauses, textMatch)
+			mustClauses = append(mustClauses, textMatch)
 		}
 	}
 
@@ -636,51 +690,50 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		})
 	}
 
-	// Category match — ES mein category.name field nahi hai
-	// industry.name, tags aur name pe match karo
-	// should use karo taaki industry already match ho toh ye boost kare
+	// Category match
 	if params.Category != "" {
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query": params.Category,
-								"boost": 2,
-							},
-						},
+		catShouldQueries := []interface{}{
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"industry.name": map[string]interface{}{
+						"query": params.Category,
+						"boost": 2,
 					},
-					map[string]interface{}{
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"tags": params.Category,
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"name": params.Category,
+				},
+			},
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "categories",
+					"query": map[string]interface{}{
 						"match": map[string]interface{}{
-							"tags": map[string]interface{}{
-								"query":     params.Category,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query":     params.Category,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					map[string]interface{}{
-						"nested": map[string]interface{}{
-							"path":            "categories",
-							"query": map[string]interface{}{
-								"match": map[string]interface{}{
-									"categories.name": map[string]interface{}{
-										"query":     params.Category,
-										"fuzziness": "AUTO",
-									},
-								},
-							},
+							"categories.name": params.Category,
 						},
 					},
 				},
+			},
+		}
+		
+		if useFuzzy {
+			catShouldQueries = append(catShouldQueries,
+				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}},
+				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}},
+				map[string]interface{}{"nested": map[string]interface{}{"path": "categories", "query": map[string]interface{}{"match": map[string]interface{}{"categories.name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}}}},
+			)
+		}
+
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should":               catShouldQueries,
 				"minimum_should_match": 1,
 			},
 		})
@@ -688,39 +741,40 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 
 	// Subcategory match
 	if params.Subcategory != "" {
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
+		subShouldQueries := []interface{}{
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"tags": params.Subcategory,
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"name": params.Subcategory,
+				},
+			},
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "sub_categories",
+					"query": map[string]interface{}{
 						"match": map[string]interface{}{
-							"tags": map[string]interface{}{
-								"query":     params.Subcategory,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"name": map[string]interface{}{
-								"query":     params.Subcategory,
-								"fuzziness": "AUTO",
-							},
-						},
-					},
-					map[string]interface{}{
-						"nested": map[string]interface{}{
-							"path":            "sub_categories",
-							"query": map[string]interface{}{
-								"match": map[string]interface{}{
-									"sub_categories.name": map[string]interface{}{
-										"query":     params.Subcategory,
-										"fuzziness": "AUTO",
-									},
-								},
-							},
+							"sub_categories.name": params.Subcategory,
 						},
 					},
 				},
+			},
+		}
+
+		if useFuzzy {
+			subShouldQueries = append(subShouldQueries,
+				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}},
+				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}},
+				map[string]interface{}{"nested": map[string]interface{}{"path": "sub_categories", "query": map[string]interface{}{"match": map[string]interface{}{"sub_categories.name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}}}},
+			)
+		}
+
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should":               subShouldQueries,
 				"minimum_should_match": 1,
 			},
 		})
@@ -772,19 +826,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 		}
 	}
 
-	// Membership Fee (Associations) - soft boost
+	// Membership Fee (Associations) - STRICT filter
 	if params.MembershipFee != nil {
 		if params.MembershipFee.Max > 0 {
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"membership_fee_min": map[string]interface{}{"lte": params.MembershipFee.Max, "boost": 2},
+					"membership_fee_min": map[string]interface{}{"lte": params.MembershipFee.Max},
 				},
 			})
 		}
 		if params.MembershipFee.Min > 0 {
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"membership_fee_max": map[string]interface{}{"gte": params.MembershipFee.Min, "boost": 2},
+					"membership_fee_max": map[string]interface{}{"gte": params.MembershipFee.Min},
 				},
 			})
 		}
