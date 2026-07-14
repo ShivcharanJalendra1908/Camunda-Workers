@@ -654,12 +654,21 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 
 			textMatch := map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should":               shouldQueries,
-					"minimum_should_match": 1,
+					"should": shouldQueries,
 				},
 			}
-			mustClauses = append(mustClauses, textMatch)
+			shouldClauses = append(shouldClauses, textMatch)
 		}
+	}
+
+	// Brand Name strict match
+	if params.BrandName != "" {
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query":  params.BrandName,
+				"fields": []string{"name", "slug"},
+			},
+		})
 	}
 
 	// Industry match (must instead of should to enforce strict filtering)

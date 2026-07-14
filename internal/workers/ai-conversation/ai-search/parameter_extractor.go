@@ -72,6 +72,7 @@ RULES:
 1. Return ONLY valid JSON. No markdown, no conversational text.
 2. If a value is missing, use null. DO NOT use empty strings.
 3. Determine Entity_Type. If the user mentions "association", "chamber", "federation", "society", "trust", "council", "forum", or "consortium" -> set to "association". If they mention "master franchise", "master", or "exclusive" -> set to "master-franchise". If they mention "franchise" -> set to "franchise". Otherwise -> set to null.
+4. Extract specific Brand_Name if the user is explicitly searching for a particular brand or association by its specific name or acronym (e.g. "IMA", "FICCI", "McDonalds"). Do not use generic words as Brand_Name.
 4. For investments and fees, standardize Indian currency: convert "1 lakh", "10 lacs" to "1L", "10L". Convert "1 crore", "2 cr" to "1Cr", "2Cr".
 5. Determine Minimum_Investment / Maximum_Investment for franchises.
 6. Determine Minimum_Membership_Fee / Maximum_Membership_Fee for associations.
@@ -84,6 +85,7 @@ RULES:
 
 DATA STRUCTURE (Return ONLY valid JSON matching this):
 {
+  "Brand_Name": "string or null",
   "Entity_Type": "string or null",
   "Industry": "string or null",
   "Category": "string or null",
@@ -119,6 +121,7 @@ Output:`
 
 // ftModelOutput - Fine-tuned model ka exact output schema
 type ftModelOutput struct {
+	BrandName            interface{} `json:"Brand_Name"`
 	Error                interface{} `json:"error"`
 	EntityType           interface{} `json:"Entity_Type"`
 	Industry             interface{} `json:"Industry"`
@@ -744,6 +747,10 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 	}
 
 	params := &ExtractedParameters{}
+
+	if b, ok := ftOut.BrandName.(string); ok && strings.TrimSpace(b) != "" {
+		params.BrandName = strings.TrimSpace(b)
+	}
 
 	// Category pehle (industry normalization ke liye chahiye)
 	category := ""

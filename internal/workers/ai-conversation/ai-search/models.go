@@ -9,6 +9,7 @@ type SearchInput struct {
 
 type ExtractedParameters struct {
 	OriginalQuery   string            `json:"-"`
+	BrandName       string            `json:"brand_name,omitempty"`
 	EntityType      string            `json:"entity_type,omitempty"`
 	Industry        string            `json:"industry,omitempty"`
 	Category        string            `json:"category,omitempty"`
