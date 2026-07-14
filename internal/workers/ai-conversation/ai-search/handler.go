@@ -517,10 +517,34 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 	// This acts as a safety net if the LLM categorizes "pizza" as F&B but drops "pizza" from Category
 	if params.OriginalQuery != "" {
 		cleanQuery := location.StripLocationFromQuery(params.OriginalQuery)
-		// Strip common filler words that might ruin strict matches
-		cleanQuery = strings.ReplaceAll(cleanQuery, "franchise", "")
-		cleanQuery = strings.ReplaceAll(cleanQuery, "business", "")
-		cleanQuery = strings.TrimSpace(cleanQuery)
+		// Strip entity keywords
+		cleanQuery = strings.ToLower(cleanQuery)
+		entityPatterns := []string{`master\s+franchises?`, `franchises?`, `associations?`, `businesses?`, `brands?`}
+		for _, pattern := range entityPatterns {
+			re := regexp.MustCompile(`(?i)\b` + pattern + `\b`)
+			cleanQuery = re.ReplaceAllString(cleanQuery, "")
+		}
+
+		// Strip common prepositions and conjunctions
+		prepositions := []string{
+			"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on",
+			"and", "or", "is", "are", "than", "more", "less", "under", "above", "between", "up", "down", "which", "who", "what", "where", "why", "how",
+		}
+		words := strings.Fields(cleanQuery)
+		var filteredWords []string
+		for _, w := range words {
+			isPreposition := false
+			for _, p := range prepositions {
+				if w == p {
+					isPreposition = true
+					break
+				}
+			}
+			if !isPreposition {
+				filteredWords = append(filteredWords, w)
+			}
+		}
+		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
 		if cleanQuery != "" {
 			textMatch := map[string]interface{}{
@@ -532,17 +556,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 								"query":     cleanQuery,
 								"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
 								"fuzziness": "AUTO",
+								"operator":  "and",
 							},
 						},
 						// 2. Categories nested match
 						{
 							"nested": map[string]interface{}{
-								"path":            "categories",
+								"path": "categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
 											"query":     cleanQuery,
 											"fuzziness": "AUTO",
+											"operator":  "and",
 										},
 									},
 								},
@@ -551,12 +577,13 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 						// 3. Subcategories nested match
 						{
 							"nested": map[string]interface{}{
-								"path":            "sub_categories",
+								"path": "sub_categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
 											"query":     cleanQuery,
 											"fuzziness": "AUTO",
+											"operator":  "and",
 										},
 									},
 								},

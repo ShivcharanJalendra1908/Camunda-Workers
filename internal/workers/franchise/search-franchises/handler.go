@@ -358,14 +358,17 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 
 		// Strip entity keywords
 		cleanQuery = strings.ToLower(cleanQuery)
-		entityPatterns := []string{`master\s+franchises?`, `franchises?`}
+		entityPatterns := []string{`master\s+franchises?`, `franchises?`, `associations?`, `businesses?`, `brands?`}
 		for _, pattern := range entityPatterns {
 			re := regexp.MustCompile(`(?i)\b` + pattern + `\b`)
 			cleanQuery = re.ReplaceAllString(cleanQuery, "")
 		}
 
-		// Strip common prepositions
-		prepositions := []string{"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on"}
+		// Strip common prepositions and conjunctions
+		prepositions := []string{
+			"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on",
+			"and", "or", "is", "are", "than", "more", "less", "under", "above", "between", "up", "down", "which", "who", "what", "where", "why", "how",
+		}
 		words := strings.Fields(cleanQuery)
 		var filteredWords []string
 		for _, w := range words {
@@ -401,17 +404,19 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 								"fields":    []string{"name^3", "description^2", "tags", "industry.name^2"},
 								"type":      "best_fields",
 								"fuzziness": h.config.Fuzziness,
+								"operator":  "and",
 							},
 						},
 						// 2. Categories nested match
 						{
 							"nested": map[string]interface{}{
-								"path":            "categories",
+								"path": "categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
 											"query":     cleanQuery,
 											"fuzziness": h.config.Fuzziness,
+											"operator":  "and",
 										},
 									},
 								},
@@ -420,12 +425,13 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 						// 3. Subcategories nested match
 						{
 							"nested": map[string]interface{}{
-								"path":            "sub_categories",
+								"path": "sub_categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
 											"query":     cleanQuery,
 											"fuzziness": h.config.Fuzziness,
+											"operator":  "and",
 										},
 									},
 								},
