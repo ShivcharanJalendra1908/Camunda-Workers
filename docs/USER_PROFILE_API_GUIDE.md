@@ -47,34 +47,34 @@ Cookie: session_token=<token>
     "createdAt": "2026-01-15T10:30:00Z",
     "updatedAt": "2026-07-14T08:15:00Z",
     "professional": {
-      "occupation": "Entrepreneur",
-      "designation": "CEO",
-      "experience": "10+ years",
+      "occupation": "entrepreneur",
+      "designation": "c_level",
+      "experience": "10-15",
       "priorExperience": true,
       "industryId": "uuid",
-      "industry": "Food & Beverage"
+      "industry": "food_beverage"
     },
     "company": {
       "businessName": "Acme Foods Pvt Ltd",
-      "businessType": "Private Limited",
-      "industrySector": "Food & Beverage",
+      "businessType": "private_limited",
+      "industrySector": "food_beverage",
       "yearEstablished": 2020,
       "cinRegistration": "U12345MH2020PTC123456",
       "gstNumber": "27AABCU9603R1ZM",
-      "annualTurnover": "1Cr-5Cr",
+      "annualTurnover": "50_lakhs_1_crore",
       "companyWebsite": "https://acmefoods.com",
       "companyPhone": "+91-9876543210",
       "registeredAddress": "Mumbai, Maharashtra",
       "companyDescription": "Leading food franchise brand"
     },
     "investment": {
-      "minInvestment": "50L-1Cr",
-      "maxInvestment": "1Cr-5Cr",
-      "liquidCapitalAvailable": "50L-1Cr",
-      "fundingSource": "Self-funded",
-      "roiTimeline": "2-3 years",
+      "minInvestment": "50_lakhs_1_crore",
+      "maxInvestment": "1_5_crores",
+      "liquidCapitalAvailable": "50_lakhs_1_crore",
+      "fundingSource": "self_funded",
+      "roiTimeline": "2_years",
       "expectedAnnualRoi": "20-30%",
-      "preferredSectors": ["Food & Beverage", "Retail"],
+      "preferredSectors": ["food_beverage", "retail"],
       "preferredCategories": ["QSR", "Fast Casual"]
     },
     "preferences": {
@@ -271,23 +271,60 @@ Cookie: session_token=<token>
   "data": {
     "theme": [
       {"value": "light", "label": "Light"},
-      {"value": "dark", "label": "Dark"}
+      {"value": "dark", "label": "Dark"},
+      {"value": "auto", "label": "Auto"}
     ],
     "language": [
       {"value": "en", "label": "English"},
-      {"value": "hi", "label": "Hindi"}
+      {"value": "hi", "label": "Hindi"},
+      {"value": "bn", "label": "Bengali"},
+      {"value": "te", "label": "Telugu"},
+      {"value": "mr", "label": "Marathi"},
+      {"value": "ta", "label": "Tamil"},
+      {"value": "gu", "label": "Gujarati"},
+      {"value": "kn", "label": "Kannada"},
+      {"value": "ml", "label": "Malayalam"},
+      {"value": "pa", "label": "Punjabi"}
     ],
     "timezone": [
-      {"value": "UTC", "label": "UTC"},
-      {"value": "Asia/Kolkata", "label": "India Standard Time"}
+      {"value": "Asia/Kolkata", "label": "Asia/Kolkata (IST)"},
+      {"value": "America/New_York", "label": "America/New_York (EST)"},
+      {"value": "America/Chicago", "label": "America/Chicago (CST)"},
+      {"value": "America/Denver", "label": "America/Denver (MST)"},
+      {"value": "America/Los_Angeles", "label": "America/Los_Angeles (PST)"},
+      {"value": "Europe/London", "label": "Europe/London (GMT)"},
+      {"value": "Europe/Berlin", "label": "Europe/Berlin (CET)"},
+      {"value": "Asia/Dubai", "label": "Asia/Dubai (GST)"},
+      {"value": "Asia/Singapore", "label": "Asia/Singapore (SGT)"},
+      {"value": "Asia/Tokyo", "label": "Asia/Tokyo (JST)"},
+      {"value": "Australia/Sydney", "label": "Australia/Sydney (AEST)"},
+      {"value": "UTC", "label": "UTC"}
     ],
     "industry": [
-      {"value": "food-beverage", "label": "Food & Beverage"},
-      {"value": "retail", "label": "Retail"}
+      {"value": "food_beverage", "label": "Food & Beverage"},
+      {"value": "education", "label": "Education"},
+      {"value": "healthcare", "label": "Healthcare"},
+      {"value": "retail", "label": "Retail"},
+      {"value": "technology", "label": "Technology"},
+      {"value": "real_estate", "label": "Real Estate"},
+      {"value": "automotive", "label": "Automotive"},
+      {"value": "fitness_wellness", "label": "Fitness & Wellness"},
+      {"value": "beauty_salon", "label": "Beauty & Salon"},
+      {"value": "travel_tourism", "label": "Travel & Tourism"},
+      {"value": "logistics_delivery", "label": "Logistics & Delivery"},
+      {"value": "manufacturing", "label": "Manufacturing"},
+      {"value": "agriculture", "label": "Agriculture"},
+      {"value": "financial_services", "label": "Financial Services"},
+      {"value": "other", "label": "Other"}
     ],
     "investmentRange": [
-      {"value": "10L-50L", "label": "10L - 50L"},
-      {"value": "50L-1Cr", "label": "50L - 1Cr"}
+      {"value": "below_5_lakhs", "label": "Below 5 Lakhs"},
+      {"value": "5_10_lakhs", "label": "5-10 Lakhs"},
+      {"value": "10_25_lakhs", "label": "10-25 Lakhs"},
+      {"value": "25_50_lakhs", "label": "25-50 Lakhs"},
+      {"value": "50_lakhs_1_crore", "label": "50 Lakhs - 1 Crore"},
+      {"value": "1_5_crores", "label": "1-5 Crores"},
+      {"value": "above_5_crores", "label": "Above 5 Crores"}
     ]
   }
 }
@@ -503,7 +540,43 @@ PII fields (name, phone, location, email) are encrypted server-side before reach
 
 ### 5. Dropdown Values
 
-Use `GET /user/preferences/options` to populate dropdowns. Values sent in `profileData` must match the `value` field from options (e.g., `"food-beverage"`, not `"Food & Beverage"`).
+Use `GET /user/preferences/options` to populate dropdowns. Values sent in `profileData` must match the `value` field from options (e.g., `"food_beverage"`, not `"Food & Beverage"`).
+
+#### Professional Details
+
+| Dropdown | Values |
+|---|---|
+| `occupation` | `software_engineer`, `business_analyst`, `product_manager`, `data_scientist`, `marketing_manager`, `sales_executive`, `financial_advisor`, `consultant`, `entrepreneur`, `teacher`, `doctor`, `lawyer`, `engineer`, `architect`, `designer`, `accountant`, `hr_professional`, `operations_manager`, `other` |
+| `designation` | `junior`, `mid_level`, `senior`, `lead`, `manager`, `director`, `vp`, `c_level`, `founder`, `co_founder`, `intern`, `fresher` |
+| `experience_level` | `0-2`, `2-5`, `5-10`, `10-15`, `15-20`, `20+` |
+
+#### Company Details
+
+| Dropdown | Values |
+|---|---|
+| `business_type` | `sole_proprietorship`, `partnership`, `llp`, `private_limited`, `public_limited`, `opc`, `huf`, `trust`, `society`, `other` |
+
+#### Investment Details
+
+| Dropdown | Values |
+|---|---|
+| `funding_source` | `self_funded`, `family_friends`, `bank_loan`, `nbfc`, `angel_investor`, `venture_capital`, `government_scheme`, `crowdfunding`, `other` |
+| `roi_timeline` | `6_months`, `1_year`, `2_years`, `3_years`, `5_plus_years` |
+| `investment_range` | `below_5_lakhs`, `5_10_lakhs`, `10_25_lakhs`, `25_50_lakhs`, `50_lakhs_1_crore`, `1_5_crores`, `above_5_crores` |
+
+#### Preferences
+
+| Dropdown | Values |
+|---|---|
+| `theme` | `light`, `dark`, `auto` |
+| `language` | `en`, `hi`, `bn`, `te`, `mr`, `ta`, `gu`, `kn`, `ml`, `pa` |
+| `timezone` | `Asia/Kolkata`, `America/New_York`, `America/Chicago`, `America/Denver`, `America/Los_Angeles`, `Europe/London`, `Europe/Berlin`, `Asia/Dubai`, `Asia/Singapore`, `Asia/Tokyo`, `Australia/Sydney`, `UTC` |
+
+#### Industry
+
+| Dropdown | Values |
+|---|---|
+| `industry` | `food_beverage`, `education`, `healthcare`, `retail`, `technology`, `real_estate`, `automotive`, `fitness_wellness`, `beauty_salon`, `travel_tourism`, `logistics_delivery`, `manufacturing`, `agriculture`, `financial_services`, `other` |
 
 ### 6. Multipart Form — profileData as String
 
