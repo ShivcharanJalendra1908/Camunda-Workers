@@ -664,10 +664,11 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 
 			textMatch := map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should": shouldQueries,
+					"should":               shouldQueries,
+					"minimum_should_match": 1,
 				},
 			}
-			shouldClauses = append(shouldClauses, textMatch)
+			mustClauses = append(mustClauses, textMatch)
 		}
 	}
 
@@ -675,8 +676,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 	if params.BrandName != "" {
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"multi_match": map[string]interface{}{
-				"query":  params.BrandName,
-				"fields": []string{"name", "slug"},
+				"query":    params.BrandName,
+				"fields":   []string{"name", "slug"},
+				"operator": "and",
 			},
 		})
 	}
@@ -695,7 +697,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 					},
 					map[string]interface{}{
 						"match": map[string]interface{}{
-							"industry.name": params.Industry,
+							"industry.name": map[string]interface{}{
+								"query":    params.Industry,
+								"operator": "and",
+							},
 						},
 					},
 					map[string]interface{}{
@@ -715,19 +720,26 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 			map[string]interface{}{
 				"match": map[string]interface{}{
 					"industry.name": map[string]interface{}{
-						"query": params.Category,
-						"boost": 2,
+						"query":    params.Category,
+						"boost":    2,
+						"operator": "and",
 					},
 				},
 			},
 			map[string]interface{}{
 				"match": map[string]interface{}{
-					"tags": params.Category,
+					"tags": map[string]interface{}{
+						"query":    params.Category,
+						"operator": "and",
+					},
 				},
 			},
 			map[string]interface{}{
 				"match": map[string]interface{}{
-					"name": params.Category,
+					"name": map[string]interface{}{
+						"query":    params.Category,
+						"operator": "and",
+					},
 				},
 			},
 			map[string]interface{}{
@@ -735,7 +747,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 					"path": "categories",
 					"query": map[string]interface{}{
 						"match": map[string]interface{}{
-							"categories.name": params.Category,
+							"categories.name": map[string]interface{}{
+								"query":    params.Category,
+								"operator": "and",
+							},
 						},
 					},
 				},
@@ -744,9 +759,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 		
 		if useFuzzy {
 			catShouldQueries = append(catShouldQueries,
-				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}},
-				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}},
-				map[string]interface{}{"nested": map[string]interface{}{"path": "categories", "query": map[string]interface{}{"match": map[string]interface{}{"categories.name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO"}}}}},
+				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO", "operator": "and"}}},
+				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO", "operator": "and"}}},
+				map[string]interface{}{"nested": map[string]interface{}{"path": "categories", "query": map[string]interface{}{"match": map[string]interface{}{"categories.name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO", "operator": "and"}}}}},
 			)
 		}
 
@@ -763,12 +778,18 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 		subShouldQueries := []interface{}{
 			map[string]interface{}{
 				"match": map[string]interface{}{
-					"tags": params.Subcategory,
+					"tags": map[string]interface{}{
+						"query":    params.Subcategory,
+						"operator": "and",
+					},
 				},
 			},
 			map[string]interface{}{
 				"match": map[string]interface{}{
-					"name": params.Subcategory,
+					"name": map[string]interface{}{
+						"query":    params.Subcategory,
+						"operator": "and",
+					},
 				},
 			},
 			map[string]interface{}{
@@ -776,7 +797,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 					"path": "sub_categories",
 					"query": map[string]interface{}{
 						"match": map[string]interface{}{
-							"sub_categories.name": params.Subcategory,
+							"sub_categories.name": map[string]interface{}{
+								"query":    params.Subcategory,
+								"operator": "and",
+							},
 						},
 					},
 				},
@@ -785,9 +809,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 
 		if useFuzzy {
 			subShouldQueries = append(subShouldQueries,
-				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}},
-				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}},
-				map[string]interface{}{"nested": map[string]interface{}{"path": "sub_categories", "query": map[string]interface{}{"match": map[string]interface{}{"sub_categories.name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO"}}}}},
+				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO", "operator": "and"}}},
+				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO", "operator": "and"}}},
+				map[string]interface{}{"nested": map[string]interface{}{"path": "sub_categories", "query": map[string]interface{}{"match": map[string]interface{}{"sub_categories.name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO", "operator": "and"}}}}},
 			)
 		}
 
@@ -884,18 +908,31 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 		})
 	}
 
-	// Location filter — HARD filter (user explicitly wants these cities)
+	// Location: SOFT boost for associations (national orgs are relevant everywhere),
+	// HARD filter for franchises/master-franchises (location-specific)
 	if params.Location != nil && params.Location.City != "" {
 		cities := strings.Split(params.Location.City, ",")
 		var allTerms []string
 		for _, city := range cities {
 			allTerms = append(allTerms, location.BuildLocationTerms(strings.TrimSpace(city))...)
 		}
-		filterClauses = append(filterClauses, map[string]interface{}{
+		locationClause := map[string]interface{}{
 			"terms": map[string]interface{}{
 				"location": dedupLocationTerms(allTerms),
 			},
-		})
+		}
+		if params.EntityType == "association" {
+			// Soft boost: prefer local associations, but still show national ones
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": locationClause,
+					"boost":  10,
+				},
+			})
+		} else {
+			// Hard filter for franchises
+			filterClauses = append(filterClauses, locationClause)
+		}
 	}
 
 	// Investment — SOFT boost (prefer matching, not exclude)
