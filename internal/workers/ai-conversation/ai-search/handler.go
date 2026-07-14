@@ -586,8 +586,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 				// 3. Exact text match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":  cleanQuery,
-						"fields": []string{"name^5", "tags^3", "description", "industry.name^2"},
+						"query":    cleanQuery,
+						"fields":   []string{"name^5", "tags^3", "description", "industry.name^2"},
+						"operator": "and",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)
@@ -596,7 +597,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 						"path": "categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"categories.name": cleanQuery,
+								"categories.name": map[string]interface{}{
+									"query":    cleanQuery,
+									"operator": "and",
+								},
 							},
 						},
 					},
@@ -607,7 +611,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 						"path": "sub_categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"sub_categories.name": cleanQuery,
+								"sub_categories.name": map[string]interface{}{
+									"query":    cleanQuery,
+									"operator": "and",
+								},
 							},
 						},
 					},
@@ -621,6 +628,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 							"query":     cleanQuery,
 							"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
 							"fuzziness": "AUTO",
+							"operator":  "and",
 						},
 					},
 					map[string]interface{}{
@@ -631,6 +639,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 									"categories.name": map[string]interface{}{
 										"query":     cleanQuery,
 										"fuzziness": "AUTO",
+										"operator":  "and",
 									},
 								},
 							},
@@ -644,6 +653,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 									"sub_categories.name": map[string]interface{}{
 										"query":     cleanQuery,
 										"fuzziness": "AUTO",
+										"operator":  "and",
 									},
 								},
 							},
