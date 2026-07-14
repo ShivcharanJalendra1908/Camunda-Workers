@@ -552,7 +552,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 		for _, w := range words {
 			isPreposition := false
 			for _, p := range prepositions {
-				if w == p {
+				if strings.ToLower(w) == p {
 					isPreposition = true
 					break
 				}
