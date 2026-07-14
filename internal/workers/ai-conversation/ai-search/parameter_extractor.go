@@ -1043,7 +1043,7 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 			for _, loc := range foundLocations {
 				locTitled := titleCase(loc)
 				// E.g. "Delhi NCR" and "Delhi" are same, let's treat "Delhi NCR" as standard
-				if locTitled == "Delhi" {
+				if locTitled == "Delhi" || locTitled == "Delhi Ncr" {
 					locTitled = "Delhi NCR"
 				}
 				if !seen[strings.ToLower(locTitled)] {
@@ -1079,12 +1079,20 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 			}
 
 			if len(uniqueLocations) > 0 {
-				joinedCities := strings.Join(uniqueLocations, ", ")
-				params.Location = &LocationFilter{
-					City:    joinedCities,
-					Country: "India",
+				if len(uniqueLocations) == 1 {
+					params.Location = pe.parseLocationString(uniqueLocations[0])
+					if params.Location == nil {
+						// fallback if parseLocationString returns nil
+						params.Location = &LocationFilter{City: uniqueLocations[0], Country: "India"}
+					}
+				} else {
+					joinedCities := strings.Join(uniqueLocations, ", ")
+					params.Location = &LocationFilter{
+						City:    joinedCities,
+						Country: "India",
+					}
+					fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
 				}
-				fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
 			}
 	}
 
