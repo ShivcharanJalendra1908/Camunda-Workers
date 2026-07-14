@@ -554,10 +554,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 						// 1. Root fields match
 						{
 							"multi_match": map[string]interface{}{
-								"query":     cleanQuery,
-								"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
-								"fuzziness": "AUTO",
-								"operator":  "and",
+								"query":                cleanQuery,
+								"fields":               []string{"name^5", "tags^3", "description", "industry.name^2"},
+								"fuzziness":            "AUTO",
+								"minimum_should_match": "2<75%",
 							},
 						},
 						// 2. Categories nested match
@@ -567,9 +567,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"categories.name": map[string]interface{}{
-											"query":     cleanQuery,
-											"fuzziness": "AUTO",
-											"operator":  "and",
+											"query":                cleanQuery,
+											"fuzziness":            "AUTO",
+											"minimum_should_match": "2<75%",
 										},
 									},
 								},
@@ -582,9 +582,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
 										"sub_categories.name": map[string]interface{}{
-											"query":     cleanQuery,
-											"fuzziness": "AUTO",
-											"operator":  "and",
+											"query":                cleanQuery,
+											"fuzziness":            "AUTO",
+											"minimum_should_match": "2<75%",
 										},
 									},
 								},
