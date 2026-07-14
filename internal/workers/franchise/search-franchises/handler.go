@@ -85,20 +85,35 @@ func (h *Handler) HandleJob(client worker.JobClient, job entities.Job) {
 	// Sanitize input
 	h.sanitizeInput(input)
 
-	// Build query
-	searchRequest, err := h.buildSearchRequest(input)
+	// Phase 1: Build exact match query (no fuzziness)
+	searchRequest, err := h.buildSearchRequest(input, false)
 	if err != nil {
 		span.RecordError(err)
 		h.errorHandler.HandleJobError(ctx, client, job, err)
 		return
 	}
 
-	// Execute search on franchise_listings index
+	// Execute exact match search
 	results, totalCount, err := h.executeSearch(ctx, searchRequest)
 	if err != nil {
 		span.RecordError(err)
 		h.errorHandler.HandleJobError(ctx, client, job, err)
 		return
+	}
+
+	// Phase 2: If exact match returned 0 results and query exists, retry with fuzzy
+	if totalCount == 0 && input.Query != "" {
+		h.logger.Info("Exact match returned 0 results, retrying with fuzzy", map[string]interface{}{
+			"query": input.Query,
+		})
+		fuzzyRequest, err := h.buildSearchRequest(input, true)
+		if err == nil {
+			fuzzyResults, fuzzyCount, fuzzyErr := h.executeSearch(ctx, fuzzyRequest)
+			if fuzzyErr == nil {
+				results = fuzzyResults
+				totalCount = fuzzyCount
+			}
+		}
 	}
 
 	queryTime := time.Since(startTime).Milliseconds()
@@ -203,7 +218,7 @@ func (h *Handler) sanitizeInput(input *Input) {
 	}
 }
 
-func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
+func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchRequest, error) {
 	// ✅ NORMALIZE ENTITY TYPE (frontend may send plural forms)
 	switch strings.ToLower(input.EntityType) {
 	case "franchises":
@@ -394,50 +409,100 @@ func (h *Handler) buildSearchRequest(input *Input) (*SearchRequest, error) {
 		}
 
 		if cleanQuery != "" {
-			textMatch := map[string]interface{}{
-				"bool": map[string]interface{}{
-					"should": []map[string]interface{}{
-						// 1. Root fields match
-						{
-							"multi_match": map[string]interface{}{
-								"query":     cleanQuery,
-								"fields":    []string{"name^3", "description^2", "tags", "industry.name^2"},
-								"type":      "best_fields",
-								"fuzziness": h.config.Fuzziness,
-								"operator":  "and",
+			shouldQueries := []map[string]interface{}{
+				// 1. Exact match on slug (for acronyms like ima, ficci)
+				{
+					"term": map[string]interface{}{
+						"slug": map[string]interface{}{
+							"value": strings.ToLower(cleanQuery),
+							"boost": 50,
+						},
+					},
+				},
+				// 2. Exact phrase match on name
+				{
+					"match_phrase": map[string]interface{}{
+						"name": map[string]interface{}{
+							"query": cleanQuery,
+							"boost": 20,
+						},
+					},
+				},
+				// 3. Exact match on name, tags, industry (no fuzziness)
+				{
+					"multi_match": map[string]interface{}{
+						"query":  cleanQuery,
+						"fields": []string{"name^3", "description^2", "tags^3", "industry.name^2"},
+						"type":   "best_fields",
+					},
+				},
+				// 4. Categories nested match (no fuzziness)
+				{
+					"nested": map[string]interface{}{
+						"path": "categories",
+						"query": map[string]interface{}{
+							"match": map[string]interface{}{
+								"categories.name": cleanQuery,
 							},
 						},
-						// 2. Categories nested match
-						{
-							"nested": map[string]interface{}{
-								"path": "categories",
-								"query": map[string]interface{}{
-									"match": map[string]interface{}{
-										"categories.name": map[string]interface{}{
-											"query":     cleanQuery,
-											"fuzziness": h.config.Fuzziness,
-											"operator":  "and",
-										},
-									},
-								},
+					},
+				},
+				// 5. Subcategories nested match (no fuzziness)
+				{
+					"nested": map[string]interface{}{
+						"path": "sub_categories",
+						"query": map[string]interface{}{
+							"match": map[string]interface{}{
+								"sub_categories.name": cleanQuery,
 							},
 						},
-						// 3. Subcategories nested match
-						{
-							"nested": map[string]interface{}{
-								"path": "sub_categories",
-								"query": map[string]interface{}{
-									"match": map[string]interface{}{
-										"sub_categories.name": map[string]interface{}{
-											"query":     cleanQuery,
-											"fuzziness": h.config.Fuzziness,
-											"operator":  "and",
-										},
+					},
+				},
+			}
+
+			// Phase 2 only: add fuzzy match queries
+			if useFuzzy {
+				shouldQueries = append(shouldQueries,
+					map[string]interface{}{
+						"multi_match": map[string]interface{}{
+							"query":     cleanQuery,
+							"fields":    []string{"name^3", "description", "tags^2", "industry.name^2"},
+							"type":      "best_fields",
+							"fuzziness": "AUTO",
+						},
+					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"categories.name": map[string]interface{}{
+										"query":     cleanQuery,
+										"fuzziness": "AUTO",
 									},
 								},
 							},
 						},
 					},
+					map[string]interface{}{
+						"nested": map[string]interface{}{
+							"path": "sub_categories",
+							"query": map[string]interface{}{
+								"match": map[string]interface{}{
+									"sub_categories.name": map[string]interface{}{
+										"query":     cleanQuery,
+										"fuzziness": "AUTO",
+									},
+								},
+							},
+						},
+					},
+				)
+			}
+
+			textMatch := map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should":               shouldQueries,
 					"minimum_should_match": 1,
 				},
 			}

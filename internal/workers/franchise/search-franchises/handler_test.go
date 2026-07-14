@@ -173,7 +173,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			Limit: 10,
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.Equal(t, 0, req.From)
@@ -198,7 +198,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			SortOrder:     "desc",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.Equal(t, 15, req.From) // (2-1) * 15 = 15
@@ -217,7 +217,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			LocalBrandsOnly: true,
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.Equal(t, 0, req.From)
@@ -297,7 +297,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			SortOrder: "asc",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.Equal(t, 0, req.From)
@@ -321,7 +321,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			SortOrder:     "asc",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 	})
@@ -333,7 +333,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			Query: "Amul",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 
@@ -362,7 +362,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			Industry: "food",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.NotNil(t, req.Query)
@@ -375,7 +375,7 @@ func TestHandler_BuildSearchRequest(t *testing.T) {
 			Category: "food",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		assert.NotNil(t, req.Query)
@@ -629,7 +629,7 @@ func BenchmarkHandler_BuildSearchRequest(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = handler.buildSearchRequest(input)
+		_, _ = handler.buildSearchRequest(input, false)
 	}
 }
 
@@ -651,7 +651,7 @@ func TestHandler_EdgeCases(t *testing.T) {
 			Query: "test",
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 		// With EnableAggregations=false, aggregations should be nil
@@ -757,7 +757,7 @@ func TestHandler_LocationCountryFilter(t *testing.T) {
 		Location: "India",
 	}
 
-	req, err := handler.buildSearchRequest(input)
+	req, err := handler.buildSearchRequest(input, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, req)
 
@@ -854,7 +854,7 @@ func TestHandler_InvestmentSpaceOverlapFilters(t *testing.T) {
 			MaxSpace:      1000,
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 
@@ -913,7 +913,7 @@ func TestHandler_InvestmentSpaceOverlapFilters(t *testing.T) {
 			MaxInvestment: 100, // 100 Lakhs directly
 		}
 
-		req, err := handler.buildSearchRequest(input)
+		req, err := handler.buildSearchRequest(input, false)
 		assert.NoError(t, err)
 		assert.NotNil(t, req)
 

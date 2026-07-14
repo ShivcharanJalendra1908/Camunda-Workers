@@ -551,41 +551,49 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 			textMatch := map[string]interface{}{
 				"bool": map[string]interface{}{
 					"should": []map[string]interface{}{
-						// 1. Root fields match
+						// 1. Exact slug match (for acronyms like ima, ficci)
 						{
-							"multi_match": map[string]interface{}{
-								"query":                cleanQuery,
-								"fields":               []string{"name^5", "tags^3", "description", "industry.name^2"},
-								"fuzziness":            "AUTO",
-								"minimum_should_match": "2<75%",
+							"term": map[string]interface{}{
+								"slug": map[string]interface{}{
+									"value": strings.ToLower(cleanQuery),
+									"boost": 50,
+								},
 							},
 						},
-						// 2. Categories nested match
+						// 2. Exact phrase match on name
+						{
+							"match_phrase": map[string]interface{}{
+								"name": map[string]interface{}{
+									"query": cleanQuery,
+									"boost": 20,
+								},
+							},
+						},
+						// 3. Exact text match on name, tags, industry (no fuzziness)
+						{
+							"multi_match": map[string]interface{}{
+								"query":  cleanQuery,
+								"fields": []string{"name^5", "tags^3", "description", "industry.name^2"},
+							},
+						},
+						// 4. Categories nested match (no fuzziness)
 						{
 							"nested": map[string]interface{}{
 								"path": "categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
-										"categories.name": map[string]interface{}{
-											"query":                cleanQuery,
-											"fuzziness":            "AUTO",
-											"minimum_should_match": "2<75%",
-										},
+										"categories.name": cleanQuery,
 									},
 								},
 							},
 						},
-						// 3. Subcategories nested match
+						// 5. Subcategories nested match (no fuzziness)
 						{
 							"nested": map[string]interface{}{
 								"path": "sub_categories",
 								"query": map[string]interface{}{
 									"match": map[string]interface{}{
-										"sub_categories.name": map[string]interface{}{
-											"query":                cleanQuery,
-											"fuzziness":            "AUTO",
-											"minimum_should_match": "2<75%",
-										},
+										"sub_categories.name": cleanQuery,
 									},
 								},
 							},
@@ -594,7 +602,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters) (map[stri
 					"minimum_should_match": 1,
 				},
 			}
-			mustClauses = append(mustClauses, textMatch)
+			// Use shouldClauses (boost) instead of mustClauses (strict filter)
+			// because industry/location/member_count must-filters already handle strict filtering
+			shouldClauses = append(shouldClauses, textMatch)
 		}
 	}
 
