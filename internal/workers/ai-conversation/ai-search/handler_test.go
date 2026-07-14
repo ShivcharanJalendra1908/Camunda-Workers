@@ -345,7 +345,7 @@ func TestBuildBasicQuery(t *testing.T) {
 		{"food franchises", "bool"},
 	}
 	for _, tt := range tests {
-		q := handler.buildBasicQuery(tt.query)
+		q := handler.buildBasicQuery(tt.query, "")
 		assert.Equal(t, handler.config.DefaultPageSize, q["size"])
 		queryMap := q["query"].(map[string]interface{})
 		assert.Contains(t, queryMap, tt.wantType)

@@ -432,18 +432,39 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 	// }
 	boolQuery := map[string]interface{}{
 		"should": []interface{}{
-			map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{
-				"query": cleanQuery, "boost": 5, "fuzziness": "AUTO",
-			}}},
-			map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{
-				"query": cleanQuery, "boost": 3, "fuzziness": "AUTO",
-			}}},
-			map[string]interface{}{"match": map[string]interface{}{"description": map[string]interface{}{
-				"query": cleanQuery, "boost": 2, "fuzziness": "AUTO",
-			}}},
-			map[string]interface{}{"match": map[string]interface{}{"industry.name": map[string]interface{}{
-				"query": cleanQuery, "boost": 1,
-			}}},
+			map[string]interface{}{
+				"multi_match": map[string]interface{}{
+					"query":     cleanQuery,
+					"fields":    []string{"name^5", "tags^3", "description^2", "industry.name^2"},
+					"fuzziness": "AUTO",
+				},
+			},
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "categories",
+					"query": map[string]interface{}{
+						"match": map[string]interface{}{
+							"categories.name": map[string]interface{}{
+								"query":     cleanQuery,
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "sub_categories",
+					"query": map[string]interface{}{
+						"match": map[string]interface{}{
+							"sub_categories.name": map[string]interface{}{
+								"query":     cleanQuery,
+								"fuzziness": "AUTO",
+							},
+						},
+					},
+				},
+			},
 		},
 		"minimum_should_match": 1,
 	}
