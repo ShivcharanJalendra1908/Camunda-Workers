@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 COMMENT ON TABLE users IS 'Platform users - franchise seekers, franchisors, and admins';
+COMMENT ON COLUMN users.profile_image IS 'S3 object key (not full URL). CDN URL constructed at read time via BuildPhotoURL().';
 
 -- ========================================
 -- IDENTITIES TABLE
