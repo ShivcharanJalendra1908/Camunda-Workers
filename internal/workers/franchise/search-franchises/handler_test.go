@@ -801,6 +801,11 @@ func TestHandler_LocationCountryFilter(t *testing.T) {
 							hasLocationTerm = true
 						}
 					}
+					if terms, ok := sh["terms"].(map[string]interface{}); ok {
+						if _, ok := terms["location"]; ok {
+							hasLocationTerm = true
+						}
+					}
 					if match, ok := sh["match"].(map[string]interface{}); ok {
 						if _, ok := match["country"]; ok {
 							hasCountryMatch = true
