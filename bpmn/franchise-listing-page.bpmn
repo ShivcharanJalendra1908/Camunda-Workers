@@ -42,7 +42,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=searchQuery" target="query" />
           <zeebe:input source="=if filters != null and filters.category != null and filters.category != &#34;&#34; then filters.category else if categorySlug != null then categorySlug else if category != null then category else &#34;&#34;" target="category" />
-          <zeebe:input source="=if filters != null and filters.industrySlug != null and filters.industrySlug != &#34;&#34; then filters.industrySlug else if industrySlug != null then industrySlug else if industry != null then industry else &#34;&#34;" target="industry" />
+          <zeebe:input source="=if filters != null and filters.industry != null and filters.industry != &#34;&#34; then filters.industry else if filters.industrySlug != null and filters.industrySlug != &#34;&#34; then filters.industrySlug else if industrySlug != null then industrySlug else if industry != null then industry else &#34;&#34;" target="industry" />
           <zeebe:input source="=if filters != null and filters.location != null and filters.location != &#34;&#34; then filters.location else if location != null then location else &#34;&#34;" target="location" />
           <zeebe:input source="=if page != null then page else 1" target="page" />
           <zeebe:input source="=if limit != null then limit else if pageSize != null then pageSize else 10" target="limit" />
