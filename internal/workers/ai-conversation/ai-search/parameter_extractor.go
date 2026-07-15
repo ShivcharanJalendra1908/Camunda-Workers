@@ -253,6 +253,136 @@ var industryNormalizationMap = map[string]string{
 	"farming":                          "Agriculture",
 	"power":                            "Energy & Utilities",
 	"solar":                            "Energy & Utilities",
+
+	// Education extensive
+	"institute":                        "Education",
+	"institutes":                       "Education",
+	"institution":                      "Education",
+	"institutions":                     "Education",
+	"tuition":                          "Education",
+	"tuitions":                         "Education",
+	"academy":                          "Education",
+	"university":                       "Education",
+	"coaching":                         "Education",
+	"classes":                          "Education",
+	"edtech":                           "Education",
+
+	// Health extensive
+	"hospital":                         "Health",
+	"hospitals":                        "Health",
+	"clinic":                           "Health",
+	"clinics":                          "Health",
+	"diagnostics":                      "Health",
+	"wellness":                         "Health",
+	"ayurveda":                         "Health",
+
+	// Real Estate extensive
+	"construction":                     "Real Estate",
+	"housing":                          "Real Estate",
+	"commercial real estate":           "Real Estate",
+	"developers":                       "Real Estate",
+	"developer":                        "Real Estate",
+
+	// Tech extensive
+	"hardware":                         "Technology / IT",
+	"computers":                        "Technology / IT",
+	"networking":                       "Technology / IT",
+	"cybersecurity":                    "Technology / IT",
+	"saas":                             "Technology / IT",
+
+	// Automotive extensive
+	"bike":                             "Automotive",
+	"bikes":                            "Automotive",
+	"automobile":                       "Automotive",
+	"automobiles":                      "Automotive",
+	"vehicle":                          "Automotive",
+	"vehicles":                         "Automotive",
+	"garage":                           "Automotive",
+	"mechanic":                         "Automotive",
+
+	// Beauty & Fashion extensive
+	"makeup":                           "Beauty",
+	"skincare":                         "Beauty",
+	"grooming":                         "Beauty",
+	"haircut":                          "Beauty",
+	"hair salon":                       "Beauty",
+	"boutique":                         "Fashion",
+	"shoes":                            "Fashion",
+	"footwear":                         "Fashion",
+
+	// Food extensive
+	"dining":                           "Food & Beverage",
+	"eatery":                           "Food & Beverage",
+	"fast food":                        "Food & Beverage",
+	"bakery":                           "Food & Beverage",
+	"cloud kitchen":                    "Food & Beverage",
+	"catering":                         "Food & Beverage",
+
+	// Travel & Hospitality
+	"motel":                            "Hotel, Travel & Tourism",
+	"holidays":                         "Hotel, Travel & Tourism",
+	"tour":                             "Hotel, Travel & Tourism",
+	"tours":                            "Hotel, Travel & Tourism",
+	"ticketing":                        "Hotel, Travel & Tourism",
+
+	// Logistics & Manufacturing
+	"delivery":                         "Logistics / Manufacturing",
+	"courier":                          "Logistics / Manufacturing",
+	"transport":                        "Logistics / Manufacturing",
+	"shipping":                         "Logistics / Manufacturing",
+	"warehouse":                        "Logistics / Manufacturing",
+	"factory":                          "Logistics / Manufacturing",
+	"industrial":                       "Logistics / Manufacturing",
+
+	// Retail & Ecommerce
+	"mart":                             "Retail",
+	"supermarket":                      "Retail",
+	"grocery":                          "Retail",
+	"fmcg":                             "Retail",
+	"e-commerce":                       "Retail",
+	"ecommerce":                        "Retail",
+
+	// Sports
+	"gym":                              "Sports & Fitness",
+	"yoga":                             "Sports & Fitness",
+	"workout":                          "Sports & Fitness",
+	"athletics":                        "Sports & Fitness",
+
+	// Business Services
+	"b2b":                              "Business Services",
+	"consulting":                       "Business Services",
+	"agency":                           "Business Services",
+	"marketing":                        "Business Services",
+	"hr":                               "Business Services",
+	"recruitment":                      "Business Services",
+
+	// Others
+	"wholesale":                        "Dealers & Distributors",
+	"supplier":                         "Dealers & Distributors",
+	"crops":                            "Agriculture",
+	"seeds":                            "Agriculture",
+	"fertilizer":                       "Agriculture",
+	"tractors":                         "Agriculture",
+	"rural":                            "Agriculture",
+	"advertising":                      "Media / Communication",
+	"print":                            "Media / Communication",
+	"news":                             "Media / Communication",
+	"telecom":                          "Media / Communication",
+	"broadcasting":                     "Media / Communication",
+	"renewable":                        "Energy & Utilities",
+	"electricity":                      "Energy & Utilities",
+	"gas":                              "Energy & Utilities",
+	"steel":                            "Metals & Mining",
+	"iron":                             "Metals & Mining",
+	"coal":                             "Metals & Mining",
+	"minerals":                         "Metals & Mining",
+	"society":                          "Cooperative Sector",
+	"ngo":                              "Cooperative Sector",
+	"self help group":                  "Cooperative Sector",
+	"export":                           "International Trade",
+	"import":                           "International Trade",
+	"exim":                             "International Trade",
+	"foreign trade":                    "International Trade",
 }
 
 // industrySlugMap - ES exact slugs from industries.csv
