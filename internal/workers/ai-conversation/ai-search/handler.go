@@ -252,7 +252,11 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	hasDeterministicParams := deterministicParams.Industry != "" || deterministicParams.Category != "" ||
-		deterministicParams.Location != nil || deterministicParams.Investment != nil
+		deterministicParams.Subcategory != "" || deterministicParams.Location != nil ||
+		deterministicParams.Investment != nil || deterministicParams.MemberCount != nil ||
+		deterministicParams.MembershipFee != nil || deterministicParams.ROI != nil ||
+		deterministicParams.Space != nil || deterministicParams.Staff != nil ||
+		deterministicParams.Outlets != nil || deterministicParams.Rating != nil
 
 	// Step 2: Start basic search in parallel (always needed as fallback)
 	resultsChan := make(chan *SearchResults, 1)
