@@ -245,16 +245,18 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
-	paramsChan := make(chan *ExtractedParameters, 1)
+	// Step 1: Try FAST deterministic extraction (keyword maps + regex) - instant, no LLM
+	deterministicParams := h.paramExtractor.ParseWithContext("{}", input.Query)
+	if input.EntityType != "" {
+		deterministicParams.EntityType = input.EntityType
+	}
+
+	hasDeterministicParams := deterministicParams.Industry != "" || deterministicParams.Category != "" ||
+		deterministicParams.Location != nil || deterministicParams.Investment != nil
+
+	// Step 2: Start basic search in parallel (always needed as fallback)
 	resultsChan := make(chan *SearchResults, 1)
 	errChan := make(chan error, 1)
-
-	go func() {
-		llmCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
-		defer cancel()
-		params := h.extractParametersWithFallback(llmCtx, input)
-		paramsChan <- params
-	}()
 
 	go func() {
 		basicQuery := h.buildBasicQuery(input.Query, input.EntityType)
@@ -267,6 +269,25 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		errChan <- nil
 	}()
 
+	// Step 3: Only call LLM if deterministic extraction didn't find useful params
+	paramsChan := make(chan *ExtractedParameters, 1)
+	if hasDeterministicParams {
+		h.logger.Info("Deterministic extraction sufficient, skipping LLM", map[string]interface{}{
+			"industry": deterministicParams.Industry,
+			"category": deterministicParams.Category,
+			"has_location": deterministicParams.Location != nil,
+		})
+		paramsChan <- deterministicParams
+	} else {
+		go func() {
+			llmCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
+			defer cancel()
+			params := h.extractParametersWithFallback(llmCtx, input)
+			paramsChan <- params
+		}()
+	}
+
+	// Wait for basic search
 	var basicResults *SearchResults
 	select {
 	case err := <-errChan:
@@ -280,14 +301,16 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		return
 	}
 
+	// Wait for params (instant if deterministic, up to 30s if LLM)
 	var params *ExtractedParameters
 	select {
 	case params = <-paramsChan:
-		h.logger.Info("LLM parameters extracted", map[string]interface{}{
+		h.logger.Info("Parameters ready", map[string]interface{}{
 			"industry":       params.Industry,
 			"category":       params.Category,
 			"has_location":   params.Location != nil,
 			"has_investment": params.Investment != nil,
+			"source":         func() string { if hasDeterministicParams { return "deterministic" }; return "llm" }(),
 		})
 	case <-time.After(30 * time.Second):
 		h.logger.Warn("LLM timeout, using basic results", nil)
