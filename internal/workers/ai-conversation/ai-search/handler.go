@@ -622,13 +622,20 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 			}
 
 			if useFuzzy {
-				shouldQueries = append(shouldQueries,
-					map[string]interface{}{
+				fuzzyWordMatches := []interface{}{}
+				for _, word := range strings.Fields(cleanQuery) {
+					fuzzyWordMatches = append(fuzzyWordMatches, map[string]interface{}{
 						"multi_match": map[string]interface{}{
-							"query":     cleanQuery,
+							"query":     word,
 							"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
 							"fuzziness": "AUTO",
-							"operator":  "and",
+						},
+					})
+				}
+				shouldQueries = append(shouldQueries,
+					map[string]interface{}{
+						"bool": map[string]interface{}{
+							"must": fuzzyWordMatches,
 						},
 					},
 					map[string]interface{}{
@@ -706,6 +713,14 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 					map[string]interface{}{
 						"term": map[string]interface{}{
 							"industry.slug": industrySlug,
+						},
+					},
+					map[string]interface{}{
+						"match": map[string]interface{}{
+							"tags": map[string]interface{}{
+								"query":    params.Industry,
+								"operator": "and",
+							},
 						},
 					},
 				},
