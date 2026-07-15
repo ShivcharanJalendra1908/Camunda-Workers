@@ -290,12 +290,41 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 			)
 		}
 		if len(shouldTerms) > 0 {
+			// Extract safe explicit words to bypass the industry filter
+			stopWords := map[string]bool{"and": true, "for": true, "the": true, "with": true, "near": true, "from": true, "in": true, "at": true, "of": true, "franchise": true, "franchises": true, "association": true, "associations": true}
+			words := strings.Fields(strings.ToLower(input.Query))
+			var safeWords []string
+			for _, w := range words {
+				if len(w) > 2 && !stopWords[w] {
+					safeWords = append(safeWords, w)
+				}
+			}
+
 			industryFilter := map[string]interface{}{
 				"bool": map[string]interface{}{
-					"should":               shouldTerms,
+					"should": []interface{}{
+						map[string]interface{}{
+							"bool": map[string]interface{}{
+								"should":               shouldTerms,
+								"minimum_should_match": 1,
+							},
+						},
+					},
 					"minimum_should_match": 1,
 				},
 			}
+
+			if len(safeWords) > 0 {
+				industryFilter["bool"].(map[string]interface{})["should"] = append(
+					industryFilter["bool"].(map[string]interface{})["should"].([]interface{}),
+					map[string]interface{}{
+						"terms": map[string]interface{}{
+							"slug": safeWords,
+						},
+					},
+				)
+			}
+
 			mustClauses = append(mustClauses, industryFilter)
 		}
 	}
