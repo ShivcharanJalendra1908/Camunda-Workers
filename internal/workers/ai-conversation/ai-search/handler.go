@@ -303,8 +303,8 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	var finalResults *SearchResults
 	if hasExtractedParams {
-		// Phase 1: Try Refined Exact Match (useFuzzy = false)
-		refinedQuery, err := h.buildElasticsearchQuery(params, false)
+		// Phase 1: Try Refined Exact Match
+		refinedQuery, err := h.buildElasticsearchQuery(params, "strict")
 		if err != nil {
 			h.logger.Warn("Refined query failed, using basic", map[string]interface{}{"error": err.Error()})
 			finalResults = basicResults
@@ -316,11 +316,27 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 				h.logger.Info("Refined exact match returned 0 results, retrying with fuzzy", map[string]interface{}{
 					"query": input.Query,
 				})
-				fuzzyQuery, fuzzyErr := h.buildElasticsearchQuery(params, true)
+				fuzzyQuery, fuzzyErr := h.buildElasticsearchQuery(params, "fuzzy")
 				if fuzzyErr == nil {
 					fuzzyResults, execErr := h.executeSearch(ctx, fuzzyQuery)
 					if execErr == nil && fuzzyResults != nil {
 						refinedResults = fuzzyResults
+					}
+				}
+			}
+
+			// Phase 3: Broad Fallback (Only text as should) if strong params exist
+			if err == nil && refinedResults != nil && refinedResults.Total == 0 {
+				if params.Industry != "" || params.Category != "" || params.Location != nil {
+					h.logger.Info("Refined fuzzy match returned 0 results, retrying with broad parameter match", map[string]interface{}{
+						"query": input.Query,
+					})
+					broadQuery, broadErr := h.buildElasticsearchQuery(params, "broad")
+					if broadErr == nil {
+						broadResults, execErr := h.executeSearch(ctx, broadQuery)
+						if execErr == nil && broadResults != nil {
+							refinedResults = broadResults
+						}
 					}
 				}
 			}
@@ -515,7 +531,7 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 	}
 }
 
-func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy bool) (map[string]interface{}, error) {
+func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatchMode string) (map[string]interface{}, error) {
 	if params == nil {
 		params = &ExtractedParameters{}
 	}
@@ -624,7 +640,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 				},
 			}
 
-			if useFuzzy {
+			if textMatchMode == "fuzzy" || textMatchMode == "broad" {
 				shouldQueries = append(shouldQueries,
 					map[string]interface{}{
 						"multi_match": map[string]interface{}{
@@ -671,7 +687,12 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 					"minimum_should_match": 1,
 				},
 			}
-			mustClauses = append(mustClauses, textMatch)
+			
+			if textMatchMode == "broad" {
+				shouldClauses = append(shouldClauses, textMatch)
+			} else {
+				mustClauses = append(mustClauses, textMatch)
+			}
 		}
 	}
 
