@@ -431,9 +431,10 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				// 3. Exact match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":  cleanQuery,
-						"fields": []string{"name^3", "description^2", "tags^3", "industry.name^2"},
-						"type":   "best_fields",
+						"query":    cleanQuery,
+						"fields":   []string{"name^3", "description^2", "tags^3", "industry.name^2"},
+						"type":     "best_fields",
+						"operator": "and",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)
@@ -442,7 +443,10 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 						"path": "categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"categories.name": cleanQuery,
+								"categories.name": map[string]interface{}{
+									"query":    cleanQuery,
+									"operator": "and",
+								},
 							},
 						},
 					},
@@ -453,7 +457,10 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 						"path": "sub_categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"sub_categories.name": cleanQuery,
+								"sub_categories.name": map[string]interface{}{
+									"query":    cleanQuery,
+									"operator": "and",
+								},
 							},
 						},
 					},

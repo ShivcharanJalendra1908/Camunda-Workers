@@ -379,12 +379,13 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 				})
 				finalResults = basicResults
 				
-				// CRITICAL FIX: If refined search failed, the extracted params are too strict or incorrect.
-				// We MUST clear them so downstream workers (search-franchises) don't re-apply these failing filters!
-				params = &ExtractedParameters{
-					OriginalQuery: input.Query,
-					EntityType:    input.EntityType,
-				}
+				// We do NOT clear params here anymore. We want to preserve the strict filters 
+				// even if ai-search found 0 results, so downstream workers (search-franchises) 
+				// also enforce them and correctly return 0 results instead of garbage text matches.
+				// params = &ExtractedParameters{
+				// 	OriginalQuery: input.Query,
+				// 	EntityType:    input.EntityType,
+				// }
 			} else {
 				finalResults = refinedResults
 			}
@@ -639,9 +640,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 				// 3. Exact text match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":                cleanQuery,
-						"fields":               []string{"name^5", "tags^3", "description", "industry.name^2"},
-						"minimum_should_match": "2<70%",
+						"query":  cleanQuery,
+						"fields": []string{"name^3", "description", "tags", "categories.name"},
+						"type":   "best_fields",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)
