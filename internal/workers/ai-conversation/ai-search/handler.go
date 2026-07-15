@@ -451,9 +451,10 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 		"should": []interface{}{
 			map[string]interface{}{
 				"multi_match": map[string]interface{}{
-					"query":     cleanQuery,
-					"fields":    []string{"name^5", "tags^3", "description^2", "industry.name^2"},
-					"fuzziness": "AUTO",
+					"query":                cleanQuery,
+					"fields":               []string{"name^5", "tags^3", "description^2", "industry.name^2"},
+					"fuzziness":            "AUTO",
+					"minimum_should_match": "2<70%",
 				},
 			},
 			map[string]interface{}{
@@ -462,8 +463,9 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 					"query": map[string]interface{}{
 						"match": map[string]interface{}{
 							"categories.name": map[string]interface{}{
-								"query":     cleanQuery,
-								"fuzziness": "AUTO",
+								"query":                cleanQuery,
+								"fuzziness":            "AUTO",
+								"minimum_should_match": "2<70%",
 							},
 						},
 					},
@@ -475,8 +477,9 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 					"query": map[string]interface{}{
 						"match": map[string]interface{}{
 							"sub_categories.name": map[string]interface{}{
-								"query":     cleanQuery,
-								"fuzziness": "AUTO",
+								"query":                cleanQuery,
+								"fuzziness":            "AUTO",
+								"minimum_should_match": "2<70%",
 							},
 						},
 					},
@@ -586,9 +589,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 				// 3. Exact text match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":    cleanQuery,
-						"fields":   []string{"name^5", "tags^3", "description", "industry.name^2"},
-						"operator": "and",
+						"query":                cleanQuery,
+						"fields":               []string{"name^5", "tags^3", "description", "industry.name^2"},
+						"minimum_should_match": "2<70%",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)
@@ -598,8 +601,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
 								"categories.name": map[string]interface{}{
-									"query":    cleanQuery,
-									"operator": "and",
+									"query":                cleanQuery,
+									"minimum_should_match": "2<70%",
 								},
 							},
 						},
@@ -612,8 +615,8 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
 								"sub_categories.name": map[string]interface{}{
-									"query":    cleanQuery,
-									"operator": "and",
+									"query":                cleanQuery,
+									"minimum_should_match": "2<70%",
 								},
 							},
 						},
@@ -622,20 +625,13 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 			}
 
 			if useFuzzy {
-				fuzzyWordMatches := []interface{}{}
-				for _, word := range strings.Fields(cleanQuery) {
-					fuzzyWordMatches = append(fuzzyWordMatches, map[string]interface{}{
-						"multi_match": map[string]interface{}{
-							"query":     word,
-							"fields":    []string{"name^5", "tags^3", "description", "industry.name^2"},
-							"fuzziness": "AUTO",
-						},
-					})
-				}
 				shouldQueries = append(shouldQueries,
 					map[string]interface{}{
-						"bool": map[string]interface{}{
-							"must": fuzzyWordMatches,
+						"multi_match": map[string]interface{}{
+							"query":                cleanQuery,
+							"fields":               []string{"name^5", "tags^3", "description", "industry.name^2"},
+							"fuzziness":            "AUTO",
+							"minimum_should_match": "2<70%",
 						},
 					},
 					map[string]interface{}{
@@ -644,9 +640,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"categories.name": map[string]interface{}{
-										"query":     cleanQuery,
-										"fuzziness": "AUTO",
-										"operator":  "and",
+										"query":                cleanQuery,
+										"fuzziness":            "AUTO",
+										"minimum_should_match": "2<70%",
 									},
 								},
 							},
@@ -658,9 +654,9 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, useFuzzy 
 							"query": map[string]interface{}{
 								"match": map[string]interface{}{
 									"sub_categories.name": map[string]interface{}{
-										"query":     cleanQuery,
-										"fuzziness": "AUTO",
-										"operator":  "and",
+										"query":                cleanQuery,
+										"fuzziness":            "AUTO",
+										"minimum_should_match": "2<70%",
 									},
 								},
 							},
