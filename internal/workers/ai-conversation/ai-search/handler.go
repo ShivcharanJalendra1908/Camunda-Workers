@@ -378,6 +378,13 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 					"error":         fmt.Sprintf("%v", err),
 				})
 				finalResults = basicResults
+				
+				// CRITICAL FIX: If refined search failed, the extracted params are too strict or incorrect.
+				// We MUST clear them so downstream workers (search-franchises) don't re-apply these failing filters!
+				params = &ExtractedParameters{
+					OriginalQuery: input.Query,
+					EntityType:    input.EntityType,
+				}
 			} else {
 				finalResults = refinedResults
 			}
