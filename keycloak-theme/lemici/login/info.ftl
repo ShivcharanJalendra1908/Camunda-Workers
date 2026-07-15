@@ -20,6 +20,18 @@
                         window.location.href = '${url.loginUrl}';
                     }
                 }
+                function handleReturnToApp() {
+                    var host = window.location.hostname;
+                    if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
+                        window.location.href = 'https://dev.lemici.com/';
+                    } else if (host.indexOf('lemici.com') !== -1) {
+                        window.location.href = 'https://www.lemici.com/';
+                    } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
+                        window.location.href = 'http://localhost:3000/';
+                    } else {
+                        window.location.href = '/';
+                    }
+                }
             </script>
             <#-- Icon based on message type -->
             <#if message.type = "success">
@@ -53,17 +65,31 @@
                     })();
                 </script>
                 <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
-                    You can safely close this window now. The original registration tab will automatically proceed.
+                    Redirecting to application in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">10</span> seconds...
                 </p>
                 <#if pageRedirectUri?has_content>
                     <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
                         ${kcSanitize(msg("backToApplication"))?no_esc}
                     </a>
                 <#else>
-                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                        ${kcSanitize(msg("backToLogin"))?no_esc}
+                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToApp();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
+                        ${kcSanitize(msg("backToApplication"))?no_esc}
                     </a>
                 </#if>
+                <script>
+                    (function() {
+                        var sec = 10;
+                        var timer = setInterval(function() {
+                            sec--;
+                            var el = document.getElementById('countdown-sec');
+                            if (el) el.innerText = sec;
+                            if (sec <= 0) {
+                                clearInterval(timer);
+                                handleReturnToApp();
+                            }
+                        }, 1000);
+                    })();
+                </script>
             <#elseif message.summary?contains("receive") || message.summary?contains("instruction") || message.summary?contains("sent")>
                 <#-- Email Sent page: Listen for success event from other tabs (via localStorage) -->
                 <#if pageRedirectUri?has_content>
