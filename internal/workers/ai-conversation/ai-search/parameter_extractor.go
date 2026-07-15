@@ -121,28 +121,28 @@ Output:`
 
 // ftModelOutput - Fine-tuned model ka exact output schema
 type ftModelOutput struct {
-	BrandName            interface{} `json:"Brand_Name"`
-	Error                interface{} `json:"error"`
-	EntityType           interface{} `json:"Entity_Type"`
-	Industry             interface{} `json:"Industry"`
-	Category             interface{} `json:"Category"`
-	Subcategory          interface{} `json:"Subcategory"`
-	Location             interface{} `json:"Location"`
-	MinimumInvestment    interface{} `json:"Minimum_Investment"`
-	MaximumInvestment    interface{} `json:"Maximum_Investment"`
-	AreaRequirement      interface{} `json:"Area_Requirement"`
-	ROI                  interface{} `json:"ROI"`
-	Rating               interface{} `json:"Rating"`
-	Staff                interface{} `json:"Staff"`
-	Outlets              interface{} `json:"Outlets"`
-	Verified             interface{} `json:"Verified"`
-	TrustedSeller        interface{} `json:"Trusted_Seller"`
-	MemberCount          interface{} `json:"Member_Count"`
-	MinMembershipFee     interface{} `json:"Minimum_Membership_Fee"`
-	MaxMembershipFee     interface{} `json:"Maximum_Membership_Fee"`
-	MinimumUnits         interface{} `json:"Minimum_Units"`
-	ExclusivityType      interface{} `json:"Exclusivity_Type"`
-	TerritoryScope       interface{} `json:"Territory_Scope"`
+	BrandName         interface{} `json:"Brand_Name"`
+	Error             interface{} `json:"error"`
+	EntityType        interface{} `json:"Entity_Type"`
+	Industry          interface{} `json:"Industry"`
+	Category          interface{} `json:"Category"`
+	Subcategory       interface{} `json:"Subcategory"`
+	Location          interface{} `json:"Location"`
+	MinimumInvestment interface{} `json:"Minimum_Investment"`
+	MaximumInvestment interface{} `json:"Maximum_Investment"`
+	AreaRequirement   interface{} `json:"Area_Requirement"`
+	ROI               interface{} `json:"ROI"`
+	Rating            interface{} `json:"Rating"`
+	Staff             interface{} `json:"Staff"`
+	Outlets           interface{} `json:"Outlets"`
+	Verified          interface{} `json:"Verified"`
+	TrustedSeller     interface{} `json:"Trusted_Seller"`
+	MemberCount       interface{} `json:"Member_Count"`
+	MinMembershipFee  interface{} `json:"Minimum_Membership_Fee"`
+	MaxMembershipFee  interface{} `json:"Maximum_Membership_Fee"`
+	MinimumUnits      interface{} `json:"Minimum_Units"`
+	ExclusivityType   interface{} `json:"Exclusivity_Type"`
+	TerritoryScope    interface{} `json:"Territory_Scope"`
 }
 
 // ============================================================
@@ -222,171 +222,175 @@ var industryNormalizationMap = map[string]string{
 	"trade":                            "International Trade",
 
 	// Extra comprehensive synonyms added
-	"tech":                             "Technology / IT",
-	"it":                               "Technology / IT",
-	"software":                         "Technology / IT",
-	"property":                         "Real Estate",
-	"builder":                          "Real Estate",
-	"builders":                         "Real Estate",
-	"restaurant":                       "Food & Beverage",
-	"cafe":                             "Food & Beverage",
-	"f&b":                              "Food & Beverage",
-	"f & b":                            "Food & Beverage",
-	"school":                           "Education",
-	"college":                          "Education",
-	"auto":                             "Automotive",
-	"car":                              "Automotive",
-	"cars":                             "Automotive",
-	"salon":                            "Beauty",
-	"spa":                              "Beauty",
-	"cosmetics":                        "Beauty",
-	"clothing":                         "Fashion",
-	"apparel":                          "Fashion",
-	"garments":                         "Fashion",
-	"hotel":                            "Hotel, Travel & Tourism",
-	"hotels":                           "Hotel, Travel & Tourism",
-	"resort":                           "Hotel, Travel & Tourism",
-	"shop":                             "Retail",
-	"shops":                            "Retail",
-	"store":                            "Retail",
-	"agri":                             "Agriculture",
-	"farming":                          "Agriculture",
-	"power":                            "Energy & Utilities",
-	"solar":                            "Energy & Utilities",
+	"tech":       "Technology / IT",
+	"it":         "Technology / IT",
+	"software":   "Technology / IT",
+	"property":   "Real Estate",
+	"builder":    "Real Estate",
+	"builders":   "Real Estate",
+	"restaurant": "Food & Beverage",
+	"cafe":       "Food & Beverage",
+	"f&b":        "Food & Beverage",
+	"f & b":      "Food & Beverage",
+	"school":     "Education",
+	"college":    "Education",
+	"auto":       "Automotive",
+	"car":        "Automotive",
+	"cars":       "Automotive",
+	"salon":      "Beauty",
+	"spa":        "Beauty",
+	"cosmetics":  "Beauty",
+	"clothing":   "Fashion",
+	"apparel":    "Fashion",
+	"garments":   "Fashion",
+	"hotel":      "Hotel, Travel & Tourism",
+	"hotels":     "Hotel, Travel & Tourism",
+	"resort":     "Hotel, Travel & Tourism",
+	"shop":       "Retail",
+	"shops":      "Retail",
+	"store":      "Retail",
+	"agri":       "Agriculture",
+	"farming":    "Agriculture",
+	"power":      "Energy & Utilities",
+	"solar":      "Energy & Utilities",
 
 	// Education extensive
-	"institute":                        "Education",
-	"institutes":                       "Education",
-	"institution":                      "Education",
-	"institutions":                     "Education",
-	"tuition":                          "Education",
-	"tuitions":                         "Education",
-	"academy":                          "Education",
-	"university":                       "Education",
-	"coaching":                         "Education",
-	"classes":                          "Education",
-	"edtech":                           "Education",
+	"institute":    "Education",
+	"institutes":   "Education",
+	"institution":  "Education",
+	"institutions": "Education",
+	"tuition":      "Education",
+	"tuitions":     "Education",
+	"academy":      "Education",
+	"university":   "Education",
+	"coaching":     "Education",
+	"classes":      "Education",
+	"edtech":       "Education",
 
 	// Health extensive
-	"hospital":                         "Health",
-	"hospitals":                        "Health",
-	"clinic":                           "Health",
-	"clinics":                          "Health",
-	"diagnostics":                      "Health",
-	"wellness":                         "Health",
-	"ayurveda":                         "Health",
+	"hospital":    "Health",
+	"hospitals":   "Health",
+	"clinic":      "Health",
+	"clinics":     "Health",
+	"diagnostics": "Health",
+	"wellness":    "Health",
+	"ayurveda":    "Health",
 
 	// Real Estate extensive
-	"construction":                     "Real Estate",
-	"housing":                          "Real Estate",
-	"commercial real estate":           "Real Estate",
-	"developers":                       "Real Estate",
-	"developer":                        "Real Estate",
+	"construction":           "Real Estate",
+	"housing":                "Real Estate",
+	"commercial real estate": "Real Estate",
 
 	// Tech extensive
-	"hardware":                         "Technology / IT",
-	"computers":                        "Technology / IT",
-	"networking":                       "Technology / IT",
-	"cybersecurity":                    "Technology / IT",
-	"saas":                             "Technology / IT",
+	"hardware":      "Technology / IT",
+	"computers":     "Technology / IT",
+	"networking":    "Technology / IT",
+	"cybersecurity": "Technology / IT",
+	"saas":          "Technology / IT",
 
 	// Automotive extensive
-	"bike":                             "Automotive",
-	"bikes":                            "Automotive",
-	"automobile":                       "Automotive",
-	"automobiles":                      "Automotive",
-	"vehicle":                          "Automotive",
-	"vehicles":                         "Automotive",
-	"garage":                           "Automotive",
-	"mechanic":                         "Automotive",
+	"bike":        "Automotive",
+	"bikes":       "Automotive",
+	"automobile":  "Automotive",
+	"automobiles": "Automotive",
+	"vehicle":     "Automotive",
+	"vehicles":    "Automotive",
+	"garage":      "Automotive",
+	"mechanic":    "Automotive",
 
 	// Beauty & Fashion extensive
-	"makeup":                           "Beauty",
-	"skincare":                         "Beauty",
-	"grooming":                         "Beauty",
-	"haircut":                          "Beauty",
-	"hair salon":                       "Beauty",
-	"boutique":                         "Fashion",
-	"shoes":                            "Fashion",
-	"footwear":                         "Fashion",
+	"makeup":     "Beauty",
+	"skincare":   "Beauty",
+	"grooming":   "Beauty",
+	"haircut":    "Beauty",
+	"hair salon": "Beauty",
+	"boutique":   "Fashion",
+	"shoes":      "Fashion",
+	"footwear":   "Fashion",
 
 	// Food extensive
-	"dining":                           "Food & Beverage",
-	"eatery":                           "Food & Beverage",
-	"fast food":                        "Food & Beverage",
-	"bakery":                           "Food & Beverage",
-	"cloud kitchen":                    "Food & Beverage",
-	"catering":                         "Food & Beverage",
+	"dining":        "Food & Beverage",
+	"eatery":        "Food & Beverage",
+	"fast food":     "Food & Beverage",
+	"bakery":        "Food & Beverage",
+	"cloud kitchen": "Food & Beverage",
+	"catering":      "Food & Beverage",
 
 	// Travel & Hospitality
-	"motel":                            "Hotel, Travel & Tourism",
-	"holidays":                         "Hotel, Travel & Tourism",
-	"tour":                             "Hotel, Travel & Tourism",
-	"tours":                            "Hotel, Travel & Tourism",
-	"ticketing":                        "Hotel, Travel & Tourism",
+	"motel":     "Hotel, Travel & Tourism",
+	"holidays":  "Hotel, Travel & Tourism",
+	"tour":      "Hotel, Travel & Tourism",
+	"tours":     "Hotel, Travel & Tourism",
+	"ticketing": "Hotel, Travel & Tourism",
 
 	// Logistics & Manufacturing
-	"delivery":                         "Logistics / Manufacturing",
-	"courier":                          "Logistics / Manufacturing",
-	"transport":                        "Logistics / Manufacturing",
-	"shipping":                         "Logistics / Manufacturing",
-	"warehouse":                        "Logistics / Manufacturing",
-	"factory":                          "Logistics / Manufacturing",
-	"industrial":                       "Logistics / Manufacturing",
+	"delivery":   "Logistics / Manufacturing",
+	"courier":    "Logistics / Manufacturing",
+	"transport":  "Logistics / Manufacturing",
+	"shipping":   "Logistics / Manufacturing",
+	"warehouse":  "Logistics / Manufacturing",
+	"factory":    "Logistics / Manufacturing",
+	"industrial": "Logistics / Manufacturing",
 
 	// Retail & Ecommerce
-	"mart":                             "Retail",
-	"supermarket":                      "Retail",
-	"grocery":                          "Retail",
-	"fmcg":                             "Retail",
-	"e-commerce":                       "Retail",
-	"ecommerce":                        "Retail",
+	"mart":        "Retail",
+	"supermarket": "Retail",
+	"grocery":     "Retail",
+	"fmcg":        "Retail",
+	"e-commerce":  "Retail",
+	"ecommerce":   "Retail",
 
 	// Sports
-	"gym":                              "Sports & Fitness",
-	"yoga":                             "Sports & Fitness",
-	"workout":                          "Sports & Fitness",
-	"athletics":                        "Sports & Fitness",
+	"gym":       "Sports & Fitness",
+	"yoga":      "Sports & Fitness",
+	"workout":   "Sports & Fitness",
+	"athletics": "Sports & Fitness",
 
 	// Business Services
-	"b2b":                              "Business Services",
-	"consulting":                       "Business Services",
-	"agency":                           "Business Services",
-	"marketing":                        "Business Services",
-	"hr":                               "Business Services",
-	"recruitment":                      "Business Services",
+	"b2b":         "Business Services",
+	"consulting":  "Business Services",
+	"agency":      "Business Services",
+	"marketing":   "Business Services",
+	"hr":          "Business Services",
+	"recruitment": "Business Services",
 
 	// Others
-	"wholesale":                        "Dealers & Distributors",
-	"supplier":                         "Dealers & Distributors",
-	"crops":                            "Agriculture",
-	"seeds":                            "Agriculture",
-	"fertilizer":                       "Agriculture",
-	"tractors":                         "Agriculture",
-	"rural":                            "Agriculture",
-	"advertising":                      "Media / Communication",
-	"print":                            "Media / Communication",
-	"news":                             "Media / Communication",
-	"telecom":                          "Media / Communication",
-	"broadcasting":                     "Media / Communication",
-	"renewable":                        "Energy & Utilities",
-	"electricity":                      "Energy & Utilities",
-	"gas":                              "Energy & Utilities",
-	"steel":                            "Metals & Mining",
-	"iron":                             "Metals & Mining",
-	"coal":                             "Metals & Mining",
-	"minerals":                         "Metals & Mining",
-	"society":                          "Cooperative Sector",
-	"ngo":                              "Cooperative Sector",
-	"self help group":                  "Cooperative Sector",
-	"export":                           "International Trade",
-	"import":                           "International Trade",
-	"exim":                             "International Trade",
-	"foreign trade":                    "International Trade",
+	"wholesale":       "Dealers & Distributors",
+	"supplier":        "Dealers & Distributors",
+	"crops":           "Agriculture",
+	"seeds":           "Agriculture",
+	"fertilizer":      "Agriculture",
+	"tractors":        "Agriculture",
+	"rural":           "Agriculture",
+	"advertising":     "Media / Communication",
+	"print":           "Media / Communication",
+	"news":            "Media / Communication",
+	"telecom":         "Media / Communication",
+	"broadcasting":    "Media / Communication",
+	"renewable":       "Energy & Utilities",
+	"electricity":     "Energy & Utilities",
+	"gas":             "Energy & Utilities",
+	"steel":           "Metals & Mining",
+	"iron":            "Metals & Mining",
+	"coal":            "Metals & Mining",
+	"minerals":        "Metals & Mining",
+	"society":         "Cooperative Sector",
+	"ngo":             "Cooperative Sector",
+	"self help group": "Cooperative Sector",
+	"export":          "International Trade",
+	"import":          "International Trade",
+	"exim":            "International Trade",
+	"foreign trade":   "International Trade",
+	"general":         "General",
+	"misc":            "General",
+	"miscellaneous":   "General",
+	"other":           "General",
+	"others":          "General",
 }
 
 // industrySlugMap - ES exact slugs from industries.csv
 var industrySlugMap = map[string]string{
+	"General":                   "general",
 	"Automotive":                "automotive",
 	"Beauty":                    "beauty",
 	"Health":                    "health",
@@ -569,7 +573,7 @@ var (
 
 func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) string {
 	queryLower := strings.ToLower(strings.TrimSpace(query))
-	
+
 	candidates := location.DetectAllCitiesFromQuery(queryLower)
 	if len(candidates) == 0 {
 		return ""
@@ -614,7 +618,7 @@ func (pe *ParameterExtractor) extractTargetCity(query string, skipCity string) s
 
 func (pe *ParameterExtractor) extractAllTargetCities(query string, skipCity string) []string {
 	queryLower := strings.ToLower(strings.TrimSpace(query))
-	
+
 	candidates := location.DetectAllCitiesFromQuery(queryLower)
 	if len(candidates) == 0 {
 		return nil
@@ -1018,10 +1022,18 @@ func (pe *ParameterExtractor) Parse(llmResponse string) (*ExtractedParameters, e
 	maxFee := toFloat64(ftOut.MaxMembershipFee)
 	if minFee > 0 || maxFee > 0 {
 		fee := &InvestmentFilter{}
-		if minFee > 0 { fee.Min = minFee }
-		if maxFee > 0 { fee.Max = maxFee }
-		if fee.Min == 0 && fee.Max > 0 { fee.Min = fee.Max / 10 }
-		if fee.Max == 0 && fee.Min > 0 { fee.Max = fee.Min * 5 }
+		if minFee > 0 {
+			fee.Min = minFee
+		}
+		if maxFee > 0 {
+			fee.Max = maxFee
+		}
+		if fee.Min == 0 && fee.Max > 0 {
+			fee.Min = fee.Max / 10
+		}
+		if fee.Max == 0 && fee.Min > 0 {
+			fee.Max = fee.Min * 5
+		}
 		params.MembershipFee = fee
 	}
 
@@ -1078,43 +1090,59 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	if params.Space == nil {
 		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
-			if val > 0 { params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5} }
+			if val > 0 {
+				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
+			}
 		}
 	}
 	if params.ROI == nil {
 		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*%\s*roi\b|\broi\s*([0-9.]+)\s*%\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
 			v := matches[1]
-			if v == "" { v = matches[2] }
+			if v == "" {
+				v = matches[2]
+			}
 			val, _ := strconv.ParseFloat(v, 64)
-			if val > 0 { params.ROI = &RangeFilter{Min: val, Max: val + 10} }
+			if val > 0 {
+				params.ROI = &RangeFilter{Min: val, Max: val + 10}
+			}
 		}
 	}
 	if params.Rating == nil {
 		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(star|rating)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(matches[1], 64)
-			if val > 0 { params.Rating = &val }
+			if val > 0 {
+				params.Rating = &val
+			}
 		}
 	}
 	if params.Staff == nil {
 		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(staff|employees)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(matches[1], 64)
-			if val > 0 { params.Staff = &RangeFilter{Min: val, Max: val * 3} }
+			if val > 0 {
+				params.Staff = &RangeFilter{Min: val, Max: val * 3}
+			}
 		}
 	}
 	if params.Outlets == nil {
 		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(outlets|units|stores)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
 			val, _ := strconv.Atoi(matches[1])
-			if val > 0 { params.Outlets = &val }
+			if val > 0 {
+				params.Outlets = &val
+			}
 		}
 	}
 
 	// FIX: Member_Count directionality (under 500, at least 500, etc.)
 	if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
 		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 { params.MemberCount = &RangeFilter{Min: 0, Max: val} }
+		if val > 0 {
+			params.MemberCount = &RangeFilter{Min: 0, Max: val}
+		}
 	} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
 		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 { params.MemberCount = &RangeFilter{Min: val, Max: val * 5} }
+		if val > 0 {
+			params.MemberCount = &RangeFilter{Min: val, Max: val * 5}
+		}
 	}
 
 	// Always scan original query for all mentioned industries to support multi-industry search
@@ -1189,87 +1217,87 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 	}
 
 	// 1. Check for Zones
-		for _, zone := range pe.sortedZones {
-			if strings.Contains(queryLower, zone) {
-				if !pe.isCityUserLocation(queryLower, zone) {
-					foundLocations = append(foundLocations, titleCase(zone))
-				}
+	for _, zone := range pe.sortedZones {
+		if strings.Contains(queryLower, zone) {
+			if !pe.isCityUserLocation(queryLower, zone) {
+				foundLocations = append(foundLocations, titleCase(zone))
+			}
+		}
+	}
+
+	// 2. Check for States
+	for _, entry := range pe.sortedStates {
+		if strings.Contains(queryLower, entry.lower) {
+			if !pe.isCityUserLocation(queryLower, entry.lower) {
+				foundLocations = append(foundLocations, entry.proper)
+			}
+		}
+	}
+
+	// 3. Check for Cities
+	targetCities := pe.extractAllTargetCities(originalQuery, "")
+	for _, city := range targetCities {
+		foundLocations = append(foundLocations, city)
+	}
+
+	if len(foundLocations) > 0 {
+		// Dedup foundLocations
+		seen := make(map[string]bool)
+		var uniqueLocations []string
+		for _, loc := range foundLocations {
+			locTitled := titleCase(loc)
+			// E.g. "Delhi NCR" and "Delhi" are same, let's treat "Delhi NCR" as standard
+			if locTitled == "Delhi" || locTitled == "Delhi Ncr" {
+				locTitled = "Delhi NCR"
+			}
+			if !seen[strings.ToLower(locTitled)] {
+				seen[strings.ToLower(locTitled)] = true
+				uniqueLocations = append(uniqueLocations, locTitled)
 			}
 		}
 
-		// 2. Check for States
-		for _, entry := range pe.sortedStates {
-			if strings.Contains(queryLower, entry.lower) {
-				if !pe.isCityUserLocation(queryLower, entry.lower) {
-					foundLocations = append(foundLocations, entry.proper)
+		if len(uniqueLocations) > 0 {
+			// If we found "Northeast India", remove "East India"
+			// If we found "Central India", remove "North India"
+			hasNortheast := false
+			hasCentral := false
+			for _, loc := range uniqueLocations {
+				if loc == "Northeast India" {
+					hasNortheast = true
+				}
+				if loc == "Central India" {
+					hasCentral = true
 				}
 			}
+			var finalLocations []string
+			for _, loc := range uniqueLocations {
+				if loc == "East India" && hasNortheast {
+					continue
+				}
+				if loc == "North India" && hasCentral {
+					continue
+				}
+				finalLocations = append(finalLocations, loc)
+			}
+			uniqueLocations = finalLocations
 		}
 
-		// 3. Check for Cities
-		targetCities := pe.extractAllTargetCities(originalQuery, "")
-		for _, city := range targetCities {
-			foundLocations = append(foundLocations, city)
+		if len(uniqueLocations) > 0 {
+			if len(uniqueLocations) == 1 {
+				params.Location = pe.parseLocationString(uniqueLocations[0])
+				if params.Location == nil {
+					// fallback if parseLocationString returns nil
+					params.Location = &LocationFilter{City: uniqueLocations[0], Country: "India"}
+				}
+			} else {
+				joinedCities := strings.Join(uniqueLocations, ", ")
+				params.Location = &LocationFilter{
+					City:    joinedCities,
+					Country: "India",
+				}
+				fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
+			}
 		}
-
-		if len(foundLocations) > 0 {
-			// Dedup foundLocations
-			seen := make(map[string]bool)
-			var uniqueLocations []string
-			for _, loc := range foundLocations {
-				locTitled := titleCase(loc)
-				// E.g. "Delhi NCR" and "Delhi" are same, let's treat "Delhi NCR" as standard
-				if locTitled == "Delhi" || locTitled == "Delhi Ncr" {
-					locTitled = "Delhi NCR"
-				}
-				if !seen[strings.ToLower(locTitled)] {
-					seen[strings.ToLower(locTitled)] = true
-					uniqueLocations = append(uniqueLocations, locTitled)
-				}
-			}
-
-			if len(uniqueLocations) > 0 {
-				// If we found "Northeast India", remove "East India"
-				// If we found "Central India", remove "North India"
-				hasNortheast := false
-				hasCentral := false
-				for _, loc := range uniqueLocations {
-					if loc == "Northeast India" {
-						hasNortheast = true
-					}
-					if loc == "Central India" {
-						hasCentral = true
-					}
-				}
-				var finalLocations []string
-				for _, loc := range uniqueLocations {
-					if loc == "East India" && hasNortheast {
-						continue
-					}
-					if loc == "North India" && hasCentral {
-						continue
-					}
-					finalLocations = append(finalLocations, loc)
-				}
-				uniqueLocations = finalLocations
-			}
-
-			if len(uniqueLocations) > 0 {
-				if len(uniqueLocations) == 1 {
-					params.Location = pe.parseLocationString(uniqueLocations[0])
-					if params.Location == nil {
-						// fallback if parseLocationString returns nil
-						params.Location = &LocationFilter{City: uniqueLocations[0], Country: "India"}
-					}
-				} else {
-					joinedCities := strings.Join(uniqueLocations, ", ")
-					params.Location = &LocationFilter{
-						City:    joinedCities,
-						Country: "India",
-					}
-					fmt.Printf("🗺️  Extracted multiple locations from query: %s\n", joinedCities)
-				}
-			}
 	}
 
 	return params
