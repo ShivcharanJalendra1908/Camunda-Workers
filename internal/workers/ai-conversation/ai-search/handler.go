@@ -789,7 +789,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 			},
 		}
 		
-		if useFuzzy {
+		if textMatchMode == "fuzzy" || textMatchMode == "broad" {
 			catShouldQueries = append(catShouldQueries,
 				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO", "operator": "and"}}},
 				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Category, "fuzziness": "AUTO", "operator": "and"}}},
@@ -839,7 +839,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 			},
 		}
 
-		if useFuzzy {
+		if textMatchMode == "fuzzy" || textMatchMode == "broad" {
 			subShouldQueries = append(subShouldQueries,
 				map[string]interface{}{"match": map[string]interface{}{"tags": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO", "operator": "and"}}},
 				map[string]interface{}{"match": map[string]interface{}{"name": map[string]interface{}{"query": params.Subcategory, "fuzziness": "AUTO", "operator": "and"}}},
