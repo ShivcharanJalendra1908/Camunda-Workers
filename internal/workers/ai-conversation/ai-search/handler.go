@@ -1442,6 +1442,12 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		"isAiSearch":    true,
 	}
 
+	// Add redirect signal if requested entityType differs from AI-detected entityType
+	if input.EntityType != "" && input.EntityType != "all" && params.EntityType != "" && params.EntityType != "all" && input.EntityType != params.EntityType {
+		extractedParams["switchApi"] = true
+		extractedParams["redirectUrl"] = "/api/v1/" + params.EntityType + "/search?query=" + input.Query
+	}
+
 	// if params.Industry != "" {
 	// 	extractedParams["industry"] = params.Industry
 	// 	// industrySlug bhi set karo — BPMN Task_GetRecommended ko yahi chahiye
