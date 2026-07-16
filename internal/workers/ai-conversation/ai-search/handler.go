@@ -517,7 +517,7 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 			map[string]interface{}{
 				"multi_match": map[string]interface{}{
 					"query":                cleanQuery,
-					"fields":               []string{"name^5", "tags^3", "description^2", "industry.name^2"},
+					"fields":               []string{"name^5", "tags^3", "description^2", "industry.name^2", "location"},
 					"fuzziness":            "AUTO",
 					"minimum_should_match": "2<70%",
 				},

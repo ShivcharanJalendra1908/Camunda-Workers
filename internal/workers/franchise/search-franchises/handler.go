@@ -513,7 +513,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				{
 					"multi_match": map[string]interface{}{
 						"query":                cleanQuery,
-						"fields":               []string{"name^3", "description^2", "tags^3", "industry.name^2"},
+						"fields":               []string{"name^3", "description^2", "tags^3", "industry.name^2", "location"},
 						"type":                 "best_fields",
 						"minimum_should_match": "2<70%",
 					},
@@ -548,7 +548,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 					map[string]interface{}{
 						"multi_match": map[string]interface{}{
 							"query":                cleanQuery,
-							"fields":               []string{"name^3", "description", "tags^2", "industry.name^2"},
+							"fields":               []string{"name^3", "description", "tags^2", "industry.name^2", "location"},
 							"type":                 "best_fields",
 							"fuzziness":            "AUTO",
 							"minimum_should_match": "2<70%",
