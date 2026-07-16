@@ -1,4 +1,4 @@
-﻿// internal/api/handlers/workflow_handler.go
+// internal/api/handlers/workflow_handler.go
 package handlers
 
 import (
@@ -648,6 +648,7 @@ func (h *WorkflowHandler) StartFranchiseSearch(c *gin.Context) {
 	variables := map[string]interface{}{
 		"searchQuery":      input.Query,
 		"rawFilters":       input.Filters,
+		"entityType":       c.Param("entityType"),
 		"userId":           getOrDefault(input.UserID, claims.UserID),
 		"sessionId":        claims.SessionID,
 		"sourceSystem":     claims.SourceSystem,
@@ -679,6 +680,7 @@ func (h *WorkflowHandler) GetFranchiseDetails(c *gin.Context) {
 
 	variables := map[string]interface{}{
 		"franchiseId":  franchiseID,
+		"entityType":   c.Param("entityType"),
 		"userId":       claims.UserID,
 		"sessionId":    claims.SessionID,
 		"sourceSystem": claims.SourceSystem,

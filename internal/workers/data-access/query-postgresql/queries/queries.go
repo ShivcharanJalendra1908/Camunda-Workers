@@ -1073,15 +1073,25 @@ func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[st
 		return nil, 0, 0, ErrInvalidParams
 	}
 
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
 	query := `
 		SELECT c.id, c.name, c.slug
 		FROM categories c
 		WHERE c.industry_id = $1 AND c.is_active = true
+		  AND EXISTS (
+		      SELECT 1 FROM listing_categories lc
+		      JOIN listings l ON lc.listing_id = l.id
+		      WHERE lc.category_id = c.id AND l.entity_type = $2 AND l.status = 'live'
+		  )
 		ORDER BY c.display_order
 		LIMIT 8
 	`
 
-	rows, err := db.QueryContext(ctx, query, industryID)
+	rows, err := db.QueryContext(ctx, query, industryID, entityType)
 	if err != nil {
 		return nil, 0, 0, err
 	}

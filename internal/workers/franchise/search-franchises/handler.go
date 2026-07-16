@@ -967,6 +967,28 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if maxInv, ok := getNumber(vars, "max_investment", "maxInvestment"); ok {
 		input.MaxInvestment = maxInv
 	}
+
+	// Also check parsedFilters.investmentRange from parse-search-filters
+	if parsedFilters, ok := vars["parsedFilters"].(map[string]interface{}); ok {
+		if invRange, ok := parsedFilters["investmentRange"].(map[string]interface{}); ok {
+			if min, ok := getNumber(invRange, "min"); ok && min > 0 && input.MinInvestment == 0 {
+				input.MinInvestment = min
+			}
+			if max, ok := getNumber(invRange, "max"); ok && max > 0 && input.MaxInvestment == 0 {
+				input.MaxInvestment = max
+			}
+		}
+	}
+
+	// Also check filters map from SearchFranchises
+	if filters, ok := vars["filters"].(map[string]interface{}); ok {
+		if min, ok := getNumber(filters, "minInvestment", "min_investment"); ok && min > 0 && input.MinInvestment == 0 {
+			input.MinInvestment = min
+		}
+		if max, ok := getNumber(filters, "maxInvestment", "max_investment"); ok && max > 0 && input.MaxInvestment == 0 {
+			input.MaxInvestment = max
+		}
+	}
 	if minSpace, ok := getNumber(vars, "min_space", "minSpace"); ok {
 		input.MinSpace = minSpace
 	}
