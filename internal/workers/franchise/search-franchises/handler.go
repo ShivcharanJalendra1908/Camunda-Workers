@@ -625,32 +625,12 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				"should": []map[string]interface{}{
 					{
 						"terms": map[string]interface{}{
-							"location.keyword": exactTerms,
-						},
-					},
-					{
-						"terms": map[string]interface{}{
-							"locations": exactTerms,
-						},
-					},
-					{
-						"terms": map[string]interface{}{
-							"country.keyword": exactTerms,
+							"location": exactTerms,
 						},
 					},
 					{
 						"match": map[string]interface{}{
 							"location": normalizedLocation,
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"locations": normalizedLocation,
-						},
-					},
-					{
-						"match": map[string]interface{}{
-							"country": normalizedLocation,
 						},
 					},
 					{
