@@ -1745,7 +1745,7 @@ func buildSearchQuery(filters map[string]interface{}) map[string]interface{} {
 					"should": []interface{}{
 						map[string]interface{}{
 							"terms": map[string]interface{}{
-								"location": allTerms,
+								"location.keyword": allTerms,
 							},
 						},
 					},

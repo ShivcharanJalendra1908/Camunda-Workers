@@ -476,7 +476,7 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 		filterClauses := []interface{}{
 			map[string]interface{}{
 				"terms": map[string]interface{}{
-					"location": location.BuildLocationTerms(detectedCity),
+					"location.keyword": location.BuildLocationTerms(detectedCity),
 				},
 			},
 		}
@@ -557,7 +557,7 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 	var filterClauses []interface{}
 	if detectedCity != "" {
 		filterClauses = append(filterClauses, map[string]interface{}{
-			"terms": map[string]interface{}{"location": location.BuildLocationTerms(detectedCity)},
+			"terms": map[string]interface{}{"location.keyword": location.BuildLocationTerms(detectedCity)},
 		})
 	}
 	if entityType != "" && entityType != "all" {
@@ -1032,7 +1032,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		}
 		locationClause := map[string]interface{}{
 			"terms": map[string]interface{}{
-				"location": dedupLocationTerms(allTerms),
+				"location.keyword": dedupLocationTerms(allTerms),
 			},
 		}
 		if params.EntityType == "association" {
@@ -1049,21 +1049,21 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		}
 	}
 
-	// Investment — SOFT boost (prefer matching, not exclude)
+	// Investment — HARD filter
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
 			maxLakhs := params.Investment.Max / 100000
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": maxLakhs, "boost": 2},
+					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
 				},
 			})
 		}
 		if params.Investment.Min > 0 {
 			minLakhs := params.Investment.Min / 100000
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{"gte": minLakhs, "boost": 2},
+					"investment.max_investment": map[string]interface{}{"gte": minLakhs},
 				},
 			})
 		}
@@ -1086,19 +1086,19 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		}
 	}
 
-	// ROI — SOFT boost (prefer matching, not exclude)
+	// ROI — HARD filter
 	if params.ROI != nil {
 		if params.ROI.Min > 0 {
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.max": map[string]interface{}{"gte": params.ROI.Min, "boost": 3},
+					"roi.max": map[string]interface{}{"gte": params.ROI.Min},
 				},
 			})
 		}
 		if params.ROI.Max > 0 {
-			softBoosts = append(softBoosts, map[string]interface{}{
+			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.min": map[string]interface{}{"lte": params.ROI.Max, "boost": 3},
+					"roi.min": map[string]interface{}{"lte": params.ROI.Max},
 				},
 			})
 		}
