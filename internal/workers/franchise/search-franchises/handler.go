@@ -783,11 +783,35 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 
 	// ✅ ENTITY TYPE FILTER
 	if input.EntityType != "" && input.EntityType != "all" {
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"term": map[string]interface{}{
-				"entity_type": input.EntityType,
-			},
-		})
+		if input.EntityType == "franchise" {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"bool": map[string]interface{}{
+					"should": []map[string]interface{}{
+						{
+							"term": map[string]interface{}{
+								"entity_type": "franchise",
+							},
+						},
+						{
+							"bool": map[string]interface{}{
+								"must_not": map[string]interface{}{
+									"exists": map[string]interface{}{
+										"field": "entity_type",
+									},
+								},
+							},
+						},
+					},
+					"minimum_should_match": 1,
+				},
+			})
+		} else {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"term": map[string]interface{}{
+					"entity_type": input.EntityType,
+				},
+			})
+		}
 	}
 
 	// ✅ EXCLUSIVITY TYPE FILTER
