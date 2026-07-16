@@ -5,7 +5,8 @@ type Input struct {
 	PageType   string                 `json:"pageType"` // "home", "listing", "detail", "search"
 	EntityType string                 `json:"entityType,omitempty"`
 	Data       map[string]interface{} `json:"data"`     // All data from workflow (can be nested)
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	ExtractedParams map[string]interface{} `json:"extractedParams,omitempty"`
 
 	// HOME PAGE FIELDS
 	HeroBrands      []interface{} `json:"heroBrands,omitempty"`
