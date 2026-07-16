@@ -1000,8 +1000,16 @@ func (h *Handler) executeSearch(ctx context.Context, request *SearchRequest) ([]
 								if zoneCount >= 3 || len(strLocs) >= 4 {
 									display = "Pan India"
 								} else {
-									display = strLocs[0]
-									if len(strLocs) > 1 {
+									city := strLocs[0]
+									display = city
+									
+									cityLower := strings.ToLower(city)
+									if zone, ok := location.CityZoneMap[cityLower]; ok {
+										zone = strings.Replace(zone, "Indian Cities", "India", 1)
+										if !strings.Contains(display, zone) {
+											display += ", " + zone
+										}
+									} else if len(strLocs) > 1 {
 										display += ", " + strLocs[1]
 									}
 								}
