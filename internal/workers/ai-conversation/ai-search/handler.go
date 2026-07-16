@@ -1069,69 +1069,108 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		})
 	}
 
-	// Investment — HARD filter
+	// Investment — SOFT boost (not hard filter)
+	// Many franchises don't have investment data in ES; hard filter would exclude them entirely.
 	if params.Investment != nil {
 		if params.Investment.Max > 0 {
 			maxLakhs := params.Investment.Max / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
+						},
+					},
+					"boost": 20,
 				},
 			})
 		}
 		if params.Investment.Min > 0 {
 			minLakhs := params.Investment.Min / 100000
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{"gte": minLakhs},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"investment.max_investment": map[string]interface{}{"gte": minLakhs},
+						},
+					},
+					"boost": 20,
 				},
 			})
 		}
 	}
 
+	// Space — SOFT boost
 	if params.Space != nil {
 		if params.Space.Max > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.minSpace": map[string]interface{}{"lte": params.Space.Max},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"space.minSpace": map[string]interface{}{"lte": params.Space.Max},
+						},
+					},
+					"boost": 15,
 				},
 			})
 		}
 		if params.Space.Min > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.maxSpace": map[string]interface{}{"gte": params.Space.Min},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"space.maxSpace": map[string]interface{}{"gte": params.Space.Min},
+						},
+					},
+					"boost": 15,
 				},
 			})
 		}
 	}
 
-	// ROI — HARD filter
+	// ROI — SOFT boost
 	if params.ROI != nil {
 		if params.ROI.Min > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"roi.max": map[string]interface{}{"gte": params.ROI.Min},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"roi.max": map[string]interface{}{"gte": params.ROI.Min},
+						},
+					},
+					"boost": 15,
 				},
 			})
 		}
 		if params.ROI.Max > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"roi.min": map[string]interface{}{"lte": params.ROI.Max},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{
+							"roi.min": map[string]interface{}{"lte": params.ROI.Max},
+						},
+					},
+					"boost": 15,
 				},
 			})
 		}
 	}
 
+	// Rating — SOFT boost
 	if params.Rating != nil && *params.Rating > 0 {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"range": map[string]interface{}{
-				"rating": map[string]interface{}{"gte": *params.Rating},
+		softBoosts = append(softBoosts, map[string]interface{}{
+			"constant_score": map[string]interface{}{
+				"filter": map[string]interface{}{
+					"range": map[string]interface{}{
+						"rating": map[string]interface{}{"gte": *params.Rating},
+					},
+				},
+				"boost": 10,
 			},
 		})
 	}
 
+	// Staff — SOFT boost
 	if params.Staff != nil {
 		staffRange := map[string]interface{}{}
 		if params.Staff.Min > 0 {
@@ -1141,16 +1180,27 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 			staffRange["lte"] = params.Staff.Max
 		}
 		if len(staffRange) > 0 {
-			filterClauses = append(filterClauses, map[string]interface{}{
-				"range": map[string]interface{}{"staff": staffRange},
+			softBoosts = append(softBoosts, map[string]interface{}{
+				"constant_score": map[string]interface{}{
+					"filter": map[string]interface{}{
+						"range": map[string]interface{}{"staff": staffRange},
+					},
+					"boost": 10,
+				},
 			})
 		}
 	}
 
+	// Outlets — SOFT boost
 	if params.Outlets != nil && *params.Outlets > 0 {
-		filterClauses = append(filterClauses, map[string]interface{}{
-			"range": map[string]interface{}{
-				"total_outlets": map[string]interface{}{"gte": *params.Outlets},
+		softBoosts = append(softBoosts, map[string]interface{}{
+			"constant_score": map[string]interface{}{
+				"filter": map[string]interface{}{
+					"range": map[string]interface{}{
+						"total_outlets": map[string]interface{}{"gte": *params.Outlets},
+					},
+				},
+				"boost": 10,
 			},
 		})
 	}
