@@ -487,7 +487,19 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		
 		cleanQuery = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(cleanQuery, " "))
 
-		if cleanQuery == "" {
+		// If cleanQuery is empty after stripping location/entity/preposition words,
+		// this is a pure filter query (e.g., "franchises in delhi", "associations under 5 lakhs").
+		// Do NOT force a text match — let the structured filters handle it.
+		hasStructuredFilters := (detectedCity != "" || input.Location != "" ||
+			input.MinInvestment > 0 || input.MaxInvestment > 0 ||
+			input.MinSpace > 0 || input.MaxSpace > 0 ||
+			input.MinSize > 0 || input.MaxSize > 0 ||
+			input.MinFee > 0 || input.MaxFee > 0 ||
+			input.MinRating > 0 ||
+			input.IndustrySlug != "" || input.Category != "")
+		isPureFilterQuery := cleanQuery == "" && hasStructuredFilters
+
+		if cleanQuery == "" && !isPureFilterQuery {
 			if detectedCity != "" {
 				cleanQuery = detectedCity
 			} else if input.Location != "" {
@@ -495,7 +507,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 			}
 		}
 
-		if cleanQuery != "" {
+		if cleanQuery != "" && !isPureFilterQuery {
 			shouldQueries := []map[string]interface{}{
 				// 1. Exact match on slug (for acronyms like ima, ficci)
 				{
@@ -620,7 +632,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				"should": []map[string]interface{}{
 					{
 						"terms": map[string]interface{}{
-							"location": exactTerms,
+							"location.keyword": exactTerms,
 						},
 					},
 					{
@@ -1077,6 +1089,85 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		}
 		if max, ok := getNumber(filters, "maxInvestment", "max_investment"); ok && max > 0 && input.MaxInvestment == 0 {
 			input.MaxInvestment = max
+		}
+	}
+	// ✅ READ AI-EXTRACTED PARAMETERS (from ai-search worker output)
+	// The ai-search worker extracts location, investment, industry, etc. from the
+	// natural language query and stores them in extractedParams. We use these as
+	// fallback when the explicit filter variables are not set.
+	if ep, ok := vars["extractedParams"].(map[string]interface{}); ok {
+		if input.Location == "" {
+			if loc, ok := ep["location"].(string); ok && loc != "" {
+				input.Location = loc
+			}
+		}
+		if input.Industry == "" {
+			if ind, ok := ep["industry"].(string); ok && ind != "" {
+				input.Industry = ind
+			}
+		}
+		if input.IndustrySlug == "" {
+			if slug, ok := ep["industrySlug"].(string); ok && slug != "" {
+				input.IndustrySlug = slug
+			}
+			if slugAll, ok := ep["industrySlugAll"].(string); ok && slugAll != "" {
+				input.IndustrySlug = slugAll
+			}
+		}
+		if input.Category == "" {
+			if cat, ok := ep["category"].(string); ok && cat != "" {
+				input.Category = cat
+			}
+		}
+		if input.MinInvestment == 0 {
+			if min, ok := getNumber(ep, "minInvestment"); ok && min > 0 {
+				input.MinInvestment = min
+			}
+		}
+		if input.MaxInvestment == 0 {
+			if max, ok := getNumber(ep, "maxInvestment"); ok && max > 0 {
+				input.MaxInvestment = max
+			}
+		}
+		if input.MinSpace == 0 {
+			if min, ok := getNumber(ep, "minSpace"); ok && min > 0 {
+				input.MinSpace = min
+			}
+		}
+		if input.MaxSpace == 0 {
+			if max, ok := getNumber(ep, "maxSpace"); ok && max > 0 {
+				input.MaxSpace = max
+			}
+		}
+		if input.MinRating == 0 {
+			if r, ok := getNumber(ep, "minRating"); ok && r > 0 {
+				input.MinRating = r
+			}
+		}
+		if input.MinSize == 0 {
+			if min, ok := getNumber(ep, "minMembers", "minSize"); ok && min > 0 {
+				input.MinSize = min
+			}
+		}
+		if input.MaxSize == 0 {
+			if max, ok := getNumber(ep, "maxMembers", "maxSize"); ok && max > 0 {
+				input.MaxSize = max
+			}
+		}
+		if input.MinFee == 0 {
+			if min, ok := getNumber(ep, "minFee", "membership_fee_min"); ok && min > 0 {
+				input.MinFee = min
+			}
+		}
+		if input.MaxFee == 0 {
+			if max, ok := getNumber(ep, "maxFee", "membership_fee_max"); ok && max > 0 {
+				input.MaxFee = max
+			}
+		}
+		if input.EntityType == "" || input.EntityType == "all" {
+			if et, ok := ep["entityType"].(string); ok && et != "" && et != "all" {
+				input.EntityType = et
+			}
 		}
 	}
 	if minSpace, ok := getNumber(vars, "min_space", "minSpace"); ok {
