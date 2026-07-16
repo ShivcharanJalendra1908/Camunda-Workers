@@ -429,6 +429,40 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
+		// Strip mapped industry/category names from text search to avoid forcing them in text match
+		if input.Industry != "" {
+			inds := strings.Split(input.Industry, ",")
+			for _, ind := range inds {
+				indTrimmed := strings.TrimSpace(ind)
+				if indTrimmed != "" {
+					indWords := strings.Fields(strings.ToLower(indTrimmed))
+					for _, w := range indWords {
+						if len(w) > 2 {
+							re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `\b`)
+							cleanQuery = re.ReplaceAllString(cleanQuery, "")
+						}
+					}
+				}
+			}
+		}
+		if input.Category != "" {
+			cats := strings.Split(input.Category, ",")
+			for _, cat := range cats {
+				catTrimmed := strings.TrimSpace(cat)
+				if catTrimmed != "" {
+					catWords := strings.Fields(strings.ToLower(catTrimmed))
+					for _, w := range catWords {
+						if len(w) > 2 {
+							re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `\b`)
+							cleanQuery = re.ReplaceAllString(cleanQuery, "")
+						}
+					}
+				}
+			}
+		}
+		
+		cleanQuery = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(cleanQuery, " "))
+
 		if cleanQuery == "" {
 			if detectedCity != "" {
 				cleanQuery = detectedCity
