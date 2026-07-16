@@ -2546,7 +2546,10 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 			}
 		}
 
-		if name != "" {
+		if multiIndustryTitle != "" && strings.Contains(multiIndustryTitle, "&") {
+			heroTitle = fmt.Sprintf("%s Associations", multiIndustryTitle)
+			heroDescription = fmt.Sprintf("Discover top associations, guilds, and councils in %s industries. Connect with powerful networks to accelerate your business growth.", multiIndustryTitle)
+		} else if name != "" {
 			heroTitle = fmt.Sprintf("%s Associations", name)
 		}
 	} else if multiIndustryTitle != "" {

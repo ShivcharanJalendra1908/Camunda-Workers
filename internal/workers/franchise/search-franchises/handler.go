@@ -285,11 +285,41 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if len(shouldTerms) > 0 {
 			// Extract safe explicit words to bypass the industry filter
 			stopWords := map[string]bool{"and": true, "for": true, "the": true, "with": true, "near": true, "from": true, "in": true, "at": true, "of": true, "franchise": true, "franchises": true, "association": true, "associations": true}
+			
+			// Also add industry words to stopWords to prevent them from bypassing the filter
+			if input.Industry != "" {
+				inds := strings.Split(input.Industry, ",")
+				for _, ind := range inds {
+					indWords := strings.Fields(strings.ToLower(strings.TrimSpace(ind)))
+					for _, w := range indWords {
+						if len(w) > 2 {
+							stopWords[w] = true
+						}
+					}
+				}
+			}
+
 			words := strings.Fields(strings.ToLower(input.Query))
 			var safeWords []string
 			for _, w := range words {
 				if len(w) > 2 && !stopWords[w] {
-					safeWords = append(safeWords, w)
+					// Also check if it starts with any industry word (e.g., 'healthcare' starts with 'health')
+					isIndustryPrefix := false
+					if input.Industry != "" {
+						inds := strings.Split(input.Industry, ",")
+						for _, ind := range inds {
+							indWords := strings.Fields(strings.ToLower(strings.TrimSpace(ind)))
+							for _, indW := range indWords {
+								if len(indW) > 2 && strings.HasPrefix(w, indW) {
+									isIndustryPrefix = true
+									break
+								}
+							}
+						}
+					}
+					if !isIndustryPrefix {
+						safeWords = append(safeWords, w)
+					}
 				}
 			}
 
@@ -431,7 +461,8 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 					indWords := strings.Fields(strings.ToLower(indTrimmed))
 					for _, w := range indWords {
 						if len(w) > 2 {
-							re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `\b`)
+							// Use [a-z]* to match variations like 'health' -> 'healthcare'
+							re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `[a-z]*\b`)
 							cleanQuery = re.ReplaceAllString(cleanQuery, "")
 						}
 					}

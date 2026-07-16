@@ -1566,11 +1566,7 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		extractedParams["trustedSeller"] = *params.TrustedSeller
 	}
 	if params.EntityType != "" {
-		if _, isSwitching := extractedParams["switchApi"]; isSwitching && input.EntityType != "" && input.EntityType != "all" {
-			extractedParams["entityType"] = input.EntityType
-		} else {
-			extractedParams["entityType"] = params.EntityType
-		}
+		extractedParams["entityType"] = params.EntityType
 	}
 
 	return map[string]interface{}{
