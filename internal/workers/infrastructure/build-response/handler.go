@@ -2529,11 +2529,43 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 		} else if title, ok := industryInfo["title"].(string); ok && title != "" {
 			name = title
 		}
+
+		if multiIndustryTitle != "" && strings.Contains(multiIndustryTitle, ",") {
+			parts := strings.Split(multiIndustryTitle, ",")
+			cleanParts := []string{}
+			for _, p := range parts {
+				cleaned := strings.TrimSpace(p)
+				if cleaned != "" {
+					cleanParts = append(cleanParts, cleaned)
+				}
+			}
+			if len(cleanParts) > 1 {
+				last := cleanParts[len(cleanParts)-1]
+				first := strings.Join(cleanParts[:len(cleanParts)-1], ", ")
+				multiIndustryTitle = first + " & " + last
+			}
+		}
+
 		if name != "" {
 			heroTitle = fmt.Sprintf("%s Associations", name)
 		}
 	} else if multiIndustryTitle != "" {
-		heroTitle = fmt.Sprintf("%s Associations", multiIndustryTitle)
+		parts := strings.Split(multiIndustryTitle, ",")
+		cleanParts := []string{}
+		for _, p := range parts {
+			cleaned := strings.TrimSpace(p)
+			if cleaned != "" {
+				cleanParts = append(cleanParts, cleaned)
+			}
+		}
+		var combined string
+		if len(cleanParts) > 1 {
+			combined = strings.Join(cleanParts[:len(cleanParts)-1], ", ") + " & " + cleanParts[len(cleanParts)-1]
+		} else {
+			combined = cleanParts[0]
+		}
+		heroTitle = fmt.Sprintf("%s Associations", combined)
+		heroDescription = fmt.Sprintf("Discover top associations, guilds, and councils in %s industries. Connect with powerful networks to accelerate your business growth.", combined)
 	}
 
 	if desc, ok := data["heroDescription"].(string); ok && desc != "" {
