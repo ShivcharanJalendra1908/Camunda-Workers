@@ -1292,13 +1292,6 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 				}
 			}
 		}
-	} else if input.EntityType != "" && input.EntityType != "all" {
-		// If LLM extracted something but input explicitly provides an entity type, input wins
-		et := strings.ToLower(input.EntityType)
-		if et == "master-franchise" || et == "master_franchises" || et == "master franchises" || et == "master franchise" || et == "masterfranchise" {
-			et = "master_franchise"
-		}
-		params.EntityType = et
 	}
 
 	h.logger.Info("Parameters extracted", map[string]interface{}{

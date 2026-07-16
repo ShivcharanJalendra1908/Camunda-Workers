@@ -492,9 +492,6 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 		}
 
 		if len(input.ExtractedParams) > 0 {
-			if dataMap, ok := response["data"].(map[string]interface{}); ok {
-				dataMap["parameters"] = input.ExtractedParams
-			}
 			if metaMap, ok := response["metadata"].(map[string]interface{}); ok {
 				if switchApi, exists := input.ExtractedParams["switchApi"].(bool); exists && switchApi {
 					metaMap["switchApi"] = true
