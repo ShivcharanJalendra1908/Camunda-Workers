@@ -1795,6 +1795,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 			name = n
 		}
 
+		isMultiIndustry := false
 		// If multi-industry search, combine: "Food & Beverage & Fashion"
 		if multiIndustryTitle != "" && strings.Contains(multiIndustryTitle, ",") {
 			// Format: "Food & Beverage, Fashion" → "Food & Beverage and Fashion"
@@ -1808,6 +1809,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 			}
 			if len(cleanParts) > 1 {
 				name = strings.Join(cleanParts[:len(cleanParts)-1], ", ") + " & " + cleanParts[len(cleanParts)-1]
+				isMultiIndustry = true
 			}
 		}
 
@@ -1816,17 +1818,19 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 			heroDescription = fmt.Sprintf("Search results for %s franchise opportunities across India", name)
 		}
 
-		// DB mein stored hai toh override karo
-		if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
-			heroTitle = t
-		}
-		if entityType == "master_franchise" {
-			if d, ok := industryInfo["master_franchise_listing_description"].(string); ok && d != "" {
-				heroDescription = d
+		// DB mein stored hai toh override karo - BUT only if not multi-industry
+		if !isMultiIndustry {
+			if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
+				heroTitle = t
 			}
-		} else {
-			if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
-				heroDescription = d
+			if entityType == "master_franchise" {
+				if d, ok := industryInfo["master_franchise_listing_description"].(string); ok && d != "" {
+					heroDescription = d
+				}
+			} else {
+				if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
+					heroDescription = d
+				}
 			}
 		}
 	} else if multiIndustryTitle != "" {
