@@ -487,13 +487,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		
 		cleanQuery = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(cleanQuery, " "))
 
-		if cleanQuery == "" {
-			if detectedCity != "" {
-				cleanQuery = detectedCity
-			} else if input.Location != "" {
-				cleanQuery = input.Location
-			}
-		}
+
 
 		if cleanQuery != "" {
 			shouldQueries := []map[string]interface{}{
@@ -652,7 +646,12 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				"minimum_should_match": 1,
 			},
 		}
-		mustClauses = append(mustClauses, locationFilter)
+		shouldClauses = append(shouldClauses, map[string]interface{}{
+			"constant_score": map[string]interface{}{
+				"filter": locationFilter,
+				"boost": 10,
+			},
+		})
 
 		// Also add description/name match as soft boost for city relevance
 		shouldClauses = append(shouldClauses, map[string]interface{}{
