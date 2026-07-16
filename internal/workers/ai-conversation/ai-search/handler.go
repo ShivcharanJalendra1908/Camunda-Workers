@@ -631,6 +631,25 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		}
 		cleanQuery = strings.TrimSpace(strings.Join(filteredWords, " "))
 
+		// Strip industry words from cleanQuery so industry filter handles filtering alone
+		if params.Industry != "" && cleanQuery != "" {
+			inds := strings.Split(params.Industry, ",")
+			for _, ind := range inds {
+				indTrimmed := strings.TrimSpace(ind)
+				if indTrimmed != "" {
+					indWords := strings.Fields(strings.ToLower(indTrimmed))
+					for _, w := range indWords {
+						if len(w) > 2 {
+							// Use [a-z]* to match variations like 'health' -> 'healthcare'
+							re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(w) + `[a-z]*\b`)
+							cleanQuery = re.ReplaceAllString(cleanQuery, "")
+						}
+					}
+				}
+			}
+			cleanQuery = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(cleanQuery, " "))
+		}
+
 		if cleanQuery != "" {
 			shouldQueries := []map[string]interface{}{
 				// 1. Exact slug match (for acronyms like ima, ficci)
@@ -762,13 +781,30 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		industrySlug := GetIndustrySlug(params.Industry)
 
 		var shouldQueries []interface{}
-		
-		// Exact Match on Industry Name
-		shouldQueries = append(shouldQueries, map[string]interface{}{
-			"term": map[string]interface{}{
-				"industry.name.keyword": params.Industry,
-			},
-		})
+
+		// Handle comma-separated industries: split and match each individually
+		industries := strings.Split(params.Industry, ",")
+		for _, ind := range industries {
+			indTrimmed := strings.TrimSpace(ind)
+			if indTrimmed == "" {
+				continue
+			}
+			// Exact Match on each Industry Name
+			shouldQueries = append(shouldQueries, map[string]interface{}{
+				"term": map[string]interface{}{
+					"industry.name.keyword": indTrimmed,
+				},
+			})
+			// Match on industry.name for each
+			shouldQueries = append(shouldQueries, map[string]interface{}{
+				"match": map[string]interface{}{
+					"industry.name": map[string]interface{}{
+						"query":    indTrimmed,
+						"operator": "and",
+					},
+				},
+			})
+		}
 
 		// Split comma-separated slugs and add term queries for each
 		slugs := strings.Split(industrySlug, ",")
@@ -783,46 +819,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 				},
 			})
 		}
-
-		shouldQueries = append(shouldQueries,
-			map[string]interface{}{
-				"match": map[string]interface{}{
-					"industry.name": map[string]interface{}{
-						"query":    params.Industry,
-						"operator": "and",
-					},
-				},
-			},
-			map[string]interface{}{
-				"match": map[string]interface{}{
-					"tags": map[string]interface{}{
-						"query":    params.Industry,
-						"operator": "and",
-					},
-				},
-			},
-			map[string]interface{}{
-				"match": map[string]interface{}{
-					"name": map[string]interface{}{
-						"query":    params.Industry,
-						"operator": "and",
-					},
-				},
-			},
-			map[string]interface{}{
-				"nested": map[string]interface{}{
-					"path": "categories",
-					"query": map[string]interface{}{
-						"match": map[string]interface{}{
-							"categories.name": map[string]interface{}{
-								"query":    params.Industry,
-								"operator": "and",
-							},
-						},
-					},
-				},
-			},
-		)
 
 		mustClauses = append(mustClauses, map[string]interface{}{
 			"bool": map[string]interface{}{
