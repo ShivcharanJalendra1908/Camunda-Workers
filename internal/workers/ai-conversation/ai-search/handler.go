@@ -247,7 +247,21 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 	// Step 1: Try FAST deterministic extraction (keyword maps + regex) - instant, no LLM
 	deterministicParams := h.paramExtractor.ParseWithContext("{}", input.Query)
-	if input.EntityType != "" {
+
+	// Try to infer EntityType from query keywords first
+	if input.Query != "" && input.Query != "*" {
+		lowerQ := strings.ToLower(input.Query)
+		if strings.Contains(lowerQ, "association") || strings.Contains(lowerQ, "council") || strings.Contains(lowerQ, "federation") || strings.Contains(lowerQ, "chamber") || strings.Contains(lowerQ, "society") {
+			deterministicParams.EntityType = "association"
+		} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
+			deterministicParams.EntityType = "master_franchise"
+		} else if strings.Contains(lowerQ, "franchise") || strings.Contains(lowerQ, "franchises") {
+			deterministicParams.EntityType = "franchise"
+		}
+	}
+
+	// Fallback to payload EntityType if still empty
+	if deterministicParams.EntityType == "" && input.EntityType != "" {
 		deterministicParams.EntityType = input.EntityType
 	}
 
@@ -1267,7 +1281,19 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 		}
 	}
 
-	// Fallback to payload EntityType if LLM did not extract it (or if it was cleared)
+	// Fallback 1: Try to infer from query keywords if not explicitly set
+	if params.EntityType == "" && input.Query != "" && input.Query != "*" {
+		lowerQ := strings.ToLower(input.Query)
+		if strings.Contains(lowerQ, "association") || strings.Contains(lowerQ, "council") || strings.Contains(lowerQ, "federation") || strings.Contains(lowerQ, "chamber") || strings.Contains(lowerQ, "society") {
+			params.EntityType = "association"
+		} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
+			params.EntityType = "master_franchise"
+		} else if strings.Contains(lowerQ, "franchise") || strings.Contains(lowerQ, "franchises") {
+			params.EntityType = "franchise"
+		}
+	}
+
+	// Fallback 2: Fallback to payload EntityType if still empty
 	if params.EntityType == "" {
 		if input.EntityType != "" {
 			et := strings.ToLower(input.EntityType)
@@ -1276,21 +1302,7 @@ func (h *Handler) extractParametersWithFallback(ctx context.Context, input *Sear
 			}
 			params.EntityType = et
 		} else {
-			if input.Query == "" || input.Query == "*" {
-				params.EntityType = "all"
-			} else {
-				// Try to infer from query
-				lowerQ := strings.ToLower(input.Query)
-				if strings.Contains(lowerQ, "association") {
-					params.EntityType = "association"
-				} else if strings.Contains(lowerQ, "master") && strings.Contains(lowerQ, "franchise") {
-					params.EntityType = "master_franchise"
-				} else if strings.Contains(lowerQ, "franchise") {
-					params.EntityType = "franchise"
-				} else {
-					params.EntityType = "all"
-				}
-			}
+			params.EntityType = "all"
 		}
 	}
 

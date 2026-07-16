@@ -1808,19 +1808,17 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 			heroDescription = fmt.Sprintf("Search results for %s franchise opportunities across India", name)
 		}
 
-		// DB mein stored hai toh override karo (single industry page pe)
-		if !strings.Contains(multiIndustryTitle, ",") {
-			if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
-				heroTitle = t
+		// DB mein stored hai toh override karo
+		if t, ok := industryInfo["listing_title"].(string); ok && t != "" {
+			heroTitle = t
+		}
+		if entityType == "master_franchise" {
+			if d, ok := industryInfo["master_franchise_listing_description"].(string); ok && d != "" {
+				heroDescription = d
 			}
-			if entityType == "master_franchise" {
-				if d, ok := industryInfo["master_franchise_listing_description"].(string); ok && d != "" {
-					heroDescription = d
-				}
-			} else {
-				if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
-					heroDescription = d
-				}
+		} else {
+			if d, ok := industryInfo["listing_description"].(string); ok && d != "" {
+				heroDescription = d
 			}
 		}
 	} else if multiIndustryTitle != "" {
