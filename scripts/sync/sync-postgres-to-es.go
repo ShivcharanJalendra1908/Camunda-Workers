@@ -280,13 +280,34 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		}
 
 		// Location & Country
-		var location, country string
+		var locationsJSON sql.NullString
+		var country string = "India"
+		var locationStrings []string
+		
 		m.db.QueryRowContext(ctx,
-			"SELECT city, COALESCE(country, 'India') FROM listing_cities WHERE listing_id = $1 LIMIT 1",
+			"SELECT json_agg(json_build_object('city', city, 'state', state, 'country', country)) FROM listing_cities WHERE listing_id = $1",
 			id,
-		).Scan(&location, &country)
-		if country == "" {
-			country = "India"
+		).Scan(&locationsJSON)
+		
+		if locationsJSON.Valid && locationsJSON.String != "" && locationsJSON.String != "null" {
+			var locArray []map[string]interface{}
+			if err := json.Unmarshal([]byte(locationsJSON.String), &locArray); err == nil {
+				locMap := make(map[string]bool)
+				for _, loc := range locArray {
+					if city, ok := loc["city"].(string); ok && city != "" {
+						locMap[city] = true
+					}
+					if state, ok := loc["state"].(string); ok && state != "" {
+						locMap[state] = true
+					}
+					if cntry, ok := loc["country"].(string); ok && cntry != "" {
+						country = cntry
+					}
+				}
+				for locStr := range locMap {
+					locationStrings = append(locationStrings, locStr)
+				}
+			}
 		}
 
 		// Tags
@@ -367,7 +388,7 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 				"square": logoURLSquare.String,
 				"alt":    name,
 			},
-			"location":             location,
+			"location":             locationStrings,
 			"tags":                 tags,
 			"rating":               rating,
 			"total_outlets":        totalOutlets.Int32,

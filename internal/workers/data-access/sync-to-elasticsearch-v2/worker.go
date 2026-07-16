@@ -80,7 +80,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			COALESCE(l.founded_year, fr.established_year), COALESCE(fr.units_count, 0), l.logo_url_circle, l.logo_url_square, a.association_metadata,
 			a.member_count, a.membership_fee_min, a.membership_fee_max, l.approved_at,
 			l.website_url, l.is_featured, l.featured_start_at, l.featured_expires_at, l.featured_order, l.is_sponsored,
-			COALESCE(lc.country, 'India') as country, lc.city as location,
+			lc.locations_json,
 			fo.territory_details,
 			fo.space_min_sqft, fo.space_max_sqft,
 			fi.initial_investment_min, fi.initial_investment_max,
@@ -89,8 +89,9 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		LEFT JOIN franchises fr ON l.id = fr.id
 		LEFT JOIN associations a ON l.id = a.id
 		LEFT JOIN (
-			SELECT DISTINCT ON (listing_id) listing_id, city, country 
+			SELECT listing_id, json_agg(json_build_object('city', city, 'state', state, 'country', country)) as locations_json
 			FROM listing_cities
+			GROUP BY listing_id
 		) lc ON l.id = lc.listing_id
 		LEFT JOIN franchise_operations fo ON l.id = fo.franchise_id
 		LEFT JOIN franchise_investment_requirement fi ON l.id = fi.franchise_id
@@ -136,8 +137,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		FeaturedExpiresAt    *time.Time      `json:"featured_expires_at,omitempty"`
 		FeaturedOrder        int             `json:"featured_order"`
 		IsSponsored          bool            `json:"is_sponsored"`
-		Country              string          `json:"country"`
-		Location             string          `json:"location,omitempty"`
+		LocationsRaw         json.RawMessage `json:"locations_raw,omitempty"`
 		TerritoryDetails     json.RawMessage `json:"territory_details,omitempty"`
 		SpaceMinSqft         *int            `json:"space_min_sqft,omitempty"`
 		SpaceMaxSqft         *int            `json:"space_max_sqft,omitempty"`
@@ -156,7 +156,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		&f.EstablishedYear, &f.UnitsCount, &f.LogoURLCircle, &f.LogoURLSquare, &f.AssociationMetadata,
 		&f.MemberCount, &f.MembershipFeeMin, &f.MembershipFeeMax, &f.ApprovedAt,
 		&websiteUrlStr, &f.IsFeatured, &featuredStartAt, &featuredExpiresAt, &f.FeaturedOrder, &f.IsSponsored,
-		&f.Country, &f.Location, &f.TerritoryDetails,
+		&f.LocationsRaw, &f.TerritoryDetails,
 		&f.SpaceMinSqft, &f.SpaceMaxSqft,
 		&f.InitialInvestmentMin, &f.InitialInvestmentMax,
 		&indID, &indName, &indSlug, &indColor,
@@ -207,6 +207,30 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	var assocMeta map[string]interface{}
 	if len(f.AssociationMetadata) > 0 {
 		_ = json.Unmarshal(f.AssociationMetadata, &assocMeta)
+	}
+
+	// Parse locations
+	var locationStrings []string
+	var country string = "India"
+	if len(f.LocationsRaw) > 0 && string(f.LocationsRaw) != "null" {
+		var locArray []map[string]interface{}
+		if err := json.Unmarshal(f.LocationsRaw, &locArray); err == nil {
+			locMap := make(map[string]bool)
+			for _, loc := range locArray {
+				if city, ok := loc["city"].(string); ok && city != "" {
+					locMap[city] = true
+				}
+				if state, ok := loc["state"].(string); ok && state != "" {
+					locMap[state] = true
+				}
+				if cntry, ok := loc["country"].(string); ok && cntry != "" {
+					country = cntry
+				}
+			}
+			for locStr := range locMap {
+				locationStrings = append(locationStrings, locStr)
+			}
+		}
 	}
 
 	// Parse territory_details
@@ -333,12 +357,14 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		"established_year":     f.EstablishedYear,
 		"year_of_establishment": f.EstablishedYear,
 		"logo": map[string]interface{}{
-			"circle": getStr(f.LogoURLCircle),
-			"square": getStr(f.LogoURLSquare),
+			"circle": f.LogoURLCircle,
+			"square": f.LogoURLSquare,
 			"alt":    f.Name,
 		},
-		"association_metadata": assocMeta,
-		"member_count":         f.MemberCount,
+		"location":             locationStrings,
+		"rating":               5.0,
+		"country":              country,
+		"exclusivity_type":     exclusivityType,
 		"membership_fee_min":   f.MembershipFeeMin,
 		"membership_fee_max":   f.MembershipFeeMax,
 		"approved_at":          f.ApprovedAt,
@@ -348,9 +374,6 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		"featured_expires_at":  f.FeaturedExpiresAt,
 		"featured_order":       f.FeaturedOrder,
 		"is_sponsored":         f.IsSponsored,
-		"country":              f.Country,
-		"location":             f.Location,
-		"exclusivity_type":     exclusivityType,
 		"territory_scope":      territoryScope,
 		"territory_details":    territoryDetails,
 		"updated_at":           time.Now().Format(time.RFC3339),
