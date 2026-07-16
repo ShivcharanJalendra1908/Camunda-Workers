@@ -119,12 +119,12 @@ func (i *Input) Validate() error {
 
 		// Filters validation
 		ozzo.Field(&i.Filters,
-			ozzo.Length(0, 20).Error("filters cannot exceed 20 items"),
+			ozzo.Length(0, 50).Error("filters cannot exceed 50 items"),
 		),
 
 		// Params validation (add this)
 		ozzo.Field(&i.Params,
-			ozzo.Length(0, 20).Error("params cannot exceed 20 items"),
+			ozzo.Length(0, 50).Error("params cannot exceed 50 items"),
 		),
 	)
 }
