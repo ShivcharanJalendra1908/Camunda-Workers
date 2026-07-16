@@ -194,8 +194,8 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
 			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
-			INNER JOIN listing_categories lc ON lc.category_id = c.id
-			INNER JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
 			WHERE c.industry_id = $1 AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
@@ -206,9 +206,9 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
 			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
-			INNER JOIN industries i ON c.industry_id = i.id
-			INNER JOIN listing_categories lc ON lc.category_id = c.id
-			INNER JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
+			LEFT JOIN industries i ON c.industry_id = i.id
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $2 AND l.status = 'live'
 			WHERE i.slug = ANY(string_to_array($1, ',')) AND c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
@@ -220,8 +220,8 @@ func CategoriesFeatured8(ctx context.Context, db *sql.DB, params map[string]inte
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url,
 			       COUNT(DISTINCT l.id) as franchise_count
 			FROM categories c
-			INNER JOIN listing_categories lc ON lc.category_id = c.id
-			INNER JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $1 AND l.status = 'live'
+			LEFT JOIN listing_categories lc ON lc.category_id = c.id
+			LEFT JOIN listings l ON lc.listing_id = l.id AND l.entity_type = $1 AND l.status = 'live'
 			WHERE c.is_active = true
 			GROUP BY c.id, c.name, c.slug, c.icon_url, c.image_url
 			ORDER BY franchise_count DESC, c.display_order ASC
