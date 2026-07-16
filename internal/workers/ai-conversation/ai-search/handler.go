@@ -564,12 +564,6 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 					{
 						"terms": map[string]interface{}{"location": locationTerms},
 					},
-					{
-						"multi_match": map[string]interface{}{
-							"query":  detectedCity,
-							"fields": []string{"description", "name", "location", "country"},
-						},
-					},
 				},
 				"minimum_should_match": 1,
 			},
@@ -1062,12 +1056,6 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 					{
 						"terms": map[string]interface{}{
 							"location": dedupLocationTerms(allTerms),
-						},
-					},
-					{
-						"multi_match": map[string]interface{}{
-							"query":  params.Location.City,
-							"fields": []string{"description", "name", "location", "country"},
 						},
 					},
 				},

@@ -628,17 +628,6 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 							"location": exactTerms,
 						},
 					},
-					{
-						"match": map[string]interface{}{
-							"location": normalizedLocation,
-						},
-					},
-					{
-						"multi_match": map[string]interface{}{
-							"query":  normalizedLocation,
-							"fields": []string{"description", "name"},
-						},
-					},
 				},
 				"minimum_should_match": 1,
 			},
