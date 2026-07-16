@@ -487,19 +487,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		
 		cleanQuery = strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(cleanQuery, " "))
 
-		// If cleanQuery is empty after stripping location/entity/preposition words,
-		// this is a pure filter query (e.g., "franchises in delhi", "associations under 5 lakhs").
-		// Do NOT force a text match — let the structured filters handle it.
-		hasStructuredFilters := (detectedCity != "" || input.Location != "" ||
-			input.MinInvestment > 0 || input.MaxInvestment > 0 ||
-			input.MinSpace > 0 || input.MaxSpace > 0 ||
-			input.MinSize > 0 || input.MaxSize > 0 ||
-			input.MinFee > 0 || input.MaxFee > 0 ||
-			input.MinRating > 0 ||
-			input.IndustrySlug != "" || input.Category != "")
-		isPureFilterQuery := cleanQuery == "" && hasStructuredFilters
-
-		if cleanQuery == "" && !isPureFilterQuery {
+		if cleanQuery == "" {
 			if detectedCity != "" {
 				cleanQuery = detectedCity
 			} else if input.Location != "" {
@@ -507,7 +495,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 			}
 		}
 
-		if cleanQuery != "" && !isPureFilterQuery {
+		if cleanQuery != "" {
 			shouldQueries := []map[string]interface{}{
 				// 1. Exact match on slug (for acronyms like ima, ficci)
 				{
@@ -665,6 +653,15 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 			},
 		}
 		mustClauses = append(mustClauses, locationFilter)
+
+		// Also add description/name match as soft boost for city relevance
+		shouldClauses = append(shouldClauses, map[string]interface{}{
+			"multi_match": map[string]interface{}{
+				"query":  normalizedLocation,
+				"fields": []string{"description", "name"},
+				"boost":  5,
+			},
+		})
 	}
 
 	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)
