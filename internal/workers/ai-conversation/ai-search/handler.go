@@ -559,23 +559,26 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 		// Location is a SOFT boost (not hard filter) because ES location field
 		// contains regions ("South India") not cities ("Delhi"). Hard filter would return 0.
 		locationTerms := location.BuildLocationTerms(detectedCity)
-		shouldClauses = append(shouldClauses,
-			map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"terms": map[string]interface{}{"location.keyword": locationTerms},
+		
+		if existingShould, ok := boolQuery["should"].([]interface{}); ok {
+			boolQuery["should"] = append(existingShould,
+				map[string]interface{}{
+					"constant_score": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"terms": map[string]interface{}{"location.keyword": locationTerms},
+						},
+						"boost": 10,
 					},
-					"boost": 10,
 				},
-			},
-			map[string]interface{}{
-				"multi_match": map[string]interface{}{
-					"query":  detectedCity,
-					"fields": []string{"description", "name", "location", "country"},
-					"boost":  5,
+				map[string]interface{}{
+					"multi_match": map[string]interface{}{
+						"query":  detectedCity,
+						"fields": []string{"description", "name", "location", "country"},
+						"boost":  5,
+					},
 				},
-			},
-		)
+			)
+		}
 	}
 	if entityType != "" && entityType != "all" {
 		filterClauses = append(filterClauses, map[string]interface{}{
