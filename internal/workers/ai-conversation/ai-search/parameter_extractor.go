@@ -1078,73 +1078,8 @@ func (pe *ParameterExtractor) ParseWithContext(llmResponse string, originalQuery
 
 	queryLower := strings.ToLower(originalQuery)
 
-	// FIX 0: Investment Fallback from query
-	if params.Investment == nil {
-		inv := pe.extractInvestmentFromQuery(queryLower)
-		if inv != nil {
-			params.Investment = inv
-			fmt.Printf("💰 Investment from query: Min=%v, Max=%v\n", inv.Min, inv.Max)
-		}
-	}
-
-	// FIX: Area, ROI, Rating, Staff, Outlets fallback
-	if params.Space == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
-			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
-			if val > 0 {
-				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
-			}
-		}
-	}
-	if params.ROI == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*%\s*roi\b|\broi\s*([0-9.]+)\s*%\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
-			v := matches[1]
-			if v == "" {
-				v = matches[2]
-			}
-			val, _ := strconv.ParseFloat(v, 64)
-			if val > 0 {
-				params.ROI = &RangeFilter{Min: val, Max: val + 10}
-			}
-		}
-	}
-	if params.Rating == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(star|rating)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
-			val, _ := strconv.ParseFloat(matches[1], 64)
-			if val > 0 {
-				params.Rating = &val
-			}
-		}
-	}
-	if params.Staff == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(staff|employees)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
-			val, _ := strconv.ParseFloat(matches[1], 64)
-			if val > 0 {
-				params.Staff = &RangeFilter{Min: val, Max: val * 3}
-			}
-		}
-	}
-	if params.Outlets == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(outlets|units|stores)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
-			val, _ := strconv.Atoi(matches[1])
-			if val > 0 {
-				params.Outlets = &val
-			}
-		}
-	}
-
-	// FIX: Member_Count directionality (under 500, at least 500, etc.)
-	if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
-		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 {
-			params.MemberCount = &RangeFilter{Min: 0, Max: val}
-		}
-	} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
-		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 {
-			params.MemberCount = &RangeFilter{Min: val, Max: val * 5}
-		}
-	}
+	// Apply regex fallbacks for numerical fields
+	pe.ApplyRegexFallbacks(params, queryLower)
 
 	// Always scan original query for all mentioned industries to support multi-industry search
 	var allIndustries []string
@@ -1444,6 +1379,82 @@ func titleCaseLocation(s string) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+// ApplyRegexFallbacks applies regex-based extraction for numerical fields if they were missed
+func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, queryLower string) {
+	// FIX 0: Investment Fallback from query
+	if params.Investment == nil {
+		inv := pe.extractInvestmentFromQuery(queryLower)
+		if inv != nil {
+			params.Investment = inv
+			fmt.Printf("💰 Investment from query: Min=%v, Max=%v\n", inv.Min, inv.Max)
+		}
+	}
+
+	// FIX: Area, ROI, Rating, Staff, Outlets fallback
+	if params.Space == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
+			if val > 0 {
+				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
+			}
+		}
+	}
+	if params.ROI == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*%\s*roi\b|\broi\s*([0-9.]+)\s*%\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			v := matches[1]
+			if v == "" {
+				v = matches[2]
+			}
+			val, _ := strconv.ParseFloat(v, 64)
+			if val > 0 {
+				params.ROI = &RangeFilter{Min: val, Max: val + 10}
+			}
+		}
+	}
+	if params.Rating == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(star|rating)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(matches[1], 64)
+			if val > 0 {
+				params.Rating = &val
+			}
+		}
+	}
+	if params.Staff == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(staff|employees)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(matches[1], 64)
+			if val > 0 {
+				params.Staff = &RangeFilter{Min: val, Max: val * 3}
+			}
+		}
+	}
+	if params.Outlets == nil {
+		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(outlets|units|stores)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+			val, _ := strconv.Atoi(matches[1])
+			if val > 0 {
+				params.Outlets = &val
+			}
+		}
+	}
+
+	// FIX: Member_Count directionality (under 500, at least 500, etc.)
+	if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		val, _ := strconv.ParseFloat(matches[2], 64)
+		if val > 0 {
+			params.MemberCount = &RangeFilter{Min: 0, Max: val}
+		}
+	} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min|more)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		val, _ := strconv.ParseFloat(matches[2], 64)
+		if val > 0 {
+			params.MemberCount = &RangeFilter{Min: val, Max: val * 5}
+		}
+	} else if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		val, _ := strconv.ParseFloat(matches[1], 64)
+		if val > 0 {
+			params.MemberCount = &RangeFilter{Min: val * 0.5, Max: val * 2}
+		}
+	}
 }
 
 func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) error {

@@ -653,25 +653,17 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 							"country": normalizedLocation,
 						},
 					},
+					{
+						"multi_match": map[string]interface{}{
+							"query":  normalizedLocation,
+							"fields": []string{"description", "name"},
+						},
+					},
 				},
 				"minimum_should_match": 1,
 			},
 		}
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"constant_score": map[string]interface{}{
-				"filter": locationFilter,
-				"boost": 10,
-			},
-		})
-
-		// Also add description/name match as soft boost for city relevance
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":  normalizedLocation,
-				"fields": []string{"description", "name"},
-				"boost":  5,
-			},
-		})
+		mustClauses = append(mustClauses, locationFilter)
 	}
 
 	// ✅ INVESTMENT RANGE (Overlap Logic with Lakhs Conversion)
@@ -697,7 +689,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if maxLakhs > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{
 						"lte": maxLakhs,
 					},
 				},

@@ -556,29 +556,24 @@ func (h *Handler) buildBasicQuery(query string, entityType string) map[string]in
 
 	var filterClauses []interface{}
 	if detectedCity != "" {
-		// Location is a SOFT boost (not hard filter) because ES location field
-		// contains regions ("South India") not cities ("Delhi"). Hard filter would return 0.
 		locationTerms := location.BuildLocationTerms(detectedCity)
 		
-		if existingShould, ok := boolQuery["should"].([]interface{}); ok {
-			boolQuery["should"] = append(existingShould,
-				map[string]interface{}{
-					"constant_score": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"terms": map[string]interface{}{"location.keyword": locationTerms},
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"terms": map[string]interface{}{"location.keyword": locationTerms},
+					},
+					{
+						"multi_match": map[string]interface{}{
+							"query":  detectedCity,
+							"fields": []string{"description", "name", "location", "country"},
 						},
-						"boost": 10,
 					},
 				},
-				map[string]interface{}{
-					"multi_match": map[string]interface{}{
-						"query":  detectedCity,
-						"fields": []string{"description", "name", "location", "country"},
-						"boost":  5,
-					},
-				},
-			)
-		}
+				"minimum_should_match": 1,
+			},
+		})
 	}
 	if entityType != "" && entityType != "all" {
 		filterClauses = append(filterClauses, map[string]interface{}{
@@ -1053,32 +1048,30 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 		})
 	}
 
-	// Location: SOFT boost for ALL entity types.
-	// ES location field contains regions ("South India") not cities ("Delhi"),
-	// so hard keyword filter would return 0. Use soft boost + description match instead.
+	// Location: HARD filter for ALL entity types.
 	if params.Location != nil && params.Location.City != "" {
 		cities := strings.Split(params.Location.City, ",")
 		var allTerms []string
 		for _, city := range cities {
 			allTerms = append(allTerms, location.BuildLocationTerms(strings.TrimSpace(city))...)
 		}
-		// Soft boost on location.keyword (matches if region happens to match)
-		softBoosts = append(softBoosts, map[string]interface{}{
-			"constant_score": map[string]interface{}{
-				"filter": map[string]interface{}{
-					"terms": map[string]interface{}{
-						"location.keyword": dedupLocationTerms(allTerms),
+		
+		filterClauses = append(filterClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"terms": map[string]interface{}{
+							"location.keyword": dedupLocationTerms(allTerms),
+						},
+					},
+					{
+						"multi_match": map[string]interface{}{
+							"query":  params.Location.City,
+							"fields": []string{"description", "name", "location", "country"},
+						},
 					},
 				},
-				"boost": 10,
-			},
-		})
-		// Also boost franchises that mention the city in description/name
-		softBoosts = append(softBoosts, map[string]interface{}{
-			"multi_match": map[string]interface{}{
-				"query":  params.Location.City,
-				"fields": []string{"description", "name", "location", "country"},
-				"boost":  5,
+				"minimum_should_match": 1,
 			},
 		})
 	}
@@ -1089,7 +1082,7 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 			maxLakhs := params.Investment.Max / 100000
 			filterClauses = append(filterClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{"lte": maxLakhs},
+					"investment.max_investment": map[string]interface{}{"lte": maxLakhs},
 				},
 			})
 		}
