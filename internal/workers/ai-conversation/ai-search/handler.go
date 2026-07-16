@@ -761,36 +761,72 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 	if params.Industry != "" {
 		industrySlug := GetIndustrySlug(params.Industry)
 
-		mustClauses = append(mustClauses, map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []interface{}{
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.name.keyword": params.Industry,
-						},
+		var shouldQueries []interface{}
+		
+		// Exact Match on Industry Name
+		shouldQueries = append(shouldQueries, map[string]interface{}{
+			"term": map[string]interface{}{
+				"industry.name.keyword": params.Industry,
+			},
+		})
+
+		// Split comma-separated slugs and add term queries for each
+		slugs := strings.Split(industrySlug, ",")
+		for _, slg := range slugs {
+			slugTrimmed := strings.TrimSpace(slg)
+			if slugTrimmed == "" {
+				continue
+			}
+			shouldQueries = append(shouldQueries, map[string]interface{}{
+				"term": map[string]interface{}{
+					"industry.slug": slugTrimmed,
+				},
+			})
+		}
+
+		shouldQueries = append(shouldQueries,
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"industry.name": map[string]interface{}{
+						"query":    params.Industry,
+						"operator": "and",
 					},
-					map[string]interface{}{
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"tags": map[string]interface{}{
+						"query":    params.Industry,
+						"operator": "and",
+					},
+				},
+			},
+			map[string]interface{}{
+				"match": map[string]interface{}{
+					"name": map[string]interface{}{
+						"query":    params.Industry,
+						"operator": "and",
+					},
+				},
+			},
+			map[string]interface{}{
+				"nested": map[string]interface{}{
+					"path": "categories",
+					"query": map[string]interface{}{
 						"match": map[string]interface{}{
-							"industry.name": map[string]interface{}{
-								"query":    params.Industry,
-								"operator": "and",
-							},
-						},
-					},
-					map[string]interface{}{
-						"term": map[string]interface{}{
-							"industry.slug": industrySlug,
-						},
-					},
-					map[string]interface{}{
-						"match": map[string]interface{}{
-							"tags": map[string]interface{}{
+							"categories.name": map[string]interface{}{
 								"query":    params.Industry,
 								"operator": "and",
 							},
 						},
 					},
 				},
+			},
+		)
+
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should":               shouldQueries,
 				"minimum_should_match": 1,
 			},
 		})

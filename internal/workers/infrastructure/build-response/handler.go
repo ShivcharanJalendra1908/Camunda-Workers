@@ -491,12 +491,20 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 			response["success"] = true
 		}
 
+		// Check both ExtractedParams and searchParams (if mapped from BPMN)
+		var paramsToCheck map[string]interface{}
 		if len(input.ExtractedParams) > 0 {
+			paramsToCheck = input.ExtractedParams
+		} else if sp, ok := combinedData["searchParams"].(map[string]interface{}); ok {
+			paramsToCheck = sp
+		}
+
+		if len(paramsToCheck) > 0 {
 			if metaMap, ok := response["metadata"].(map[string]interface{}); ok {
-				if switchApi, exists := input.ExtractedParams["switchApi"].(bool); exists && switchApi {
+				if switchApi, exists := paramsToCheck["switchApi"].(bool); exists && switchApi {
 					metaMap["switchApi"] = true
 				}
-				if redirectUrl, exists := input.ExtractedParams["redirectUrl"].(string); exists && redirectUrl != "" {
+				if redirectUrl, exists := paramsToCheck["redirectUrl"].(string); exists && redirectUrl != "" {
 					metaMap["redirectUrl"] = redirectUrl
 				}
 			}

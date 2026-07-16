@@ -268,26 +268,19 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 	shouldClauses := query["bool"].(map[string]interface{})["should"].([]map[string]interface{})
 
 	// ✅ INDUSTRY FILTER (TOP LEVEL OBJECT)
-	if input.Industry != "" {
-		industries := strings.Split(input.Industry, ",")
+	if input.IndustrySlug != "" {
+		slugs := strings.Split(input.IndustrySlug, ",")
 		var shouldTerms []map[string]interface{}
-		for _, ind := range industries {
-			indTrimmed := strings.TrimSpace(ind)
-			if indTrimmed == "" {
+		for _, slg := range slugs {
+			slugTrimmed := strings.TrimSpace(slg)
+			if slugTrimmed == "" {
 				continue
 			}
-			shouldTerms = append(shouldTerms, 
-				map[string]interface{}{
-					"term": map[string]interface{}{
-						"industry.slug": strings.ToLower(indTrimmed),
-					},
+			shouldTerms = append(shouldTerms, map[string]interface{}{
+				"term": map[string]interface{}{
+					"industry.slug": slugTrimmed,
 				},
-				map[string]interface{}{
-					"match": map[string]interface{}{
-						"industry.name": indTrimmed,
-					},
-				},
-			)
+			})
 		}
 		if len(shouldTerms) > 0 {
 			// Extract safe explicit words to bypass the industry filter
