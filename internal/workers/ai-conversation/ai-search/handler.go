@@ -630,6 +630,17 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 			cleanQuery = re.ReplaceAllString(cleanQuery, "")
 		}
 
+		// Strip parameter-related keywords and values that shouldn't be forced into text match
+		paramPatterns := []string{
+			`\b\d+(\.\d+)?\s*(lakhs?|lacs?|crores?|cr|k|roi|sqft|sq\s*ft|members?)\b`,
+			`\bbudget\b`, `\binvestment\b`, `\broi\b`, `\bspace\b`, `\barea\b`, `\bfee\b`, `\bcost\b`, `\bprice\b`,
+			`\blakhs?\b`, `\blacs?\b`, `\bcrores?\b`, `\bcr\b`,
+		}
+		for _, pattern := range paramPatterns {
+			re := regexp.MustCompile(`(?i)` + pattern)
+			cleanQuery = re.ReplaceAllString(cleanQuery, "")
+		}
+
 		// Strip common prepositions and conjunctions
 		prepositions := []string{
 			"in", "at", "for", "near", "from", "within", "across", "around", "of", "the", "a", "an", "to", "with", "by", "on",

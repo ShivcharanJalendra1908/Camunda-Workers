@@ -9,6 +9,7 @@ import (
 
 	"camunda-workers/internal/common/logger"
 	"camunda-workers/internal/crypto"
+
 	"github.com/camunda/zeebe/clients/go/v8/pkg/entities"
 	"github.com/camunda/zeebe/clients/go/v8/pkg/worker"
 	"github.com/elastic/go-elasticsearch/v8"
@@ -22,10 +23,10 @@ type Config struct {
 }
 
 type Handler struct {
-	config *Config
-	db     *sql.DB
-	es     *elasticsearch.Client
-	logger logger.Logger
+	config    *Config
+	db        *sql.DB
+	es        *elasticsearch.Client
+	logger    logger.Logger
 	encryptor *crypto.Encryptor
 }
 
@@ -51,7 +52,7 @@ func NewHandler(cfg *Config, db *sql.DB, es *elasticsearch.Client, log logger.Lo
 
 func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	jobKey := job.GetKey()
-	
+
 	h.logger.Info("Starting sync to elasticsearch v2", map[string]interface{}{"jobKey": jobKey})
 
 	variables, err := job.GetVariablesAsMap()
@@ -107,7 +108,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		WHERE l.id = $1
 		LIMIT 1
 	`
-	
+
 	var f struct {
 		ID                   string          `json:"id"`
 		Name                 string          `json:"name"`
@@ -202,7 +203,7 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	// 3. Entity is live, index into ES
-	
+
 	// Parse association_metadata if present
 	var assocMeta map[string]interface{}
 	if len(f.AssociationMetadata) > 0 {
@@ -264,8 +265,8 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 		spaceDoc = map[string]interface{}{
 			"minSpace":  minSpaceVal,
 			"maxSpace":  maxSpaceVal,
-			"min_space":  minSpaceVal,
-			"max_space":  maxSpaceVal,
+			"min_space": minSpaceVal,
+			"max_space": maxSpaceVal,
 			"spaceUnit": "sq ft",
 		}
 	}
@@ -292,13 +293,6 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 			"minInvestment":  minLakhs,
 			"maxInvestment":  maxLakhs,
 		}
-	}
-
-	getStr := func(s *string) string {
-		if s == nil {
-			return ""
-		}
-		return *s
 	}
 
 	var industryDoc map[string]interface{}
@@ -341,42 +335,42 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 	}
 
 	doc := map[string]interface{}{
-		"franchise_id":         f.ID,
-		"name":                 f.Name,
-		"slug":                 f.Slug,
-		"entity_type":          f.EntityType,
-		"status":               f.Status,
-		"short_description":    f.ShortDescription,
-		"description":          f.Description,
-		"trusted_seller":       f.TrustedSeller,
-		"verified":             f.Verified,
-		"total_outlets":        f.TotalOutlets,
-		"industry":             industryDoc,
-		"categories":           categories,
-		"business_type":        f.BusinessType,
-		"established_year":     f.EstablishedYear,
+		"franchise_id":          f.ID,
+		"name":                  f.Name,
+		"slug":                  f.Slug,
+		"entity_type":           f.EntityType,
+		"status":                f.Status,
+		"short_description":     f.ShortDescription,
+		"description":           f.Description,
+		"trusted_seller":        f.TrustedSeller,
+		"verified":              f.Verified,
+		"total_outlets":         f.TotalOutlets,
+		"industry":              industryDoc,
+		"categories":            categories,
+		"business_type":         f.BusinessType,
+		"established_year":      f.EstablishedYear,
 		"year_of_establishment": f.EstablishedYear,
 		"logo": map[string]interface{}{
 			"circle": f.LogoURLCircle,
 			"square": f.LogoURLSquare,
 			"alt":    f.Name,
 		},
-		"location":             locationStrings,
-		"rating":               5.0,
-		"country":              country,
-		"exclusivity_type":     exclusivityType,
-		"membership_fee_min":   f.MembershipFeeMin,
-		"membership_fee_max":   f.MembershipFeeMax,
-		"approved_at":          f.ApprovedAt,
-		"website_url":          f.WebsiteURL,
-		"is_featured":          f.IsFeatured,
-		"featured_start_at":    f.FeaturedStartAt,
-		"featured_expires_at":  f.FeaturedExpiresAt,
-		"featured_order":       f.FeaturedOrder,
-		"is_sponsored":         f.IsSponsored,
-		"territory_scope":      territoryScope,
-		"territory_details":    territoryDetails,
-		"updated_at":           time.Now().Format(time.RFC3339),
+		"location":            locationStrings,
+		"rating":              5.0,
+		"country":             country,
+		"exclusivity_type":    exclusivityType,
+		"membership_fee_min":  f.MembershipFeeMin,
+		"membership_fee_max":  f.MembershipFeeMax,
+		"approved_at":         f.ApprovedAt,
+		"website_url":         f.WebsiteURL,
+		"is_featured":         f.IsFeatured,
+		"featured_start_at":   f.FeaturedStartAt,
+		"featured_expires_at": f.FeaturedExpiresAt,
+		"featured_order":      f.FeaturedOrder,
+		"is_sponsored":        f.IsSponsored,
+		"territory_scope":     territoryScope,
+		"territory_details":   territoryDetails,
+		"updated_at":          time.Now().Format(time.RFC3339),
 	}
 
 	if spaceDoc != nil {
