@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"context"
@@ -567,6 +567,21 @@ func (h *FranchiseHandler) SearchFranchises(c *gin.Context) {
 	if err != nil {
 		h.internalError(c, "Failed to search franchises", err)
 		return
+	}
+
+	// Handle AI-driven redirection
+	if metadata, ok := response["metadata"].(map[string]interface{}); ok {
+		if switchAPI, _ := metadata["switchApi"].(bool); switchAPI {
+			if redirectURL, _ := metadata["redirectUrl"].(string); redirectURL != "" {
+				h.logger.Info("AI triggered API redirection", map[string]interface{}{
+					"from": c.Request.URL.String(),
+					"to":   redirectURL,
+				})
+				// Use 307 Temporary Redirect to preserve the HTTP method (though this is GET anyway)
+				c.Redirect(http.StatusTemporaryRedirect, redirectURL)
+				return
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, response)
