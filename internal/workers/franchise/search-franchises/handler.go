@@ -686,30 +686,20 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 
 		if minLakhs > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"investment.max_investment": map[string]interface{}{
-								"gte": minLakhs,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{
+						"gte": minLakhs,
 					},
-					"boost": 20,
 				},
 			})
 		}
 		if maxLakhs > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"investment.min_investment": map[string]interface{}{
-								"lte": maxLakhs,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{
+						"lte": maxLakhs,
 					},
-					"boost": 20,
 				},
 			})
 		}
@@ -718,30 +708,20 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 	// ✅ SPACE RANGE (Overlap Logic) - SOFT BOOST
 	if input.MinSpace > 0 || input.MaxSpace > 0 {
 		if input.MinSpace > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"space.max_space": map[string]interface{}{
-								"gte": input.MinSpace,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.max_space": map[string]interface{}{
+						"gte": input.MinSpace,
 					},
-					"boost": 15,
 				},
 			})
 		}
 		if input.MaxSpace > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"space.min_space": map[string]interface{}{
-								"lte": input.MaxSpace,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"space.min_space": map[string]interface{}{
+						"lte": input.MaxSpace,
 					},
-					"boost": 15,
 				},
 			})
 		}
@@ -756,26 +736,21 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MaxSize > 0 {
 			rangeFilter["lte"] = input.MaxSize
 		}
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"constant_score": map[string]interface{}{
-				"filter": map[string]interface{}{
-					"bool": map[string]interface{}{
-						"should": []map[string]interface{}{
-							{
-								"range": map[string]interface{}{
-									"member_count": rangeFilter,
-								},
-							},
-							{
-								"range": map[string]interface{}{
-									"total_outlets": rangeFilter,
-								},
-							},
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"bool": map[string]interface{}{
+				"should": []map[string]interface{}{
+					{
+						"range": map[string]interface{}{
+							"member_count": rangeFilter,
 						},
-						"minimum_should_match": 1,
+					},
+					{
+						"range": map[string]interface{}{
+							"total_outlets": rangeFilter,
+						},
 					},
 				},
-				"boost": 10,
+				"minimum_should_match": 1,
 			},
 		})
 	}
@@ -783,30 +758,20 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 	// ✅ FEE RANGE (Overlap Logic for membership_fee_min & max) - SOFT BOOST
 	if input.MinFee > 0 || input.MaxFee > 0 {
 		if input.MinFee > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"membership_fee_max": map[string]interface{}{
-								"gte": input.MinFee,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_max": map[string]interface{}{
+						"gte": input.MinFee,
 					},
-					"boost": 15,
 				},
 			})
 		}
 		if input.MaxFee > 0 {
-			shouldClauses = append(shouldClauses, map[string]interface{}{
-				"constant_score": map[string]interface{}{
-					"filter": map[string]interface{}{
-						"range": map[string]interface{}{
-							"membership_fee_min": map[string]interface{}{
-								"lte": input.MaxFee,
-							},
-						},
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"membership_fee_min": map[string]interface{}{
+						"lte": input.MaxFee,
 					},
-					"boost": 15,
 				},
 			})
 		}
@@ -814,16 +779,11 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 
 	// ✅ RATING FILTER - SOFT BOOST
 	if input.MinRating > 0 {
-		shouldClauses = append(shouldClauses, map[string]interface{}{
-			"constant_score": map[string]interface{}{
-				"filter": map[string]interface{}{
-					"range": map[string]interface{}{
-						"rating": map[string]interface{}{
-							"gte": input.MinRating,
-						},
-					},
+		mustClauses = append(mustClauses, map[string]interface{}{
+			"range": map[string]interface{}{
+				"rating": map[string]interface{}{
+					"gte": input.MinRating,
 				},
-				"boost": 10,
 			},
 		})
 	}
