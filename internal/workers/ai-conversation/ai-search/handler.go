@@ -640,9 +640,10 @@ func (h *Handler) buildElasticsearchQuery(params *ExtractedParameters, textMatch
 				// 3. Exact text match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":  cleanQuery,
-						"fields": []string{"name^3", "description", "tags", "categories.name"},
-						"type":   "best_fields",
+						"query":                cleanQuery,
+						"fields":               []string{"name^3", "description", "tags", "categories.name"},
+						"type":                 "best_fields",
+						"minimum_should_match": "2<70%",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)

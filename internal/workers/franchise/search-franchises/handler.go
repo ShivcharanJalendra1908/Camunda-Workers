@@ -460,10 +460,10 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				// 3. Exact match on name, tags, industry (no fuzziness)
 				{
 					"multi_match": map[string]interface{}{
-						"query":    cleanQuery,
-						"fields":   []string{"name^3", "description^2", "tags^3", "industry.name^2"},
-						"type":     "best_fields",
-						"operator": "and",
+						"query":                cleanQuery,
+						"fields":               []string{"name^3", "description^2", "tags^3", "industry.name^2"},
+						"type":                 "best_fields",
+						"minimum_should_match": "2<70%",
 					},
 				},
 				// 4. Categories nested match (no fuzziness)
@@ -472,10 +472,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 						"path": "categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"categories.name": map[string]interface{}{
-									"query":    cleanQuery,
-									"operator": "and",
-								},
+								"categories.name": cleanQuery,
 							},
 						},
 					},
@@ -486,10 +483,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 						"path": "sub_categories",
 						"query": map[string]interface{}{
 							"match": map[string]interface{}{
-								"sub_categories.name": map[string]interface{}{
-									"query":    cleanQuery,
-									"operator": "and",
-								},
+								"sub_categories.name": cleanQuery,
 							},
 						},
 					},
@@ -501,10 +495,11 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 				shouldQueries = append(shouldQueries,
 					map[string]interface{}{
 						"multi_match": map[string]interface{}{
-							"query":     cleanQuery,
-							"fields":    []string{"name^3", "description", "tags^2", "industry.name^2"},
-							"type":      "best_fields",
-							"fuzziness": "AUTO",
+							"query":                cleanQuery,
+							"fields":               []string{"name^3", "description", "tags^2", "industry.name^2"},
+							"type":                 "best_fields",
+							"fuzziness":            "AUTO",
+							"minimum_should_match": "2<70%",
 						},
 					},
 					map[string]interface{}{
