@@ -1024,6 +1024,30 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 			input.Industry = ind
 		}
 	}
+
+	// If IndustrySlug is somehow empty (e.g. not mapped in BPMN) but Industry is provided, dynamically generate it
+	if input.IndustrySlug == "" && input.Industry != "" {
+		parts := strings.Split(input.Industry, ",")
+		var slugs []string
+		for _, part := range parts {
+			partTrimmed := strings.TrimSpace(part)
+			if partTrimmed == "" {
+				continue
+			}
+			slug := strings.ToLower(partTrimmed)
+			slug = strings.ReplaceAll(slug, " & ", "-")
+			slug = strings.ReplaceAll(slug, " / ", "-")
+			slug = strings.ReplaceAll(slug, "&", "")
+			slug = strings.ReplaceAll(slug, "/", "")
+			slug = strings.ReplaceAll(slug, ",", "")
+			slug = strings.ReplaceAll(slug, " ", "-")
+			for strings.Contains(slug, "--") {
+				slug = strings.ReplaceAll(slug, "--", "-")
+			}
+			slugs = append(slugs, slug)
+		}
+		input.IndustrySlug = strings.Join(slugs, ",")
+	}
 	if location, ok := vars["location"].(string); ok {
 		input.Location = location
 	}
