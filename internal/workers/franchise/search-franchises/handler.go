@@ -980,6 +980,19 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 	if industry, ok := vars["industry"].(string); ok {
 		input.Industry = industry
 	}
+	if industrySlug, ok := vars["industrySlug"].(string); ok {
+		input.IndustrySlug = industrySlug
+	}
+	if searchParams, ok := vars["searchParams"].(map[string]interface{}); ok {
+		if indSlug, ok := searchParams["industrySlugAll"].(string); ok && indSlug != "" {
+			input.IndustrySlug = indSlug
+		} else if indSlug, ok := searchParams["industrySlug"].(string); ok && indSlug != "" {
+			input.IndustrySlug = indSlug
+		}
+		if ind, ok := searchParams["industry"].(string); ok && ind != "" && input.Industry == "" {
+			input.Industry = ind
+		}
+	}
 	if location, ok := vars["location"].(string); ok {
 		input.Location = location
 	}
