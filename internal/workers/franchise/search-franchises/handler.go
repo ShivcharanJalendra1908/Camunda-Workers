@@ -980,6 +980,36 @@ func (h *Handler) executeSearch(ctx context.Context, request *SearchRequest) ([]
 					if source, ok := hitMap["_source"].(map[string]interface{}); ok {
 						source["_id"] = hitMap["_id"]
 						source["_score"] = hitMap["_score"]
+
+						// Fix frontend location array display issue
+						if locs, ok := source["location"].([]interface{}); ok {
+							var strLocs []string
+							for _, l := range locs {
+								if s, ok := l.(string); ok && s != "" {
+									strLocs = append(strLocs, s)
+								}
+							}
+							if len(strLocs) > 0 {
+								zoneCount := 0
+								for _, l := range strLocs {
+									if strings.Contains(l, "India") || strings.Contains(l, "Territorie") {
+										zoneCount++
+									}
+								}
+								var display string
+								if zoneCount >= 3 || len(strLocs) >= 4 {
+									display = "Pan India"
+								} else {
+									display = strLocs[0]
+									if len(strLocs) > 1 {
+										display += ", " + strLocs[1]
+									}
+								}
+								// Return as a single-element array to bypass frontend concat bug
+								source["location"] = []string{display}
+							}
+						}
+
 						allResults = append(allResults, source)
 					}
 				}
