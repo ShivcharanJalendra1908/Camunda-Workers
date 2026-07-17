@@ -17,6 +17,8 @@ type Input struct {
 	MinFee        float64  `json:"min_fee"`
 	MaxFee        float64  `json:"max_fee"`
 	MinRating     float64  `json:"min_rating"`
+	MinROI        float64  `json:"min_roi"`
+	MaxROI        float64  `json:"max_roi"`
 	Tags          []string `json:"tags"`
 	Page          int      `json:"page"`
 	Limit         int      `json:"limit"`

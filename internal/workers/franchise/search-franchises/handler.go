@@ -688,6 +688,28 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 	}
 
+	// ✅ ROI RANGE (Overlap Logic) - SOFT BOOST
+	if input.MinROI > 0 || input.MaxROI > 0 {
+		if input.MinROI > 0 {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"roi.max": map[string]interface{}{
+						"gte": input.MinROI,
+					},
+				},
+			})
+		}
+		if input.MaxROI > 0 {
+			mustClauses = append(mustClauses, map[string]interface{}{
+				"range": map[string]interface{}{
+					"roi.min": map[string]interface{}{
+						"lte": input.MaxROI,
+					},
+				},
+			})
+		}
+	}
+
 	// ✅ SIZE RANGE - SOFT BOOST
 	if input.MinSize > 0 || input.MaxSize > 0 {
 		rangeFilter := map[string]interface{}{}
@@ -1172,6 +1194,16 @@ func (h *Handler) parseInput(job entities.Job) (*Input, error) {
 		if input.MinRating == 0 {
 			if r, ok := getNumber(ep, "minRating"); ok && r > 0 {
 				input.MinRating = r
+			}
+		}
+		if input.MinROI == 0 {
+			if min, ok := getNumber(ep, "roi", "minROI", "minRoi"); ok && min > 0 {
+				input.MinROI = min
+			}
+		}
+		if input.MaxROI == 0 {
+			if max, ok := getNumber(ep, "maxRoi", "maxROI"); ok && max > 0 {
+				input.MaxROI = max
 			}
 		}
 		if input.MinSize == 0 {
