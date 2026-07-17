@@ -433,7 +433,15 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 
 		// Strip parameter-related keywords and values that shouldn't be forced into text match
 		paramPatterns := []string{
-			`\b\d+(\.\d+)?\s*(lakhs?|lacs?|crores?|cr|k|roi|sqft|sq\s*ft|members?)\b`,
+			// Strip full "between X to Y [unit]" patterns
+			`\b(?:between\s+)?\d+(\.\d+)?\s*%?\s*(?:to|-|and)\s*\d+(\.\d+)?\s*%?\s*(?:lakhs?|lacs?|crores?|cr|k|roi|sqft|sq\s*ft|members?)\b`,
+			// Strip "less than X [unit]" / "more than X [unit]" patterns
+			`\b(?:under|below|max|less\s+than|upto|above|over|more\s+than|at\s+least|min|more)\s*\d+(\.\d+)?\s*%?\s*(?:lakhs?|lacs?|crores?|cr|k|roi|sqft|sq\s*ft|members?)\b`,
+			// Strip standard "X [unit]" patterns
+			`\b\d+(\.\d+)?\s*%?\s*(?:lakhs?|lacs?|crores?|cr|k|roi|sqft|sq\s*ft|members?)\b`,
+			// Strip standalone percentage numbers since they are likely part of ROI/etc
+			`\b\d+(\.\d+)?\s*%\b`,
+			// Strip keywords
 			`\bbudget\b`, `\binvestment\b`, `\broi\b`, `\bspace\b`, `\barea\b`, `\bfee\b`, `\bcost\b`, `\bprice\b`,
 			`\blakhs?\b`, `\blacs?\b`, `\bcrores?\b`, `\bcr\b`,
 		}
