@@ -658,7 +658,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if maxLakhs > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{
 						"lte": maxLakhs,
 					},
 				},
