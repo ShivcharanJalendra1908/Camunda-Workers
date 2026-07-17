@@ -671,7 +671,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MinSpace > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"space.max_space": map[string]interface{}{
+					"space.maxSpace": map[string]interface{}{
 						"gte": input.MinSpace,
 					},
 				},
@@ -680,7 +680,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MaxSpace > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"space.min_space": map[string]interface{}{
+					"space.minSpace": map[string]interface{}{
 						"lte": input.MaxSpace,
 					},
 				},
@@ -1038,6 +1038,12 @@ func (h *Handler) executeSearch(ctx context.Context, request *SearchRequest) ([]
 								// Return as a single-element array to bypass frontend concat bug
 								source["location"] = []string{display}
 							}
+						}
+
+						// Clean up duplicate snake_case space fields to avoid UI clutter
+						if space, ok := source["space"].(map[string]interface{}); ok {
+							delete(space, "min_space")
+							delete(space, "max_space")
 						}
 
 						allResults = append(allResults, source)
