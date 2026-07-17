@@ -665,9 +665,22 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 		if maxLakhs > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{
-						"lte": maxLakhs,
+				"bool": map[string]interface{}{
+					"must": []map[string]interface{}{
+						{
+							"range": map[string]interface{}{
+								"investment.max_investment": map[string]interface{}{
+									"lte": maxLakhs,
+								},
+							},
+						},
+						{
+							"range": map[string]interface{}{
+								"investment.max_investment": map[string]interface{}{
+									"gt": 0,
+								},
+							},
+						},
 					},
 				},
 			})
@@ -687,9 +700,22 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 		if input.MaxSpace > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"space.maxSpace": map[string]interface{}{
-						"lte": input.MaxSpace,
+				"bool": map[string]interface{}{
+					"must": []map[string]interface{}{
+						{
+							"range": map[string]interface{}{
+								"space.maxSpace": map[string]interface{}{
+									"lte": input.MaxSpace,
+								},
+							},
+						},
+						{
+							"range": map[string]interface{}{
+								"space.maxSpace": map[string]interface{}{
+									"gt": 0,
+								},
+							},
+						},
 					},
 				},
 			})
@@ -709,9 +735,22 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 		if input.MaxROI > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"roi.max": map[string]interface{}{
-						"lte": input.MaxROI,
+				"bool": map[string]interface{}{
+					"must": []map[string]interface{}{
+						{
+							"range": map[string]interface{}{
+								"roi.max": map[string]interface{}{
+									"lte": input.MaxROI,
+								},
+							},
+						},
+						{
+							"range": map[string]interface{}{
+								"roi.max": map[string]interface{}{
+									"gt": 0,
+								},
+							},
+						},
 					},
 				},
 			})
@@ -781,9 +820,22 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 		if input.MaxFee > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
-				"range": map[string]interface{}{
-					"membership_fee_max": map[string]interface{}{
-						"lte": input.MaxFee,
+				"bool": map[string]interface{}{
+					"must": []map[string]interface{}{
+						{
+							"range": map[string]interface{}{
+								"membership_fee_max": map[string]interface{}{
+									"lte": input.MaxFee,
+								},
+							},
+						},
+						{
+							"range": map[string]interface{}{
+								"membership_fee_max": map[string]interface{}{
+									"gt": 0,
+								},
+							},
+						},
 					},
 				},
 			})
