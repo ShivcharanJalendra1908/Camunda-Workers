@@ -657,7 +657,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if minLakhs > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.max_investment": map[string]interface{}{
+					"investment.min_investment": map[string]interface{}{
 						"gte": minLakhs,
 					},
 				},
@@ -666,7 +666,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if maxLakhs > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"investment.min_investment": map[string]interface{}{
+					"investment.max_investment": map[string]interface{}{
 						"lte": maxLakhs,
 					},
 				},
@@ -674,12 +674,12 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 	}
 
-	// ✅ SPACE RANGE (Overlap Logic) - SOFT BOOST
+	// ✅ SPACE RANGE (Strict Containment)
 	if input.MinSpace > 0 || input.MaxSpace > 0 {
 		if input.MinSpace > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"space.maxSpace": map[string]interface{}{
+					"space.minSpace": map[string]interface{}{
 						"gte": input.MinSpace,
 					},
 				},
@@ -688,7 +688,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MaxSpace > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"space.minSpace": map[string]interface{}{
+					"space.maxSpace": map[string]interface{}{
 						"lte": input.MaxSpace,
 					},
 				},
@@ -696,12 +696,12 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 	}
 
-	// ✅ ROI RANGE (Overlap Logic) - SOFT BOOST
+	// ✅ ROI RANGE (Strict Containment)
 	if input.MinROI > 0 || input.MaxROI > 0 {
 		if input.MinROI > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.max": map[string]interface{}{
+					"roi.min": map[string]interface{}{
 						"gte": input.MinROI,
 					},
 				},
@@ -710,7 +710,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MaxROI > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"roi.min": map[string]interface{}{
+					"roi.max": map[string]interface{}{
 						"lte": input.MaxROI,
 					},
 				},
@@ -718,7 +718,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		}
 	}
 
-	// ✅ SIZE RANGE - SOFT BOOST
+	// ✅ SIZE RANGE
 	if input.MinSize > 0 || input.MaxSize > 0 {
 		rangeFilter := map[string]interface{}{}
 		if input.MinSize > 0 {
@@ -731,13 +731,35 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 			"bool": map[string]interface{}{
 				"should": []map[string]interface{}{
 					{
-						"range": map[string]interface{}{
-							"member_count": rangeFilter,
+						"bool": map[string]interface{}{
+							"must": []map[string]interface{}{
+								{
+									"terms": map[string]interface{}{
+										"entity_type": []string{"association"},
+									},
+								},
+								{
+									"range": map[string]interface{}{
+										"member_count": rangeFilter,
+									},
+								},
+							},
 						},
 					},
 					{
-						"range": map[string]interface{}{
-							"total_outlets": rangeFilter,
+						"bool": map[string]interface{}{
+							"must": []map[string]interface{}{
+								{
+									"terms": map[string]interface{}{
+										"entity_type": []string{"franchise", "master_franchise", ""},
+									},
+								},
+								{
+									"range": map[string]interface{}{
+										"total_outlets": rangeFilter,
+									},
+								},
+							},
 						},
 					},
 				},
@@ -746,12 +768,12 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		})
 	}
 
-	// ✅ FEE RANGE (Overlap Logic for membership_fee_min & max) - SOFT BOOST
+	// ✅ FEE RANGE (Strict Containment for membership_fee_min & max)
 	if input.MinFee > 0 || input.MaxFee > 0 {
 		if input.MinFee > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"membership_fee_max": map[string]interface{}{
+					"membership_fee_min": map[string]interface{}{
 						"gte": input.MinFee,
 					},
 				},
@@ -760,7 +782,7 @@ func (h *Handler) buildSearchRequest(input *Input, useFuzzy bool) (*SearchReques
 		if input.MaxFee > 0 {
 			mustClauses = append(mustClauses, map[string]interface{}{
 				"range": map[string]interface{}{
-					"membership_fee_min": map[string]interface{}{
+					"membership_fee_max": map[string]interface{}{
 						"lte": input.MaxFee,
 					},
 				},
