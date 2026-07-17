@@ -1567,6 +1567,16 @@ func (h *Handler) buildResponse(input *SearchInput, params *ExtractedParameters,
 		extractedParams["maxStaff"] = params.Staff.Max
 	}
 
+	if params.MemberCount != nil {
+		extractedParams["minMembers"] = params.MemberCount.Min
+		extractedParams["maxMembers"] = params.MemberCount.Max
+	}
+
+	if params.MembershipFee != nil {
+		extractedParams["minFee"] = params.MembershipFee.Min
+		extractedParams["maxFee"] = params.MembershipFee.Max
+	}
+
 	if params.Outlets != nil {
 		extractedParams["minOutlets"] = *params.Outlets
 	}
