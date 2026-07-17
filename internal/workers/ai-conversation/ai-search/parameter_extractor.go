@@ -1402,7 +1402,17 @@ func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, q
 		}
 	}
 	if params.ROI == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*%\s*roi\b|\broi\s*([0-9.]+)\s*%\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.]+)\s*(?:%|percent)?\s*roi\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.ROI = &RangeFilter{Min: 0, Max: val}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min|more)\s*([0-9.]+)\s*(?:%|percent)?\s*roi\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.ROI = &RangeFilter{Min: val, Max: 100}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(?:%|percent)?\s*roi\b|\broi\s*([0-9.]+)\s*(?:%|percent)?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
 			v := matches[1]
 			if v == "" {
 				v = matches[2]
