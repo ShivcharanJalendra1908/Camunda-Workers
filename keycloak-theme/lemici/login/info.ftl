@@ -58,37 +58,33 @@
 
             <#-- Redirect Info or Countdown -->
             <#if message.summary?contains("verified") || message.summary?contains("activation")>
-                <#-- Email Verified Success page: Notify original tab (via localStorage) -->
-                <script>
-                    (function() {
-                        localStorage.setItem('email_verified_success', 'true');
-                    })();
-                </script>
-                <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px; line-height: 1.5;">
-                    Redirecting to application in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">10</span> seconds...
+                <#-- Email Verified Success page: Start authentication flow -->
+                <p style="font-size: 14px; color: #4b5563; margin-bottom: 24px; line-height: 1.6;">
+                    Your email address has been verified successfully. Your account is ready — please sign in to continue.
                 </p>
-                <#if pageRedirectUri?has_content>
-                    <a href="${pageRedirectUri}" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                        ${kcSanitize(msg("backToApplication"))?no_esc}
+
+                <div style="margin-bottom: 24px;">
+                    <a href="#" onclick="event.preventDefault(); window.location.href = getBffLoginStartUrl();" class="pf-c-button pf-m-primary pf-m-lg" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
+                        Sign In to LeMiCi
                     </a>
-                <#else>
-                    <a href="${url.loginUrl}" onclick="event.preventDefault(); handleReturnToApp();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 10px 24px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 15px;">
-                        ${kcSanitize(msg("backToApplication"))?no_esc}
-                    </a>
-                </#if>
+                </div>
+
+                <p style="font-size: 13px; color: #9ca3af; line-height: 1.5; margin-top: 16px;">
+                    If you registered on a different device, you can sign in from any device using this button.
+                </p>
+
                 <script>
-                    (function() {
-                        var sec = 10;
-                        var timer = setInterval(function() {
-                            sec--;
-                            var el = document.getElementById('countdown-sec');
-                            if (el) el.innerText = sec;
-                            if (sec <= 0) {
-                                clearInterval(timer);
-                                handleReturnToApp();
-                            }
-                        }, 1000);
-                    })();
+                    try {
+                        localStorage.removeItem('email_verified_success');
+                    } catch(e) {}
+
+                    function getBffLoginStartUrl() {
+                        var origin = window.location.origin;
+                        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                            return 'http://localhost:8080/api/v1/auth/login/start';
+                        }
+                        return origin + '/api/v1/auth/login/start';
+                    }
                 </script>
             <#elseif message.summary?contains("receive") || message.summary?contains("instruction") || message.summary?contains("sent")>
                 <#-- Email Sent page: Listen for success event from other tabs (via localStorage) -->
