@@ -1394,7 +1394,24 @@ func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, q
 
 	// FIX: Area, ROI, Rating, Staff, Outlets fallback
 	if params.Space == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(?:to|-|and)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			minVal, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
+			maxVal, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
+			if minVal > 0 && maxVal > 0 {
+				params.Space = &RangeFilter{Min: minVal, Max: maxVal}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
+			if val > 0 {
+				params.Space = &RangeFilter{Min: 0, Max: val}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
+			if val > 0 {
+				// Elasticsearch will handle Max: 0 (or absent) as unbounded in the query builder
+				params.Space = &RangeFilter{Min: val, Max: 0}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
 			if val > 0 {
 				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
