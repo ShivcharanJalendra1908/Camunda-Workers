@@ -1383,53 +1383,71 @@ func titleCaseLocation(s string) string {
 
 // ApplyRegexFallbacks applies regex-based extraction for numerical fields if they were missed
 func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, queryLower string) {
+	// ✅ STEP 0: Sanitize query — strip URL-encoded artifacts like stray '%' signs
+	// When users type "50% roi" in browser, the '%' can garble the URL decoding.
+	// Remove '%' so "50% roi" becomes "50 roi" and regex can match cleanly.
+	cleanQ := regexp.MustCompile(`%`).ReplaceAllString(queryLower, " ")
+	cleanQ = regexp.MustCompile(`\s+`).ReplaceAllString(cleanQ, " ")
+	cleanQ = strings.TrimSpace(cleanQ)
+
 	// FIX 0: Investment Fallback from query
 	if params.Investment == nil {
-		inv := pe.extractInvestmentFromQuery(queryLower)
+		inv := pe.extractInvestmentFromQuery(cleanQ)
 		if inv != nil {
 			params.Investment = inv
 			fmt.Printf("💰 Investment from query: Min=%v, Max=%v\n", inv.Min, inv.Max)
 		}
 	}
 
-	// FIX: Area, ROI, Rating, Staff, Outlets fallback
+	// ✅ SPACE FILTER (under/over/between/exact)
 	if params.Space == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(?:to|-|and)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(?:to|-|and)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			minVal, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
 			maxVal, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
 			if minVal > 0 && maxVal > 0 {
 				params.Space = &RangeFilter{Min: minVal, Max: maxVal}
 			}
-		} else if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
 			if val > 0 {
 				params.Space = &RangeFilter{Min: 0, Max: val}
 			}
-		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[2], ",", ""), 64)
 			if val > 0 {
-				// Elasticsearch will handle Max: 0 (or absent) as unbounded in the query builder
 				params.Space = &RangeFilter{Min: val, Max: 0}
 			}
-		} else if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(sq\s*ft|sqft)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9.,]+)\s*(?:sq\s*ft|sqft)\b`).FindStringSubmatch(cleanQ); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(strings.ReplaceAll(matches[1], ",", ""), 64)
 			if val > 0 {
 				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
 			}
 		}
 	}
+
+	// ✅ ROI FILTER (between/under/over/exact)
 	if params.ROI == nil {
-		if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.]+)\s*(?:%|percent)?\s*roi\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		// 1. Between/range: "between 25 to 35 roi", "25 to 35 roi", "25-35 roi"
+		if matches := regexp.MustCompile(`(?i)\b(?:between\s+)?([0-9.]+)\s*(?:to|-|and)\s*([0-9.]+)\s*(?:percent)?\s*roi\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			minVal, _ := strconv.ParseFloat(matches[1], 64)
+			maxVal, _ := strconv.ParseFloat(matches[2], 64)
+			if minVal > 0 && maxVal > 0 {
+				params.ROI = &RangeFilter{Min: minVal, Max: maxVal}
+			}
+		// 2. Under/below: "under 25 roi", "below 50 roi"
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.]+)\s*(?:percent)?\s*roi\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			val, _ := strconv.ParseFloat(matches[2], 64)
 			if val > 0 {
 				params.ROI = &RangeFilter{Min: 0, Max: val}
 			}
-		} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min|more)\s*([0-9.]+)\s*(?:%|percent)?\s*roi\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		// 3. Above/more: "more than 50 roi", "above 30 roi"
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9.]+)\s*(?:percent)?\s*roi\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			val, _ := strconv.ParseFloat(matches[2], 64)
 			if val > 0 {
-				params.ROI = &RangeFilter{Min: val, Max: 100}
+				params.ROI = &RangeFilter{Min: val, Max: 0}
 			}
-		} else if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(?:%|percent)?\s*roi\b|\broi\s*([0-9.]+)\s*(?:%|percent)?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
+		// 4. Exact value: "25 roi", "roi 25"
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(?:percent)?\s*roi\b|\broi\s*([0-9.]+)\s*(?:percent)?\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
 			v := matches[1]
 			if v == "" {
 				v = matches[2]
@@ -1440,24 +1458,61 @@ func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, q
 			}
 		}
 	}
+
+	// ✅ RATING FILTER (above/exact)
 	if params.Rating == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(star|rating)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least)\s*([0-9.]+)\s*(?:star|rating)s?\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.Rating = &val
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9.]+)\s*(?:star|rating)s?\b`).FindStringSubmatch(cleanQ); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(matches[1], 64)
 			if val > 0 {
 				params.Rating = &val
 			}
 		}
 	}
+
+	// ✅ STAFF FILTER (between/under/over/exact)
 	if params.Staff == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(staff|employees)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		if matches := regexp.MustCompile(`(?i)\b(?:between\s+)?([0-9]+)\s*(?:to|-|and)\s*([0-9]+)\s*(?:staff|employees)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			minVal, _ := strconv.ParseFloat(matches[1], 64)
+			maxVal, _ := strconv.ParseFloat(matches[2], 64)
+			if minVal > 0 && maxVal > 0 {
+				params.Staff = &RangeFilter{Min: minVal, Max: maxVal}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*(?:staff|employees)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.Staff = &RangeFilter{Min: 0, Max: val}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9]+)\s*(?:staff|employees)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.Staff = &RangeFilter{Min: val, Max: 0}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(?:staff|employees)\b`).FindStringSubmatch(cleanQ); len(matches) >= 2 {
 			val, _ := strconv.ParseFloat(matches[1], 64)
 			if val > 0 {
 				params.Staff = &RangeFilter{Min: val, Max: val * 3}
 			}
 		}
 	}
+
+	// ✅ OUTLETS FILTER (between/under/over/exact)
 	if params.Outlets == nil {
-		if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(outlets|units|stores)\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
+		if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*(?:outlets|units|stores)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.Atoi(matches[2])
+			if val > 0 {
+				params.Outlets = &val
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9]+)\s*(?:outlets|units|stores)\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.Atoi(matches[2])
+			if val > 0 {
+				params.Outlets = &val
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*(?:outlets|units|stores)\b`).FindStringSubmatch(cleanQ); len(matches) >= 2 {
 			val, _ := strconv.Atoi(matches[1])
 			if val > 0 {
 				params.Outlets = &val
@@ -1465,21 +1520,29 @@ func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, q
 		}
 	}
 
-	// FIX: Member_Count directionality (under 500, at least 500, etc.)
-	if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
-		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 {
-			params.MemberCount = &RangeFilter{Min: 0, Max: val}
-		}
-	} else if matches := regexp.MustCompile(`(?i)\b(above|more\s+than|at\s+least|min|more)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 3 {
-		val, _ := strconv.ParseFloat(matches[2], 64)
-		if val > 0 {
-			params.MemberCount = &RangeFilter{Min: val, Max: val * 5}
-		}
-	} else if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*members?\b`).FindStringSubmatch(queryLower); len(matches) >= 2 {
-		val, _ := strconv.ParseFloat(matches[1], 64)
-		if val > 0 {
-			params.MemberCount = &RangeFilter{Min: val * 0.5, Max: val * 2}
+	// ✅ MEMBER COUNT FILTER (between/under/over/exact)
+	if params.MemberCount == nil {
+		if matches := regexp.MustCompile(`(?i)\b(?:between\s+)?([0-9]+)\s*(?:to|-|and)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			minVal, _ := strconv.ParseFloat(matches[1], 64)
+			maxVal, _ := strconv.ParseFloat(matches[2], 64)
+			if minVal > 0 && maxVal > 0 {
+				params.MemberCount = &RangeFilter{Min: minVal, Max: maxVal}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|less\s+than|upto|max)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.MemberCount = &RangeFilter{Min: 0, Max: val}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9]+)\s*members?\b`).FindStringSubmatch(cleanQ); len(matches) >= 3 {
+			val, _ := strconv.ParseFloat(matches[2], 64)
+			if val > 0 {
+				params.MemberCount = &RangeFilter{Min: val, Max: 0}
+			}
+		} else if matches := regexp.MustCompile(`(?i)\b([0-9]+)\s*members?\b`).FindStringSubmatch(cleanQ); len(matches) >= 2 {
+			val, _ := strconv.ParseFloat(matches[1], 64)
+			if val > 0 {
+				params.MemberCount = &RangeFilter{Min: val * 0.5, Max: val * 2}
+			}
 		}
 	}
 }
@@ -1521,7 +1584,8 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.ROI.Min < 0 {
 			params.ROI.Min = 0
 		}
-		if params.ROI.Min > params.ROI.Max {
+		// Only swap if both are positive and Min > Max (don't swap when Max=0 means unbounded)
+		if params.ROI.Min > params.ROI.Max && params.ROI.Max > 0 {
 			params.ROI.Min, params.ROI.Max = params.ROI.Max, params.ROI.Min
 		}
 	}
@@ -1541,9 +1605,7 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.Space.Min < 0 {
 			params.Space.Min = 0
 		}
-		if params.Space.Max == 0 && params.Space.Min > 0 {
-			params.Space.Max = params.Space.Min * 5
-		}
+		// Don't auto-fill Max when Max=0 means unbounded (user said "over X sqft")
 		if params.Space.Min > params.Space.Max && params.Space.Max > 0 {
 			params.Space.Min, params.Space.Max = params.Space.Max, params.Space.Min
 		}
@@ -1553,9 +1615,7 @@ func (pe *ParameterExtractor) normalizeParameters(params *ExtractedParameters) e
 		if params.Staff.Min < 0 {
 			params.Staff.Min = 0
 		}
-		if params.Staff.Max == 0 && params.Staff.Min > 0 {
-			params.Staff.Max = params.Staff.Min * 3
-		}
+		// Don't auto-fill Max when Max=0 means unbounded (user said "more than X staff")
 		if params.Staff.Min > params.Staff.Max && params.Staff.Max > 0 {
 			params.Staff.Min, params.Staff.Max = params.Staff.Max, params.Staff.Min
 		}
