@@ -1260,7 +1260,7 @@ func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *Investme
 	if matches := maxInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
 		val := parseNumericValue(matches[2], matches[3])
 		if val > 0 {
-			return &InvestmentFilter{Min: val / 10, Max: val}
+			return &InvestmentFilter{Min: 0, Max: val}
 		}
 	}
 
@@ -1268,7 +1268,7 @@ func (pe *ParameterExtractor) extractInvestmentFromQuery(query string) *Investme
 	if matches := minInvRegex.FindStringSubmatch(query); len(matches) >= 4 {
 		val := parseNumericValue(matches[2], matches[3])
 		if val > 0 {
-			return &InvestmentFilter{Min: val, Max: val * 5}
+			return &InvestmentFilter{Min: val, Max: 0}
 		}
 	}
 
@@ -1422,6 +1422,27 @@ func (pe *ParameterExtractor) ApplyRegexFallbacks(params *ExtractedParameters, q
 			if val > 0 {
 				params.Space = &RangeFilter{Min: val * 0.8, Max: val * 1.5}
 			}
+		}
+	}
+
+	// ✅ MEMBERSHIP FEE FILTER
+	if params.MembershipFee == nil {
+		if matches := regexp.MustCompile(`(?i)\b(?:fee|membership|cost)\s*(?:is\s*)?(?:between|from)?\s*([0-9.,]+)\s*(?:to|-|and)\s*([0-9.,]+)\s*(k|lakhs?|lacs?|crores?|cr|)\b`).FindStringSubmatch(cleanQ); len(matches) >= 4 {
+			val1 := parseNumericValue(matches[1], matches[3])
+			val2 := parseNumericValue(matches[2], matches[3])
+			params.MembershipFee = &InvestmentFilter{Min: val1, Max: val2}
+		} else if matches := regexp.MustCompile(`(?i)\b(under|below|max|less\s+than|upto)\s*([0-9.,]+)\s*(k|lakhs?|lacs?|crores?|cr|)\s*(?:fee|membership|cost)\b`).FindStringSubmatch(cleanQ); len(matches) >= 4 {
+			val := parseNumericValue(matches[2], matches[3])
+			params.MembershipFee = &InvestmentFilter{Min: 0, Max: val}
+		} else if matches := regexp.MustCompile(`(?i)\b(?:fee|membership|cost)\s*(?:is\s*)?(under|below|max|less\s+than|upto)\s*([0-9.,]+)\s*(k|lakhs?|lacs?|crores?|cr|)\b`).FindStringSubmatch(cleanQ); len(matches) >= 4 {
+			val := parseNumericValue(matches[2], matches[3])
+			params.MembershipFee = &InvestmentFilter{Min: 0, Max: val}
+		} else if matches := regexp.MustCompile(`(?i)\b(above|over|more\s+than|at\s+least|min|more)\s*([0-9.,]+)\s*(k|lakhs?|lacs?|crores?|cr|)\s*(?:fee|membership|cost)\b`).FindStringSubmatch(cleanQ); len(matches) >= 4 {
+			val := parseNumericValue(matches[2], matches[3])
+			params.MembershipFee = &InvestmentFilter{Min: val, Max: 0}
+		} else if matches := regexp.MustCompile(`(?i)\b(?:fee|membership|cost)\s*(?:is\s*)?(above|over|more\s+than|at\s+least|min|more)\s*([0-9.,]+)\s*(k|lakhs?|lacs?|crores?|cr|)\b`).FindStringSubmatch(cleanQ); len(matches) >= 4 {
+			val := parseNumericValue(matches[2], matches[3])
+			params.MembershipFee = &InvestmentFilter{Min: val, Max: 0}
 		}
 	}
 
