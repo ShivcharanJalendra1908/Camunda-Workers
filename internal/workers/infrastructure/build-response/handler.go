@@ -2109,28 +2109,12 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				}
 			}
 
-			circle := ""
-			square := ""
-			if logo, ok := rec["logo"].(map[string]interface{}); ok {
-				if c, ok := logo["circle"].(string); ok {
-					circle = c
-				}
-				if s, ok := logo["square"].(string); ok {
-					square = s
-				}
-			}
-
 			transformed := map[string]interface{}{
 				"id":                 rec["id"],
 				"brand":              rec["brand"],
 				"industry":           industryName,     // ✅ String, not object
 				"industry_image_url": industryImageURL, // ✅ NEW
 				"slug":               rec["slug"],
-				"image": map[string]interface{}{
-					"circle": circle,
-					"square": square,
-					"alt":    rec["brand"],
-				},
 			}
 
 			transformedRecommended = append(transformedRecommended, transformed)
@@ -2384,28 +2368,12 @@ func (h *Handler) buildFranchiseDetailResponse(data map[string]interface{}) map[
 				}
 			}
 
-			circle := ""
-			square := ""
-			if logo, ok := rec["logo"].(map[string]interface{}); ok {
-				if c, ok := logo["circle"].(string); ok {
-					circle = c
-				}
-				if s, ok := logo["square"].(string); ok {
-					square = s
-				}
-			}
-
 			transformed := map[string]interface{}{
 				"id":                 rec["id"],
 				"brand":              rec["brand"],
 				"industry":           industryName,     // ✅ String, not object
 				"industry_image_url": industryImageURL, // ✅ NEW
 				"slug":               rec["slug"],
-				"image": map[string]interface{}{
-					"circle": circle,
-					"square": square,
-					"alt":    rec["brand"],
-				},
 			}
 
 			transformedRecommended = append(transformedRecommended, transformed)
