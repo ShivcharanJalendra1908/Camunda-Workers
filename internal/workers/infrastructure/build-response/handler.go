@@ -859,8 +859,12 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 
 		// location
 		loc := ""
-		if l, ok := assoc["location"].(string); ok {
-			loc = l
+		if lStr, ok := assoc["location"].(string); ok {
+			loc = lStr
+		} else if lArr, ok := assoc["location"].([]interface{}); ok && len(lArr) > 0 {
+			if firstLoc, ok := lArr[0].(string); ok {
+				loc = firstLoc
+			}
 		} else if city, ok := assoc["city"].(string); ok {
 			loc = city + ",India"
 		}
@@ -1497,11 +1501,25 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	if len(recommended) > 0 {
 		for _, item := range recommended {
 			if rMap, ok := item.(map[string]interface{}); ok {
+				iconUrl := getStringVal(rMap, "logo_url", "")
+				if iconUrl == "" {
+					if logo, ok := rMap["logo"].(map[string]interface{}); ok {
+						if sq, ok := logo["square"].(string); ok && sq != "" {
+							iconUrl = sq
+						} else if cir, ok := logo["circle"].(string); ok && cir != "" {
+							iconUrl = cir
+						} else if urlVal, ok := logo["url"].(string); ok {
+							iconUrl = urlVal
+						}
+					} else if logoStr, ok := rMap["logo_url_square"].(string); ok && logoStr != "" {
+						iconUrl = logoStr
+					}
+				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
 					"id":       getStringVal(rMap, "id", ""),
 					"name":     getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
 					"slug":     getStringVal(rMap, "slug", ""),
-					"icon_url": getStringVal(rMap, "logo_url", ""),
+					"icon_url": iconUrl,
 				})
 			}
 		}
@@ -2675,8 +2693,12 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 
 		// location
 		loc := ""
-		if l, ok := assoc["location"].(string); ok {
-			loc = l
+		if lStr, ok := assoc["location"].(string); ok {
+			loc = lStr
+		} else if lArr, ok := assoc["location"].([]interface{}); ok && len(lArr) > 0 {
+			if firstLoc, ok := lArr[0].(string); ok {
+				loc = firstLoc
+			}
 		} else if city, ok := assoc["city"].(string); ok {
 			loc = city + ",India"
 		}
@@ -2815,11 +2837,25 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	if len(recommended) > 0 {
 		for _, item := range recommended {
 			if rMap, ok := item.(map[string]interface{}); ok {
+				iconUrl := getStringVal(rMap, "logo_url", "")
+				if iconUrl == "" {
+					if logo, ok := rMap["logo"].(map[string]interface{}); ok {
+						if sq, ok := logo["square"].(string); ok && sq != "" {
+							iconUrl = sq
+						} else if cir, ok := logo["circle"].(string); ok && cir != "" {
+							iconUrl = cir
+						} else if urlVal, ok := logo["url"].(string); ok {
+							iconUrl = urlVal
+						}
+					} else if logoStr, ok := rMap["logo_url_square"].(string); ok && logoStr != "" {
+						iconUrl = logoStr
+					}
+				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
 					"id":       getStringVal(rMap, "id", ""),
 					"name":     getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
 					"slug":     getStringVal(rMap, "slug", ""),
-					"icon_url": getStringVal(rMap, "logo_url", ""),
+					"icon_url": iconUrl,
 				})
 			}
 		}
