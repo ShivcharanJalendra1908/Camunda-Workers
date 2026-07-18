@@ -573,6 +573,27 @@ func formatSpaceObject(space map[string]interface{}) map[string]interface{} {
 	return space
 }
 
+func formatOutlets(outlets interface{}) interface{} {
+	if outlets == nil {
+		return "N/A"
+	}
+	switch v := outlets.(type) {
+	case float64:
+		if v == 0 {
+			return "N/A"
+		}
+	case int:
+		if v == 0 {
+			return "N/A"
+		}
+	case string:
+		if v == "0" || v == "" {
+			return "N/A"
+		}
+	}
+	return outlets
+}
+
 func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[string]interface{} {
 	sections := []interface{}{}
 
@@ -678,9 +699,11 @@ func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[st
 
 			// ✅ Handle total_outlets OR no_of_outlets (defensive)
 			if outlets, ok := listing["total_outlets"]; ok {
-				transformed.NoOfOutlets = outlets
+				transformed.NoOfOutlets = formatOutlets(outlets)
 			} else if outlets, ok := listing["no_of_outlets"]; ok {
-				transformed.NoOfOutlets = outlets
+				transformed.NoOfOutlets = formatOutlets(outlets)
+			} else {
+				transformed.NoOfOutlets = "N/A"
 			}
 
 			// Keep investmentRange
@@ -1990,9 +2013,11 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				}
 
 				if outlets, ok := listing["total_outlets"]; ok {
-					transformed.NoOfOutlets = outlets
+					transformed.NoOfOutlets = formatOutlets(outlets)
 				} else if outlets, ok := listing["no_of_outlets"]; ok {
-					transformed.NoOfOutlets = outlets
+					transformed.NoOfOutlets = formatOutlets(outlets)
+				} else {
+					transformed.NoOfOutlets = "N/A"
 				}
 
 				// Only keep brand, omit name
@@ -3007,7 +3032,13 @@ func (h *Handler) buildBasicInfoStructure(basicInfo map[string]interface{}) Tran
 		result.Location = city
 	}
 
-	result.NoOfOutlets = basicInfo["no_of_outlets"]
+	if outlets, ok := basicInfo["total_outlets"]; ok {
+		result.NoOfOutlets = formatOutlets(outlets)
+	} else if outlets, ok := basicInfo["no_of_outlets"]; ok {
+		result.NoOfOutlets = formatOutlets(outlets)
+	} else {
+		result.NoOfOutlets = "N/A"
+	}
 	result.Rating = basicInfo["rating"]
 	result.ROI = basicInfo["roi"]
 
