@@ -527,6 +527,52 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 	return h.buildFranchiseHomeResponse(data)
 }
 
+func formatSpaceObject(space map[string]interface{}) map[string]interface{} {
+	if space == nil {
+		return nil
+	}
+	if _, hasUnit := space["spaceUnit"]; !hasUnit {
+		space["spaceUnit"] = "sq ft"
+	}
+
+	var minVal float64
+	if minSp, ok := space["minSpace"]; ok {
+		switch v := minSp.(type) {
+		case float64:
+			minVal = v
+		case int:
+			minVal = float64(v)
+		case string:
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				minVal = f
+			}
+		}
+	}
+
+	var maxVal float64
+	maxOk := false
+	if maxSp, ok := space["maxSpace"]; ok {
+		maxOk = true
+		switch v := maxSp.(type) {
+		case float64:
+			maxVal = v
+		case int:
+			maxVal = float64(v)
+		case string:
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				maxVal = f
+			}
+		}
+	}
+
+	if maxOk && maxVal == 0 && minVal > 0 {
+		space["maxSpace"] = fmt.Sprintf("%v+", minVal)
+		space["max_space"] = fmt.Sprintf("%v+", minVal)
+	}
+
+	return space
+}
+
 func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[string]interface{} {
 	sections := []interface{}{}
 
@@ -624,7 +670,7 @@ func (h *Handler) buildFranchiseHomeResponse(data map[string]interface{}) map[st
 			transformed.Tags = listing["tags"]
 
 			if space, ok := listing["space"].(map[string]interface{}); ok {
-				transformed.Space = space
+				transformed.Space = formatSpaceObject(space)
 			}
 			if slug, ok := listing["slug"].(string); ok {
 				transformed.Slug = slug
@@ -1963,10 +2009,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				}
 
 				if space, ok := listing["space"].(map[string]interface{}); ok {
-					if _, hasUnit := space["spaceUnit"]; !hasUnit {
-						space["spaceUnit"] = "sq ft"
-					}
-					transformed.Space = space
+					transformed.Space = formatSpaceObject(space)
 				}
 
 				if invRange, ok := listing["investmentRange"].(map[string]interface{}); ok {
@@ -2034,9 +2077,7 @@ func (h *Handler) buildFranchiseListingResponse(data map[string]interface{}) map
 				}
 
 				if space, ok := listing["space"].(map[string]interface{}); ok {
-					if _, hasUnit := space["spaceUnit"]; !hasUnit {
-						space["spaceUnit"] = "sq ft"
-					}
+					listing["space"] = formatSpaceObject(space)
 				}
 
 				if invRange, ok := listing["investmentRange"].(map[string]interface{}); ok {
