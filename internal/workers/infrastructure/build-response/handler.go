@@ -1501,25 +1501,17 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	if len(recommended) > 0 {
 		for _, item := range recommended {
 			if rMap, ok := item.(map[string]interface{}); ok {
-				iconUrl := getStringVal(rMap, "logo_url", "")
-				if iconUrl == "" {
-					if logo, ok := rMap["logo"].(map[string]interface{}); ok {
-						if sq, ok := logo["square"].(string); ok && sq != "" {
-							iconUrl = sq
-						} else if cir, ok := logo["circle"].(string); ok && cir != "" {
-							iconUrl = cir
-						} else if urlVal, ok := logo["url"].(string); ok {
-							iconUrl = urlVal
-						}
-					} else if logoStr, ok := rMap["logo_url_square"].(string); ok && logoStr != "" {
-						iconUrl = logoStr
+				industryImageURL := ""
+				if industry, ok := rMap["industry"].(map[string]interface{}); ok {
+					if imgURL, ok := industry["image_url"].(string); ok {
+						industryImageURL = imgURL
 					}
 				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
 					"id":                 getStringVal(rMap, "id", ""),
 					"name":               getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
 					"slug":               getStringVal(rMap, "slug", ""),
-					"industry_image_url": iconUrl,
+					"industry_image_url": industryImageURL,
 				})
 			}
 		}
@@ -2821,25 +2813,17 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	if len(recommended) > 0 {
 		for _, item := range recommended {
 			if rMap, ok := item.(map[string]interface{}); ok {
-				iconUrl := getStringVal(rMap, "logo_url", "")
-				if iconUrl == "" {
-					if logo, ok := rMap["logo"].(map[string]interface{}); ok {
-						if sq, ok := logo["square"].(string); ok && sq != "" {
-							iconUrl = sq
-						} else if cir, ok := logo["circle"].(string); ok && cir != "" {
-							iconUrl = cir
-						} else if urlVal, ok := logo["url"].(string); ok {
-							iconUrl = urlVal
-						}
-					} else if logoStr, ok := rMap["logo_url_square"].(string); ok && logoStr != "" {
-						iconUrl = logoStr
+				industryImageURL := ""
+				if industry, ok := rMap["industry"].(map[string]interface{}); ok {
+					if imgURL, ok := industry["image_url"].(string); ok {
+						industryImageURL = imgURL
 					}
 				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
 					"id":                 getStringVal(rMap, "id", ""),
 					"name":               getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
 					"slug":               getStringVal(rMap, "slug", ""),
-					"industry_image_url": iconUrl,
+					"industry_image_url": industryImageURL,
 				})
 			}
 		}
