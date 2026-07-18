@@ -848,6 +848,7 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 	defer indRows.Close()
 
 	count := 0
+	totalCatCount := 0
 	for indRows.Next() {
 		var id, name, slug, colorHex string
 		var iconURL, imageURL sql.NullString
@@ -950,10 +951,11 @@ func (m *SyncManager) syncBrowseIndex(ctx context.Context) error {
 		}
 
 		count++
+		totalCatCount += len(categories)
 		log.Printf("   Indexed: %s (%d categories)", name, len(categories))
 	}
 
-	log.Printf("   ✅ Total industries indexed in browse: %d", count)
+	log.Printf("   ✅ Total industries indexed in browse: %d, Total categories: %d", count, totalCatCount)
 	return nil
 }
 
