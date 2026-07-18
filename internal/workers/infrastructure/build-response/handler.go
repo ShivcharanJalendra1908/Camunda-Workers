@@ -1654,15 +1654,22 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 				if icon == "" {
 					icon = getStringVal(cMap, "icon_name", "")
 				}
+				
+				imageURL := getStringVal(cMap, "image_url", "")
+				
 				if icon == "" {
-					icon = getStringVal(cMap, "image_url", "")
+					icon = imageURL
 				}
+				if imageURL == "" {
+					imageURL = icon
+				}
+
 				transformedDetailCategories = append(transformedDetailCategories, map[string]interface{}{
 					"id":        getStringVal(cMap, "id", ""),
 					"name":      getStringVal(cMap, "name", ""),
 					"slug":      getStringVal(cMap, "slug", ""),
 					"icon_url":  icon,
-					"image_url": icon,
+					"image_url": imageURL,
 				})
 			}
 		}
@@ -2829,15 +2836,22 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 				if icon == "" {
 					icon = getStringVal(cMap, "icon_name", "")
 				}
+				
+				imageURL := getStringVal(cMap, "image_url", "")
+				
 				if icon == "" {
-					icon = getStringVal(cMap, "image_url", "")
+					icon = imageURL
 				}
+				if imageURL == "" {
+					imageURL = icon
+				}
+
 				transformedCategories = append(transformedCategories, map[string]interface{}{
 					"id":        getStringVal(cMap, "id", ""),
 					"name":      getStringVal(cMap, "name", ""),
 					"slug":      getStringVal(cMap, "slug", ""),
 					"icon_url":  icon,
-					"image_url": icon,
+					"image_url": imageURL,
 				})
 			}
 		}
