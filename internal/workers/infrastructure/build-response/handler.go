@@ -1589,11 +1589,19 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 	if len(categories) > 0 {
 		for _, item := range categories {
 			if cMap, ok := item.(map[string]interface{}); ok {
+				icon := getStringVal(cMap, "icon_url", "")
+				if icon == "" {
+					icon = getStringVal(cMap, "icon_name", "")
+				}
+				if icon == "" {
+					icon = getStringVal(cMap, "image_url", "")
+				}
 				transformedDetailCategories = append(transformedDetailCategories, map[string]interface{}{
-					"id":       getStringVal(cMap, "id", ""),
-					"name":     getStringVal(cMap, "name", ""),
-					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", ""),
+					"id":        getStringVal(cMap, "id", ""),
+					"name":      getStringVal(cMap, "name", ""),
+					"slug":      getStringVal(cMap, "slug", ""),
+					"icon_url":  icon,
+					"image_url": icon,
 				})
 			}
 		}
@@ -2791,11 +2799,19 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	if len(categories) > 0 {
 		for _, item := range categories {
 			if cMap, ok := item.(map[string]interface{}); ok {
+				icon := getStringVal(cMap, "icon_url", "")
+				if icon == "" {
+					icon = getStringVal(cMap, "icon_name", "")
+				}
+				if icon == "" {
+					icon = getStringVal(cMap, "image_url", "")
+				}
 				transformedCategories = append(transformedCategories, map[string]interface{}{
-					"id":       getStringVal(cMap, "id", ""),
-					"name":     getStringVal(cMap, "name", ""),
-					"slug":     getStringVal(cMap, "slug", ""),
-					"icon_url": getStringVal(cMap, "icon_url", ""),
+					"id":        getStringVal(cMap, "id", ""),
+					"name":      getStringVal(cMap, "name", ""),
+					"slug":      getStringVal(cMap, "slug", ""),
+					"icon_url":  icon,
+					"image_url": icon,
 				})
 			}
 		}
