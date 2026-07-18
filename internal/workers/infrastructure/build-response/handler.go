@@ -1516,10 +1516,10 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 					}
 				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
-					"id":       getStringVal(rMap, "id", ""),
-					"name":     getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
-					"slug":     getStringVal(rMap, "slug", ""),
-					"icon_url": iconUrl,
+					"id":                 getStringVal(rMap, "id", ""),
+					"name":               getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
+					"slug":               getStringVal(rMap, "slug", ""),
+					"industry_image_url": iconUrl,
 				})
 			}
 		}
@@ -2852,10 +2852,10 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 					}
 				}
 				transformedRecs = append(transformedRecs, map[string]interface{}{
-					"id":       getStringVal(rMap, "id", ""),
-					"name":     getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
-					"slug":     getStringVal(rMap, "slug", ""),
-					"icon_url": iconUrl,
+					"id":                 getStringVal(rMap, "id", ""),
+					"name":               getStringVal(rMap, "brand", getStringVal(rMap, "name", "")),
+					"slug":               getStringVal(rMap, "slug", ""),
+					"industry_image_url": iconUrl,
 				})
 			}
 		}
@@ -2863,10 +2863,10 @@ func (h *Handler) buildAssociationListingResponse(data map[string]interface{}) m
 	if len(transformedRecs) == 0 {
 		transformedRecs = []interface{}{
 			map[string]interface{}{
-				"id":       "1",
-				"name":     "NASSCOM",
-				"slug":     "nasscom",
-				"icon_url": "",
+				"id":                 "1",
+				"name":               "NASSCOM",
+				"slug":               "nasscom",
+				"industry_image_url": "",
 			},
 		}
 	}
