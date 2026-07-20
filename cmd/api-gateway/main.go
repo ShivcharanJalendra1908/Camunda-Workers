@@ -325,9 +325,6 @@ func main() {
 			// ✅ KEYCLOAK UNIFIED LOGIN (Email/Password + Google + LinkedIn)
 			authGroup.POST("/login", workflowHandler.StartKeycloakLogin)
 
-			// ✅ Start login flow (redirecting GET)
-			authGroup.GET("/login/start", workflowHandler.InitiateLogin)
-
 			// ✅ NEW: Keycloak callback (backend-handled)
 			authGroup.GET("/callback", workflowHandler.HandleKeycloakCallback)
 

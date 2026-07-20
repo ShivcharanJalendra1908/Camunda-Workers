@@ -58,13 +58,13 @@
 
             <#-- Redirect Info or Countdown -->
             <#if message.summary?contains("verified") || message.summary?contains("activation")>
-                <#-- Email Verified Success page: Start authentication flow -->
+                <#-- Email Verified Success page -->
                 <p style="font-size: 14px; color: #4b5563; margin-bottom: 24px; line-height: 1.6;">
                     Your email address has been verified successfully. Your account is ready — please sign in to continue.
                 </p>
 
                 <div style="margin-bottom: 24px;">
-                    <a href="#" onclick="event.preventDefault(); window.location.href = getBffLoginStartUrl();" class="pf-c-button pf-m-primary pf-m-lg" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
+                    <a href="#" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary pf-m-lg" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
                         Sign In to LeMiCi
                     </a>
                 </div>
@@ -75,16 +75,8 @@
 
                 <script>
                     try {
-                        localStorage.removeItem('email_verified_success');
+                        localStorage.setItem('email_verified', 'true');
                     } catch(e) {}
-
-                    function getBffLoginStartUrl() {
-                        var origin = window.location.origin;
-                        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                            return 'http://localhost:8080/api/v1/auth/login/start';
-                        }
-                        return origin + '/api/v1/auth/login/start';
-                    }
                 </script>
             <#elseif message.summary?contains("receive") || message.summary?contains("instruction") || message.summary?contains("sent")>
                 <#-- Email Sent page: Listen for success event from other tabs (via localStorage) -->

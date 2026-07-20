@@ -1874,69 +1874,6 @@ func (h *WorkflowHandler) initiateFreshLogin(c *gin.Context) {
 	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
 }
 
-// InitiateLogin starts a fresh login flow via Camunda and redirects the user
-// directly to the Keycloak login/authorization page.
-func (h *WorkflowHandler) InitiateLogin(c *gin.Context) {
-	ctx := c.Request.Context()
-	correlationKey := uuid.New().String()
-	channel := fmt.Sprintf("workflow:response:%s", correlationKey)
-
-	pubsub := h.redisClient.Subscribe(ctx, channel)
-	defer pubsub.Close()
-
-	// Wait for Redis subscription confirmation
-	confirmCtx, confirmCancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer confirmCancel()
-	if _, err := pubsub.ReceiveTimeout(confirmCtx, 3*time.Second); err != nil {
-		h.logger.Warn("InitiateLogin: Redis subscription confirm failed, using fallback redirect", map[string]interface{}{"err": err.Error()})
-		c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
-		return
-	}
-
-	// Capture optional redirectUrl from query parameters (with validation)
-	redirectURL := c.Query("redirectUrl")
-	if redirectURL == "" {
-		redirectURL = h.config.Auth.Keycloak.PostLoginRedirectURI
-	} else if !isAllowedRedirectDomain(redirectURL, h.config.Auth.Keycloak.AllowedRedirectDomains) {
-		h.logger.Warn("InitiateLogin: unauthorized redirectUrl requested, using default", map[string]interface{}{"redirectUrl": redirectURL})
-		redirectURL = h.config.Auth.Keycloak.PostLoginRedirectURI
-	}
-
-	variables := map[string]interface{}{
-		"action":               "initiate",
-		"provider":             "keycloak",
-		"correlationKey":       correlationKey,
-		"postLoginRedirectUri": redirectURL,
-		"redirectUrl":          h.config.Auth.Keycloak.RedirectURL,
-	}
-
-	if _, err := h.camunda.StartProcessInstance(ctx, "keycloak-login-workflow", variables); err != nil {
-		h.logger.Error("InitiateLogin: workflow start failed", map[string]interface{}{"err": err.Error()})
-		c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
-		return
-	}
-
-	// Wait for auth URL from worker (max 10s)
-	select {
-	case msg := <-pubsub.Channel():
-		var envelope struct {
-			Response map[string]interface{} `json:"response"`
-		}
-		if err := json.Unmarshal([]byte(msg.Payload), &envelope); err == nil && envelope.Response != nil {
-			if authURL, ok := envelope.Response["authorizationUrl"].(string); ok && authURL != "" {
-				h.logger.Info("InitiateLogin: redirecting user to Keycloak", map[string]interface{}{
-					"correlationKey": correlationKey,
-				})
-				c.Redirect(http.StatusFound, authURL)
-				return
-			}
-		}
-	case <-time.After(10 * time.Second):
-		h.logger.Warn("InitiateLogin: timed out waiting for auth URL", map[string]interface{}{"correlationKey": correlationKey})
-	}
-
-	c.Redirect(http.StatusFound, h.config.Auth.Keycloak.PostLoginRedirectURI)
-}
 
 
 

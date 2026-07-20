@@ -25,7 +25,7 @@
             </p>
 
             <div style="margin-bottom: 32px;">
-                <a href="#" onclick="event.preventDefault(); window.location.href = getBffLoginStartUrl();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
+                <a href="#" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
                     Sign In
                 </a>
             </div>
@@ -41,13 +41,40 @@
         </div>
 
         <script>
-            function getBffLoginStartUrl() {
-                var origin = window.location.origin;
-                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                    return 'http://localhost:8080/api/v1/auth/login/start';
+            function handleReturnToLogin() {
+                var host = window.location.hostname;
+                if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
+                    window.location.href = 'https://dev.lemici.com/login';
+                } else if (host.indexOf('lemici.com') !== -1) {
+                    window.location.href = 'https://www.lemici.com/login';
+                } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
+                    window.location.href = 'http://localhost:3000/login';
+                } else {
+                    window.location.href = '${url.loginUrl}';
                 }
-                return origin + '/api/v1/auth/login/start';
             }
+
+            (function() {
+                localStorage.removeItem('email_verified');
+
+                function handleEmailVerified() {
+                    localStorage.removeItem('email_verified');
+                    handleReturnToLogin();
+                }
+
+                window.addEventListener('storage', function(e) {
+                    if (e.key === 'email_verified' && e.newValue === 'true') {
+                        handleEmailVerified();
+                    }
+                });
+
+                var checkTimer = setInterval(function() {
+                    if (localStorage.getItem('email_verified') === 'true') {
+                        clearInterval(checkTimer);
+                        handleEmailVerified();
+                    }
+                }, 1000);
+            })();
         </script>
     </#if>
 </@layout.registrationLayout>
