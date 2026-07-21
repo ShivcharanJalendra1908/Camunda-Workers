@@ -150,7 +150,7 @@
                 
                 <!-- Expiry and Fallback Link -->
                 <div class="expiry-note">
-                    <p style="margin: 0 0 10px 0;"><strong>Please note:</strong> This verification link will expire in ${linkExpirationInMinutes} minutes. If you did not create a Lemici account, you can safely ignore this email.</p>
+                    <p style="margin: 0 0 10px 0;"><strong>Please note:</strong> This verification link will expire in ${(linkExpiration/60000)?int} minutes. If you did not create a Lemici account, you can safely ignore this email.</p>
                     <div class="fallback-text">
                         If the button above does not work, please copy and paste this URL into your browser:<br>
                         <a href="${link}" class="fallback-link">${link}</a>
