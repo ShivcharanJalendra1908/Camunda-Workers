@@ -239,7 +239,7 @@ services:
       QUARKUS_LOG_CONSOLE_JSON: "true"
       JAVA_OPTS_APPEND: "-javaagent:/opt/keycloak/opentelemetry-javaagent.jar"
       OTEL_SERVICE_NAME: "keycloak"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
       OTEL_TRACES_EXPORTER: "otlp"
       OTEL_METRICS_EXPORTER: "none"
       OTEL_LOGS_EXPORTER: "none"
