@@ -24,11 +24,15 @@
                 Once you click the link in the email to verify, please click "Sign In" below.
             </p>
 
-            <div style="margin-bottom: 32px;">
+            <div style="margin-bottom: 16px;">
                 <a href="#" onclick="event.preventDefault(); handleReturnToLogin();" class="pf-c-button pf-m-primary" style="text-decoration: none; display: inline-block; padding: 12px 36px; background: #6D3E93; color: white; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 10px rgba(109, 62, 147, 0.25);">
                     Sign In
                 </a>
             </div>
+
+            <p style="font-size: 13px; color: #9ca3af; line-height: 1.5;">
+                Auto-redirecting in <span id="countdown-sec" style="font-weight: 600; color: #6D3E93;">30</span> seconds...
+            </p>
             
             <div style="border-top: 1px solid #e5e7eb; padding-top: 24px; margin-top: 24px;">
                 <p style="font-size: 14px; color: #4b5563; margin-bottom: 12px;">
@@ -42,36 +46,27 @@
 
         <script>
             function handleReturnToLogin() {
-                var host = window.location.hostname;
-                if (host.indexOf('dev') !== -1 && host.indexOf('lemici.com') !== -1) {
-                    window.location.href = 'https://dev.lemici.com/login';
-                } else if (host.indexOf('lemici.com') !== -1) {
-                    window.location.href = 'https://www.lemici.com/login';
-                } else if (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0) {
-                    window.location.href = 'http://localhost:3000/login';
-                } else {
-                    window.location.href = '${url.loginUrl}';
-                }
+                window.location.href = '${url.loginUrl}';
             }
 
             (function() {
                 localStorage.removeItem('email_verified');
 
-                function handleEmailVerified() {
-                    localStorage.removeItem('email_verified');
-                    handleReturnToLogin();
-                }
-
                 window.addEventListener('storage', function(e) {
                     if (e.key === 'email_verified' && e.newValue === 'true') {
-                        handleEmailVerified();
+                        localStorage.removeItem('email_verified');
+                        handleReturnToLogin();
                     }
                 });
 
-                var checkTimer = setInterval(function() {
-                    if (localStorage.getItem('email_verified') === 'true') {
-                        clearInterval(checkTimer);
-                        handleEmailVerified();
+                var sec = 30;
+                var timer = setInterval(function() {
+                    sec--;
+                    var el = document.getElementById('countdown-sec');
+                    if (el) el.innerText = sec;
+                    if (sec <= 0) {
+                        clearInterval(timer);
+                        handleReturnToLogin();
                     }
                 }, 1000);
             })();

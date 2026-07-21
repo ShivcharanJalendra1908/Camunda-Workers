@@ -6,7 +6,7 @@ To complete your registration and verify your email address, please click the li
 
 ${link}
 
-This link will expire in ${(linkExpiration/60)?int} minutes. If you did not register for a Lemici account, you can safely ignore this email.
+This link will expire in ${((linkExpiration!1800)/60)?int} minutes. If you did not register for a Lemici account, you can safely ignore this email.
 
 Best regards,
 Team Lemici
