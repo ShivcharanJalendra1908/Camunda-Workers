@@ -230,8 +230,15 @@ func (h *FranchiseHandler) GetListingPageData(c *gin.Context) {
 	}
 	industrySlug := strings.ToLower(strings.TrimSpace(c.Query("industry")))
 	categorySlug := strings.ToLower(strings.TrimSpace(c.Query("category")))
-	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // â† NEW
+	subCategorySlug := strings.ToLower(strings.TrimSpace(c.Query("subcategory"))) // ← NEW
 	locationParam := strings.TrimSpace(c.Query("location"))
+
+	h.logger.Info("DEBUG: GetListingPageData Received Request", map[string]interface{}{
+		"raw_url":   c.Request.URL.String(),
+		"query_q":   c.Query("q"),
+		"query_query": c.Query("query"),
+		"location":  c.Query("location"),
+	})
 
 	page := 1
 	pageSize := h.paginationCfg.DefaultPageSize
