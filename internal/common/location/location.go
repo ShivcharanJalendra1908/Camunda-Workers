@@ -578,8 +578,7 @@ func BuildLocationTerms(city string) []string {
 		allTerms = append(allTerms, terms...)
 	}
 
-	// Always append Pan India terms since they are valid for all city searches
-	allTerms = append(allTerms, "Pan India", "Pan-India", "All major Indian cities")
+	// allTerms = append(allTerms, "Pan India", "Pan-India", "All major Indian cities")
 
 	return dedup(allTerms)
 }
