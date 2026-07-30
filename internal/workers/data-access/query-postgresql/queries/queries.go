@@ -1126,7 +1126,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 	}
 
 	// 1. Get Industries with at least 1 live listing
-	indQuery := \
+	indQuery := `
 		SELECT i.id, i.name, i.slug, i.icon_url, i.image_url, i.color_hex, i.display_order
 		FROM industries i
 		WHERE i.is_active = true
@@ -1140,7 +1140,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 			  AND l.status = 'live'
 		  )
 		ORDER BY i.display_order ASC
-	\
+	`
 	
 	indRows, err := db.QueryContext(ctx, indQuery, entityType)
 	if err != nil {
@@ -1159,7 +1159,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 		}
 
 		// 2. Get Categories with at least 1 live listing for this industry
-		catQuery := \
+		catQuery := `
 			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url, c.display_order
 			FROM categories c
 			WHERE c.industry_id = $1 AND c.is_active = true
@@ -1171,7 +1171,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 				  AND l.status = 'live'
 			  )
 			ORDER BY c.display_order ASC
-		\
+		`
 		
 		catRows, err := db.QueryContext(ctx, catQuery, id, entityType)
 		if err != nil {
@@ -1189,7 +1189,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 			}
 
 			// 3. Get Subcategories with at least 1 live listing for this category
-			subQuery := \
+			subQuery := `
 				SELECT sc.id, sc.name, sc.slug, sc.display_order
 				FROM sub_categories sc
 				WHERE sc.category_id = $1 AND sc.is_active = true
@@ -1201,7 +1201,7 @@ func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interfa
 					  AND l.status = 'live'
 				  )
 				ORDER BY sc.display_order ASC
-			\
+			`
 
 			subRows, err := db.QueryContext(ctx, subQuery, catID, entityType)
 			var subCategories []map[string]interface{}
