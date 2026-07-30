@@ -9,25 +9,25 @@
       <outgoing>flow-to-browse</outgoing>
       <outgoing>flow-to-search</outgoing>
     </exclusiveGateway>
-    <serviceTask id="task-fetch-all" name="Get All Industries&#10;(query-elasticsearch)">
+    <serviceTask id="task-fetch-all" name="Get All Industries&#10;(query-postgresql)">
       <extensionElements>
-        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;get_all_industries&#34;" target="queryType" />
-          <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="industries" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>flow-to-browse</incoming>
       <outgoing>flow-browse-to-join</outgoing>
     </serviceTask>
-    <serviceTask id="task-search" name="Search Industries&#10;(query-elasticsearch)">
+    <serviceTask id="task-search" name="Search Industries&#10;(query-postgresql)">
       <extensionElements>
-        <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;search_industries&#34;" target="queryType" />
-          <zeebe:input source="=&#34;franchise_browse&#34;" target="indexName" />
           <zeebe:input source="=search" target="search" />
+          <zeebe:input source="=entityType" target="entityType" />
           <zeebe:output source="=data" target="industries" />
         </zeebe:ioMapping>
       </extensionElements>

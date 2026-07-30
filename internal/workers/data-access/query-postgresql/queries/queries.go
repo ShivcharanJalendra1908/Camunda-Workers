@@ -1111,3 +1111,163 @@ func FeaturedCategoriesByIndustry(ctx context.Context, db *sql.DB, params map[st
 
 	return categories, len(categories), time.Since(start).Milliseconds(), nil
 }
+
+// ============================================================
+// ALL INDUSTRIES AND SEARCH (PG IMPLEMENTATION)
+// ============================================================
+
+// GetAllIndustries gets industries, categories, and subcategories that have live listings for the given entity type
+func GetAllIndustries(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+	
+	entityType, ok := params["entityType"].(string)
+	if !ok || entityType == "" {
+		entityType = "franchise"
+	}
+
+	// 1. Get Industries with at least 1 live listing
+	indQuery := \
+		SELECT i.id, i.name, i.slug, i.icon_url, i.image_url, i.color_hex, i.display_order
+		FROM industries i
+		WHERE i.is_active = true
+		  AND EXISTS (
+			SELECT 1 FROM listing_categories lc
+			JOIN categories c ON lc.category_id = c.id
+			JOIN listings l ON lc.listing_id = l.id
+			LEFT JOIN associations a ON l.id = a.id
+			WHERE COALESCE(a.industry_id, c.industry_id) = i.id
+			  AND l.entity_type = $1
+			  AND l.status = 'live'
+		  )
+		ORDER BY i.display_order ASC
+	\
+	
+	indRows, err := db.QueryContext(ctx, indQuery, entityType)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer indRows.Close()
+
+	var industries []map[string]interface{}
+	for indRows.Next() {
+		var id, name, slug string
+		var iconURL, imageURL, colorHex sql.NullString
+		var displayOrder int
+
+		if err := indRows.Scan(&id, &name, &slug, &iconURL, &imageURL, &colorHex, &displayOrder); err != nil {
+			continue
+		}
+
+		// 2. Get Categories with at least 1 live listing for this industry
+		catQuery := \
+			SELECT c.id, c.name, c.slug, c.icon_url, c.image_url, c.display_order
+			FROM categories c
+			WHERE c.industry_id = $1 AND c.is_active = true
+			  AND EXISTS (
+				SELECT 1 FROM listing_categories lc
+				JOIN listings l ON lc.listing_id = l.id
+				WHERE lc.category_id = c.id
+				  AND l.entity_type = $2
+				  AND l.status = 'live'
+			  )
+			ORDER BY c.display_order ASC
+		\
+		
+		catRows, err := db.QueryContext(ctx, catQuery, id, entityType)
+		if err != nil {
+			continue
+		}
+
+		var categories []map[string]interface{}
+		for catRows.Next() {
+			var catID, catName, catSlug string
+			var catIconURL, catImageURL sql.NullString
+			var catOrder int
+
+			if err := catRows.Scan(&catID, &catName, &catSlug, &catIconURL, &catImageURL, &catOrder); err != nil {
+				continue
+			}
+
+			// 3. Get Subcategories with at least 1 live listing for this category
+			subQuery := \
+				SELECT sc.id, sc.name, sc.slug, sc.display_order
+				FROM sub_categories sc
+				WHERE sc.category_id = $1 AND sc.is_active = true
+				  AND EXISTS (
+					SELECT 1 FROM listing_categories lc
+					JOIN listings l ON lc.listing_id = l.id
+					WHERE lc.sub_category_id = sc.id
+					  AND l.entity_type = $2
+					  AND l.status = 'live'
+				  )
+				ORDER BY sc.display_order ASC
+			\
+
+			subRows, err := db.QueryContext(ctx, subQuery, catID, entityType)
+			var subCategories []map[string]interface{}
+			if err == nil {
+				for subRows.Next() {
+					var subID, subName, subSlug string
+					var subOrder int
+					if err := subRows.Scan(&subID, &subName, &subSlug, &subOrder); err == nil {
+						subCategories = append(subCategories, map[string]interface{}{
+							"sub_category_id":   subID,
+							"sub_category_name": subName,
+							"sub_category_slug": subSlug,
+							"display_order":     subOrder,
+						})
+					}
+				}
+				subRows.Close()
+			}
+
+			if subCategories == nil {
+				subCategories = []map[string]interface{}{}
+			}
+
+			categories = append(categories, map[string]interface{}{
+				"category_id":    catID,
+				"category_name":  catName,
+				"category_slug":  catSlug,
+				"display_order":  catOrder,
+				"icon_url":       catIconURL.String,
+				"image_url":      catImageURL.String,
+				"sub_categories": subCategories,
+			})
+		}
+		catRows.Close()
+
+		if categories == nil {
+			categories = []map[string]interface{}{}
+		}
+
+		ind := map[string]interface{}{
+			"industry_id":   id,
+			"industry_name": name,
+			"industry_slug": slug,
+			"color_hex":     colorHex.String,
+			"display_order": displayOrder,
+			"categories":    categories,
+		}
+		
+		// For backward compatibility with handler expectations
+		if iconURL.Valid {
+			ind["icon_url"] = iconURL.String
+		}
+		if imageURL.Valid {
+			ind["image_url"] = imageURL.String
+		}
+
+		industries = append(industries, ind)
+	}
+
+	return industries, len(industries), time.Since(start).Milliseconds(), nil
+}
+
+// SearchIndustries is a placeholder for search in PG, falling back to all industries for now 
+// since search is typically handled by ES for text fuzziness. For exact match, we can implement LIKE.
+func SearchIndustries(ctx context.Context, db *sql.DB, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {
+	// For now, delegate to GetAllIndustries as it fulfills the basic structure. 
+	// We can implement ILIKE search here if needed.
+	return GetAllIndustries(ctx, db, params, encryptor)
+}

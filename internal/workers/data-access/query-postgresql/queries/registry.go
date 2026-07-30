@@ -44,10 +44,9 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeCategoryQuestionsByIndustry:  CategoryQuestionsByIndustry,
 	models.QueryTypeFeaturedCategoriesByIndustry: FeaturedCategoriesByIndustry,
 
-	// // ===== ALL INDUSTRIES =====
-	// models.QueryTypeAllIndustries:           AllIndustries,
-	// models.QueryTypeCategoriesByIndustry:    CategoriesByIndustry,
-	// models.QueryTypeSubCategoriesByCategory: SubCategoriesByCategory,
+	// ===== ALL INDUSTRIES =====
+	models.ESQueryTypeGetAllIndustries: GetAllIndustries,
+	models.ESQueryTypeSearchIndustries: SearchIndustries,
 
 	// ===== ENQUERY =====
 	models.QueryTypeFranchiseContactInfo: FranchiseContactInfo,

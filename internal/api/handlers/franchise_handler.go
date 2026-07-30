@@ -791,10 +791,18 @@ func (h *FranchiseHandler) GetAllIndustries(c *gin.Context) {
 		uuid.New().String()[:8],
 		time.Now().UnixNano())
 
+	entityType := c.Param("entityType")
+	if entityType == "" {
+		entityType = "franchise"
+	} else if strings.HasSuffix(entityType, "s") {
+		entityType = entityType[:len(entityType)-1]
+	}
+
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
 		"operation":      "get_industries",
 		"search":         c.Query("search"), // ?search=food â€” optional
+		"entityType":     entityType,
 		"lang":           c.GetHeader("X-Lang"),
 		"userId":         c.GetString("userId"),
 		"traceId":        c.GetString("traceId"),
