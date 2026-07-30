@@ -1127,8 +1127,9 @@ func (h *Handler) buildAssociationDetailResponse(data map[string]interface{}) ma
 		SocialLinks: socialLinks,
 		Tags:        transformedTags,
 		Mission:     getStringVal(overview, "mission", ""),
-		Vision:      getStringVal(overview, "vision", ""),
-		Objectives:  getArrayVal(overview, "objectives"),
+		Vision:              getStringVal(overview, "vision", ""),
+		Objectives:          getArrayVal(overview, "objectives"),
+		YearOfEstablishment: getStringVal(basicInfo, "year_of_establishment", getStringVal(basicInfo, "founded_year", getStringVal(overview, "founded_year", ""))),
 	}
 
 	sections = append(sections, map[string]interface{}{
@@ -2329,9 +2330,10 @@ type TransformedAssociationHeroInfoCard struct {
 	ReviewCount string                 `json:"review_count,omitempty"`
 	SocialLinks map[string]interface{} `json:"socialLinks,omitempty"`
 	Tags        []interface{}          `json:"tags"`
-	Mission     string                 `json:"mission,omitempty"`
-	Vision      string                 `json:"vision,omitempty"`
-	Objectives  []interface{}          `json:"objectives,omitempty"`
+	Mission             string                 `json:"mission,omitempty"`
+	Vision              string                 `json:"vision,omitempty"`
+	Objectives          []interface{}          `json:"objectives,omitempty"`
+	YearOfEstablishment interface{}            `json:"year_of_establishment,omitempty"`
 }
 
 func (h *Handler) buildFranchiseDetailResponse(data map[string]interface{}) map[string]interface{} {
