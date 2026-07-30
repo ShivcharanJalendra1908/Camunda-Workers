@@ -186,7 +186,9 @@ func (h *Handler) validateInput(input *Input) error {
 		string(models.QueryTypeFranchiseOperations),
 		string(models.QueryTypeFranchiseSocial),
 		string(models.QueryTypeIndustryBySlugWithQuestions),
-		string(models.QueryTypeFeaturedCategoriesByIndustry):
+		string(models.QueryTypeFeaturedCategoriesByIndustry),
+		string(models.ESQueryTypeGetAllIndustries),
+		string(models.ESQueryTypeSearchIndustries):
 		return nil // These don't need additional validation
 
 	case string(models.QueryTypeFranchiseContactInfo):
