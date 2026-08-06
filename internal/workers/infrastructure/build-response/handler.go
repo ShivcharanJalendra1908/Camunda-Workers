@@ -878,7 +878,7 @@ func (h *Handler) buildAssociationHomeResponse(data map[string]interface{}) map[
 		} else if d, ok := assoc["description"].(string); ok {
 			desc = d
 		}
-		transformed.Description = desc
+		transformed.Description = h.appendEllipsis(desc)
 
 		// association_metadata
 		assocMeta := h.extractMap(assoc, "association_metadata")
