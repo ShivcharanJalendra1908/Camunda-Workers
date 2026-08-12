@@ -68,61 +68,58 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_SendResponse" targetRef="EndEvent_1" />
   </bpmn:process>
+  
+
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-listing-page">
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="152" y="162" width="36" height="36" />
+        <dc:Bounds x="150" y="100" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork" isMarkerVisible="true">
-        <dc:Bounds x="245" y="155" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork">
+        <dc:Bounds x="250" y="93" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_GetListing_di" bpmnElement="Task_GetListing">
-        <dc:Bounds x="350" y="80" width="100" height="80" />
+        <dc:Bounds x="350" y="78" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_GetPopular_di" bpmnElement="Task_GetPopular">
-        <dc:Bounds x="350" y="200" width="100" height="80" />
+        <dc:Bounds x="500" y="78" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join" isMarkerVisible="true">
-        <dc:Bounds x="505" y="155" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join">
+        <dc:Bounds x="650" y="93" width="50" height="50" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="610" y="140" width="100" height="80" />
+        <dc:Bounds x="750" y="78" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="762" y="162" width="36" height="36" />
+        <dc:Bounds x="900" y="100" width="36" height="36" />
       </bpmndi:BPMNShape>
-      
       <bpmndi:BPMNEdge id="Flow_Start_To_Fork_di" bpmnElement="Flow_Start_To_Fork">
-        <di:waypoint x="188" y="180" />
-        <di:waypoint x="245" y="180" />
+        <di:waypoint x="168" y="118" />
+        <di:waypoint x="275" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_To_Listing_di" bpmnElement="Flow_To_Listing">
-        <di:waypoint x="270" y="155" />
-        <di:waypoint x="270" y="120" />
-        <di:waypoint x="350" y="120" />
+        <di:waypoint x="275" y="118" />
+        <di:waypoint x="400" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_To_Popular_di" bpmnElement="Flow_To_Popular">
-        <di:waypoint x="270" y="205" />
-        <di:waypoint x="270" y="240" />
-        <di:waypoint x="350" y="240" />
+        <di:waypoint x="275" y="118" />
+        <di:waypoint x="550" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Listing_To_Join_di" bpmnElement="Flow_Listing_To_Join">
-        <di:waypoint x="450" y="120" />
-        <di:waypoint x="530" y="120" />
-        <di:waypoint x="530" y="155" />
+        <di:waypoint x="400" y="118" />
+        <di:waypoint x="675" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Popular_To_Join_di" bpmnElement="Flow_Popular_To_Join">
-        <di:waypoint x="450" y="240" />
-        <di:waypoint x="530" y="240" />
-        <di:waypoint x="530" y="205" />
+        <di:waypoint x="550" y="118" />
+        <di:waypoint x="675" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Join_To_Response_di" bpmnElement="Flow_Join_To_Response">
-        <di:waypoint x="555" y="180" />
-        <di:waypoint x="610" y="180" />
+        <di:waypoint x="675" y="118" />
+        <di:waypoint x="800" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End">
-        <di:waypoint x="710" y="180" />
-        <di:waypoint x="762" y="180" />
+        <di:waypoint x="800" y="118" />
+        <di:waypoint x="918" y="118" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
