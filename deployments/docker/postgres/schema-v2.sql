@@ -226,8 +226,11 @@ CREATE TABLE listings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-    CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise')),
+CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise')),
     CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
+
+CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise', 'blog')),
+    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
     CONSTRAINT chk_logo_url_circle CHECK (logo_url_circle IS NULL OR logo_url_circle ~* '^https?://' OR logo_url_circle ~* '^/'),
     CONSTRAINT chk_logo_url_square CHECK (logo_url_square IS NULL OR logo_url_square ~* '^https?://' OR logo_url_square ~* '^/'),
     CONSTRAINT chk_founded_year_valid CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= EXTRACT(YEAR FROM CURRENT_DATE))),
@@ -261,6 +264,48 @@ CREATE TABLE franchises (
     CONSTRAINT chk_established_year_valid CHECK (established_year IS NULL OR (established_year >= 1800 AND established_year <= EXTRACT(YEAR FROM CURRENT_DATE)))
 );
 COMMENT ON TABLE franchises IS 'Extension table specifically for Franchises. ID matches listings(id).';
+
+-- ============================================================
+-- CHILD TABLE: BLOGS
+-- ============================================================
+CREATE TABLE blogs (
+    id UUID PRIMARY KEY REFERENCES listings(id) ON DELETE CASCADE,
+    reading_time_mins INT NOT NULL DEFAULT 5,
+    seo_title VARCHAR(200),
+    seo_description TEXT,
+    featured_image_url VARCHAR(500) NOT NULL,
+    author_display_name VARCHAR(150),
+    tags TEXT[],
+    additional_media_urls TEXT[]
+);
+COMMENT ON TABLE blogs IS 'Blog-specific extension of the listings table. ID matches listings(id).';
+
+-- ============================================================
+-- BLOG SUBSCRIBERS
+-- ============================================================
+CREATE TABLE blog_subscribers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    source VARCHAR(50),
+    subscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    unsubscribed_at TIMESTAMPTZ,
+    CONSTRAINT uq_blog_subscriber_email UNIQUE (email),
+    CONSTRAINT chk_subscriber_status CHECK (status IN ('ACTIVE', 'UNSUBSCRIBED'))
+);
+CREATE INDEX idx_blog_subscribers_email ON blog_subscribers(email);
+CREATE INDEX idx_blog_subscribers_status ON blog_subscribers(status);
+
+-- ============================================================
+-- BLOG AUTHOR FOLLOWERS
+-- ============================================================
+CREATE TABLE blog_author_followers (
+    follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (follower_id, author_id)
+);
+CREATE INDEX idx_blog_followers_author ON blog_author_followers(author_id);
 
 -- ============================================================
 -- CHILD TABLE: ASSOCIATIONS (Fully normalized, NO JSONB bloat)
@@ -991,6 +1036,7 @@ END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_guest_audit_events() IS 'Deletes guest audit events past their retention period. Run via cron job daily.';
 
+<<<<<<< HEAD
 -- ============================================================
 -- USER PROFILE EXTENDED TABLES
 -- ============================================================
@@ -1202,3 +1248,23 @@ END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_notifications() IS
     'Deletes notifications past their 180-day retention period. Run via cron job daily. DPDPA compliance.';
+=======
+-- ==========================================
+-- AUTHOR PROFILES (For Blog Creators)
+-- ==========================================
+CREATE TABLE author_profiles (
+    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    full_name VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255) NOT NULL,
+    bio TEXT,
+    profile_picture_url VARCHAR(2048),
+    categories TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_author_profiles_updated_at
+    BEFORE UPDATE ON author_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+>>>>>>> d9ef1f8 (feat: implement blog system including bpmn flows, postgres schema v2 updates, and initial csv seed data)

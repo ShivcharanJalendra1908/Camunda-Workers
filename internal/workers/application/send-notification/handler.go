@@ -749,6 +749,10 @@ func loadTemplates(_ string) (map[string]map[string]interface{}, error) {
 			"subject": "Application Submitted Successfully",
 			"body":    "Thank you! Your application {{applicationId}} has been submitted.",
 		},
+		TypeBlogSubmitted: {
+			"subject": "Your blog has been submitted for review — LeMiCi",
+			"body":    "Hi {{authorName}},\n\nThank you for submitting your blog post \"{{blogTitle}}\" to LeMiCi!\n\nOur editorial team will review your content within 2–3 business days. You will receive an email notification once your blog goes live.\n\nBlog ID: {{applicationId}}\n\nIf you have any questions, feel free to reach out to our support team.\n\nBest regards,\nTeam LeMiCi",
+		},
 	}, nil
 }
 

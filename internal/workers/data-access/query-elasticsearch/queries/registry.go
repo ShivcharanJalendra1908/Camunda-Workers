@@ -66,6 +66,9 @@ var Registry = map[models.QueryType]QueryFunc{
 	// ===== ALL INDUSTRIES =====
 	models.ESQueryTypeGetAllIndustries: GetAllIndustries,
 	models.ESQueryTypeSearchIndustries: SearchIndustries,
+
+	// ===== BLOG =====
+	models.ESQueryTypeBlogListing: BlogListing,
 }
 
 // Execute executes an Elasticsearch query by type

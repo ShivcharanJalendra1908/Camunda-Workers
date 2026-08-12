@@ -369,6 +369,11 @@ workers:
     enable_soft_delete: false
     enable_audit_log: true
     enabled: true
+
+  blog-postgres:
+    enabled: true
+    max_jobs_active: 10
+    timeout: 30000
     
   validate-subscription:
     enabled: true

@@ -23,6 +23,7 @@ const (
 	IndustriesIndex       = "franchise_industries"
 	IndustryInsightsIndex = "industry_insights"
 	BrowseIndex           = "franchise_browse"
+	BlogIndex             = "blog_listings"
 )
 
 type SyncManager struct {
@@ -108,6 +109,13 @@ func main() {
 		log.Printf("❌ Browse index sync failed: %v", err)
 	} else {
 		log.Println("✅ Browse index synced")
+	}
+
+	log.Println("\n📦 Syncing Index 6: blog_listings...")
+	if err := manager.syncBlogIndex(ctx); err != nil {
+		log.Printf("❌ Blog index sync failed: %v", err)
+	} else {
+		log.Println("✅ Blog index synced")
 	}
 
 	log.Println("\n🎉 Sync completed successfully!")
@@ -283,12 +291,12 @@ func (m *SyncManager) syncListingsIndex(ctx context.Context) error {
 		var locationsJSON sql.NullString
 		var country string = "India"
 		var locationStrings []string
-		
+
 		m.db.QueryRowContext(ctx,
 			"SELECT json_agg(json_build_object('city', city, 'state', state, 'country', country)) FROM listing_cities WHERE listing_id = $1",
 			id,
 		).Scan(&locationsJSON)
-		
+
 		if locationsJSON.Valid && locationsJSON.String != "" && locationsJSON.String != "null" {
 			var locArray []map[string]interface{}
 			if err := json.Unmarshal([]byte(locationsJSON.String), &locArray); err == nil {
@@ -1147,5 +1155,105 @@ func (m *SyncManager) indexDocument(ctx context.Context, index, docID string, do
 		return fmt.Errorf("index response error: %s", res.String())
 	}
 
+	return nil
+}
+
+// ============================================================
+// INDEX 6: BLOG LISTINGS
+// ============================================================
+func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
+	query := `
+        SELECT
+            l.id,
+            l.name as title,
+            l.slug,
+            l.short_description,
+            l.description as content,
+            b.reading_time_mins,
+            b.seo_title,
+            b.seo_description,
+            b.featured_image_url,
+            b.author_display_name,
+            COALESCE(array_to_json(b.tags), '[]'::json) as tags_json,
+            COALESCE(array_to_json(b.additional_media_urls), '[]'::json) as media_json,
+            l.status,
+            l.created_at,
+            l.is_featured,
+            l.is_sponsored,
+            ap.bio as author_bio,
+            ap.profile_picture_url as author_profile_pic
+        FROM listings l
+        JOIN blogs b ON l.id = b.id
+        LEFT JOIN author_profiles ap ON l.created_by = ap.user_id
+        WHERE l.entity_type = 'blog'
+    `
+
+	rows, err := m.db.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to query blogs: %w", err)
+	}
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var (
+			id, title, slug                  string
+			shortDesc, content               sql.NullString
+			readingTime                      int
+			seoTitle, seoDesc, featuredImage sql.NullString
+			authorName                       sql.NullString
+			tagsJSON                         []byte
+			mediaJSON                        []byte
+			status                           string
+			createdAt                        time.Time
+			isFeatured, isSponsored          bool
+			authorBio, authorPic             sql.NullString
+		)
+
+		if err := rows.Scan(
+			&id, &title, &slug, &shortDesc, &content,
+			&readingTime, &seoTitle, &seoDesc, &featuredImage, &authorName,
+			&tagsJSON, &mediaJSON, &status, &createdAt, &isFeatured, &isSponsored,
+			&authorBio, &authorPic,
+		); err != nil {
+			log.Printf("❌ Failed to scan blog %s: %v", id, err)
+			continue
+		}
+
+		var tags []string
+		_ = json.Unmarshal(tagsJSON, &tags)
+
+		var additionalMedia []string
+		_ = json.Unmarshal(mediaJSON, &additionalMedia)
+
+		doc := map[string]interface{}{
+			"id":                  id,
+			"title":               title,
+			"slug":                slug,
+			"short_description":   shortDesc.String,
+			"content":             content.String,
+			"reading_time_mins":   readingTime,
+			"seo_title":           seoTitle.String,
+			"seo_description":     seoDesc.String,
+			"featured_image_url":  featuredImage.String,
+			"author_display_name": authorName.String,
+			"author_bio":          authorBio.String,
+			"author_profile_pic":  authorPic.String,
+			"tags":                tags,
+			"additional_media_urls": additionalMedia,
+			"status":              status,
+			"created_at":          createdAt.Format(time.RFC3339),
+			"is_featured":         isFeatured,
+			"is_sponsored":        isSponsored,
+		}
+
+		if err := m.indexDocument(ctx, BlogIndex, id, doc); err != nil {
+			log.Printf("❌ Failed to index blog %s: %v", id, err)
+			continue
+		}
+		count++
+	}
+
+	log.Printf("📊 Indexed %d blogs", count)
 	return nil
 }

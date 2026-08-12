@@ -22,6 +22,7 @@ type Output struct {
 const (
 	TypeNewApplication       = "new_application"
 	TypeApplicationSubmitted = "application_submitted"
+	TypeBlogSubmitted        = "blog_submitted"
 )
 
 // Statuses

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1u44h0i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.29.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+  <bpmn:process id="blog-submission-workflow" name="Blog Submission Workflow" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Submit Blog">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_ValidateData" />
+    
+    <bpmn:serviceTask id="Task_ValidateData" name="Validate Blog Data">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-entity-data" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_1a</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_1a" sourceRef="Task_ValidateData" targetRef="Task_SaveToDB" />
+    
+    <bpmn:serviceTask id="Task_SaveToDB" name="Save Blog to Database">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="blog-postgres" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1a</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_SaveToDB" targetRef="Gateway_SuccessCheck" />
+    
+    <bpmn:exclusiveGateway id="Gateway_SuccessCheck" name="Success?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Success</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Failure</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <bpmn:sequenceFlow id="Flow_Success" name="Yes" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendNotificationOps">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = true</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:sequenceFlow id="Flow_Failure" name="No" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendAPIResponse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    
+    <bpmn:serviceTask id="Task_SendNotificationOps" name="Send Email to Admin">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="email-send" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=operationsEmail" target="to" />
+          <zeebe:input source="=&#34;Blog Submitted for Review: &#34; + applicationId" target="subject" />
+          <zeebe:input source="=opsEmailHtml" target="body" />
+          <zeebe:input source="=true" target="isHtml" />
+          <zeebe:input source="=opsAttachments" target="attachments" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Success</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_User_Email</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_To_User_Email" sourceRef="Task_SendNotificationOps" targetRef="Task_SendNotificationUser" />
+    
+    <bpmn:serviceTask id="Task_SendNotificationUser" name="Send Email to User">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=recipientId" target="recipientId" />
+          <zeebe:input source="=recipientType" target="recipientType" />
+          <zeebe:input source="=notificationType" target="notificationType" />
+          <zeebe:input source="=applicationId" target="applicationId" />
+          <zeebe:input source="={blogTitle: blogTitle, authorName: authorName}" target="metadata" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_To_User_Email</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SendNotificationUser" targetRef="Task_SendAPIResponse" />
+    
+    <bpmn:serviceTask id="Task_SendAPIResponse" name="Send API Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Failure</bpmn:incoming>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <bpmn:endEvent id="EndEvent_1" name="End">
+      <bpmn:incoming>Flow_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_SendAPIResponse" targetRef="EndEvent_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-submission-workflow">
+      <!-- BPMNDiagram elements omitted for brevity, logic works without it in Zeebe -->
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

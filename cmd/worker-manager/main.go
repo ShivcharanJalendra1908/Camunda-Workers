@@ -38,6 +38,7 @@ import (
 	vs "camunda-workers/internal/workers/infrastructure/validate-subscription"
 
 	// Data Access Workers
+	blogpostgres "camunda-workers/internal/workers/data-access/blog-postgres"
 	franchisepostgres "camunda-workers/internal/workers/data-access/franchise-postgres"
 	qe "camunda-workers/internal/workers/data-access/query-elasticsearch"
 	qp "camunda-workers/internal/workers/data-access/query-postgresql"
@@ -462,6 +463,20 @@ func main() {
 			zap.Int("tables", 10),
 			zap.Int("maxJobsActive", fpConfig.MaxJobsActive),
 			zap.Duration("requestTimeout", fpConfig.RequestTimeout),
+		)
+	}
+
+	// Blog PostgreSQL Worker
+	if taskType := "blog-postgres"; cfg.Workers[taskType].Enabled {
+		bpConfig := &blogpostgres.Config{
+			Timeout:  cfg.Workers[taskType].Timeout / 1000,
+			TaskType: taskType,
+		}
+		handler := blogpostgres.NewHandler(pg.DB, log, bpConfig)
+		startWorker(zeebeClient, taskType, cfg.Workers[taskType], handler.HandleJob, zapLog)
+
+		zapLog.Info("Blog PostgreSQL worker registered successfully",
+			zap.String("taskType", taskType),
 		)
 	}
 

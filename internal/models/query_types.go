@@ -84,4 +84,16 @@ const (
 	// Shares
 	QueryTypeShareFranchise QueryType = "SHARE_FRANCHISE"
 	QueryTypeGetUserShares  QueryType = "GET_USER_SHARES"
+
+	// ===== BLOG QUERY TYPES =====
+
+	// Blog Listing Page	// ===== BLOG =====
+	QueryTypeBlogListing   QueryType = "BLOG_LISTING"
+	ESQueryTypeBlogListing QueryType = "ES_BLOG_LISTING"
+	QueryTypeBlogFeatured  QueryType = "BLOG_FEATURED"
+	QueryTypeBlogPopular   QueryType = "BLOG_POPULAR"
+
+	// Blog Detail Page
+	QueryTypeBlogDetail          QueryType = "BLOG_DETAIL"
+	QueryTypeBlogRelatedArticles QueryType = "BLOG_RELATED_ARTICLES"
 )

@@ -300,7 +300,10 @@ func main() {
 	franchiseHandler := handlers.NewFranchiseHandler(camundaClient, log, redisClient.GetClient(),
 		cfg.Integrations.Internal.OperationsAlertEmail, cfg.Pagination, postgresDB.DB)
 
+	blogHandler := handlers.NewBlogHandler(camundaClient, log, redisClient.GetClient(), cfg.Pagination, postgresDB.DB, cfg.Integrations.Internal.OperationsAlertEmail)
+
 	userHandler := handlers.NewUserHandler(redisClient.GetClient(), postgresDB.DB, log, cfg, fleService)
+
 
 	oauthHandler := handlers.NewOAuthHandler(redisClient.GetClient(), log, postgresDB.DB, camundaClient, cfg.Auth.Session.CookieDomain, cfg)
 
@@ -412,6 +415,19 @@ func main() {
 
 			// Rating
 			entityGroup.GET("/:id/ratings", franchiseHandler.GetFranchiseRatings)
+		}
+
+		// ========================================================================
+		// PUBLIC BLOG ROUTES
+		// ========================================================================
+		publicBlogGroup := publicAPI.Group("/blog")
+		{
+			publicBlogGroup.GET("/home", blogHandler.GetHomeSections)
+			publicBlogGroup.GET("/listing", blogHandler.GetListing)
+			publicBlogGroup.GET("/featured", blogHandler.GetFeatured)
+			publicBlogGroup.GET("/popular", blogHandler.GetPopular)
+			publicBlogGroup.POST("/subscribe", blogHandler.SubscribeNewsletter)
+			publicBlogGroup.GET("/:id", blogHandler.GetSingleBlog)
 		}
 
 		// ========================================================================
@@ -544,13 +560,30 @@ func main() {
 			adminEntityGroup.PATCH("/duplicate-flags/:flagId/resolve", franchiseHandler.ResolveDuplicateFlag)
 		}
 
-
 		// ========================================================================
 		// DOCUMENTS WORKFLOWS
 		// ========================================================================
 		documentGroup := protectedAPI.Group("/documents")
 		{
 			documentGroup.GET("/presigned-url", documentHandler.GeneratePresignedURL)
+		}
+
+		// ========================================================================
+		// BLOG WORKFLOWS
+		// ========================================================================
+		blogGroup := protectedAPI.Group("/blog")
+		{
+			blogGroup.POST("", blogHandler.CreateBlog)
+			blogGroup.PUT("/:id", blogHandler.UpdateBlog)
+			blogGroup.POST("/:id/submit", blogHandler.UpdateBlog)
+			// S3 presigned URL for Featured Image upload (reuses existing DocumentHandler)
+			blogGroup.GET("/media/presigned", documentHandler.GeneratePresignedURL)
+		}
+
+		authorGroup := protectedAPI.Group("/authors")
+		{
+			authorGroup.POST("/:author_id/follow", blogHandler.FollowAuthor)
+			authorGroup.DELETE("/:author_id/follow", blogHandler.UnfollowAuthor)
 		}
 
 		// ========================================================================
