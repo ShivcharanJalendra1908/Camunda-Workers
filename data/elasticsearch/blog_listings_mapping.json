@@ -1,0 +1,88 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "refresh_interval": "30s"
+  },
+  "mappings": {
+    "properties": {
+      "id": {
+        "type": "keyword"
+      },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "slug": {
+        "type": "keyword"
+      },
+      "short_description": {
+        "type": "text"
+      },
+      "content": {
+        "type": "text"
+      },
+      "reading_time_mins": {
+        "type": "integer"
+      },
+      "seo_title": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "seo_description": {
+        "type": "text"
+      },
+      "featured_image_url": {
+        "type": "keyword",
+        "index": false
+      },
+      "author_display_name": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "author_bio": {
+        "type": "text"
+      },
+      "author_profile_pic": {
+        "type": "keyword",
+        "index": false
+      },
+      "tags": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
+      "additional_media_urls": {
+        "type": "keyword",
+        "index": false
+      },
+      "status": {
+        "type": "keyword"
+      },
+      "created_at": {
+        "type": "date"
+      },
+      "is_featured": {
+        "type": "boolean"
+      },
+      "is_sponsored": {
+        "type": "boolean"
+      }
+    }
+  }
+}
