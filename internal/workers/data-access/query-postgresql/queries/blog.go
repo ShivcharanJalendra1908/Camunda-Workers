@@ -219,10 +219,200 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	return map[string]interface{}{"popular_blogs": blogs}, len(blogs), elapsed, nil
 }
 
-// BlogDetail — Single Blog Page full data
-// queryType: BLOG_DETAIL
+// BlogHero — Single Blog Page: Hero Section (Title, Author, Date, Tags, Categories, etc)
+// queryType: BLOG_HERO
 // params: blogId
-func BlogDetail(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
+		return nil, 0, 0, fmt.Errorf("blogId is required")
+	}
+
+	row := db.QueryRowContext(ctx, `
+		SELECT
+			l.id, l.name AS title, l.slug, l.short_description,
+			b.reading_time_mins, b.seo_title, b.seo_description,
+			b.featured_image_url, b.author_display_name,
+			COALESCE(array_to_json(b.tags), '[]'::json) AS tags,
+			COALESCE(array_to_json(b.additional_media_urls), '[]'::json) AS additional_media_urls,
+			COALESCE(ls.view_count, 0) AS view_count,
+			l.created_at, l.created_by,
+			COALESCE(
+				json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL),
+				'[]'::json
+			) AS categories
+		FROM listings l
+		JOIN blogs b ON b.id = l.id
+		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
+		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
+		LEFT JOIN categories c ON c.id = lc.category_id
+		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
+		GROUP BY l.id, b.id, ls.view_count
+	`, blogID)
+
+	var (
+		id, title, slug string
+		shortDesc                 sql.NullString
+		readingTime               int
+		seoTitle, seoDesc         sql.NullString
+		imageURL, authorName      sql.NullString
+		tagsJSON                  []byte
+		mediaJSON                 []byte
+		viewCount                 int64
+		createdAt                 time.Time
+		createdBy                 string
+		catsJSON                  []byte
+	)
+	if err := row.Scan(&id, &title, &slug, &shortDesc, &readingTime, &seoTitle, &seoDesc, &imageURL, &authorName, &tagsJSON, &mediaJSON, &viewCount, &createdAt, &createdBy, &catsJSON); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, 0, 0, fmt.Errorf("blog not found")
+		}
+		return nil, 0, 0, fmt.Errorf("blog hero query failed: %w", err)
+	}
+
+	// Async view count increment
+	go db.ExecContext(context.Background(), "UPDATE listing_stats SET view_count = view_count + 1 WHERE listing_id = $1", blogID)
+
+	var tags []string
+	json.Unmarshal(tagsJSON, &tags)
+	var additionalMedia []string
+	json.Unmarshal(mediaJSON, &additionalMedia)
+	var cats []interface{}
+	json.Unmarshal(catsJSON, &cats)
+
+	elapsed := time.Since(start).Milliseconds()
+	return map[string]interface{}{
+		"blog_hero": map[string]interface{}{
+			"id":                    id,
+			"title":                 title,
+			"slug":                  slug,
+			"short_description":     shortDesc.String,
+			"reading_time_mins":     readingTime,
+			"seo_title":             seoTitle.String,
+			"seo_description":       seoDesc.String,
+			"featured_image_url":    imageURL.String,
+			"author_display_name":   authorName.String,
+			"tags":                  tags,
+			"additional_media_urls": additionalMedia,
+			"categories":            cats,
+			"view_count":            viewCount,
+			"published_at":          createdAt.Format(time.RFC3339),
+		},
+	}, 1, elapsed, nil
+}
+
+// BlogContent — Single Blog Page: Main HTML Content
+// queryType: BLOG_CONTENT
+// params: blogId
+func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
+		return nil, 0, 0, fmt.Errorf("blogId is required")
+	}
+
+	row := db.QueryRowContext(ctx, `
+		SELECT l.description AS content
+		FROM listings l
+		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
+	`, blogID)
+
+	var content string
+	if err := row.Scan(&content); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, 0, 0, fmt.Errorf("blog content not found")
+		}
+		return nil, 0, 0, fmt.Errorf("blog content query failed: %w", err)
+	}
+
+	elapsed := time.Since(start).Milliseconds()
+	return map[string]interface{}{
+		"blog_content": content,
+	}, 1, elapsed, nil
+}
+
+// BlogRelatedArticles — Sidebar "Related Articles" section on Blog Detail Page
+// queryType: BLOG_RELATED_ARTICLES
+// params: blogId, limit (default 4)
+// Fetches blogs in the same categories as the given blog, excluding itself
+func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
+		return nil, 0, 0, fmt.Errorf("blogId is required")
+	}
+	limit := 4
+	if l, ok := params["limit"].(float64); ok && l > 0 {
+		limit = int(l)
+	}
+
+	// First get category IDs for this blog
+	catRows, err := db.QueryContext(ctx, `
+		SELECT category_id FROM listing_categories WHERE listing_id = $1
+	`, blogID)
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("related articles: failed to get categories: %w", err)
+	}
+	defer catRows.Close()
+
+	var catIDs []string
+	for catRows.Next() {
+		var cid string
+		catRows.Scan(&cid)
+		catIDs = append(catIDs, "'"+cid+"'")
+	}
+
+	var related []map[string]interface{}
+	if len(catIDs) > 0 {
+		relQuery := fmt.Sprintf(`
+			SELECT DISTINCT l.id, l.name, l.slug, l.short_description,
+			       b.featured_image_url, b.reading_time_mins, b.author_display_name, l.created_at
+			FROM listings l
+			JOIN blogs b ON b.id = l.id
+			JOIN listing_categories lc ON lc.listing_id = l.id
+			WHERE l.entity_type = 'blog' AND l.status = 'LIVE'
+			  AND l.id != $1
+			  AND lc.category_id IN (%s)
+			ORDER BY l.created_at DESC
+			LIMIT $2
+		`, strings.Join(catIDs, ","))
+
+		relRows, err := db.QueryContext(ctx, relQuery, blogID, limit)
+		if err != nil {
+			return nil, 0, 0, fmt.Errorf("related articles query failed: %w", err)
+		}
+		defer relRows.Close()
+		for relRows.Next() {
+			var rid, rtitle, rslug string
+			var rdesc, rimage, rauthor sql.NullString
+			var rtime int
+			var rcreatedAt time.Time
+			relRows.Scan(&rid, &rtitle, &rslug, &rdesc, &rimage, &rtime, &rauthor, &rcreatedAt)
+			related = append(related, map[string]interface{}{
+				"id":                  rid,
+				"title":               rtitle,
+				"slug":                rslug,
+				"short_description":   rdesc.String,
+				"featured_image_url":  rimage.String,
+				"reading_time_mins":   rtime,
+				"author_display_name": rauthor.String,
+				"published_at":        rcreatedAt.Format(time.RFC3339),
+			})
+		}
+	}
+	if related == nil {
+		related = []map[string]interface{}{}
+	}
+
+	elapsed := time.Since(start).Milliseconds()
+	return map[string]interface{}{
+		"related_articles": related,
+	}, len(related), elapsed, nil
+}
 	start := time.Now()
 
 	blogID, ok := params["blogId"].(string)

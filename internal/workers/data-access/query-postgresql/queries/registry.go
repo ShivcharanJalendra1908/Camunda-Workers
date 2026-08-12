@@ -62,7 +62,9 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeBlogListing: BlogListing,
 	models.QueryTypeBlogFeatured: BlogFeatured,
 	models.QueryTypeBlogPopular:  BlogPopular,
-	models.QueryTypeBlogDetail:   BlogDetail,
+	models.QueryTypeBlogHero:     BlogHero,
+	models.QueryTypeBlogContent:  BlogContent,
+	models.QueryTypeBlogRelatedArticles: BlogRelatedArticles,
 	models.QueryTypeBlogAuthorProfile: BlogAuthorProfile,
 }
 
