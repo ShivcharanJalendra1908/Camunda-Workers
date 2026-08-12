@@ -324,21 +324,87 @@ func BlogDetail(ctx context.Context, db *sql.DB, params map[string]interface{}, 
 
 	elapsed := time.Since(start).Milliseconds()
 	return map[string]interface{}{
-		"id":                  id,
-		"title":               title,
-		"slug":                slug,
-		"short_description":   shortDesc.String,
-		"content":             content,
-		"reading_time_mins":   readingTime,
-		"seo_title":           seoTitle.String,
-		"seo_description":     seoDesc.String,
-		"featured_image_url":  imageURL.String,
-		"author_display_name": authorName.String,
-		"tags":                tags,
-		"additional_media_urls": additionalMedia,
-		"categories":          cats,
-		"view_count":          viewCount,
-		"published_at":        createdAt.Format(time.RFC3339),
-		"related_articles":    related,
+		"blog_detail": map[string]interface{}{
+			"id":                    id,
+			"title":                 title,
+			"slug":                  slug,
+			"short_description":     shortDesc.String,
+			"content":               content,
+			"reading_time_mins":     readingTime,
+			"seo_title":             seoTitle.String,
+			"seo_description":       seoDesc.String,
+			"featured_image_url":    imageURL.String,
+			"author_display_name":   authorName.String,
+			"tags":                  tags,
+			"additional_media_urls": additionalMedia,
+			"categories":            cats,
+			"view_count":            viewCount,
+			"published_at":          createdAt.Format(time.RFC3339),
+		},
+		"related_articles": related,
+		"categories":       cats,
+		"tags":             tags,
+	}, 1, elapsed, nil
+}
+
+// BlogAuthorProfile — "About the Author" section on Blog Detail Page
+// queryType: BLOG_AUTHOR_PROFILE
+// params: blogId (fetches author via listings.created_by → author_profiles.user_id)
+func BlogAuthorProfile(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
+		return nil, 0, 0, fmt.Errorf("blogId is required")
+	}
+
+	row := db.QueryRowContext(ctx, `
+		SELECT
+			ap.user_id,
+			ap.full_name,
+			ap.author_name,
+			ap.bio,
+			ap.profile_picture_url,
+			COALESCE(array_to_json(ap.categories), '[]'::json) AS categories,
+			COALESCE(
+				(SELECT COUNT(*) FROM blog_author_followers WHERE author_id = ap.user_id),
+				0
+			) AS follower_count
+		FROM listings l
+		JOIN author_profiles ap ON ap.user_id = l.created_by
+		WHERE l.id = $1 AND l.entity_type = 'blog'
+	`, blogID)
+
+	var (
+		userID, fullName, authorName string
+		bio, picURL                  sql.NullString
+		catsJSON                     []byte
+		followerCount                int64
+	)
+	if err := row.Scan(&userID, &fullName, &authorName, &bio, &picURL, &catsJSON, &followerCount); err != nil {
+		if err == sql.ErrNoRows {
+			// No author profile found — return minimal data
+			elapsed := time.Since(start).Milliseconds()
+			return map[string]interface{}{
+				"author_profile": nil,
+			}, 0, elapsed, nil
+		}
+		return nil, 0, 0, fmt.Errorf("author profile query failed: %w", err)
+	}
+
+	var cats []string
+	json.Unmarshal(catsJSON, &cats)
+
+	elapsed := time.Since(start).Milliseconds()
+	return map[string]interface{}{
+		"author_profile": map[string]interface{}{
+			"user_id":             userID,
+			"full_name":           fullName,
+			"author_name":         authorName,
+			"bio":                 bio.String,
+			"profile_picture_url": picURL.String,
+			"categories":          cats,
+			"follower_count":      followerCount,
+		},
 	}, 1, elapsed, nil
 }

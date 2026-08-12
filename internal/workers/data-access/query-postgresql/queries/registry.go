@@ -63,6 +63,7 @@ var Registry = map[models.QueryType]QueryFunc{
 	models.QueryTypeBlogFeatured: BlogFeatured,
 	models.QueryTypeBlogPopular:  BlogPopular,
 	models.QueryTypeBlogDetail:   BlogDetail,
+	models.QueryTypeBlogAuthorProfile: BlogAuthorProfile,
 }
 
 func Execute(ctx context.Context, db *sql.DB, queryType models.QueryType, params map[string]interface{}, encryptor *crypto.Encryptor) (interface{}, int, int64, error) {

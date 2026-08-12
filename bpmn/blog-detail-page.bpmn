@@ -1,67 +1,224 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_blog_detail" targetNamespace="http://bpmn.io/schema/bpmn">
-  <bpmn:process id="blog-detail-page" name="Blog Detail Page" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1" name="Blog Detail Page Request">
-      <bpmn:outgoing>Flow_Start_To_Detail</bpmn:outgoing>
-    </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_Start_To_Detail" sourceRef="StartEvent_1" targetRef="Task_GetDetail" />
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_blog_detail"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler" exporterVersion="5.29.0"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.6.0">
 
-    <bpmn:serviceTask id="Task_GetDetail" name="Get Blog Full Detail">
+  <bpmn:process id="blog-detail-page" name="Blog Detail Page" isExecutable="true">
+
+    <!-- START -->
+    <bpmn:startEvent id="StartEvent_1" name="Blog Detail Request">
+      <bpmn:outgoing>Flow_Start_To_Fork</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_Start_To_Fork" sourceRef="StartEvent_1" targetRef="Gateway_Fork" />
+
+    <!-- PARALLEL FORK: fetch all page sections simultaneously -->
+    <bpmn:parallelGateway id="Gateway_Fork" name="Fetch All Sections">
+      <bpmn:incoming>Flow_Start_To_Fork</bpmn:incoming>
+      <bpmn:outgoing>Flow_Fork_To_Detail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fork_To_Author</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fork_To_Popular</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- TASK 1: Blog Full Detail (hero + content + tags + categories + related articles) -->
+    <bpmn:serviceTask id="Task_GetDetail" name="Get Blog Detail&#10;(Hero + Content + Related)">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&quot;BLOG_DETAIL&quot;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:output source="=data" target="blogDetail" />
+          <zeebe:output source="=blog_detail" target="blog_detail" />
+          <zeebe:output source="=related_articles" target="related_articles" />
+          <zeebe:output source="=categories" target="categories" />
+          <zeebe:output source="=tags" target="tags" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Start_To_Detail</bpmn:incoming>
-      <bpmn:outgoing>Flow_Detail_To_Response</bpmn:outgoing>
+      <bpmn:incoming>Flow_Fork_To_Detail</bpmn:incoming>
+      <bpmn:outgoing>Flow_Detail_To_Join</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Fork_To_Detail" sourceRef="Gateway_Fork" targetRef="Task_GetDetail" />
+    <bpmn:sequenceFlow id="Flow_Detail_To_Join" sourceRef="Task_GetDetail" targetRef="Gateway_Join" />
 
-    <bpmn:sequenceFlow id="Flow_Detail_To_Response" sourceRef="Task_GetDetail" targetRef="Task_SendResponse" />
+    <!-- TASK 2: Author Profile (About the Author section) -->
+    <bpmn:serviceTask id="Task_GetAuthor" name="Get Author Profile&#10;(About the Author)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;BLOG_AUTHOR_PROFILE&quot;" target="queryType" />
+          <zeebe:input source="=blogId" target="blogId" />
+          <zeebe:output source="=author_profile" target="author_profile" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Fork_To_Author</bpmn:incoming>
+      <bpmn:outgoing>Flow_Author_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Fork_To_Author" sourceRef="Gateway_Fork" targetRef="Task_GetAuthor" />
+    <bpmn:sequenceFlow id="Flow_Author_To_Join" sourceRef="Task_GetAuthor" targetRef="Gateway_Join" />
 
+    <!-- TASK 3: Popular Blogs (Popular Right Now section) -->
+    <bpmn:serviceTask id="Task_GetPopular" name="Get Popular Blogs&#10;(Popular Right Now)">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&quot;BLOG_POPULAR&quot;" target="queryType" />
+          <zeebe:input source="=4" target="limit" />
+          <zeebe:output source="=popular_blogs" target="popular_blogs" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Fork_To_Popular</bpmn:incoming>
+      <bpmn:outgoing>Flow_Popular_To_Join</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Fork_To_Popular" sourceRef="Gateway_Fork" targetRef="Task_GetPopular" />
+    <bpmn:sequenceFlow id="Flow_Popular_To_Join" sourceRef="Task_GetPopular" targetRef="Gateway_Join" />
+
+    <!-- PARALLEL JOIN: wait for all sections -->
+    <bpmn:parallelGateway id="Gateway_Join" name="All Sections Ready">
+      <bpmn:incoming>Flow_Detail_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Author_To_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Popular_To_Join</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join_To_Response</bpmn:outgoing>
+    </bpmn:parallelGateway>
+
+    <!-- TASK 4: Send assembled response back to API -->
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=blog_detail" target="blog_detail" />
+          <zeebe:input source="=author_profile" target="author_profile" />
+          <zeebe:input source="=related_articles" target="related_articles" />
+          <zeebe:input source="=popular_blogs" target="popular_blogs" />
+          <zeebe:input source="=categories" target="categories" />
+          <zeebe:input source="=tags" target="tags" />
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Detail_To_Response</bpmn:incoming>
+      <bpmn:incoming>Flow_Join_To_Response</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Join_To_Response" sourceRef="Gateway_Join" targetRef="Task_SendResponse" />
 
-    <bpmn:endEvent id="EndEvent_1" name="End">
+    <!-- END -->
+    <bpmn:endEvent id="EndEvent_1" name="Detail Page Ready">
       <bpmn:incoming>Flow_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_SendResponse" targetRef="EndEvent_1" />
+
   </bpmn:process>
-  
 
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-detail-page">
+
+      <!-- Start -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="150" y="100" width="36" height="36" />
+        <dc:Bounds x="152" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="130" y="245" width="80" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+
+      <!-- Fork Gateway -->
+      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork">
+        <dc:Bounds x="255" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="236" y="252" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task 1: Blog Detail (middle lane) -->
       <bpmndi:BPMNShape id="Task_GetDetail_di" bpmnElement="Task_GetDetail">
-        <dc:Bounds x="250" y="78" width="100" height="80" />
+        <dc:Bounds x="370" y="180" width="130" height="80" />
       </bpmndi:BPMNShape>
+
+      <!-- Task 2: Author (top lane) -->
+      <bpmndi:BPMNShape id="Task_GetAuthor_di" bpmnElement="Task_GetAuthor">
+        <dc:Bounds x="370" y="60" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Task 3: Popular (bottom lane) -->
+      <bpmndi:BPMNShape id="Task_GetPopular_di" bpmnElement="Task_GetPopular">
+        <dc:Bounds x="370" y="300" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Join Gateway -->
+      <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join">
+        <dc:Bounds x="565" y="195" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="548" y="252" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Task 4: Send Response -->
       <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="400" y="78" width="100" height="80" />
+        <dc:Bounds x="680" y="180" width="130" height="80" />
       </bpmndi:BPMNShape>
+
+      <!-- End Event -->
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="550" y="100" width="36" height="36" />
+        <dc:Bounds x="872" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="849" y="245" width="82" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_Start_To_Detail_di" bpmnElement="Flow_Start_To_Detail">
-        <di:waypoint x="168" y="118" />
-        <di:waypoint x="300" y="118" />
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Flow_Start_To_Fork_di" bpmnElement="Flow_Start_To_Fork">
+        <di:waypoint x="188" y="220" />
+        <di:waypoint x="255" y="220" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Detail_To_Response_di" bpmnElement="Flow_Detail_To_Response">
-        <di:waypoint x="300" y="118" />
-        <di:waypoint x="450" y="118" />
+
+      <bpmndi:BPMNEdge id="Flow_Fork_To_Detail_di" bpmnElement="Flow_Fork_To_Detail">
+        <di:waypoint x="280" y="220" />
+        <di:waypoint x="370" y="220" />
       </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Fork_To_Author_di" bpmnElement="Flow_Fork_To_Author">
+        <di:waypoint x="280" y="195" />
+        <di:waypoint x="280" y="100" />
+        <di:waypoint x="370" y="100" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Fork_To_Popular_di" bpmnElement="Flow_Fork_To_Popular">
+        <di:waypoint x="280" y="245" />
+        <di:waypoint x="280" y="340" />
+        <di:waypoint x="370" y="340" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Detail_To_Join_di" bpmnElement="Flow_Detail_To_Join">
+        <di:waypoint x="500" y="220" />
+        <di:waypoint x="565" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Author_To_Join_di" bpmnElement="Flow_Author_To_Join">
+        <di:waypoint x="500" y="100" />
+        <di:waypoint x="590" y="100" />
+        <di:waypoint x="590" y="195" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Popular_To_Join_di" bpmnElement="Flow_Popular_To_Join">
+        <di:waypoint x="500" y="340" />
+        <di:waypoint x="590" y="340" />
+        <di:waypoint x="590" y="245" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Join_To_Response_di" bpmnElement="Flow_Join_To_Response">
+        <di:waypoint x="615" y="220" />
+        <di:waypoint x="680" y="220" />
+      </bpmndi:BPMNEdge>
+
       <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End">
-        <di:waypoint x="450" y="118" />
-        <di:waypoint x="568" y="118" />
+        <di:waypoint x="810" y="220" />
+        <di:waypoint x="872" y="220" />
       </bpmndi:BPMNEdge>
+
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

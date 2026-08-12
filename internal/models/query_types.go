@@ -96,4 +96,5 @@ const (
 	// Blog Detail Page
 	QueryTypeBlogDetail          QueryType = "BLOG_DETAIL"
 	QueryTypeBlogRelatedArticles QueryType = "BLOG_RELATED_ARTICLES"
+	QueryTypeBlogAuthorProfile   QueryType = "BLOG_AUTHOR_PROFILE"
 )
