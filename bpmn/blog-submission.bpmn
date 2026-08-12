@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1u44h0i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.29.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1u44h0i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
   <bpmn:process id="blog-submission-workflow" name="Blog Submission Workflow" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1" name="Submit Blog">
       <bpmn:outgoing>Flow_1</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_ValidateData" />
-    
     <bpmn:serviceTask id="Task_ValidateData" name="Validate Blog Data">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="validate-entity-data" />
@@ -13,9 +12,7 @@
       <bpmn:incoming>Flow_1</bpmn:incoming>
       <bpmn:outgoing>Flow_1a</bpmn:outgoing>
     </bpmn:serviceTask>
-
     <bpmn:sequenceFlow id="Flow_1a" sourceRef="Task_ValidateData" targetRef="Task_SaveToDB" />
-    
     <bpmn:serviceTask id="Task_SaveToDB" name="Save Blog to Database">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="blog-postgres" />
@@ -23,23 +20,15 @@
       <bpmn:incoming>Flow_1a</bpmn:incoming>
       <bpmn:outgoing>Flow_2</bpmn:outgoing>
     </bpmn:serviceTask>
-    
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_SaveToDB" targetRef="Gateway_SuccessCheck" />
-    
     <bpmn:exclusiveGateway id="Gateway_SuccessCheck" name="Success?">
       <bpmn:incoming>Flow_2</bpmn:incoming>
       <bpmn:outgoing>Flow_Success</bpmn:outgoing>
       <bpmn:outgoing>Flow_Failure</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    
     <bpmn:sequenceFlow id="Flow_Success" name="Yes" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendNotificationOps">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    
-    <bpmn:sequenceFlow id="Flow_Failure" name="No" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendAPIResponse">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = false</bpmn:conditionExpression>
-    </bpmn:sequenceFlow>
-    
     <bpmn:serviceTask id="Task_SendNotificationOps" name="Send Email to Admin">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="email-send" />
@@ -54,9 +43,7 @@
       <bpmn:incoming>Flow_Success</bpmn:incoming>
       <bpmn:outgoing>Flow_To_User_Email</bpmn:outgoing>
     </bpmn:serviceTask>
-    
     <bpmn:sequenceFlow id="Flow_To_User_Email" sourceRef="Task_SendNotificationOps" targetRef="Task_SendNotificationUser" />
-    
     <bpmn:serviceTask id="Task_SendNotificationUser" name="Send Email to User">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-notification" />
@@ -71,9 +58,10 @@
       <bpmn:incoming>Flow_To_User_Email</bpmn:incoming>
       <bpmn:outgoing>Flow_3</bpmn:outgoing>
     </bpmn:serviceTask>
-    
     <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SendNotificationUser" targetRef="Task_SendAPIResponse" />
-    
+    <bpmn:sequenceFlow id="Flow_Failure" name="No" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendAPIResponse">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = false</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
     <bpmn:serviceTask id="Task_SendAPIResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
@@ -82,71 +70,87 @@
       <bpmn:incoming>Flow_3</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
-    
     <bpmn:endEvent id="EndEvent_1" name="End">
       <bpmn:incoming>Flow_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_SendAPIResponse" targetRef="EndEvent_1" />
   </bpmn:process>
-  
-
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-submission-workflow">
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="150" y="100" width="36" height="36" />
+        <dc:Bounds x="152" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="138" y="215" width="64" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_ValidateData_di" bpmnElement="Task_ValidateData">
-        <dc:Bounds x="250" y="78" width="100" height="80" />
+        <dc:Bounds x="240" y="150" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SaveToDB_di" bpmnElement="Task_SaveToDB">
-        <dc:Bounds x="400" y="78" width="100" height="80" />
+        <dc:Bounds x="410" y="150" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_SuccessCheck_di" bpmnElement="Gateway_SuccessCheck">
-        <dc:Bounds x="550" y="93" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_SuccessCheck_di" bpmnElement="Gateway_SuccessCheck" isMarkerVisible="true">
+        <dc:Bounds x="565" y="165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="624.5" y="183" width="49" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendNotificationOps_di" bpmnElement="Task_SendNotificationOps">
-        <dc:Bounds x="650" y="78" width="100" height="80" />
+        <dc:Bounds x="640" y="60" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendNotificationUser_di" bpmnElement="Task_SendNotificationUser">
-        <dc:Bounds x="800" y="78" width="100" height="80" />
+        <dc:Bounds x="800" y="60" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendAPIResponse_di" bpmnElement="Task_SendAPIResponse">
-        <dc:Bounds x="950" y="78" width="100" height="80" />
+        <dc:Bounds x="930" y="150" width="120" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="1100" y="100" width="36" height="36" />
+        <dc:Bounds x="1092" y="172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1101" y="215" width="18" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
-        <di:waypoint x="168" y="118" />
-        <di:waypoint x="300" y="118" />
+        <di:waypoint x="188" y="190" />
+        <di:waypoint x="240" y="190" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_1a_di" bpmnElement="Flow_1a">
-        <di:waypoint x="300" y="118" />
-        <di:waypoint x="450" y="118" />
+        <di:waypoint x="360" y="190" />
+        <di:waypoint x="410" y="190" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
-        <di:waypoint x="450" y="118" />
-        <di:waypoint x="575" y="118" />
+        <di:waypoint x="530" y="190" />
+        <di:waypoint x="565" y="190" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Success_di" bpmnElement="Flow_Success">
-        <di:waypoint x="575" y="118" />
-        <di:waypoint x="700" y="118" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Failure_di" bpmnElement="Flow_Failure">
-        <di:waypoint x="575" y="118" />
-        <di:waypoint x="1000" y="118" />
+        <di:waypoint x="590" y="165" />
+        <di:waypoint x="590" y="100" />
+        <di:waypoint x="640" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="596" y="125" width="19" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_To_User_Email_di" bpmnElement="Flow_To_User_Email">
-        <di:waypoint x="700" y="118" />
-        <di:waypoint x="850" y="118" />
+        <di:waypoint x="760" y="100" />
+        <di:waypoint x="800" y="100" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
-        <di:waypoint x="850" y="118" />
-        <di:waypoint x="1000" y="118" />
+        <di:waypoint x="920" y="100" />
+        <di:waypoint x="990" y="100" />
+        <di:waypoint x="990" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Failure_di" bpmnElement="Flow_Failure">
+        <di:waypoint x="590" y="215" />
+        <di:waypoint x="590" y="280" />
+        <di:waypoint x="990" y="280" />
+        <di:waypoint x="990" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="597" y="243" width="13" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End">
-        <di:waypoint x="1000" y="118" />
-        <di:waypoint x="1118" y="118" />
+        <di:waypoint x="1050" y="190" />
+        <di:waypoint x="1092" y="190" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

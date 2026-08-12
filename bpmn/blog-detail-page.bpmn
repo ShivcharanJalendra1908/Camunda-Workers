@@ -1,26 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions
-  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
-  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
-  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
-  id="Definitions_blog_detail"
-  targetNamespace="http://bpmn.io/schema/bpmn"
-  exporter="Camunda Modeler" exporterVersion="5.29.0"
-  modeler:executionPlatform="Camunda Cloud"
-  modeler:executionPlatformVersion="8.6.0">
-
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_blog_detail" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
   <bpmn:process id="blog-detail-page" name="Blog Detail Page" isExecutable="true">
-
     <bpmn:startEvent id="StartEvent_1" name="Blog Detail Request">
       <bpmn:outgoing>Flow_Start_To_Fork</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="Flow_Start_To_Fork" sourceRef="StartEvent_1" targetRef="Gateway_Fork" />
-
-    <!-- PARALLEL FORK (5 ways) -->
     <bpmn:parallelGateway id="Gateway_Fork" name="Fetch All Sections">
       <bpmn:incoming>Flow_Start_To_Fork</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Hero</bpmn:outgoing>
@@ -29,13 +13,11 @@
       <bpmn:outgoing>Flow_To_Related</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Popular</bpmn:outgoing>
     </bpmn:parallelGateway>
-
-    <!-- TASK 1 (lane 1): Blog Hero -->
-    <bpmn:serviceTask id="Task_GetHero" name="Get Blog Hero&#10;(Title, Image, Tags)">
+    <bpmn:serviceTask id="Task_GetHero" name="Get Blog Hero">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;BLOG_HERO&quot;" target="queryType" />
+          <zeebe:input source="=&#34;BLOG_HERO&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
           <zeebe:output source="=blog_hero" target="blog_hero" />
         </zeebe:ioMapping>
@@ -45,13 +27,11 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_To_Hero" sourceRef="Gateway_Fork" targetRef="Task_GetHero" />
     <bpmn:sequenceFlow id="Flow_Hero_To_Join" sourceRef="Task_GetHero" targetRef="Gateway_Join" />
-
-    <!-- TASK 2 (lane 2): Blog Content -->
-    <bpmn:serviceTask id="Task_GetContent" name="Get Blog Content&#10;(HTML/Markdown)">
+    <bpmn:serviceTask id="Task_GetContent" name="Get Blog Content">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;BLOG_CONTENT&quot;" target="queryType" />
+          <zeebe:input source="=&#34;BLOG_CONTENT&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
           <zeebe:output source="=blog_content" target="blog_content" />
         </zeebe:ioMapping>
@@ -61,13 +41,11 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_To_Content" sourceRef="Gateway_Fork" targetRef="Task_GetContent" />
     <bpmn:sequenceFlow id="Flow_Content_To_Join" sourceRef="Task_GetContent" targetRef="Gateway_Join" />
-
-    <!-- TASK 3 (lane 3): Author Profile -->
-    <bpmn:serviceTask id="Task_GetAuthor" name="Get Author Profile&#10;(About the Author)">
+    <bpmn:serviceTask id="Task_GetAuthor" name="Get Author Profile">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;BLOG_AUTHOR_PROFILE&quot;" target="queryType" />
+          <zeebe:input source="=&#34;BLOG_AUTHOR_PROFILE&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
           <zeebe:output source="=author_profile" target="author_profile" />
         </zeebe:ioMapping>
@@ -77,13 +55,11 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_To_Author" sourceRef="Gateway_Fork" targetRef="Task_GetAuthor" />
     <bpmn:sequenceFlow id="Flow_Author_To_Join" sourceRef="Task_GetAuthor" targetRef="Gateway_Join" />
-
-    <!-- TASK 4 (lane 4): Related Articles -->
-    <bpmn:serviceTask id="Task_GetRelated" name="Get Related Articles&#10;(Sidebar)">
+    <bpmn:serviceTask id="Task_GetRelated" name="Get Related Articles">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;BLOG_RELATED_ARTICLES&quot;" target="queryType" />
+          <zeebe:input source="=&#34;BLOG_RELATED_ARTICLES&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
           <zeebe:input source="=4" target="limit" />
           <zeebe:output source="=related_articles" target="related_articles" />
@@ -94,13 +70,11 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_To_Related" sourceRef="Gateway_Fork" targetRef="Task_GetRelated" />
     <bpmn:sequenceFlow id="Flow_Related_To_Join" sourceRef="Task_GetRelated" targetRef="Gateway_Join" />
-
-    <!-- TASK 5 (lane 5): Popular Right Now -->
-    <bpmn:serviceTask id="Task_GetPopular" name="Get Popular Blogs&#10;(Popular Right Now)">
+    <bpmn:serviceTask id="Task_GetPopular" name="Get Popular Blogs">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
-          <zeebe:input source="=&quot;BLOG_POPULAR&quot;" target="queryType" />
+          <zeebe:input source="=&#34;BLOG_POPULAR&#34;" target="queryType" />
           <zeebe:input source="=4" target="limit" />
           <zeebe:output source="=popular_blogs" target="popular_blogs" />
         </zeebe:ioMapping>
@@ -110,8 +84,6 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_To_Popular" sourceRef="Gateway_Fork" targetRef="Task_GetPopular" />
     <bpmn:sequenceFlow id="Flow_Popular_To_Join" sourceRef="Task_GetPopular" targetRef="Gateway_Join" />
-
-    <!-- PARALLEL JOIN (5 ways) -->
     <bpmn:parallelGateway id="Gateway_Join" name="All Sections Ready">
       <bpmn:incoming>Flow_Hero_To_Join</bpmn:incoming>
       <bpmn:incoming>Flow_Content_To_Join</bpmn:incoming>
@@ -120,7 +92,6 @@
       <bpmn:incoming>Flow_Popular_To_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_Join_To_Response</bpmn:outgoing>
     </bpmn:parallelGateway>
-
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
@@ -137,158 +108,115 @@
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_Join_To_Response" sourceRef="Gateway_Join" targetRef="Task_SendResponse" />
-
     <bpmn:endEvent id="EndEvent_1" name="Detail Page Ready">
       <bpmn:incoming>Flow_End</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_SendResponse" targetRef="EndEvent_1" />
-
   </bpmn:process>
-
-  <!--
-    Layout for 5 lanes:
-    Gateways at y=320 (middle)
-    y=80   → Task_GetHero
-    y=200  → Task_GetContent
-    y=320  → Task_GetAuthor
-    y=440  → Task_GetRelated
-    y=560  → Task_GetPopular
-  -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-detail-page">
-
-      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="152" y="302" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="127" y="345" width="87" height="27" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork">
-        <dc:Bounds x="255" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="237" y="352" width="87" height="27" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-
-      <!-- Task 1 (y=80) -->
-      <bpmndi:BPMNShape id="Task_GetHero_di" bpmnElement="Task_GetHero">
-        <dc:Bounds x="370" y="40" width="150" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- Task 2 (y=200) -->
-      <bpmndi:BPMNShape id="Task_GetContent_di" bpmnElement="Task_GetContent">
-        <dc:Bounds x="370" y="160" width="150" height="80" />
-      </bpmndi:BPMNShape>
-
-      <!-- Task 3 (y=320) -->
       <bpmndi:BPMNShape id="Task_GetAuthor_di" bpmnElement="Task_GetAuthor">
         <dc:Bounds x="370" y="280" width="150" height="80" />
       </bpmndi:BPMNShape>
-
-      <!-- Task 4 (y=440) -->
-      <bpmndi:BPMNShape id="Task_GetRelated_di" bpmnElement="Task_GetRelated">
-        <dc:Bounds x="370" y="400" width="150" height="80" />
+      <bpmndi:BPMNShape id="Gateway_Fork_di" bpmnElement="Gateway_Fork">
+        <dc:Bounds x="275" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="258" y="352" width="86" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
-      <!-- Task 5 (y=560) -->
-      <bpmndi:BPMNShape id="Task_GetPopular_di" bpmnElement="Task_GetPopular">
-        <dc:Bounds x="370" y="520" width="150" height="80" />
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="172" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="166" y="345" width="50" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Gateway_Join_di" bpmnElement="Gateway_Join">
-        <dc:Bounds x="590" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="572" y="352" width="87" height="27" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="555" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="552" y="352" width="57" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="710" y="280" width="140" height="80" />
+        <dc:Bounds x="660" y="280" width="140" height="80" />
       </bpmndi:BPMNShape>
-
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="912" y="302" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="888" y="345" width="84" height="27" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="852" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="827" y="345" width="87" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-
+      <bpmndi:BPMNShape id="Task_GetContent_di" bpmnElement="Task_GetContent">
+        <dc:Bounds x="370" y="180" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GetHero_di" bpmnElement="Task_GetHero">
+        <dc:Bounds x="370" y="80" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GetRelated_di" bpmnElement="Task_GetRelated">
+        <dc:Bounds x="370" y="380" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GetPopular_di" bpmnElement="Task_GetPopular">
+        <dc:Bounds x="370" y="480" width="150" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_To_Fork_di" bpmnElement="Flow_Start_To_Fork">
-        <di:waypoint x="188" y="320" />
-        <di:waypoint x="255" y="320" />
+        <di:waypoint x="208" y="320" />
+        <di:waypoint x="275" y="320" />
       </bpmndi:BPMNEdge>
-
-      <!-- Fork → 1 (up) -->
       <bpmndi:BPMNEdge id="Flow_To_Hero_di" bpmnElement="Flow_To_Hero">
-        <di:waypoint x="280" y="295" />
-        <di:waypoint x="280" y="80" />
-        <di:waypoint x="370" y="80" />
+        <di:waypoint x="300" y="295" />
+        <di:waypoint x="300" y="120" />
+        <di:waypoint x="370" y="120" />
       </bpmndi:BPMNEdge>
-
-      <!-- Fork → 2 (up) -->
+      <bpmndi:BPMNEdge id="Flow_Hero_To_Join_di" bpmnElement="Flow_Hero_To_Join">
+        <di:waypoint x="520" y="120" />
+        <di:waypoint x="580" y="120" />
+        <di:waypoint x="580" y="295" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_To_Content_di" bpmnElement="Flow_To_Content">
-        <di:waypoint x="280" y="295" />
-        <di:waypoint x="280" y="200" />
-        <di:waypoint x="370" y="200" />
+        <di:waypoint x="300" y="295" />
+        <di:waypoint x="300" y="220" />
+        <di:waypoint x="370" y="220" />
       </bpmndi:BPMNEdge>
-
-      <!-- Fork → 3 (straight) -->
+      <bpmndi:BPMNEdge id="Flow_Content_To_Join_di" bpmnElement="Flow_Content_To_Join">
+        <di:waypoint x="520" y="220" />
+        <di:waypoint x="580" y="220" />
+        <di:waypoint x="580" y="295" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_To_Author_di" bpmnElement="Flow_To_Author">
-        <di:waypoint x="305" y="320" />
+        <di:waypoint x="325" y="320" />
         <di:waypoint x="370" y="320" />
       </bpmndi:BPMNEdge>
-
-      <!-- Fork → 4 (down) -->
-      <bpmndi:BPMNEdge id="Flow_To_Related_di" bpmnElement="Flow_To_Related">
-        <di:waypoint x="280" y="345" />
-        <di:waypoint x="280" y="440" />
-        <di:waypoint x="370" y="440" />
-      </bpmndi:BPMNEdge>
-
-      <!-- Fork → 5 (down) -->
-      <bpmndi:BPMNEdge id="Flow_To_Popular_di" bpmnElement="Flow_To_Popular">
-        <di:waypoint x="280" y="345" />
-        <di:waypoint x="280" y="560" />
-        <di:waypoint x="370" y="560" />
-      </bpmndi:BPMNEdge>
-
-      <!-- 1 → Join -->
-      <bpmndi:BPMNEdge id="Flow_Hero_To_Join_di" bpmnElement="Flow_Hero_To_Join">
-        <di:waypoint x="520" y="80" />
-        <di:waypoint x="615" y="80" />
-        <di:waypoint x="615" y="295" />
-      </bpmndi:BPMNEdge>
-
-      <!-- 2 → Join -->
-      <bpmndi:BPMNEdge id="Flow_Content_To_Join_di" bpmnElement="Flow_Content_To_Join">
-        <di:waypoint x="520" y="200" />
-        <di:waypoint x="615" y="200" />
-        <di:waypoint x="615" y="295" />
-      </bpmndi:BPMNEdge>
-
-      <!-- 3 → Join -->
       <bpmndi:BPMNEdge id="Flow_Author_To_Join_di" bpmnElement="Flow_Author_To_Join">
         <di:waypoint x="520" y="320" />
-        <di:waypoint x="590" y="320" />
+        <di:waypoint x="555" y="320" />
       </bpmndi:BPMNEdge>
-
-      <!-- 4 → Join -->
+      <bpmndi:BPMNEdge id="Flow_To_Related_di" bpmnElement="Flow_To_Related">
+        <di:waypoint x="300" y="345" />
+        <di:waypoint x="300" y="420" />
+        <di:waypoint x="370" y="420" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Related_To_Join_di" bpmnElement="Flow_Related_To_Join">
-        <di:waypoint x="520" y="440" />
-        <di:waypoint x="615" y="440" />
-        <di:waypoint x="615" y="345" />
+        <di:waypoint x="520" y="420" />
+        <di:waypoint x="580" y="420" />
+        <di:waypoint x="580" y="345" />
       </bpmndi:BPMNEdge>
-
-      <!-- 5 → Join -->
+      <bpmndi:BPMNEdge id="Flow_To_Popular_di" bpmnElement="Flow_To_Popular">
+        <di:waypoint x="300" y="345" />
+        <di:waypoint x="300" y="520" />
+        <di:waypoint x="370" y="520" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Popular_To_Join_di" bpmnElement="Flow_Popular_To_Join">
-        <di:waypoint x="520" y="560" />
-        <di:waypoint x="615" y="560" />
-        <di:waypoint x="615" y="345" />
+        <di:waypoint x="520" y="520" />
+        <di:waypoint x="580" y="520" />
+        <di:waypoint x="580" y="345" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Flow_Join_To_Response_di" bpmnElement="Flow_Join_To_Response">
-        <di:waypoint x="640" y="320" />
-        <di:waypoint x="710" y="320" />
+        <di:waypoint x="605" y="320" />
+        <di:waypoint x="660" y="320" />
       </bpmndi:BPMNEdge>
-
       <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End">
-        <di:waypoint x="850" y="320" />
-        <di:waypoint x="912" y="320" />
+        <di:waypoint x="800" y="320" />
+        <di:waypoint x="852" y="320" />
       </bpmndi:BPMNEdge>
-
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>
