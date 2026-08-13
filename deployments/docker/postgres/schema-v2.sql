@@ -1036,7 +1036,6 @@ END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_guest_audit_events() IS 'Deletes guest audit events past their retention period. Run via cron job daily.';
 
-<<<<<<< HEAD
 -- ============================================================
 -- USER PROFILE EXTENDED TABLES
 -- ============================================================
@@ -1248,7 +1247,7 @@ END;
 $$ LANGUAGE plpgsql;
 COMMENT ON FUNCTION cleanup_expired_notifications() IS
     'Deletes notifications past their 180-day retention period. Run via cron job daily. DPDPA compliance.';
-=======
+
 -- ==========================================
 -- AUTHOR PROFILES (For Blog Creators)
 -- ==========================================
@@ -1267,4 +1266,3 @@ CREATE TRIGGER update_author_profiles_updated_at
     BEFORE UPDATE ON author_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
->>>>>>> d9ef1f8 (feat: implement blog system including bpmn flows, postgres schema v2 updates, and initial csv seed data)
