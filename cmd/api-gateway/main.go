@@ -691,6 +691,8 @@ func main() {
 					"applications": true,
 					"entities":     true,
 					"admin":        true,
+					"blog":         true,
+					"authors":      true,
 				}
 				if !reserved[firstSeg] {
 					r.URL.Path = "/api/v1/entities/" + subPath
