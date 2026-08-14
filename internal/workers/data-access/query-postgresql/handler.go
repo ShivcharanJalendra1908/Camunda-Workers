@@ -188,7 +188,14 @@ func (h *Handler) validateInput(input *Input) error {
 		string(models.QueryTypeIndustryBySlugWithQuestions),
 		string(models.QueryTypeFeaturedCategoriesByIndustry),
 		string(models.ESQueryTypeGetAllIndustries),
-		string(models.ESQueryTypeSearchIndustries):
+		string(models.ESQueryTypeSearchIndustries),
+		string(models.QueryTypeBlogListing),
+		string(models.QueryTypeBlogFeatured),
+		string(models.QueryTypeBlogPopular),
+		string(models.QueryTypeBlogHero),
+		string(models.QueryTypeBlogContent),
+		string(models.QueryTypeBlogRelatedArticles),
+		string(models.QueryTypeBlogAuthorProfile):
 		return nil // These don't need additional validation
 
 	case string(models.QueryTypeFranchiseContactInfo):
