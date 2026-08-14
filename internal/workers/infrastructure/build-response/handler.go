@@ -463,12 +463,16 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	case "listing":
 		if combinedData["entityType"] == "association" {
 			response = h.buildAssociationListingResponse(combinedData)
+		} else if combinedData["entityType"] == "blog" {
+			response = h.buildBlogListingResponse(combinedData)
 		} else {
 			response = h.buildFranchiseListingResponse(combinedData)
 		}
 	case "detail":
 		if combinedData["entityType"] == "association" {
 			response = h.buildAssociationDetailResponse(combinedData)
+		} else if combinedData["entityType"] == "blog" {
+			response = h.buildBlogDetailResponse(combinedData)
 		} else {
 			response = h.buildFranchiseDetailResponse(combinedData)
 		}
@@ -523,6 +527,9 @@ func (h *Handler) buildHomeResponse(data map[string]interface{}) map[string]inte
 
 	if entityType == "association" {
 		return h.buildAssociationHomeResponse(data)
+	}
+	if entityType == "blog" {
+		return h.buildBlogHomeResponse(data)
 	}
 	return h.buildFranchiseHomeResponse(data)
 }
@@ -3676,5 +3683,145 @@ func (h *Handler) completeJob(ctx context.Context, client worker.JobClient, job 
 				"error":   err,
 				"traceId": span.SpanContext().TraceID().String(),
 			})
+	}
+}
+// ===== BLOG BUILDERS =====
+func (h *Handler) buildBlogHomeResponse(data map[string]interface{}) map[string]interface{} {
+	sections := []interface{}{}
+	h.logger.Info("Building blog home response", map[string]interface{}{"dataKeys": h.getKeys(data)})
+
+	featured := h.extractArray(data, "featuredBlogs")
+	if len(featured) == 0 {
+		featured = h.extractArray(data, "featured")
+	}
+	if len(featured) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "featured_blogs",
+			"enabled": true,
+			"data":    featured,
+		})
+	}
+
+	popular := h.extractArray(data, "popularBlogs")
+	if len(popular) == 0 {
+		popular = h.extractArray(data, "popular")
+	}
+	if len(popular) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "popular_blogs",
+			"enabled": true,
+			"data":    popular,
+		})
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"pageId":   "blog_home",
+			"sections": sections,
+		},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "home",
+			"version":     h.config.AppVersion,
+		},
+	}
+}
+
+func (h *Handler) buildBlogListingResponse(data map[string]interface{}) map[string]interface{} {
+	sections := []interface{}{}
+	h.logger.Info("Building blog listing response", map[string]interface{}{"dataKeys": h.getKeys(data)})
+
+	listing := h.extractArray(data, "blogListing")
+	if len(listing) == 0 {
+		listing = h.extractArray(data, "listing")
+	}
+	if len(listing) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "blog_listing",
+			"enabled": true,
+			"data":    listing,
+		})
+	}
+
+	popular := h.extractArray(data, "popularBlogs")
+	if len(popular) == 0 {
+		popular = h.extractArray(data, "popular")
+	}
+	if len(popular) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "popular_blogs",
+			"enabled": true,
+			"data":    popular,
+		})
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"pageId":   "blog_listing",
+			"sections": sections,
+		},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "listing",
+			"version":     h.config.AppVersion,
+		},
+	}
+}
+
+func (h *Handler) buildBlogDetailResponse(data map[string]interface{}) map[string]interface{} {
+	sections := []interface{}{}
+	h.logger.Info("Building blog detail response", map[string]interface{}{"dataKeys": h.getKeys(data)})
+
+	hero := h.extractMap(data, "hero")
+	if hero != nil && len(hero) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "blog_hero", "enabled": true, "data": hero})
+	} else if heroData := h.extractMap(data, "blog_hero"); heroData != nil && len(heroData) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "blog_hero", "enabled": true, "data": heroData})
+	}
+
+	content := h.extractMap(data, "content")
+	if content != nil && len(content) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "blog_content", "enabled": true, "data": content})
+	} else if contentData := h.extractMap(data, "blog_content"); contentData != nil && len(contentData) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "blog_content", "enabled": true, "data": contentData})
+	}
+
+	author := h.extractMap(data, "author")
+	if author != nil && len(author) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "author_profile", "enabled": true, "data": author})
+	} else if authorData := h.extractMap(data, "author_profile"); authorData != nil && len(authorData) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "author_profile", "enabled": true, "data": authorData})
+	}
+
+	related := h.extractArray(data, "related")
+	if len(related) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "related_articles", "enabled": true, "data": related})
+	} else if relatedData := h.extractArray(data, "related_articles"); len(relatedData) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "related_articles", "enabled": true, "data": relatedData})
+	}
+
+	popular := h.extractArray(data, "popular")
+	if len(popular) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "popular_blogs", "enabled": true, "data": popular})
+	} else if popularData := h.extractArray(data, "popular_blogs"); len(popularData) > 0 {
+		sections = append(sections, map[string]interface{}{"type": "popular_blogs", "enabled": true, "data": popularData})
+	}
+
+	return map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"pageId":   "blog_detail",
+			"sections": sections,
+		},
+		"metadata": map[string]interface{}{
+			"generatedAt": time.Now().UTC().Format(time.RFC3339),
+			"source":      "workflow",
+			"pageType":    "detail",
+			"version":     h.config.AppVersion,
+		},
 	}
 }
