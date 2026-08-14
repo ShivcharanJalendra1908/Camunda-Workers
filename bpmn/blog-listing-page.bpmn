@@ -13,14 +13,7 @@
     <bpmn:serviceTask id="Task_GetListing" name="Get Blog Listing">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-elasticsearch" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;ES_BLOG_LISTING&#34;" target="queryType" />
-          <zeebe:input source="=page" target="page" />
-          <zeebe:input source="=pageSize" target="pageSize" />
-          <zeebe:input source="=search" target="search" />
-          <zeebe:input source="=categoryId" target="categoryId" />
-          <zeebe:output source="=data" target="blogListing" />
-        </zeebe:ioMapping>
+        
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Listing</bpmn:incoming>
       <bpmn:outgoing>Flow_Listing_To_Join</bpmn:outgoing>
@@ -46,16 +39,31 @@
     </bpmn:parallelGateway>
     <bpmn:sequenceFlow id="Flow_Listing_To_Join" sourceRef="Task_GetListing" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Popular_To_Join" sourceRef="Task_GetPopular" targetRef="Gateway_Join" />
-    <bpmn:sequenceFlow id="Flow_Join_To_Response" sourceRef="Gateway_Join" targetRef="Task_SendResponse" />
+    <bpmn:sequenceFlow id="Flow_Join_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_Build_To_Response" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=&#34;api&#34;" target="pageType" />
+          <zeebe:input source="=&#34;blog&#34;" target="entityType" />
+          <zeebe:input source="={&#34;listing&#34;: blogListing, &#34;popular&#34;: popularBlogs}" target="data" />
+          <zeebe:output source="=response" target="finalResponse" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Join_To_Build</bpmn:incoming>
+      <bpmn:outgoing>Flow_Build_To_Response</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={&#34;listing&#34;: blogListing, &#34;popular&#34;: popularBlogs}" target="response" />
+          <zeebe:input source="=finalResponse" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Join_To_Response</bpmn:incoming>
+      <bpmn:incoming>Flow_Build_To_Response</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_1" name="End">

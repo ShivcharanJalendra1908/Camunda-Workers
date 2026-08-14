@@ -13,11 +13,7 @@
     <bpmn:serviceTask id="Task_GetFeatured" name="Get Featured Blog Posts">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
-        <zeebe:ioMapping>
-          <zeebe:input source="=&#34;BLOG_FEATURED&#34;" target="queryType" />
-          <zeebe:input source="=6" target="limit" />
-          <zeebe:output source="=data" target="featuredBlogs" />
-        </zeebe:ioMapping>
+        
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Featured</bpmn:incoming>
       <bpmn:outgoing>Flow_Featured_To_Join</bpmn:outgoing>
@@ -43,16 +39,31 @@
     </bpmn:parallelGateway>
     <bpmn:sequenceFlow id="Flow_Featured_To_Join" sourceRef="Task_GetFeatured" targetRef="Gateway_Join" />
     <bpmn:sequenceFlow id="Flow_Popular_To_Join" sourceRef="Task_GetPopular" targetRef="Gateway_Join" />
-    <bpmn:sequenceFlow id="Flow_Join_To_Response" sourceRef="Gateway_Join" targetRef="Task_SendResponse" />
+    <bpmn:sequenceFlow id="Flow_Join_To_Build" sourceRef="Gateway_Join" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_Build_To_Response" sourceRef="Task_BuildResponse" targetRef="Task_SendResponse" />
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=&#34;api&#34;" target="pageType" />
+          <zeebe:input source="=&#34;blog&#34;" target="entityType" />
+          <zeebe:input source="={&#34;featured&#34;: featuredBlogs, &#34;popular&#34;: popularBlogs}" target="data" />
+          <zeebe:output source="=response" target="finalResponse" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Join_To_Build</bpmn:incoming>
+      <bpmn:outgoing>Flow_Build_To_Response</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={&#34;featured&#34;: featuredBlogs, &#34;popular&#34;: popularBlogs}" target="response" />
+          <zeebe:input source="=finalResponse" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Join_To_Response</bpmn:incoming>
+      <bpmn:incoming>Flow_Build_To_Response</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_1" name="End">

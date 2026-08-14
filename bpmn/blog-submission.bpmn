@@ -58,16 +58,35 @@
       <bpmn:incoming>Flow_To_User_Email</bpmn:incoming>
       <bpmn:outgoing>Flow_3</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SendNotificationUser" targetRef="Task_SendAPIResponse" />
-    <bpmn:sequenceFlow id="Flow_Failure" name="No" sourceRef="Gateway_SuccessCheck" targetRef="Task_SendAPIResponse">
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SendNotificationUser" targetRef="Task_BuildResponse" />
+    <bpmn:sequenceFlow id="Flow_Failure" name="No" sourceRef="Gateway_SuccessCheck" targetRef="Task_BuildResponse">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=success = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:serviceTask id="Task_SendAPIResponse" name="Send API Response">
+    <bpmn:serviceTask id="Task_BuildResponse" name="Build Response">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:taskDefinition type="build-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=&#34;api&#34;" target="pageType" />
+          <zeebe:input source="=&#34;blog&#34;" target="entityType" />
+          <zeebe:input source="={success: success, message: &#34;Submitted successfully&#34;}" target="data" />
+          <zeebe:output source="=response" target="finalResponse" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Failure</bpmn:incoming>
       <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_Build_To_Response</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Build_To_Response" sourceRef="Task_BuildResponse" targetRef="Task_SendAPIResponse" />
+    <bpmn:serviceTask id="Task_SendAPIResponse" name="Send API Response">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="=finalResponse" target="response" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Build_To_Response</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_1" name="End">
