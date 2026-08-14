@@ -81,6 +81,13 @@ func (i *Input) Validate() error {
 		string(models.QueryTypeFranchiseContactInfo),
 		string(models.ESQueryTypeGetAllIndustries),
 		string(models.ESQueryTypeSearchIndustries),
+		string(models.QueryTypeBlogListing),
+		string(models.QueryTypeBlogFeatured),
+		string(models.QueryTypeBlogPopular),
+		string(models.QueryTypeBlogHero),
+		string(models.QueryTypeBlogContent),
+		string(models.QueryTypeBlogRelatedArticles),
+		string(models.QueryTypeBlogAuthorProfile),
 	}
 
 	return ozzo.ValidateStruct(i,
