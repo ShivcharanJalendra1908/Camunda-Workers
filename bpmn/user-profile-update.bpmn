@@ -46,7 +46,7 @@
       INTERNAL_ERROR / "An unexpected error occurred".
     
     Error codes (matches franchise-user-actions.bpmn conventions):
-      VALIDATION_ERROR, DATABASE_ERROR, ACTION_FAILED
+      VALIDATION_FAILED, DATABASE_ERROR, ACTION_FAILED
     
     Notes:
       - FLE decryption on read path is handled internally by the worker's GET_PROFILE case.
@@ -352,7 +352,7 @@
         <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="={success: false, error: &quot;VALIDATION_ERROR&quot;, message: concat(&quot;Unsupported action: &quot;, action), action: action}" target="response" />
+          <zeebe:input source="={success: false, error: &quot;VALIDATION_FAILED&quot;, message: concat(&quot;Unsupported action: &quot;, action), action: action}" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToUnsupportedAction</incoming>
@@ -510,7 +510,7 @@
 
   <!-- ==================== ERROR DEFINITIONS ==================== -->
   <error id="Error_DatabaseError" name="Database Error" errorCode="DATABASE_ERROR" />
-  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_ERROR" />
+  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_FAILED" />
   <error id="Error_ActionFailed" name="Action Failed" errorCode="ACTION_FAILED" />
 
   <!-- ==================== BPMN DIAGRAM ==================== -->

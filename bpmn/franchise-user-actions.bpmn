@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
   <process id="franchise-user-actions" name="Franchise User Actions" isExecutable="true">
     <startEvent id="StartEvent_UserAction" name="User Action Request">
@@ -354,7 +354,7 @@
   </process>
   <error id="Error_SubscriptionFailed" name="Subscription Failed" errorCode="SUBSCRIPTION_INVALID" />
   <error id="Error_DatabaseError" name="Database Error" errorCode="DATABASE_ERROR" />
-  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_ERROR" />
+  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_FAILED" />
   <error id="Error_ActionFailed" name="Action Failed" errorCode="ACTION_FAILED" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="franchise-user-actions">

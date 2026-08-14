@@ -72,7 +72,7 @@
 
   ERROR CODES
   ───────────
-    VALIDATION_ERROR   → 400
+    VALIDATION_FAILED   → 400
     DATABASE_ERROR     → 500
     ACTION_FAILED      → 500
   ============================================================
@@ -422,7 +422,7 @@
     ══════════════════════════════════════════════════════════ -->
   </process>
 
-  <error id="Error_ValidationError" errorCode="VALIDATION_ERROR" name="Validation Error"/>
+  <error id="Error_ValidationError" errorCode="VALIDATION_FAILED" name="Validation Error"/>
   <error id="Error_DatabaseError" errorCode="DATABASE_ERROR" name="Database Error"/>
   <error id="Error_ActionFailed" errorCode="ACTION_FAILED" name="Action Failed"/>
 
