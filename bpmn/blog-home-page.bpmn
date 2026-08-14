@@ -47,6 +47,10 @@
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&#34;featured&#34;: featuredBlogs, &#34;popular&#34;: popularBlogs}" target="response" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Join_To_Response</bpmn:incoming>
       <bpmn:outgoing>Flow_End</bpmn:outgoing>

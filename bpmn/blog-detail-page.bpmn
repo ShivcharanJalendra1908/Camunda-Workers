@@ -96,12 +96,8 @@
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
         <zeebe:ioMapping>
-          <zeebe:input source="=blog_hero" target="blog_hero" />
-          <zeebe:input source="=blog_content" target="blog_content" />
-          <zeebe:input source="=author_profile" target="author_profile" />
-          <zeebe:input source="=related_articles" target="related_articles" />
-          <zeebe:input source="=popular_blogs" target="popular_blogs" />
           <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={&#34;hero&#34;: blog_hero, &#34;content&#34;: blog_content, &#34;author&#34;: author_profile, &#34;related&#34;: related_articles, &#34;popular&#34;: popular_blogs}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Join_To_Response</bpmn:incoming>
