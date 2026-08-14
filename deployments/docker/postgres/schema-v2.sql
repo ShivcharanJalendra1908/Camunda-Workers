@@ -226,8 +226,6 @@ CREATE TABLE listings (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
-CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise')),
-    CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
 
 CONSTRAINT chk_entity_type CHECK (entity_type IN ('franchise', 'association', 'master_franchise', 'blog')),
     CONSTRAINT chk_listing_status CHECK (status IN ('DRAFT', 'PENDING_REVIEW', 'LIVE', 'SUSPENDED', 'ARCHIVED', 'pending', 'under_review', 'approved', 'rejected', 'withdrawn', 'live')),
@@ -440,7 +438,7 @@ CREATE TABLE listing_cities (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     listing_id UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
     city VARCHAR(100) NOT NULL,
-    state VARCHAR(100) NOT NULL,
+    state VARCHAR(100),
     country VARCHAR(100) DEFAULT 'India',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
