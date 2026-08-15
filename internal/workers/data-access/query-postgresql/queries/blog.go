@@ -372,7 +372,7 @@ func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{},
 	}
 
 	row := db.QueryRowContext(ctx, `
-		SELECT l.description AS content
+		SELECT COALESCE(l.description, '') AS content
 		FROM listings l
 		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.id = $1
 	`, blogID)
