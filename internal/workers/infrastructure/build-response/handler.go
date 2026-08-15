@@ -144,6 +144,32 @@ func (h *Handler) Handle(client worker.JobClient, job entities.Job) {
 
 // ===== HELPER FUNCTIONS =====
 
+func (h *Handler) extractInt(data map[string]interface{}, key string) int {
+	if data == nil {
+		return 0
+	}
+	
+	val := data[key]
+	if val == nil {
+		if nestedData, ok := data["data"].(map[string]interface{}); ok {
+			val = nestedData[key]
+		}
+	}
+	
+	switch v := val.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
 func (h *Handler) extractArray(data map[string]interface{}, key string) []interface{} {
 	if data == nil {
 		return []interface{}{}
@@ -3762,6 +3788,35 @@ func (h *Handler) buildBlogListingResponse(data map[string]interface{}) map[stri
 		"data": map[string]interface{}{
 			"pageId":   "blog_listing",
 			"sections": sections,
+			"pagination": map[string]interface{}{
+				"currentPage": h.extractInt(data, "page"),
+				"pageSize":    h.extractInt(data, "pageSize"),
+				"totalItems":  h.extractInt(data, "totalCount"),
+				"totalPages": func() int {
+					total := h.extractInt(data, "totalCount")
+					size := h.extractInt(data, "pageSize")
+					if size <= 0 {
+						size = 10
+					}
+					pages := total / size
+					if total%size > 0 {
+						pages++
+					}
+					if pages == 0 {
+						pages = 1
+					}
+					return pages
+				}(),
+				"hasNextPage": func() bool {
+					page := h.extractInt(data, "page")
+					total := h.extractInt(data, "totalCount")
+					size := h.extractInt(data, "pageSize")
+					if size <= 0 {
+						size = 10
+					}
+					return page*size < total
+				}(),
+			},
 		},
 		"metadata": map[string]interface{}{
 			"generatedAt": time.Now().UTC().Format(time.RFC3339),
