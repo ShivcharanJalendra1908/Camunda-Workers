@@ -16,7 +16,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;ES_BLOG_LISTING&#34;" target="queryType" />
           <zeebe:input source="=if page != null then page else 1" target="page" />
-          <zeebe:input source="=if pageSize != null then pageSize else 10" target="pageSize" />
+          <zeebe:input source="=if pageSize != null then pageSize else 6" target="pageSize" />
           <zeebe:output source="=data" target="blogListing" />
           <zeebe:output source="=total" target="totalCount" />
         </zeebe:ioMapping>
@@ -53,7 +53,7 @@
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=&#34;listing&#34;" target="pageType" />
           <zeebe:input source="=&#34;blog&#34;" target="entityType" />
-          <zeebe:input source="={&#34;listing&#34;: blogListing, &#34;popular&#34;: popularBlogs, &#34;totalCount&#34;: totalCount, &#34;page&#34;: if page != null then page else 1, &#34;pageSize&#34;: if pageSize != null then pageSize else 10}" target="data" />
+          <zeebe:input source="={&#34;listing&#34;: blogListing, &#34;popular&#34;: popularBlogs, &#34;totalCount&#34;: totalCount, &#34;page&#34;: if page != null then page else 1, &#34;pageSize&#34;: if pageSize != null then pageSize else 6}" target="data" />
           <zeebe:output source="=response" target="finalResponse" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
