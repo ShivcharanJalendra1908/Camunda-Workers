@@ -13,7 +13,7 @@ import (
 // BlogListing handles search and filtering of blogs using Elasticsearch
 func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map[string]interface{}) (*QueryResult, error) {
 	page := 1
-	pageSize := 10
+	pageSize := 6 // Default: 6 cards per page
 
 	if p, ok := params["page"].(float64); ok && p > 0 {
 		page = int(p)

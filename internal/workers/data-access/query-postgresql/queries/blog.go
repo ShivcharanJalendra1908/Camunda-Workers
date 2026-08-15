@@ -218,16 +218,13 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT l.id, l.name AS title, l.slug,
+		SELECT l.id, l.name AS title, l.slug, l.short_description,
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name,
 		       COALESCE(ls.view_count, 0) AS view_count,
-		       COALESCE(json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL), '[]'::json) AS categories,
 		       l.created_at
 		FROM listings l
 		JOIN blogs b ON b.id = l.id
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
-		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
-		LEFT JOIN categories c ON c.id = lc.category_id
 		WHERE l.entity_type = 'blog' AND l.status = 'live'
 		GROUP BY l.id, b.id, ls.view_count
 		ORDER BY ls.view_count DESC NULLS LAST, l.created_at DESC
@@ -245,19 +242,15 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 		var readingTime int
 		var viewCount int64
 		var createdAt time.Time
-		var catsJSON []byte
-		rows.Scan(&id, &title, &slug, &image, &readingTime, &author, &viewCount, &catsJSON, &createdAt)
-		var cats []interface{}
-		json.Unmarshal(catsJSON, &cats)
+		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &viewCount, &createdAt)
 		blogs = append(blogs, map[string]interface{}{
 			"id":                  id,
 			"title":               title,
 			"slug":                slug,
+			"short_description":   shortDesc.String,
 			"featured_image_url":  image.String,
 			"reading_time_mins":   readingTime,
 			"author_display_name": author.String,
-			"categories":          cats,
-			"view_count":          viewCount,
 			"published_at":        createdAt.Format(time.RFC3339),
 		})
 	}
