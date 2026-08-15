@@ -238,7 +238,7 @@ func (h *BlogHandler) GetListing(c *gin.Context) {
 	correlationKey := fmt.Sprintf("blog_listing_%s", uuid.New().String()[:8])
 
 	page := 1
-	pageSize := 10
+	pageSize := 6
 	if p := c.Query("page"); p != "" {
 		if n, err := strconv.Atoi(p); err == nil && n > 0 {
 			page = n
