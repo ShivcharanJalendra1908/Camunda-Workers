@@ -3722,29 +3722,25 @@ func (h *Handler) buildBlogHomeResponse(data map[string]interface{}) map[string]
 	if len(featured) == 0 {
 		featured = h.extractArray(data, "featured")
 	}
-	if featured == nil {
-		featured = []interface{}{}
+	if len(featured) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "featured_blogs",
+			"enabled": true,
+			"data":    featured,
+		})
 	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "featured_blogs",
-		"enabled": true,
-		"data":    featured,
-	})
 
 	popular := h.extractArray(data, "popularBlogs")
 	if len(popular) == 0 {
 		popular = h.extractArray(data, "popular")
 	}
-	if popular == nil {
-		popular = []interface{}{}
+	if len(popular) > 0 {
+		sections = append(sections, map[string]interface{}{
+			"type":    "popular_blogs",
+			"enabled": true,
+			"data":    popular,
+		})
 	}
-
-	sections = append(sections, map[string]interface{}{
-		"type":    "popular_blogs",
-		"enabled": true,
-		"data":    popular,
-	})
 
 	return map[string]interface{}{
 		"success": true,
