@@ -195,7 +195,8 @@ func (h *Handler) validateInput(input *Input) error {
 		string(models.QueryTypeBlogHero),
 		string(models.QueryTypeBlogContent),
 		string(models.QueryTypeBlogRelatedArticles),
-		string(models.QueryTypeBlogAuthorProfile):
+		string(models.QueryTypeBlogAuthorProfile),
+		string(models.QueryTypeBlogBySlug):
 		return nil // These don't need additional validation
 
 	case string(models.QueryTypeFranchiseContactInfo):

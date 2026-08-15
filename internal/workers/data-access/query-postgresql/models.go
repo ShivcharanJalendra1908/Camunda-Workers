@@ -88,6 +88,7 @@ func (i *Input) Validate() error {
 		string(models.QueryTypeBlogContent),
 		string(models.QueryTypeBlogRelatedArticles),
 		string(models.QueryTypeBlogAuthorProfile),
+		string(models.QueryTypeBlogBySlug),
 	}
 
 	return ozzo.ValidateStruct(i,
