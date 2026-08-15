@@ -46,7 +46,7 @@
         <zeebe:taskDefinition type="build-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=&#34;api&#34;" target="pageType" />
+          <zeebe:input source="=&#34;home&#34;" target="pageType" />
           <zeebe:input source="=&#34;blog&#34;" target="entityType" />
           <zeebe:input source="={&#34;featured&#34;: featuredBlogs, &#34;popular&#34;: popularBlogs}" target="data" />
           <zeebe:output source="=response" target="finalResponse" />

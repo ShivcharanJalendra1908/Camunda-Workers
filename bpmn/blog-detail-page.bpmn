@@ -93,7 +93,7 @@
         <zeebe:taskDefinition type="build-response" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=&#34;api&#34;" target="pageType" />
+          <zeebe:input source="=&#34;detail&#34;" target="pageType" />
           <zeebe:input source="=&#34;blog&#34;" target="entityType" />
           <zeebe:input source="={&#34;hero&#34;: blog_hero, &#34;content&#34;: blog_content, &#34;author&#34;: author_profile, &#34;related&#34;: related_articles, &#34;popular&#34;: popular_blogs}" target="data" />
           <zeebe:output source="=response" target="finalResponse" />
