@@ -284,6 +284,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 			l.id, l.name AS title, l.slug, l.short_description,
 			b.reading_time_mins, b.seo_title, b.seo_description,
 			b.featured_image_url, b.author_display_name,
+			ap.profile_picture_url AS author_profile_pic, ap.bio AS author_bio,
 			COALESCE(array_to_json(b.tags), '[]'::json) AS tags,
 			COALESCE(array_to_json(b.additional_media_urls), '[]'::json) AS additional_media_urls,
 			COALESCE(ls.view_count, 0) AS view_count,
@@ -297,8 +298,9 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
 		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
 		LEFT JOIN categories c ON c.id = lc.category_id
+		LEFT JOIN author_profiles ap ON ap.user_id = l.created_by
 		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.id = $1
-		GROUP BY l.id, b.id, ls.view_count
+		GROUP BY l.id, b.id, ls.view_count, ap.profile_picture_url, ap.bio
 	`, blogID)
 
 	var (
@@ -307,6 +309,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		readingTime               int
 		seoTitle, seoDesc         sql.NullString
 		imageURL, authorName      sql.NullString
+		authorPic, authorBio      sql.NullString
 		tagsJSON                  []byte
 		mediaJSON                 []byte
 		viewCount                 int64
@@ -314,7 +317,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		createdBy                 string
 		catsJSON                  []byte
 	)
-	if err := row.Scan(&id, &title, &blogSlug, &shortDesc, &readingTime, &seoTitle, &seoDesc, &imageURL, &authorName, &tagsJSON, &mediaJSON, &viewCount, &createdAt, &createdBy, &catsJSON); err != nil {
+	if err := row.Scan(&id, &title, &blogSlug, &shortDesc, &readingTime, &seoTitle, &seoDesc, &imageURL, &authorName, &authorPic, &authorBio, &tagsJSON, &mediaJSON, &viewCount, &createdAt, &createdBy, &catsJSON); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, 0, 0, fmt.Errorf("blog not found")
 		}
@@ -342,6 +345,8 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		"seo_description":       seoDesc.String,
 		"featured_image_url":    imageURL.String,
 		"author_display_name":   authorName.String,
+		"author_profile_pic":    authorPic.String,
+		"author_bio":            authorBio.String,
 		"tags":                  tags,
 		"additional_media_urls": additionalMedia,
 		"categories":            cats,

@@ -101,7 +101,7 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 		// Build a pruned map for the UI card
 		pruned := map[string]interface{}{
 			"id":                  hit.(map[string]interface{})["_id"],
-			"title":               source["name"],
+			"title":               source["title"],
 			"slug":                source["slug"],
 			"short_description":   source["short_description"],
 			"featured_image_url":  source["featured_image_url"],
