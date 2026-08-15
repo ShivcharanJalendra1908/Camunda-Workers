@@ -18,8 +18,8 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_HERO&#34;" target="queryType" />
-          <zeebe:input source="=if blogId != null then blogId else null" target="blogId" />
-          <zeebe:input source="=if slug != null then slug else null" target="slug" />
+          <zeebe:input source="=blogId" target="blogId" />
+          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=data" target="blog_hero" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -34,6 +34,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_CONTENT&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
+          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=blog_content" target="blog_content" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -48,6 +49,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_AUTHOR_PROFILE&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
+          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=author_profile" target="author_profile" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -62,6 +64,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_RELATED_ARTICLES&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
+          <zeebe:input source="=slug" target="slug" />
           <zeebe:input source="=4" target="limit" />
           <zeebe:output source="=related_articles" target="related_articles" />
         </zeebe:ioMapping>
