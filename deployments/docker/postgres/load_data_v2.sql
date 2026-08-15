@@ -118,5 +118,9 @@ UNION ALL SELECT 'Category Questions', COUNT(*) FROM category_questions
 UNION ALL SELECT 'Industry Market Insights', COUNT(*) FROM industry_market_insights;
 
 \echo ''
+\echo 'Setting blogs as featured per requirement...'
+UPDATE listings SET is_featured = TRUE WHERE entity_type = 'blog' AND status = 'live';
+
+\echo ''
 \echo '✅ CSV data loading completed successfully!'
 \echo ''
