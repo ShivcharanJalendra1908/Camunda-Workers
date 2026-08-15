@@ -195,7 +195,7 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 	}
 
 	elapsed := time.Since(start).Milliseconds()
-	return map[string]interface{}{"featured_blogs": blogs}, len(blogs), elapsed, nil
+	return blogs, len(blogs), elapsed, nil
 }
 
 // BlogPopular — Home Page + Category Page "Popular Right Now" section
@@ -249,7 +249,7 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	}
 
 	elapsed := time.Since(start).Milliseconds()
-	return map[string]interface{}{"popular_blogs": blogs}, len(blogs), elapsed, nil
+	return blogs, len(blogs), elapsed, nil
 }
 
 // BlogHero — Single Blog Page: Hero Section (Title, Author, Date, Tags, Categories, etc)
@@ -317,22 +317,20 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 
 	elapsed := time.Since(start).Milliseconds()
 	return map[string]interface{}{
-		"blog_hero": map[string]interface{}{
-			"id":                    id,
-			"title":                 title,
-			"slug":                  blogSlug,
-			"short_description":     shortDesc.String,
-			"reading_time_mins":     readingTime,
-			"seo_title":             seoTitle.String,
-			"seo_description":       seoDesc.String,
-			"featured_image_url":    imageURL.String,
-			"author_display_name":   authorName.String,
-			"tags":                  tags,
-			"additional_media_urls": additionalMedia,
-			"categories":            cats,
-			"view_count":            viewCount,
-			"published_at":          createdAt.Format(time.RFC3339),
-		},
+		"id":                    id,
+		"title":                 title,
+		"slug":                  blogSlug,
+		"short_description":     shortDesc.String,
+		"reading_time_mins":     readingTime,
+		"seo_title":             seoTitle.String,
+		"seo_description":       seoDesc.String,
+		"featured_image_url":    imageURL.String,
+		"author_display_name":   authorName.String,
+		"tags":                  tags,
+		"additional_media_urls": additionalMedia,
+		"categories":            cats,
+		"view_count":            viewCount,
+		"published_at":          createdAt.Format(time.RFC3339),
 	}, 1, elapsed, nil
 }
 
@@ -363,7 +361,7 @@ func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{},
 
 	elapsed := time.Since(start).Milliseconds()
 	return map[string]interface{}{
-		"blog_content": content,
+		"content": content,
 	}, 1, elapsed, nil
 }
 
@@ -442,9 +440,7 @@ func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]inte
 	}
 
 	elapsed := time.Since(start).Milliseconds()
-	return map[string]interface{}{
-		"related_articles": related,
-	}, len(related), elapsed, nil
+	return related, len(related), elapsed, nil
 }
 
 // BlogAuthorProfile — "About the Author" section on Blog Detail Page
@@ -485,9 +481,7 @@ func BlogAuthorProfile(ctx context.Context, db *sql.DB, params map[string]interf
 		if err == sql.ErrNoRows {
 			// No author profile found — return minimal data
 			elapsed := time.Since(start).Milliseconds()
-			return map[string]interface{}{
-				"author_profile": nil,
-			}, 0, elapsed, nil
+			return map[string]interface{}{}, 0, elapsed, nil
 		}
 		return nil, 0, 0, fmt.Errorf("author profile query failed: %w", err)
 	}
@@ -497,14 +491,12 @@ func BlogAuthorProfile(ctx context.Context, db *sql.DB, params map[string]interf
 
 	elapsed := time.Since(start).Milliseconds()
 	return map[string]interface{}{
-		"author_profile": map[string]interface{}{
-			"user_id":             userID,
-			"full_name":           fullName,
-			"author_name":         authorName,
-			"bio":                 bio.String,
-			"profile_picture_url": picURL.String,
-			"categories":          cats,
-			"follower_count":      followerCount,
-		},
+		"user_id":             userID,
+		"full_name":           fullName,
+		"author_name":         authorName,
+		"bio":                 bio.String,
+		"profile_picture_url": picURL.String,
+		"categories":          cats,
+		"follower_count":      followerCount,
 	}, 1, elapsed, nil
 }
