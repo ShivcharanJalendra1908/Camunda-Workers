@@ -2,11 +2,24 @@
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_blog_detail" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.6.0">
   <bpmn:process id="blog-detail-page" name="Blog Detail Page" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1" name="Blog Detail Request">
-      <bpmn:outgoing>Flow_Start_To_Fork</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Start_To_Resolve</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_Start_To_Fork" sourceRef="StartEvent_1" targetRef="Gateway_Fork" />
+    <bpmn:sequenceFlow id="Flow_Start_To_Resolve" sourceRef="StartEvent_1" targetRef="Task_ResolveBlogId" />
+    <bpmn:serviceTask id="Task_ResolveBlogId" name="Resolve Blog ID">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;BLOG_BY_SLUG&#34;" target="queryType" />
+          <zeebe:input source="=slug" target="slug" />
+          <zeebe:output source="=data.blogId" target="blogId" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_To_Resolve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Resolve_To_Fork</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Resolve_To_Fork" sourceRef="Task_ResolveBlogId" targetRef="Gateway_Fork" />
     <bpmn:parallelGateway id="Gateway_Fork" name="Fetch All Sections">
-      <bpmn:incoming>Flow_Start_To_Fork</bpmn:incoming>
+      <bpmn:incoming>Flow_Resolve_To_Fork</bpmn:incoming>
       <bpmn:outgoing>Flow_To_Hero</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Content</bpmn:outgoing>
       <bpmn:outgoing>Flow_To_Author</bpmn:outgoing>
@@ -19,7 +32,6 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_HERO&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=data" target="blog_hero" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -34,7 +46,6 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_CONTENT&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=blog_content" target="blog_content" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -49,7 +60,6 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_AUTHOR_PROFILE&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:input source="=slug" target="slug" />
           <zeebe:output source="=author_profile" target="author_profile" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -64,7 +74,6 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_RELATED_ARTICLES&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:input source="=slug" target="slug" />
           <zeebe:input source="=4" target="limit" />
           <zeebe:output source="=related_articles" target="related_articles" />
         </zeebe:ioMapping>

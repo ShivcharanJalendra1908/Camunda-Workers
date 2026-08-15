@@ -94,6 +94,7 @@ const (
 	QueryTypeBlogPopular   QueryType = "BLOG_POPULAR"
 
 	// Blog Detail Page
+	QueryTypeBlogBySlug         QueryType = "BLOG_BY_SLUG"
 	QueryTypeBlogHero            QueryType = "BLOG_HERO"
 	QueryTypeBlogContent         QueryType = "BLOG_CONTENT"
 	QueryTypeBlogRelatedArticles QueryType = "BLOG_RELATED_ARTICLES"

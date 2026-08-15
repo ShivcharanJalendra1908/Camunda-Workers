@@ -12,6 +12,39 @@ import (
 	"camunda-workers/internal/crypto"
 )
 
+// BlogBySlug — Resolves a blog slug to its UUID
+// queryType: BLOG_BY_SLUG
+// params: slug
+// Returns: blogId (UUID string)
+func BlogBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
+	start := time.Now()
+
+	slug, ok := params["slug"].(string)
+	if !ok || slug == "" {
+		return nil, 0, 0, fmt.Errorf("slug is required")
+	}
+
+	var id string
+	err := db.QueryRowContext(ctx, `
+		SELECT l.id
+		FROM listings l
+		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.slug = $1
+		LIMIT 1
+	`, slug).Scan(&id)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, 0, 0, fmt.Errorf("blog not found for slug: %s", slug)
+		}
+		return nil, 0, 0, fmt.Errorf("slug resolution failed: %w", err)
+	}
+
+	elapsed := time.Since(start).Milliseconds()
+	return map[string]interface{}{
+		"blogId": id,
+	}, 1, elapsed, nil
+}
+
 // BlogListing — Blog Listing Page / Category Page
 // queryType: BLOG_LISTING
 // params: page, pageSize, search, categoryId, entityType
@@ -221,18 +254,12 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 
 // BlogHero — Single Blog Page: Hero Section (Title, Author, Date, Tags, Categories, etc)
 // queryType: BLOG_HERO
-// params: blogId OR slug
+// params: blogId (UUID)
 func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	// Accept either blogId (UUID) or slug
-	blogID, _ := params["blogId"].(string)
-	slug, _ := params["slug"].(string)
-	lookup := blogID
-	if lookup == "" {
-		lookup = slug
-	}
-	if lookup == "" {
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
 		return nil, 0, 0, fmt.Errorf("blogId is required")
 	}
 
@@ -254,12 +281,12 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
 		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
 		LEFT JOIN categories c ON c.id = lc.category_id
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND (l.id = $1 OR l.slug = $1)
+		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
 		GROUP BY l.id, b.id, ls.view_count
-	`, lookup)
+	`, blogID)
 
 	var (
-		id, title, slug string
+		id, title, blogSlug       string
 		shortDesc                 sql.NullString
 		readingTime               int
 		seoTitle, seoDesc         sql.NullString
@@ -271,7 +298,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		createdBy                 string
 		catsJSON                  []byte
 	)
-	if err := row.Scan(&id, &title, &slug, &shortDesc, &readingTime, &seoTitle, &seoDesc, &imageURL, &authorName, &tagsJSON, &mediaJSON, &viewCount, &createdAt, &createdBy, &catsJSON); err != nil {
+	if err := row.Scan(&id, &title, &blogSlug, &shortDesc, &readingTime, &seoTitle, &seoDesc, &imageURL, &authorName, &tagsJSON, &mediaJSON, &viewCount, &createdAt, &createdBy, &catsJSON); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, 0, 0, fmt.Errorf("blog not found")
 		}
@@ -293,7 +320,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		"blog_hero": map[string]interface{}{
 			"id":                    id,
 			"title":                 title,
-			"slug":                  slug,
+			"slug":                  blogSlug,
 			"short_description":     shortDesc.String,
 			"reading_time_mins":     readingTime,
 			"seo_title":             seoTitle.String,
@@ -311,25 +338,20 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 
 // BlogContent — Single Blog Page: Main HTML Content
 // queryType: BLOG_CONTENT
-// params: blogId OR slug
+// params: blogId (UUID)
 func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	blogID, _ := params["blogId"].(string)
-	slug, _ := params["slug"].(string)
-	lookup := blogID
-	if lookup == "" {
-		lookup = slug
-	}
-	if lookup == "" {
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
 		return nil, 0, 0, fmt.Errorf("blogId is required")
 	}
 
 	row := db.QueryRowContext(ctx, `
 		SELECT l.description AS content
 		FROM listings l
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND (l.id = $1 OR l.slug = $1)
-	`, lookup)
+		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
+	`, blogID)
 
 	var content string
 	if err := row.Scan(&content); err != nil {
@@ -347,18 +369,13 @@ func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{},
 
 // BlogRelatedArticles — Sidebar "Related Articles" section on Blog Detail Page
 // queryType: BLOG_RELATED_ARTICLES
-// params: blogId, limit (default 4)
+// params: blogId (UUID), limit (default 4)
 // Fetches blogs in the same categories as the given blog, excluding itself
 func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	blogID, _ := params["blogId"].(string)
-	slug, _ := params["slug"].(string)
-	lookup := blogID
-	if lookup == "" {
-		lookup = slug
-	}
-	if lookup == "" {
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
 		return nil, 0, 0, fmt.Errorf("blogId is required")
 	}
 	limit := 4
@@ -368,8 +385,8 @@ func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]inte
 
 	// First get category IDs for this blog
 	catRows, err := db.QueryContext(ctx, `
-		SELECT category_id FROM listing_categories WHERE listing_id = (SELECT id FROM listings WHERE entity_type='blog' AND (id=$1 OR slug=$1) LIMIT 1)
-	`, lookup)
+		SELECT category_id FROM listing_categories WHERE listing_id = $1
+	`, blogID)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("related articles: failed to get categories: %w", err)
 	}
@@ -397,7 +414,7 @@ func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]inte
 			LIMIT $2
 		`, strings.Join(catIDs, ","))
 
-		relRows, err := db.QueryContext(ctx, relQuery, lookup, limit)
+		relRows, err := db.QueryContext(ctx, relQuery, blogID, limit)
 		if err != nil {
 			return nil, 0, 0, fmt.Errorf("related articles query failed: %w", err)
 		}
@@ -432,17 +449,12 @@ func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]inte
 
 // BlogAuthorProfile — "About the Author" section on Blog Detail Page
 // queryType: BLOG_AUTHOR_PROFILE
-// params: blogId (fetches author via listings.created_by → author_profiles.user_id)
+// params: blogId (UUID)
 func BlogAuthorProfile(ctx context.Context, db *sql.DB, params map[string]interface{}, _ *crypto.Encryptor) (interface{}, int, int64, error) {
 	start := time.Now()
 
-	blogID, _ := params["blogId"].(string)
-	slug, _ := params["slug"].(string)
-	lookup := blogID
-	if lookup == "" {
-		lookup = slug
-	}
-	if lookup == "" {
+	blogID, ok := params["blogId"].(string)
+	if !ok || blogID == "" {
 		return nil, 0, 0, fmt.Errorf("blogId is required")
 	}
 
@@ -460,8 +472,8 @@ func BlogAuthorProfile(ctx context.Context, db *sql.DB, params map[string]interf
 			) AS follower_count
 		FROM listings l
 		JOIN author_profiles ap ON ap.user_id = l.created_by
-		WHERE (l.id = $1 OR l.slug = $1) AND l.entity_type = 'blog'
-	`, lookup)
+		WHERE l.id = $1 AND l.entity_type = 'blog'
+	`, blogID)
 
 	var (
 		userID, fullName, authorName string
