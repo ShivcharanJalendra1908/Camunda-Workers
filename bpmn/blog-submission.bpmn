@@ -8,6 +8,10 @@
     <bpmn:serviceTask id="Task_ValidateData" name="Validate Blog Data">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="validate-entity-data" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;blog&#34;" target="entityType" />
+          <zeebe:input source="=formData" target="formData" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1</bpmn:incoming>
       <bpmn:outgoing>Flow_1a</bpmn:outgoing>
@@ -16,6 +20,24 @@
     <bpmn:serviceTask id="Task_SaveToDB" name="Save Blog to Database">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="blog-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;CREATE_BLOG&#34;" target="operation_type" />
+          <zeebe:input source="=formData.name" target="name" />
+          <zeebe:input source="=formData.slug" target="slug" />
+          <zeebe:input source="=formData.short_description" target="short_description" />
+          <zeebe:input source="=formData.description" target="description" />
+          <zeebe:input source="=formData.featured_image_url" target="featured_image_url" />
+          <zeebe:input source="=formData.reading_time_mins" target="reading_time_mins" />
+          <zeebe:input source="=formData.seo_title" target="seo_title" />
+          <zeebe:input source="=formData.seo_description" target="seo_description" />
+          <zeebe:input source="=formData.tags" target="tags" />
+          <zeebe:input source="=formData.category_ids" target="category_ids" />
+          <zeebe:input source="=userId" target="created_by" />
+          <zeebe:input source="=&#34;PENDING_REVIEW&#34;" target="status" />
+          <zeebe:output source="=id" target="applicationId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1a</bpmn:incoming>
       <bpmn:outgoing>Flow_2</bpmn:outgoing>

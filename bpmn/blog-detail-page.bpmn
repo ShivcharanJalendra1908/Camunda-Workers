@@ -16,6 +16,12 @@
     <bpmn:serviceTask id="Task_GetHero" name="Get Blog Hero">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;BLOG_HERO&#34;" target="queryType" />
+          <zeebe:input source="=if blogId != null then blogId else null" target="blogId" />
+          <zeebe:input source="=if slug != null then slug else null" target="slug" />
+          <zeebe:output source="=data" target="blog_hero" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Hero</bpmn:incoming>
       <bpmn:outgoing>Flow_Hero_To_Join</bpmn:outgoing>
