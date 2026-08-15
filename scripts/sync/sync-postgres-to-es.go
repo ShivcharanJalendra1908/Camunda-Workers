@@ -1181,11 +1181,18 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
             l.is_featured,
             l.is_sponsored,
             ap.bio as author_bio,
-            ap.profile_picture_url as author_profile_pic
+            ap.profile_picture_url as author_profile_pic,
+            COALESCE(
+                json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL),
+                '[]'::json
+            ) as categories_json
         FROM listings l
         JOIN blogs b ON l.id = b.id
         LEFT JOIN author_profiles ap ON l.created_by = ap.user_id
+        LEFT JOIN listing_categories lc ON lc.listing_id = l.id
+        LEFT JOIN categories c ON c.id = lc.category_id
         WHERE l.entity_type = 'blog'
+        GROUP BY l.id, b.id, ap.user_id
     `
 
 	rows, err := m.db.QueryContext(ctx, query)
@@ -1208,13 +1215,14 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 			createdAt                        time.Time
 			isFeatured, isSponsored          bool
 			authorBio, authorPic             sql.NullString
+			categoriesJSON                   []byte
 		)
 
 		if err := rows.Scan(
 			&id, &title, &slug, &shortDesc, &content,
 			&readingTime, &seoTitle, &seoDesc, &featuredImage, &authorName,
 			&tagsJSON, &mediaJSON, &status, &createdAt, &isFeatured, &isSponsored,
-			&authorBio, &authorPic,
+			&authorBio, &authorPic, &categoriesJSON,
 		); err != nil {
 			log.Printf("❌ Failed to scan blog %s: %v", id, err)
 			continue
@@ -1225,6 +1233,9 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 
 		var additionalMedia []string
 		_ = json.Unmarshal(mediaJSON, &additionalMedia)
+
+		var categories []interface{}
+		_ = json.Unmarshal(categoriesJSON, &categories)
 
 		doc := map[string]interface{}{
 			"id":                  id,
@@ -1240,6 +1251,7 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 			"author_bio":          authorBio.String,
 			"author_profile_pic":  authorPic.String,
 			"tags":                tags,
+			"categories":          categories,
 			"additional_media_urls": additionalMedia,
 			"status":              status,
 			"created_at":          createdAt.Format(time.RFC3339),
