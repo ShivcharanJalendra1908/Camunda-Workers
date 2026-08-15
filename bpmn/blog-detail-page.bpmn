@@ -122,6 +122,17 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-detail-page">
+        <bpmndi:BPMNShape id="Task_BuildResponse_di" bpmnElement="Task_BuildResponse">
+          <dc:Bounds x="600" y="350" width="100" height="80" />
+        </bpmndi:BPMNShape>
+        <bpmndi:BPMNEdge id="Flow_Join_To_Build_di" bpmnElement="Flow_Join_To_Build">
+          <di:waypoint x="720" y="350" />
+          <di:waypoint x="770" y="350" />
+        </bpmndi:BPMNEdge>
+        <bpmndi:BPMNEdge id="Flow_Build_To_Response_di" bpmnElement="Flow_Build_To_Response">
+          <di:waypoint x="720" y="350" />
+          <di:waypoint x="770" y="350" />
+        </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="Task_GetAuthor_di" bpmnElement="Task_GetAuthor">
         <dc:Bounds x="370" y="280" width="150" height="80" />
       </bpmndi:BPMNShape>
