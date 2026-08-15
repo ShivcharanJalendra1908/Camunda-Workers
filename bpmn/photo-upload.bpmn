@@ -1,41 +1,35 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="UTF-8"?>
 <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
-
-  <process id="photo-upload" isExecutable="true" name="Photo Upload v1.0">
-
+  <process id="photo-upload" name="Photo Upload v1.0" isExecutable="true">
     <startEvent id="StartEvent_PhotoUpload" name="S3 Upload&#10;Complete">
       <outgoing>Flow_Start_To_ValidateOwnership</outgoing>
     </startEvent>
-
     <serviceTask id="Task_ValidateOwnership" name="Validate Ownership&#10;and Entity Exists">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="1"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="1" />
         <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId"/>
-          <zeebe:input source="=entityId" target="entityId"/>
-          <zeebe:input source="=entityType" target="entityType"/>
-          <zeebe:input source="=requestId" target="requestId"/>
-          <zeebe:input source="=&quot;VALIDATE_PHOTO_OWNERSHIP&quot;" target="operation_type"/>
-          <zeebe:output source="=ownershipValid" target="ownershipValid"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=entityType" target="entityType" />
+          <zeebe:input source="=requestId" target="requestId" />
+          <zeebe:input source="=&#34;VALIDATE_PHOTO_OWNERSHIP&#34;" target="operation_type" />
+          <zeebe:output source="=ownershipValid" target="ownershipValid" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_Start_To_ValidateOwnership</incoming>
       <outgoing>Flow_ValidateOwnership_To_OwnershipGateway</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_ValidateOwnership" attachedToRef="Task_ValidateOwnership" cancelActivity="true">
+    <boundaryEvent id="BoundaryError_ValidateOwnership" attachedToRef="Task_ValidateOwnership">
       <outgoing>Flow_BoundaryOwnership_To_ErrorMerge</outgoing>
-      <errorEventDefinition id="ErrorDef_Boundary_Ownership" errorRef="Error_ActionFailed"/>
+      <errorEventDefinition id="ErrorDef_Boundary_Ownership" errorRef="Error_ActionFailed" />
     </boundaryEvent>
-
     <exclusiveGateway id="Gateway_OwnershipValid" name="Ownership&#10;Valid?" default="Flow_OwnershipInvalid_To_ErrorMerge">
       <incoming>Flow_ValidateOwnership_To_OwnershipGateway</incoming>
       <outgoing>Flow_OwnershipValid_To_EntityRouter</outgoing>
       <outgoing>Flow_OwnershipInvalid_To_ErrorMerge</outgoing>
     </exclusiveGateway>
-
     <exclusiveGateway id="Gateway_EntityRouter" name="Route by&#10;Entity Type" default="Flow_ToUnsupportedEntity">
       <incoming>Flow_OwnershipValid_To_EntityRouter</incoming>
       <outgoing>Flow_ToProfilePhoto</outgoing>
@@ -43,139 +37,126 @@
       <outgoing>Flow_ToListingPhoto</outgoing>
       <outgoing>Flow_ToUnsupportedEntity</outgoing>
     </exclusiveGateway>
-
     <serviceTask id="Task_PersistProfilePhoto" name="Persist Profile&#10;Photo Key">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="2"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId"/>
-          <zeebe:input source="=s3Key" target="s3Key"/>
-          <zeebe:input source="=&quot;PERSIST_PROFILE_PHOTO&quot;" target="operation_type"/>
-          <zeebe:output source="=success" target="success"/>
-          <zeebe:output source="=message" target="message"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=s3Key" target="s3Key" />
+          <zeebe:input source="=&#34;PERSIST_PROFILE_PHOTO&#34;" target="operation_type" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToProfilePhoto</incoming>
       <outgoing>Flow_ProfilePhoto_To_PersistMerge</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_PersistProfilePhoto" attachedToRef="Task_PersistProfilePhoto" cancelActivity="true">
+    <boundaryEvent id="BoundaryError_PersistProfilePhoto" attachedToRef="Task_PersistProfilePhoto">
       <outgoing>Flow_BoundaryPersistProfile_To_ErrorMerge</outgoing>
-      <errorEventDefinition id="ErrorDef_Boundary_PersistProfile" errorRef="Error_DatabaseError"/>
+      <errorEventDefinition id="ErrorDef_Boundary_PersistProfile" errorRef="Error_DatabaseError" />
     </boundaryEvent>
-
     <serviceTask id="Task_PersistFranchisePhoto" name="Persist Franchise&#10;Photo Key">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="2"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId"/>
-          <zeebe:input source="=entityId" target="entityId"/>
-          <zeebe:input source="=s3Key" target="s3Key"/>
-          <zeebe:input source="=&quot;PERSIST_FRANCHISE_PHOTO&quot;" target="operation_type"/>
-          <zeebe:output source="=success" target="success"/>
-          <zeebe:output source="=message" target="message"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=s3Key" target="s3Key" />
+          <zeebe:input source="=&#34;PERSIST_FRANCHISE_PHOTO&#34;" target="operation_type" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToFranchisePhoto</incoming>
       <outgoing>Flow_FranchisePhoto_To_PersistMerge</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_PersistFranchisePhoto" attachedToRef="Task_PersistFranchisePhoto" cancelActivity="true">
+    <boundaryEvent id="BoundaryError_PersistFranchisePhoto" attachedToRef="Task_PersistFranchisePhoto">
       <outgoing>Flow_BoundaryPersistFranchise_To_ErrorMerge</outgoing>
-      <errorEventDefinition id="ErrorDef_Boundary_PersistFranchise" errorRef="Error_DatabaseError"/>
+      <errorEventDefinition id="ErrorDef_Boundary_PersistFranchise" errorRef="Error_DatabaseError" />
     </boundaryEvent>
-
     <serviceTask id="Task_PersistListingPhoto" name="Persist Listing&#10;Photo Key">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="2"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId"/>
-          <zeebe:input source="=entityId" target="entityId"/>
-          <zeebe:input source="=s3Key" target="s3Key"/>
-          <zeebe:input source="=&quot;PERSIST_LISTING_PHOTO&quot;" target="operation_type"/>
-          <zeebe:output source="=success" target="success"/>
-          <zeebe:output source="=message" target="message"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=s3Key" target="s3Key" />
+          <zeebe:input source="=&#34;PERSIST_LISTING_PHOTO&#34;" target="operation_type" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToListingPhoto</incoming>
       <outgoing>Flow_ListingPhoto_To_PersistMerge</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_PersistListingPhoto" attachedToRef="Task_PersistListingPhoto" cancelActivity="true">
+    <boundaryEvent id="BoundaryError_PersistListingPhoto" attachedToRef="Task_PersistListingPhoto">
       <outgoing>Flow_BoundaryPersistListing_To_ErrorMerge</outgoing>
-      <errorEventDefinition id="ErrorDef_Boundary_PersistListing" errorRef="Error_DatabaseError"/>
+      <errorEventDefinition id="ErrorDef_Boundary_PersistListing" errorRef="Error_DatabaseError" />
     </boundaryEvent>
-
     <serviceTask id="Task_UnsupportedEntity" name="Unsupported&#10;Entity Type">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="0"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="0" />
         <zeebe:ioMapping>
-          <zeebe:input source="=entityType" target="entityType"/>
-          <zeebe:input source="=&quot;UNSUPPORTED_ENTITY&quot;" target="operation_type"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=entityType" target="entityType" />
+          <zeebe:input source="=&#34;UNSUPPORTED_ENTITY&#34;" target="operation_type" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ToUnsupportedEntity</incoming>
       <outgoing>Flow_UnsupportedEntity_To_ErrorMerge</outgoing>
     </serviceTask>
-
     <exclusiveGateway id="Gateway_PersistMerge" name="Persist&#10;Merge">
       <incoming>Flow_ProfilePhoto_To_PersistMerge</incoming>
       <incoming>Flow_FranchisePhoto_To_PersistMerge</incoming>
       <incoming>Flow_ListingPhoto_To_PersistMerge</incoming>
       <outgoing>Flow_PersistMerge_To_AuditLog</outgoing>
     </exclusiveGateway>
-
     <serviceTask id="Task_WriteAuditLog" name="Write Photo&#10;Audit Log">
       <extensionElements>
-        <zeebe:taskDefinition type="franchise-postgres" retries="2"/>
+        <zeebe:taskDefinition type="franchise-postgres" retries="2" />
         <zeebe:ioMapping>
-          <zeebe:input source="=userId" target="userId"/>
-          <zeebe:input source="=entityType" target="entityType"/>
-          <zeebe:input source="=entityId" target="entityId"/>
-          <zeebe:input source="=s3Key" target="s3Key"/>
-          <zeebe:input source="=oldS3Key" target="oldS3Key"/>
-          <zeebe:input source="=requestId" target="requestId"/>
-          <zeebe:input source="=&quot;INSERT_PHOTO_AUDIT&quot;" target="operation_type"/>
-          <zeebe:output source="=auditId" target="auditId"/>
-          <zeebe:output source="=success" target="success"/>
-          <zeebe:output source="=message" target="message"/>
-          <zeebe:output source="=errorCode" target="errorCode"/>
-          <zeebe:output source="=errorMessage" target="errorMessage"/>
+          <zeebe:input source="=userId" target="userId" />
+          <zeebe:input source="=entityType" target="entityType" />
+          <zeebe:input source="=entityId" target="entityId" />
+          <zeebe:input source="=s3Key" target="s3Key" />
+          <zeebe:input source="=oldS3Key" target="oldS3Key" />
+          <zeebe:input source="=requestId" target="requestId" />
+          <zeebe:input source="=&#34;INSERT_PHOTO_AUDIT&#34;" target="operation_type" />
+          <zeebe:output source="=auditId" target="auditId" />
+          <zeebe:output source="=success" target="success" />
+          <zeebe:output source="=message" target="message" />
+          <zeebe:output source="=errorCode" target="errorCode" />
+          <zeebe:output source="=errorMessage" target="errorMessage" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_PersistMerge_To_AuditLog</incoming>
       <outgoing>Flow_AuditLog_To_SendResponse</outgoing>
     </serviceTask>
-
-    <boundaryEvent id="BoundaryError_AuditLog" attachedToRef="Task_WriteAuditLog" cancelActivity="true">
+    <boundaryEvent id="BoundaryError_AuditLog" attachedToRef="Task_WriteAuditLog">
       <outgoing>Flow_BoundaryAudit_To_ErrorMerge</outgoing>
-      <errorEventDefinition id="ErrorDef_Boundary_Audit" errorRef="Error_DatabaseError"/>
+      <errorEventDefinition id="ErrorDef_Boundary_Audit" errorRef="Error_DatabaseError" />
     </boundaryEvent>
-
     <serviceTask id="Task_SendResponse" name="Send Success&#10;Response">
       <extensionElements>
-        <zeebe:taskDefinition type="send-api-response" retries="0"/>
+        <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
-          <zeebe:input source="=correlationKey" target="correlationKey"/>
-          <zeebe:input source="={success: true, s3Key: s3Key, auditId: auditId, entityType: entityType}" target="response"/>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={success: true, s3Key: s3Key, auditId: auditId, entityType: entityType}" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_AuditLog_To_SendResponse</incoming>
       <outgoing>Flow_SendResponse_To_SuccessEnd</outgoing>
     </serviceTask>
-
     <endEvent id="EndEvent_Success" name="Photo Key&#10;Persisted">
       <incoming>Flow_SendResponse_To_SuccessEnd</incoming>
     </endEvent>
-
     <exclusiveGateway id="Gateway_ErrorMerge" name="Error Merge">
       <incoming>Flow_BoundaryOwnership_To_ErrorMerge</incoming>
       <incoming>Flow_OwnershipInvalid_To_ErrorMerge</incoming>
@@ -186,233 +167,243 @@
       <incoming>Flow_BoundaryAudit_To_ErrorMerge</incoming>
       <outgoing>Flow_ErrorMerge_To_HandleError</outgoing>
     </exclusiveGateway>
-
     <serviceTask id="Task_HandleError" name="Handle Error">
       <extensionElements>
-        <zeebe:taskDefinition type="send-api-response" retries="0"/>
+        <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
-          <zeebe:input source="=correlationKey" target="correlationKey"/>
-          <zeebe:input source="={success: false, error: if errorCode != null then errorCode else &quot;INTERNAL_ERROR&quot;, message: if errorMessage != null then errorMessage else &quot;An unexpected error occurred&quot;}" target="response"/>
+          <zeebe:input source="=correlationKey" target="correlationKey" />
+          <zeebe:input source="={success: false, error: if errorCode != null then errorCode else &#34;INTERNAL_ERROR&#34;, message: if errorMessage != null then errorMessage else &#34;An unexpected error occurred&#34;}" target="response" />
         </zeebe:ioMapping>
       </extensionElements>
       <incoming>Flow_ErrorMerge_To_HandleError</incoming>
       <outgoing>Flow_HandleError_To_ErrorEnd</outgoing>
     </serviceTask>
-
     <endEvent id="EndEvent_Error" name="Photo Upload&#10;Failed">
       <incoming>Flow_HandleError_To_ErrorEnd</incoming>
     </endEvent>
-
-    <sequenceFlow id="Flow_Start_To_ValidateOwnership" sourceRef="StartEvent_PhotoUpload" targetRef="Task_ValidateOwnership"/>
-
-    <sequenceFlow id="Flow_ValidateOwnership_To_OwnershipGateway" sourceRef="Task_ValidateOwnership" targetRef="Gateway_OwnershipValid"/>
-
+    <sequenceFlow id="Flow_Start_To_ValidateOwnership" sourceRef="StartEvent_PhotoUpload" targetRef="Task_ValidateOwnership" />
+    <sequenceFlow id="Flow_ValidateOwnership_To_OwnershipGateway" sourceRef="Task_ValidateOwnership" targetRef="Gateway_OwnershipValid" />
     <sequenceFlow id="Flow_OwnershipValid_To_EntityRouter" sourceRef="Gateway_OwnershipValid" targetRef="Gateway_EntityRouter">
       <conditionExpression xsi:type="tFormalExpression">=ownershipValid = true</conditionExpression>
     </sequenceFlow>
-
-    <sequenceFlow id="Flow_OwnershipInvalid_To_ErrorMerge" sourceRef="Gateway_OwnershipValid" targetRef="Gateway_ErrorMerge"/>
-
+    <sequenceFlow id="Flow_OwnershipInvalid_To_ErrorMerge" sourceRef="Gateway_OwnershipValid" targetRef="Gateway_ErrorMerge" />
     <sequenceFlow id="Flow_ToProfilePhoto" sourceRef="Gateway_EntityRouter" targetRef="Task_PersistProfilePhoto">
       <conditionExpression xsi:type="tFormalExpression">=entityType = "profile"</conditionExpression>
     </sequenceFlow>
-
     <sequenceFlow id="Flow_ToFranchisePhoto" sourceRef="Gateway_EntityRouter" targetRef="Task_PersistFranchisePhoto">
       <conditionExpression xsi:type="tFormalExpression">=entityType = "franchise"</conditionExpression>
     </sequenceFlow>
-
     <sequenceFlow id="Flow_ToListingPhoto" sourceRef="Gateway_EntityRouter" targetRef="Task_PersistListingPhoto">
       <conditionExpression xsi:type="tFormalExpression">=entityType = "listing"</conditionExpression>
     </sequenceFlow>
-
-    <sequenceFlow id="Flow_ToUnsupportedEntity" sourceRef="Gateway_EntityRouter" targetRef="Task_UnsupportedEntity"/>
-
-    <sequenceFlow id="Flow_ProfilePhoto_To_PersistMerge" sourceRef="Task_PersistProfilePhoto" targetRef="Gateway_PersistMerge"/>
-
-    <sequenceFlow id="Flow_FranchisePhoto_To_PersistMerge" sourceRef="Task_PersistFranchisePhoto" targetRef="Gateway_PersistMerge"/>
-
-    <sequenceFlow id="Flow_ListingPhoto_To_PersistMerge" sourceRef="Task_PersistListingPhoto" targetRef="Gateway_PersistMerge"/>
-
-    <sequenceFlow id="Flow_UnsupportedEntity_To_ErrorMerge" sourceRef="Task_UnsupportedEntity" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_PersistMerge_To_AuditLog" sourceRef="Gateway_PersistMerge" targetRef="Task_WriteAuditLog"/>
-
-    <sequenceFlow id="Flow_AuditLog_To_SendResponse" sourceRef="Task_WriteAuditLog" targetRef="Task_SendResponse"/>
-
-    <sequenceFlow id="Flow_SendResponse_To_SuccessEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_Success"/>
-
-    <sequenceFlow id="Flow_BoundaryOwnership_To_ErrorMerge" sourceRef="BoundaryError_ValidateOwnership" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_BoundaryPersistProfile_To_ErrorMerge" sourceRef="BoundaryError_PersistProfilePhoto" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_BoundaryPersistFranchise_To_ErrorMerge" sourceRef="BoundaryError_PersistFranchisePhoto" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_BoundaryPersistListing_To_ErrorMerge" sourceRef="BoundaryError_PersistListingPhoto" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_BoundaryAudit_To_ErrorMerge" sourceRef="BoundaryError_AuditLog" targetRef="Gateway_ErrorMerge"/>
-
-    <sequenceFlow id="Flow_ErrorMerge_To_HandleError" sourceRef="Gateway_ErrorMerge" targetRef="Task_HandleError"/>
-
-    <sequenceFlow id="Flow_HandleError_To_ErrorEnd" sourceRef="Task_HandleError" targetRef="EndEvent_Error"/>
-
-    </process>
-
-  <error id="Error_ValidationError" errorCode="VALIDATION_FAILED" name="Validation Error"/>
-  <error id="Error_DatabaseError" errorCode="DATABASE_ERROR" name="Database Error"/>
-  <error id="Error_ActionFailed" errorCode="ACTION_FAILED" name="Action Failed"/>
-
-  
+    <sequenceFlow id="Flow_ToUnsupportedEntity" sourceRef="Gateway_EntityRouter" targetRef="Task_UnsupportedEntity" />
+    <sequenceFlow id="Flow_ProfilePhoto_To_PersistMerge" sourceRef="Task_PersistProfilePhoto" targetRef="Gateway_PersistMerge" />
+    <sequenceFlow id="Flow_FranchisePhoto_To_PersistMerge" sourceRef="Task_PersistFranchisePhoto" targetRef="Gateway_PersistMerge" />
+    <sequenceFlow id="Flow_ListingPhoto_To_PersistMerge" sourceRef="Task_PersistListingPhoto" targetRef="Gateway_PersistMerge" />
+    <sequenceFlow id="Flow_UnsupportedEntity_To_ErrorMerge" sourceRef="Task_UnsupportedEntity" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_PersistMerge_To_AuditLog" sourceRef="Gateway_PersistMerge" targetRef="Task_WriteAuditLog" />
+    <sequenceFlow id="Flow_AuditLog_To_SendResponse" sourceRef="Task_WriteAuditLog" targetRef="Task_SendResponse" />
+    <sequenceFlow id="Flow_SendResponse_To_SuccessEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_Success" />
+    <sequenceFlow id="Flow_BoundaryOwnership_To_ErrorMerge" sourceRef="BoundaryError_ValidateOwnership" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_BoundaryPersistProfile_To_ErrorMerge" sourceRef="BoundaryError_PersistProfilePhoto" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_BoundaryPersistFranchise_To_ErrorMerge" sourceRef="BoundaryError_PersistFranchisePhoto" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_BoundaryPersistListing_To_ErrorMerge" sourceRef="BoundaryError_PersistListingPhoto" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_BoundaryAudit_To_ErrorMerge" sourceRef="BoundaryError_AuditLog" targetRef="Gateway_ErrorMerge" />
+    <sequenceFlow id="Flow_ErrorMerge_To_HandleError" sourceRef="Gateway_ErrorMerge" targetRef="Task_HandleError" />
+    <sequenceFlow id="Flow_HandleError_To_ErrorEnd" sourceRef="Task_HandleError" targetRef="EndEvent_Error" />
+  </process>
+  <error id="Error_ValidationError" name="Validation Error" errorCode="VALIDATION_FAILED" />
+  <error id="Error_DatabaseError" name="Database Error" errorCode="DATABASE_ERROR" />
+  <error id="Error_ActionFailed" name="Action Failed" errorCode="ACTION_FAILED" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="photo-upload">
-      <bpmndi:BPMNShape id="StartEvent_PhotoUpload_di" bpmnElement="StartEvent_PhotoUpload">
-        <dc:Bounds x="150" y="100" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_ValidateOwnership_di" bpmnElement="Task_ValidateOwnership">
-        <dc:Bounds x="250" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryError_ValidateOwnership_di" bpmnElement="BoundaryError_ValidateOwnership">
-        <dc:Bounds x="250" y="120" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_OwnershipValid_di" bpmnElement="Gateway_OwnershipValid">
-        <dc:Bounds x="400" y="93" width="50" height="50" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_EntityRouter_di" bpmnElement="Gateway_EntityRouter">
-        <dc:Bounds x="500" y="93" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_EntityRouter_di" bpmnElement="Gateway_EntityRouter" isMarkerVisible="true">
+        <dc:Bounds x="370" y="213" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="369" y="263" width="52" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_PersistProfilePhoto_di" bpmnElement="Task_PersistProfilePhoto">
-        <dc:Bounds x="600" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryError_PersistProfilePhoto_di" bpmnElement="BoundaryError_PersistProfilePhoto">
-        <dc:Bounds x="600" y="120" width="36" height="36" />
+        <dc:Bounds x="450" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_PersistFranchisePhoto_di" bpmnElement="Task_PersistFranchisePhoto">
-        <dc:Bounds x="750" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryError_PersistFranchisePhoto_di" bpmnElement="BoundaryError_PersistFranchisePhoto">
-        <dc:Bounds x="750" y="120" width="36" height="36" />
+        <dc:Bounds x="570" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_PersistListingPhoto_di" bpmnElement="Task_PersistListingPhoto">
-        <dc:Bounds x="900" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryError_PersistListingPhoto_di" bpmnElement="BoundaryError_PersistListingPhoto">
-        <dc:Bounds x="900" y="120" width="36" height="36" />
+        <dc:Bounds x="690" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_UnsupportedEntity_di" bpmnElement="Task_UnsupportedEntity">
-        <dc:Bounds x="1050" y="78" width="100" height="80" />
+        <dc:Bounds x="810" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_PersistMerge_di" bpmnElement="Gateway_PersistMerge">
-        <dc:Bounds x="1200" y="93" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_PersistMerge_di" bpmnElement="Gateway_PersistMerge" isMarkerVisible="true">
+        <dc:Bounds x="945" y="213" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="954" y="263" width="33" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_WriteAuditLog_di" bpmnElement="Task_WriteAuditLog">
-        <dc:Bounds x="1300" y="78" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BoundaryError_AuditLog_di" bpmnElement="BoundaryError_AuditLog">
-        <dc:Bounds x="1300" y="120" width="36" height="36" />
+        <dc:Bounds x="1045" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="1450" y="78" width="100" height="80" />
+        <dc:Bounds x="1180" y="198" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Success_di" bpmnElement="EndEvent_Success">
-        <dc:Bounds x="1600" y="100" width="36" height="36" />
+        <dc:Bounds x="1320" y="220" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1314" y="256" width="49" height="27" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_ErrorMerge_di" bpmnElement="Gateway_ErrorMerge">
-        <dc:Bounds x="1700" y="93" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_ErrorMerge_di" bpmnElement="Gateway_ErrorMerge" isMarkerVisible="true">
+        <dc:Bounds x="1070" y="315" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1066.5" y="375" width="57" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_HandleError_di" bpmnElement="Task_HandleError">
-        <dc:Bounds x="1800" y="78" width="100" height="80" />
+        <dc:Bounds x="1180" y="300" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Error_di" bpmnElement="EndEvent_Error">
-        <dc:Bounds x="1950" y="100" width="36" height="36" />
+        <dc:Bounds x="1320" y="322" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1307" y="358" width="63" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OwnershipValid_di" bpmnElement="Gateway_OwnershipValid" isMarkerVisible="true">
+        <dc:Bounds x="295" y="213" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="293" y="175.5" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ValidateOwnership_di" bpmnElement="Task_ValidateOwnership">
+        <dc:Bounds x="160" y="198" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_PhotoUpload_di" bpmnElement="StartEvent_PhotoUpload">
+        <dc:Bounds x="192" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="185" y="84.5" width="49" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryError_PersistProfilePhoto_di" bpmnElement="BoundaryError_PersistProfilePhoto">
+        <dc:Bounds x="482" y="260" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryError_PersistFranchisePhoto_di" bpmnElement="BoundaryError_PersistFranchisePhoto">
+        <dc:Bounds x="602" y="260" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryError_PersistListingPhoto_di" bpmnElement="BoundaryError_PersistListingPhoto">
+        <dc:Bounds x="722" y="260" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryError_AuditLog_di" bpmnElement="BoundaryError_AuditLog">
+        <dc:Bounds x="1077" y="260" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryError_ValidateOwnership_di" bpmnElement="BoundaryError_ValidateOwnership">
+        <dc:Bounds x="192" y="260" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_To_ValidateOwnership_di" bpmnElement="Flow_Start_To_ValidateOwnership">
-        <di:waypoint x="168" y="118" />
-        <di:waypoint x="300" y="118" />
+        <di:waypoint x="210" y="158" />
+        <di:waypoint x="210" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ValidateOwnership_To_OwnershipGateway_di" bpmnElement="Flow_ValidateOwnership_To_OwnershipGateway">
-        <di:waypoint x="300" y="118" />
-        <di:waypoint x="425" y="118" />
+        <di:waypoint x="260" y="238" />
+        <di:waypoint x="295" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_OwnershipValid_To_EntityRouter_di" bpmnElement="Flow_OwnershipValid_To_EntityRouter">
-        <di:waypoint x="425" y="118" />
-        <di:waypoint x="525" y="118" />
+        <di:waypoint x="345" y="238" />
+        <di:waypoint x="370" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_OwnershipInvalid_To_ErrorMerge_di" bpmnElement="Flow_OwnershipInvalid_To_ErrorMerge">
-        <di:waypoint x="425" y="118" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="320" y="263" />
+        <di:waypoint x="320" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToProfilePhoto_di" bpmnElement="Flow_ToProfilePhoto">
-        <di:waypoint x="525" y="118" />
-        <di:waypoint x="650" y="118" />
+        <di:waypoint x="420" y="238" />
+        <di:waypoint x="450" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToFranchisePhoto_di" bpmnElement="Flow_ToFranchisePhoto">
-        <di:waypoint x="525" y="118" />
-        <di:waypoint x="800" y="118" />
+        <di:waypoint x="395" y="213" />
+        <di:waypoint x="395" y="180" />
+        <di:waypoint x="620" y="180" />
+        <di:waypoint x="620" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToListingPhoto_di" bpmnElement="Flow_ToListingPhoto">
-        <di:waypoint x="525" y="118" />
-        <di:waypoint x="950" y="118" />
+        <di:waypoint x="395" y="213" />
+        <di:waypoint x="395" y="160" />
+        <di:waypoint x="740" y="160" />
+        <di:waypoint x="740" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ToUnsupportedEntity_di" bpmnElement="Flow_ToUnsupportedEntity">
-        <di:waypoint x="525" y="118" />
-        <di:waypoint x="1100" y="118" />
+        <di:waypoint x="395" y="213" />
+        <di:waypoint x="395" y="120" />
+        <di:waypoint x="860" y="120" />
+        <di:waypoint x="860" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ProfilePhoto_To_PersistMerge_di" bpmnElement="Flow_ProfilePhoto_To_PersistMerge">
-        <di:waypoint x="650" y="118" />
-        <di:waypoint x="1225" y="118" />
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="500" y="140" />
+        <di:waypoint x="970" y="140" />
+        <di:waypoint x="970" y="213" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_FranchisePhoto_To_PersistMerge_di" bpmnElement="Flow_FranchisePhoto_To_PersistMerge">
-        <di:waypoint x="800" y="118" />
-        <di:waypoint x="1225" y="118" />
+        <di:waypoint x="620" y="198" />
+        <di:waypoint x="620" y="90" />
+        <di:waypoint x="970" y="90" />
+        <di:waypoint x="970" y="213" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ListingPhoto_To_PersistMerge_di" bpmnElement="Flow_ListingPhoto_To_PersistMerge">
-        <di:waypoint x="950" y="118" />
-        <di:waypoint x="1225" y="118" />
+        <di:waypoint x="740" y="198" />
+        <di:waypoint x="740" y="170" />
+        <di:waypoint x="970" y="170" />
+        <di:waypoint x="970" y="213" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_UnsupportedEntity_To_ErrorMerge_di" bpmnElement="Flow_UnsupportedEntity_To_ErrorMerge">
-        <di:waypoint x="1100" y="118" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="860" y="278" />
+        <di:waypoint x="860" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_PersistMerge_To_AuditLog_di" bpmnElement="Flow_PersistMerge_To_AuditLog">
-        <di:waypoint x="1225" y="118" />
-        <di:waypoint x="1350" y="118" />
+        <di:waypoint x="995" y="238" />
+        <di:waypoint x="1045" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AuditLog_To_SendResponse_di" bpmnElement="Flow_AuditLog_To_SendResponse">
-        <di:waypoint x="1350" y="118" />
-        <di:waypoint x="1500" y="118" />
+        <di:waypoint x="1145" y="238" />
+        <di:waypoint x="1180" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SendResponse_To_SuccessEnd_di" bpmnElement="Flow_SendResponse_To_SuccessEnd">
-        <di:waypoint x="1500" y="118" />
-        <di:waypoint x="1618" y="118" />
+        <di:waypoint x="1280" y="238" />
+        <di:waypoint x="1320" y="238" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_BoundaryOwnership_To_ErrorMerge_di" bpmnElement="Flow_BoundaryOwnership_To_ErrorMerge">
-        <di:waypoint x="268" y="138" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="210" y="296" />
+        <di:waypoint x="210" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_BoundaryPersistProfile_To_ErrorMerge_di" bpmnElement="Flow_BoundaryPersistProfile_To_ErrorMerge">
-        <di:waypoint x="618" y="138" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="500" y="296" />
+        <di:waypoint x="500" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_BoundaryPersistFranchise_To_ErrorMerge_di" bpmnElement="Flow_BoundaryPersistFranchise_To_ErrorMerge">
-        <di:waypoint x="768" y="138" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="620" y="296" />
+        <di:waypoint x="620" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_BoundaryPersistListing_To_ErrorMerge_di" bpmnElement="Flow_BoundaryPersistListing_To_ErrorMerge">
-        <di:waypoint x="918" y="138" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="740" y="296" />
+        <di:waypoint x="740" y="340" />
+        <di:waypoint x="1070" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_BoundaryAudit_To_ErrorMerge_di" bpmnElement="Flow_BoundaryAudit_To_ErrorMerge">
-        <di:waypoint x="1318" y="138" />
-        <di:waypoint x="1725" y="118" />
+        <di:waypoint x="1095" y="296" />
+        <di:waypoint x="1095" y="315" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ErrorMerge_To_HandleError_di" bpmnElement="Flow_ErrorMerge_To_HandleError">
-        <di:waypoint x="1725" y="118" />
-        <di:waypoint x="1850" y="118" />
+        <di:waypoint x="1120" y="340" />
+        <di:waypoint x="1180" y="340" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_HandleError_To_ErrorEnd_di" bpmnElement="Flow_HandleError_To_ErrorEnd">
-        <di:waypoint x="1850" y="118" />
-        <di:waypoint x="1968" y="118" />
+        <di:waypoint x="1280" y="340" />
+        <di:waypoint x="1320" y="340" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </definitions>
-
