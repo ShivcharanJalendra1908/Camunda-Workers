@@ -165,6 +165,11 @@ func (h *Handler) extractInt(data map[string]interface{}, key string) int {
 		return int(v)
 	case float64:
 		return int(v)
+	case string:
+		if parsed, err := strconv.Atoi(v); err == nil {
+			return parsed
+		}
+		return 0
 	default:
 		return 0
 	}
@@ -3798,7 +3803,7 @@ func (h *Handler) buildBlogListingResponse(data map[string]interface{}) map[stri
 					total := h.extractInt(data, "totalCount")
 					size := h.extractInt(data, "pageSize")
 					if size <= 0 {
-						size = 10
+						size = 6
 					}
 					pages := total / size
 					if total%size > 0 {
@@ -3814,7 +3819,7 @@ func (h *Handler) buildBlogListingResponse(data map[string]interface{}) map[stri
 					total := h.extractInt(data, "totalCount")
 					size := h.extractInt(data, "pageSize")
 					if size <= 0 {
-						size = 10
+						size = 6
 					}
 					return page*size < total
 				}(),

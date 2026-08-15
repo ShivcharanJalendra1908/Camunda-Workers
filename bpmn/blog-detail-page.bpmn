@@ -46,7 +46,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_CONTENT&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:output source="=blog_content" target="blog_content" />
+          <zeebe:output source="=data" target="blog_content" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Content</bpmn:incoming>
@@ -60,7 +60,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_AUTHOR_PROFILE&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
-          <zeebe:output source="=author_profile" target="author_profile" />
+          <zeebe:output source="=data" target="author_profile" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Author</bpmn:incoming>
@@ -75,7 +75,7 @@
           <zeebe:input source="=&#34;BLOG_RELATED_ARTICLES&#34;" target="queryType" />
           <zeebe:input source="=blogId" target="blogId" />
           <zeebe:input source="=4" target="limit" />
-          <zeebe:output source="=related_articles" target="related_articles" />
+          <zeebe:output source="=data" target="related_articles" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Related</bpmn:incoming>
@@ -89,7 +89,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_POPULAR&#34;" target="queryType" />
           <zeebe:input source="=4" target="limit" />
-          <zeebe:output source="=popular_blogs" target="popular_blogs" />
+          <zeebe:output source="=data" target="popular_blogs" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Popular</bpmn:incoming>
