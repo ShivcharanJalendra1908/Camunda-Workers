@@ -15,6 +15,7 @@ type Input struct {
 	FranchiseID  string                 `json:"franchiseId,omitempty"`
 	FranchiseIDs []string               `json:"franchiseIds,omitempty"`
 	UserID       string                 `json:"userId,omitempty"`
+	BlogID       string                 `json:"blogId,omitempty"`
 	Slug         string                 `json:"slug,omitempty"`
 	IndustrySlug string                 `json:"industrySlug,omitempty"`
 	IndustryID   string                 `json:"industryId,omitempty"`
@@ -28,6 +29,7 @@ type Output struct {
 	FranchiseID        string                 `json:"franchiseId,omitempty"`
 	FranchiseIDs       []string               `json:"franchiseIds,omitempty"`
 	UserID             string                 `json:"userId,omitempty"`
+	BlogID             string                 `json:"blogId,omitempty"`
 	Slug               string                 `json:"slug,omitempty"`
 	IndustrySlug       string                 `json:"industrySlug,omitempty"`
 	IndustryID         string                 `json:"industryId,omitempty"`

@@ -592,6 +592,9 @@ func (h *Handler) execute(ctx context.Context, input *Input) (*Output, error) {
 	if input.UserID != "" {
 		params["userId"] = input.UserID
 	}
+	if input.BlogID != "" {
+		params["blogId"] = input.BlogID
+	}
 	if input.EntityType != "" {
 		et := strings.ToLower(input.EntityType)
 		switch et {
