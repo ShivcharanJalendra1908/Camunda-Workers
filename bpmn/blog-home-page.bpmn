@@ -15,7 +15,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_FEATURED&#34;" target="queryType" />
-          <zeebe:input source="=6" target="limit" />
+          <zeebe:input source="=4" target="limit" />
           <zeebe:output source="=data" target="featuredBlogs" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
@@ -27,7 +27,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_POPULAR&#34;" target="queryType" />
-          <zeebe:input source="=6" target="limit" />
+          <zeebe:input source="=3" target="limit" />
           <zeebe:output source="=data" target="popularBlogs" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
