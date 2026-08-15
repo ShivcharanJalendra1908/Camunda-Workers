@@ -28,7 +28,7 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 	query := map[string]interface{}{
 		"bool": map[string]interface{}{
 			"must": []map[string]interface{}{
-				{"term": map[string]interface{}{"status": "LIVE"}},
+				{"term": map[string]interface{}{"status": "live"}},
 			},
 		},
 	}
