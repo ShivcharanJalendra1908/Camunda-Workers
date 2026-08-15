@@ -10,7 +10,7 @@
         <zeebe:taskDefinition type="query-postgresql" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;BLOG_BY_SLUG&#34;" target="queryType" />
-          <zeebe:input source="=slug" target="slug" />
+          <zeebe:input source="=blogId" target="slug" />
           <zeebe:output source="=data.blogId" target="blogId" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
