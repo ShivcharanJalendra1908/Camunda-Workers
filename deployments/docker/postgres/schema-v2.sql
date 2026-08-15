@@ -274,7 +274,8 @@ CREATE TABLE blogs (
     featured_image_url VARCHAR(500) NOT NULL,
     author_display_name VARCHAR(150),
     tags TEXT[],
-    additional_media_urls TEXT[]
+    additional_media_urls TEXT[],
+    content TEXT
 );
 COMMENT ON TABLE blogs IS 'Blog-specific extension of the listings table. ID matches listings(id).';
 

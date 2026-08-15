@@ -53,7 +53,7 @@ ON CONFLICT (email) DO NOTHING;
 \COPY franchises(id, total_outlets, parent_company, business_type, established_year, units_count, leader_name, leader_role) FROM '/csv-data/v2-data/franchises.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(parent_company, business_type, established_year, total_outlets, units_count, leader_name, leader_role));
 
 \echo 'Loading blogs.csv...'
-\COPY blogs(id, reading_time_mins, seo_title, seo_description, featured_image_url, author_display_name, tags, additional_media_urls) FROM '/csv-data/v2-data/blogs.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(seo_title, seo_description, author_display_name));
+\COPY blogs(id, reading_time_mins, seo_title, seo_description, featured_image_url, author_display_name, tags, additional_media_urls, content) FROM '/csv-data/v2-data/blogs.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(seo_title, seo_description, author_display_name, content));
 
 \echo 'Loading author_profiles.csv...'
 \COPY author_profiles(user_id, full_name, author_name, bio, profile_picture_url, categories, created_at, updated_at) FROM '/csv-data/v2-data/author_profiles.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(bio, profile_picture_url));
