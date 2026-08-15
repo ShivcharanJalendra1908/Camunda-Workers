@@ -183,6 +183,7 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 		var id, title, slug string
 		var shortDesc, image, author sql.NullString
 		var readingTime int
+		var createdAt time.Time
 		var tagsJSON, catsJSON []byte
 		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &tagsJSON, &catsJSON, &createdAt)
 		var tags []string
@@ -248,6 +249,7 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 		var shortDesc, image, author sql.NullString
 		var readingTime int
 		var viewCount int64
+		var createdAt time.Time
 		var tagsJSON, catsJSON []byte
 		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &tagsJSON, &viewCount, &catsJSON, &createdAt)
 		var tags []string
