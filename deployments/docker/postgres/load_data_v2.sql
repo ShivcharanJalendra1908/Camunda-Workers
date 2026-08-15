@@ -47,7 +47,7 @@ ON CONFLICT (email) DO NOTHING;
 \COPY sub_categories(id, category_id, name, slug, description, display_order, is_active, created_at, updated_at) FROM '/csv-data/v2-data/sub_categories.csv' WITH (FORMAT csv, HEADER true, NULL 'NULL');
 
 \echo 'Loading listings.csv...'
-\COPY listings(id, name, slug, short_description, description, founded_year, contact_email, website_url, logo_url_circle, logo_url_square, created_by, updated_by, created_at, updated_at, entity_type, status, verified, trusted_seller) FROM '/csv-data/v2-data/listings.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(short_description, description, founded_year, contact_email, website_url, logo_url_circle, logo_url_square, updated_by));
+\COPY listings(id, name, slug, short_description, description, founded_year, contact_email, website_url, logo_url_circle, logo_url_square, created_by, updated_by, created_at, updated_at, entity_type, status, verified, trusted_seller, is_featured) FROM '/csv-data/v2-data/listings.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(short_description, description, founded_year, contact_email, website_url, logo_url_circle, logo_url_square, updated_by));
 
 \echo 'Loading franchises.csv...'
 \COPY franchises(id, total_outlets, parent_company, business_type, established_year, units_count, leader_name, leader_role) FROM '/csv-data/v2-data/franchises.csv' WITH (FORMAT csv, HEADER true, NULL '', FORCE_NULL(parent_company, business_type, established_year, total_outlets, units_count, leader_name, leader_role));
@@ -116,10 +116,6 @@ UNION ALL SELECT 'Investment Requirements', COUNT(*) FROM franchise_investment_r
 UNION ALL SELECT 'Operations', COUNT(*) FROM franchise_operations
 UNION ALL SELECT 'Category Questions', COUNT(*) FROM category_questions
 UNION ALL SELECT 'Industry Market Insights', COUNT(*) FROM industry_market_insights;
-
-\echo ''
-\echo 'Setting blogs as featured per requirement...'
-UPDATE listings SET is_featured = TRUE WHERE entity_type = 'blog' AND status = 'live';
 
 \echo ''
 \echo '✅ CSV data loading completed successfully!'
