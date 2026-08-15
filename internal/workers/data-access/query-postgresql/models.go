@@ -21,6 +21,7 @@ type Input struct {
 	IndustryID   string                 `json:"industryId,omitempty"`
 	Filters      map[string]interface{} `json:"filters,omitempty"`
 	Params       map[string]interface{} `json:"params,omitempty"` // Add this line
+	Limit        int                    `json:"limit,omitempty"`
 	EntityType   string                 `json:"entityType,omitempty"`
 }
 
