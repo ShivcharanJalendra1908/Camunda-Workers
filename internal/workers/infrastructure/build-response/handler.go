@@ -487,19 +487,21 @@ func (h *Handler) Execute(ctx context.Context, input *Input) (*Output, error) {
 	case "home":
 		response = h.buildHomeResponse(combinedData)
 	case "listing":
-		if combinedData["entityType"] == "association" {
+		switch combinedData["entityType"] {
+		case "association":
 			response = h.buildAssociationListingResponse(combinedData)
-		} else if combinedData["entityType"] == "blog" {
+		case "blog":
 			response = h.buildBlogListingResponse(combinedData)
-		} else {
+		default:
 			response = h.buildFranchiseListingResponse(combinedData)
 		}
 	case "detail":
-		if combinedData["entityType"] == "association" {
+		switch combinedData["entityType"] {
+		case "association":
 			response = h.buildAssociationDetailResponse(combinedData)
-		} else if combinedData["entityType"] == "blog" {
+		case "blog":
 			response = h.buildBlogDetailResponse(combinedData)
-		} else {
+		default:
 			response = h.buildFranchiseDetailResponse(combinedData)
 		}
 	case "search":
@@ -3836,23 +3838,23 @@ func (h *Handler) buildBlogDetailResponse(data map[string]interface{}) map[strin
 	h.logger.Info("Building blog detail response", map[string]interface{}{"dataKeys": h.getKeys(data)})
 
 	hero := h.extractMap(data, "hero")
-	if hero != nil && len(hero) > 0 {
+	if len(hero) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "blog_hero", "enabled": true, "data": hero})
-	} else if heroData := h.extractMap(data, "blog_hero"); heroData != nil && len(heroData) > 0 {
+	} else if heroData := h.extractMap(data, "blog_hero"); len(heroData) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "blog_hero", "enabled": true, "data": heroData})
 	}
 
 	content := h.extractMap(data, "content")
-	if content != nil && len(content) > 0 {
+	if len(content) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "blog_content", "enabled": true, "data": content})
-	} else if contentData := h.extractMap(data, "blog_content"); contentData != nil && len(contentData) > 0 {
+	} else if contentData := h.extractMap(data, "blog_content"); len(contentData) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "blog_content", "enabled": true, "data": contentData})
 	}
 
 	author := h.extractMap(data, "author")
-	if author != nil && len(author) > 0 {
+	if len(author) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "author_profile", "enabled": true, "data": author})
-	} else if authorData := h.extractMap(data, "author_profile"); authorData != nil && len(authorData) > 0 {
+	} else if authorData := h.extractMap(data, "author_profile"); len(authorData) > 0 {
 		sections = append(sections, map[string]interface{}{"type": "author_profile", "enabled": true, "data": authorData})
 	}
 
