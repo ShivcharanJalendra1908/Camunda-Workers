@@ -107,6 +107,7 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 			"featured_image_url":  source["featured_image_url"],
 			"reading_time_mins":   source["reading_time_mins"],
 			"author_display_name": source["author_display_name"],
+			"author_profile_pic":  source["author_profile_pic"],
 			"tags":                source["tags"],
 			"categories":          source["categories"],
 			"published_at":        source["created_at"],

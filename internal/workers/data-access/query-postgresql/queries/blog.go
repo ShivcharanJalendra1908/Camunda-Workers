@@ -161,14 +161,16 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.id, l.name AS title, l.slug, l.short_description,
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name,
+		       ap.profile_picture_url AS author_profile_pic,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL), '[]'::json) AS categories,
 		       l.created_at
 		FROM listings l
 		JOIN blogs b ON b.id = l.id
 		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
 		LEFT JOIN categories c ON c.id = lc.category_id
+		LEFT JOIN author_profiles ap ON ap.user_id = l.created_by
 		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.is_featured = TRUE
-		GROUP BY l.id, b.id
+		GROUP BY l.id, b.id, ap.profile_picture_url
 		ORDER BY MAX(l.featured_order) ASC NULLS LAST, MAX(l.created_at) DESC
 		LIMIT $1
 	`, limit)
@@ -180,11 +182,11 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 	var blogs []map[string]interface{}
 	for rows.Next() {
 		var id, title, slug string
-		var shortDesc, image, author sql.NullString
+		var shortDesc, image, author, authorPic sql.NullString
 		var readingTime int
 		var createdAt time.Time
 		var catsJSON []byte
-		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &catsJSON, &createdAt)
+		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &authorPic, &catsJSON, &createdAt)
 		var cats []interface{}
 		json.Unmarshal(catsJSON, &cats)
 		blogs = append(blogs, map[string]interface{}{
@@ -195,6 +197,7 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 			"featured_image_url":  image.String,
 			"reading_time_mins":   readingTime,
 			"author_display_name": author.String,
+			"author_profile_pic":  authorPic.String,
 			"categories":          cats,
 			"published_at":        createdAt.Format(time.RFC3339),
 		})
@@ -220,13 +223,15 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.id, l.name AS title, l.slug, l.short_description,
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name,
+		       ap.profile_picture_url AS author_profile_pic,
 		       COALESCE(ls.view_count, 0) AS view_count,
 		       l.created_at
 		FROM listings l
 		JOIN blogs b ON b.id = l.id
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
+		LEFT JOIN author_profiles ap ON ap.user_id = l.created_by
 		WHERE l.entity_type = 'blog' AND l.status = 'live'
-		GROUP BY l.id, b.id, ls.view_count
+		GROUP BY l.id, b.id, ls.view_count, ap.profile_picture_url
 		ORDER BY ls.view_count DESC NULLS LAST, l.created_at DESC
 		LIMIT $1
 	`, limit)
@@ -238,11 +243,11 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	var blogs []map[string]interface{}
 	for rows.Next() {
 		var id, title, slug string
-		var shortDesc, image, author sql.NullString
+		var shortDesc, image, author, authorPic sql.NullString
 		var readingTime int
 		var viewCount int64
 		var createdAt time.Time
-		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &viewCount, &createdAt)
+		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &authorPic, &viewCount, &createdAt)
 		blogs = append(blogs, map[string]interface{}{
 			"id":                  id,
 			"title":               title,
@@ -251,6 +256,7 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 			"featured_image_url":  image.String,
 			"reading_time_mins":   readingTime,
 			"author_display_name": author.String,
+			"author_profile_pic":  authorPic.String,
 			"published_at":        createdAt.Format(time.RFC3339),
 		})
 	}
