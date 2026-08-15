@@ -161,7 +161,6 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 	rows, err := db.QueryContext(ctx, `
 		SELECT l.id, l.name AS title, l.slug, l.short_description,
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name,
-		       COALESCE(array_to_json(b.tags), '[]'::json) AS tags,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL), '[]'::json) AS categories,
 		       l.created_at
 		FROM listings l
@@ -184,11 +183,9 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 		var shortDesc, image, author sql.NullString
 		var readingTime int
 		var createdAt time.Time
-		var tagsJSON, catsJSON []byte
-		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &tagsJSON, &catsJSON, &createdAt)
-		var tags []string
+		var catsJSON []byte
+		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &catsJSON, &createdAt)
 		var cats []interface{}
-		json.Unmarshal(tagsJSON, &tags)
 		json.Unmarshal(catsJSON, &cats)
 		blogs = append(blogs, map[string]interface{}{
 			"id":                  id,
@@ -198,7 +195,6 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 			"featured_image_url":  image.String,
 			"reading_time_mins":   readingTime,
 			"author_display_name": author.String,
-			"tags":                tags,
 			"categories":          cats,
 			"published_at":        createdAt.Format(time.RFC3339),
 		})
@@ -222,9 +218,8 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT l.id, l.name AS title, l.slug, l.short_description,
+		SELECT l.id, l.name AS title, l.slug,
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name,
-		       COALESCE(array_to_json(b.tags), '[]'::json) AS tags,
 		       COALESCE(ls.view_count, 0) AS view_count,
 		       COALESCE(json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL), '[]'::json) AS categories,
 		       l.created_at
@@ -250,21 +245,17 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 		var readingTime int
 		var viewCount int64
 		var createdAt time.Time
-		var tagsJSON, catsJSON []byte
-		rows.Scan(&id, &title, &slug, &shortDesc, &image, &readingTime, &author, &tagsJSON, &viewCount, &catsJSON, &createdAt)
-		var tags []string
+		var catsJSON []byte
+		rows.Scan(&id, &title, &slug, &image, &readingTime, &author, &viewCount, &catsJSON, &createdAt)
 		var cats []interface{}
-		json.Unmarshal(tagsJSON, &tags)
 		json.Unmarshal(catsJSON, &cats)
 		blogs = append(blogs, map[string]interface{}{
 			"id":                  id,
 			"title":               title,
 			"slug":                slug,
-			"short_description":   shortDesc.String,
 			"featured_image_url":  image.String,
 			"reading_time_mins":   readingTime,
 			"author_display_name": author.String,
-			"tags":                tags,
 			"categories":          cats,
 			"view_count":          viewCount,
 			"published_at":        createdAt.Format(time.RFC3339),

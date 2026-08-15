@@ -97,14 +97,27 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 	var data []map[string]interface{}
 	for _, hit := range hits["hits"].([]interface{}) {
 		source := hit.(map[string]interface{})["_source"].(map[string]interface{})
-		source["id"] = hit.(map[string]interface{})["_id"] // Inject document ID
 		
-		// Map 'title' to match Postgres query format
-		if name, ok := source["name"]; ok {
-			source["title"] = name
+		// Build a pruned map for the UI card
+		pruned := map[string]interface{}{
+			"id":                  hit.(map[string]interface{})["_id"],
+			"title":               source["name"],
+			"slug":                source["slug"],
+			"short_description":   source["short_description"],
+			"featured_image_url":  source["featured_image_url"],
+			"reading_time_mins":   source["reading_time_mins"],
+			"author_display_name": source["author_display_name"],
+			"tags":                source["tags"],
+			"categories":          source["categories"],
+			"published_at":        source["created_at"],
 		}
 		
-		data = append(data, source)
+		// Optional fields (if they exist in ES)
+		if vc, ok := source["view_count"]; ok {
+			pruned["view_count"] = vc
+		}
+
+		data = append(data, pruned)
 	}
 
 	return &QueryResult{
