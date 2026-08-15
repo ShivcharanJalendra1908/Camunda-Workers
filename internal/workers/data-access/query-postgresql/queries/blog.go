@@ -28,7 +28,7 @@ func BlogBySlug(ctx context.Context, db *sql.DB, params map[string]interface{}, 
 	err := db.QueryRowContext(ctx, `
 		SELECT l.id
 		FROM listings l
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.slug = $1
+		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.slug = $1
 		LIMIT 1
 	`, slug).Scan(&id)
 
@@ -74,7 +74,7 @@ func BlogListing(ctx context.Context, db *sql.DB, params map[string]interface{},
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
 		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
 		LEFT JOIN categories c ON c.id = lc.category_id
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE'
+		WHERE l.entity_type = 'blog' AND l.status = 'live'
 	`
 
 	args := []interface{}{}
@@ -163,7 +163,7 @@ func BlogFeatured(ctx context.Context, db *sql.DB, params map[string]interface{}
 		       b.featured_image_url, b.reading_time_mins, b.author_display_name, l.created_at
 		FROM listings l
 		JOIN blogs b ON b.id = l.id
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.is_featured = TRUE
+		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.is_featured = TRUE
 		ORDER BY l.featured_order ASC NULLS LAST, l.created_at DESC
 		LIMIT $1
 	`, limit)
@@ -215,7 +215,7 @@ func BlogPopular(ctx context.Context, db *sql.DB, params map[string]interface{},
 		FROM listings l
 		JOIN blogs b ON b.id = l.id
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE'
+		WHERE l.entity_type = 'blog' AND l.status = 'live'
 		ORDER BY ls.view_count DESC NULLS LAST, l.created_at DESC
 		LIMIT $1
 	`, limit)
@@ -281,7 +281,7 @@ func BlogHero(ctx context.Context, db *sql.DB, params map[string]interface{}, _ 
 		LEFT JOIN listing_stats ls ON ls.listing_id = l.id
 		LEFT JOIN listing_categories lc ON lc.listing_id = l.id
 		LEFT JOIN categories c ON c.id = lc.category_id
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
+		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.id = $1
 		GROUP BY l.id, b.id, ls.view_count
 	`, blogID)
 
@@ -350,7 +350,7 @@ func BlogContent(ctx context.Context, db *sql.DB, params map[string]interface{},
 	row := db.QueryRowContext(ctx, `
 		SELECT l.description AS content
 		FROM listings l
-		WHERE l.entity_type = 'blog' AND l.status = 'LIVE' AND l.id = $1
+		WHERE l.entity_type = 'blog' AND l.status = 'live' AND l.id = $1
 	`, blogID)
 
 	var content string
@@ -407,7 +407,7 @@ func BlogRelatedArticles(ctx context.Context, db *sql.DB, params map[string]inte
 			FROM listings l
 			JOIN blogs b ON b.id = l.id
 			JOIN listing_categories lc ON lc.listing_id = l.id
-			WHERE l.entity_type = 'blog' AND l.status = 'LIVE'
+			WHERE l.entity_type = 'blog' AND l.status = 'live'
 			  AND l.id != $1
 			  AND lc.category_id IN (%s)
 			ORDER BY l.created_at DESC
