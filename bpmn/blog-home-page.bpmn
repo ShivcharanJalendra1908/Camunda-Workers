@@ -13,6 +13,11 @@
     <bpmn:serviceTask id="Task_GetFeatured" name="Get Featured Blog Posts">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-postgresql" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;BLOG_FEATURED&#34;" target="queryType" />
+          <zeebe:input source="=6" target="limit" />
+          <zeebe:output source="=data" target="featuredBlogs" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Featured</bpmn:incoming>
       <bpmn:outgoing>Flow_Featured_To_Join</bpmn:outgoing>

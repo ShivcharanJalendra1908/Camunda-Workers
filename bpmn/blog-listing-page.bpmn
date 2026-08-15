@@ -13,6 +13,14 @@
     <bpmn:serviceTask id="Task_GetListing" name="Get Blog Listing">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="query-elasticsearch" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;blogs&#34;" target="indexName" />
+          <zeebe:input source="=if categoryId != null and categoryId != &#34;&#34; then {&#34;bool&#34;: {&#34;must&#34;: [{&#34;term&#34;: {&#34;category_id&#34;: categoryId}}]}} else {&#34;match_all&#34;: {}}" target="query" />
+          <zeebe:input source="=if page != null then page else 1" target="page" />
+          <zeebe:input source="=if pageSize != null then pageSize else 10" target="pageSize" />
+          <zeebe:output source="=data" target="blogListing" />
+          <zeebe:output source="=total" target="totalCount" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_To_Listing</bpmn:incoming>
       <bpmn:outgoing>Flow_Listing_To_Join</bpmn:outgoing>
