@@ -428,6 +428,7 @@ func main() {
 			publicBlogGroup.GET("/popular", blogHandler.GetPopular)
 			publicBlogGroup.POST("/subscribe", blogHandler.SubscribeNewsletter)
 			publicBlogGroup.GET("/:id", blogHandler.GetSingleBlog)
+			publicBlogGroup.GET("/detail/:slug", blogHandler.GetSingleBlog)
 		}
 
 		// ========================================================================

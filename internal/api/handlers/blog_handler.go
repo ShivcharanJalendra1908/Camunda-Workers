@@ -274,12 +274,19 @@ func (h *BlogHandler) GetListing(c *gin.Context) {
 func (h *BlogHandler) GetSingleBlog(c *gin.Context) {
 	ctx := c.Request.Context()
 	blogID := c.Param("id")
+	slug := c.Param("slug")
+	identifier := blogID
+	if identifier == "" {
+		identifier = slug
+	}
+
 	correlationKey := fmt.Sprintf("blog_detail_%s", uuid.New().String()[:8])
 
 	variables := map[string]interface{}{
 		"correlationKey": correlationKey,
 		"entityType":     "blog",
-		"blogId":         blogID,
+		"blogId":         identifier,
+		"slug":           identifier,
 	}
 
 	response, err := h.executeWorkflow(ctx, "blog-detail-page", variables)
