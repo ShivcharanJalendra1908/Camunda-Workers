@@ -173,7 +173,7 @@ func (h *BlogHandler) genericWorkflowSubmit(c *gin.Context, operation string) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	response, err := h.executeWorkflow(ctx, "blog-submission-workflow", variables)
+	response, err := h.executeWorkflow(ctx, "blog-user-actions", variables)
 	if err != nil {
 		h.logger.Error("Workflow execution failed", map[string]interface{}{"error": err.Error()})
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process request"})
