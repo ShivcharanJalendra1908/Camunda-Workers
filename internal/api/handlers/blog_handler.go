@@ -232,7 +232,7 @@ func (h *BlogHandler) GetHomeSections(c *gin.Context) {
 
 // GetListing handles GET /api/v1/blog/listing
 // BPMN: blog-listing-page (fetches blog list + popular sidebar in parallel)
-// Query params: ?search=, ?category_id=, ?page=, ?page_size=
+// Query params: ?search=, ?categorySlug=, ?page=, ?page_size=
 func (h *BlogHandler) GetListing(c *gin.Context) {
 	ctx := c.Request.Context()
 	correlationKey := fmt.Sprintf("blog_listing_%s", uuid.New().String()[:8])
@@ -254,7 +254,7 @@ func (h *BlogHandler) GetListing(c *gin.Context) {
 		"correlationKey": correlationKey,
 		"entityType":     "blog",
 		"search":         c.Query("search"),
-		"categoryId":     c.Query("category_id"),
+		"categoryId":     c.Query("categorySlug"),
 		"page":           page,
 		"pageSize":       pageSize,
 		"offset":         (page - 1) * pageSize,

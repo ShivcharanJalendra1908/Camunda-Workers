@@ -78,6 +78,9 @@
           }
         }
       },
+      "category_slugs": {
+        "type": "keyword"
+      },
       "additional_media_urls": {
         "type": "keyword",
         "index": false

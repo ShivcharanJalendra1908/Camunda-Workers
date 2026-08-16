@@ -1183,7 +1183,7 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
             ap.bio as author_bio,
             ap.profile_picture_url as author_profile_pic,
             COALESCE(
-                json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name)) FILTER (WHERE c.id IS NOT NULL),
+                json_agg(DISTINCT jsonb_build_object('id', c.id, 'name', c.name, 'slug', c.slug)) FILTER (WHERE c.id IS NOT NULL),
                 '[]'::json
             ) as categories_json
         FROM listings l
@@ -1237,15 +1237,19 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 		var categories []map[string]interface{}
 		_ = json.Unmarshal(categoriesJSON, &categories)
 
-		// Extract flat category_ids and category_names for easy ES filtering
+		// Extract flat category_ids, category_names, and category_slugs for easy ES filtering
 		var categoryIDs []string
 		var categoryNames []string
+		var categorySlugs []string
 		for _, cat := range categories {
 			if cid, ok := cat["id"].(string); ok && cid != "" {
 				categoryIDs = append(categoryIDs, cid)
 			}
 			if cname, ok := cat["name"].(string); ok && cname != "" {
 				categoryNames = append(categoryNames, cname)
+			}
+			if cslug, ok := cat["slug"].(string); ok && cslug != "" {
+				categorySlugs = append(categorySlugs, cslug)
 			}
 		}
 
@@ -1266,6 +1270,7 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 			"categories":            categories,
 			"category_ids":          categoryIDs,
 			"category_names":        categoryNames,
+			"category_slugs":        categorySlugs,
 			"additional_media_urls": additionalMedia,
 			"status":                status,
 			"created_at":            createdAt.Format(time.RFC3339),
