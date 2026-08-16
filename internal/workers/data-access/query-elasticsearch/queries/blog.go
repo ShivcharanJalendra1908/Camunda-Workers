@@ -39,7 +39,7 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 			map[string]interface{}{
 				"multi_match": map[string]interface{}{
 					"query":  search,
-					"fields": []string{"title^3", "short_description", "tags^2"},
+					"fields": []string{"title^3", "short_description", "tags^2", "content", "author_display_name"},
 					"type":   "best_fields",
 				},
 			},
