@@ -206,7 +206,7 @@ func (h *Handler) HandleJob(client worker.JobClient, job entities.Job) {
 		fmt.Fprintf(&mdBuilder, "**Blog ID:** %s\n", output.ID)
 		fmt.Fprintf(&mdBuilder, "**Featured Image:** %s\n\n", blogInput.FeaturedImageURL)
 		fmt.Fprintf(&mdBuilder, "---\n\n")
-		fmt.Fprintf(&mdBuilder, "## Content\n\n%s\n", blogInput.Description)
+		fmt.Fprintf(&mdBuilder, "## Content\n\n%s\n", blogInput.Content)
 
 		mdBase64 := base64.StdEncoding.EncodeToString([]byte(mdBuilder.String()))
 		attachmentFilename := fmt.Sprintf("blog-%s.md", output.ID)
@@ -285,10 +285,10 @@ func (h *Handler) handleCreateBlog(ctx context.Context, input CreateBlogInput) (
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO blogs (
 			id, reading_time_mins, seo_title, seo_description, 
-			featured_image_url, author_display_name, tags, additional_media_urls
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			featured_image_url, author_display_name, tags, additional_media_urls, content
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, newID, input.ReadingTimeMins, input.SEOTitle, input.SEODescription, 
-	input.FeaturedImageURL, input.AuthorDisplayName, pq.Array(input.Tags), pq.Array(input.AdditionalMediaURLs))
+	input.FeaturedImageURL, input.AuthorDisplayName, pq.Array(input.Tags), pq.Array(input.AdditionalMediaURLs), input.Content)
 	
 	if err != nil {
 		return BaseOutput{}, err

@@ -28,6 +28,7 @@ type CreateBlogInput struct {
 
 	// blogs table fields
 	ReadingTimeMins    int      `json:"reading_time_mins"`
+	Content            string   `json:"content,omitempty"`
 	SEOTitle           string   `json:"seo_title,omitempty"`
 	SEODescription     string   `json:"seo_description,omitempty"`
 	FeaturedImageURL   string   `json:"featured_image_url"`
@@ -78,6 +79,7 @@ type UpdateBlogInput struct {
 	Status           *string   `json:"status,omitempty"`
 
 	ReadingTimeMins    *int      `json:"reading_time_mins,omitempty"`
+	Content            *string   `json:"content,omitempty"`
 	SEOTitle           *string   `json:"seo_title,omitempty"`
 	SEODescription     *string   `json:"seo_description,omitempty"`
 	FeaturedImageURL   *string   `json:"featured_image_url,omitempty"`
