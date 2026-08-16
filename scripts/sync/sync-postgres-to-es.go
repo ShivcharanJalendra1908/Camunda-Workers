@@ -1168,7 +1168,7 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
             l.name as title,
             l.slug,
             l.short_description,
-            l.description as content,
+            b.content,
             b.reading_time_mins,
             b.seo_title,
             b.seo_description,
