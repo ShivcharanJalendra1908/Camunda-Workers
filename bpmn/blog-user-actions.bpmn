@@ -1,22 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_1u44h0i" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
-  <bpmn:process id="blog-user-actions" name="Blog User Actions Workflow" isExecutable="true">
-    <bpmn:startEvent id="StartEvent_1" name="Start">
-      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="Definitions_BlogActions" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1">
+  <bpmn:process id="blog-user-actions" name="Blog User Actions" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_UserAction" name="User Action Request">
+      <bpmn:outgoing>Flow_ToRouter</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_BlogPostgres" />
-    <bpmn:serviceTask id="Task_BlogPostgres" name="Blog Postgres Worker">
+    <bpmn:sequenceFlow id="Flow_ToRouter" sourceRef="StartEvent_UserAction" targetRef="Gateway_ActionRouter" />
+    <bpmn:exclusiveGateway id="Gateway_ActionRouter" name="Which Action?">
+      <bpmn:incoming>Flow_ToRouter</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCreateSubscriber</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToUpdateSubscriber</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToCreateFollower</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToDeleteFollower</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToUpdateBlog</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_ToCreateSubscriber" sourceRef="Gateway_ActionRouter" targetRef="Task_CreateSubscriber">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operation_type = "CREATE_SUBSCRIBER"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Task_CreateSubscriber" name="Create Subscriber">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="blog-postgres" />
         <zeebe:ioMapping>
-          <zeebe:input source="=payload.operation_type" target="operation_type" />
+          <zeebe:input source="=&#34;CREATE_SUBSCRIBER&#34;" target="operation_type" />
           <zeebe:input source="=payload" target="payload" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_1</bpmn:incoming>
-      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:incoming>Flow_ToCreateSubscriber</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromCreateSubscriber</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_BlogPostgres" targetRef="Task_SendResponse" />
+    <bpmn:sequenceFlow id="Flow_FromCreateSubscriber" sourceRef="Task_CreateSubscriber" targetRef="Gateway_JoinTasks" />
+    
+    <bpmn:sequenceFlow id="Flow_ToUpdateSubscriber" sourceRef="Gateway_ActionRouter" targetRef="Task_UpdateSubscriber">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operation_type = "UPDATE_SUBSCRIBER"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Task_UpdateSubscriber" name="Update Subscriber">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="blog-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_SUBSCRIBER&#34;" target="operation_type" />
+          <zeebe:input source="=payload" target="payload" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToUpdateSubscriber</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromUpdateSubscriber</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_FromUpdateSubscriber" sourceRef="Task_UpdateSubscriber" targetRef="Gateway_JoinTasks" />
+
+    <bpmn:sequenceFlow id="Flow_ToCreateFollower" sourceRef="Gateway_ActionRouter" targetRef="Task_CreateFollower">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operation_type = "CREATE_FOLLOWER"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Task_CreateFollower" name="Create Follower">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="blog-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;CREATE_FOLLOWER&#34;" target="operation_type" />
+          <zeebe:input source="=payload" target="payload" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToCreateFollower</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromCreateFollower</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_FromCreateFollower" sourceRef="Task_CreateFollower" targetRef="Gateway_JoinTasks" />
+
+    <bpmn:sequenceFlow id="Flow_ToDeleteFollower" sourceRef="Gateway_ActionRouter" targetRef="Task_DeleteFollower">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operation_type = "DELETE_FOLLOWER"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Task_DeleteFollower" name="Delete Follower">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="blog-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;DELETE_FOLLOWER&#34;" target="operation_type" />
+          <zeebe:input source="=payload" target="payload" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToDeleteFollower</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromDeleteFollower</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_FromDeleteFollower" sourceRef="Task_DeleteFollower" targetRef="Gateway_JoinTasks" />
+
+    <bpmn:sequenceFlow id="Flow_ToUpdateBlog" sourceRef="Gateway_ActionRouter" targetRef="Task_UpdateBlog">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=operation_type = "UPDATE_BLOG"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Task_UpdateBlog" name="Update Blog">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="blog-postgres" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=&#34;UPDATE_BLOG&#34;" target="operation_type" />
+          <zeebe:input source="=payload" target="payload" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToUpdateBlog</bpmn:incoming>
+      <bpmn:outgoing>Flow_FromUpdateBlog</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_FromUpdateBlog" sourceRef="Task_UpdateBlog" targetRef="Gateway_JoinTasks" />
+
+    <bpmn:exclusiveGateway id="Gateway_JoinTasks" name="Join Tasks">
+      <bpmn:incoming>Flow_FromCreateSubscriber</bpmn:incoming>
+      <bpmn:incoming>Flow_FromUpdateSubscriber</bpmn:incoming>
+      <bpmn:incoming>Flow_FromCreateFollower</bpmn:incoming>
+      <bpmn:incoming>Flow_FromDeleteFollower</bpmn:incoming>
+      <bpmn:incoming>Flow_FromUpdateBlog</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSendResponse</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_JoinTasks" targetRef="Task_SendResponse" />
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="send-api-response" />
@@ -27,39 +112,108 @@
           <zeebe:input source="=db_result" target="db_result" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_2</bpmn:incoming>
-      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:incoming>Flow_ToSendResponse</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_SendResponse" targetRef="EndEvent_1" />
-    <bpmn:endEvent id="EndEvent_1" name="End">
-      <bpmn:incoming>Flow_3</bpmn:incoming>
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendResponse" targetRef="EndEvent_Finished" />
+    <bpmn:endEvent id="EndEvent_Finished" name="End">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
-  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="blog-postgres">
-      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
-        <dc:Bounds x="179" y="99" width="36" height="36" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_BlogActions">
+    <bpmndi:BPMNPlane id="BPMNPlane_BlogActions" bpmnElement="blog-user-actions">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_UserAction" bpmnElement="StartEvent_UserAction">
+        <dc:Bounds x="150" y="320" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_BlogPostgres_di" bpmnElement="Task_BlogPostgres">
-        <dc:Bounds x="270" y="77" width="100" height="80" />
+      <bpmndi:BPMNShape id="Gateway_ActionRouter_di" bpmnElement="Gateway_ActionRouter" isMarkerVisible="true">
+        <dc:Bounds x="250" y="313" width="50" height="50" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_SendResponse_di" bpmnElement="Task_SendResponse">
-        <dc:Bounds x="430" y="77" width="100" height="80" />
+      <bpmndi:BPMNShape id="Task_CreateSubscriber_di" bpmnElement="Task_CreateSubscriber">
+        <dc:Bounds x="370" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_End_di" bpmnElement="EndEvent_1">
-        <dc:Bounds x="590" y="99" width="36" height="36" />
+      <bpmndi:BPMNShape id="Task_UpdateSubscriber_di" bpmnElement="Task_UpdateSubscriber">
+        <dc:Bounds x="370" y="200" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
-        <di:waypoint x="215" y="117" />
-        <di:waypoint x="270" y="117" />
+      <bpmndi:BPMNShape id="Task_CreateFollower_di" bpmnElement="Task_CreateFollower">
+        <dc:Bounds x="370" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_DeleteFollower_di" bpmnElement="Task_DeleteFollower">
+        <dc:Bounds x="370" y="420" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_UpdateBlog_di" bpmnElement="Task_UpdateBlog">
+        <dc:Bounds x="370" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_JoinTasks_di" bpmnElement="Gateway_JoinTasks" isMarkerVisible="true">
+        <dc:Bounds x="550" y="313" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendResponse_di" bpmnElement="Task_SendResponse">
+        <dc:Bounds x="650" y="298" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Finished_di" bpmnElement="EndEvent_Finished">
+        <dc:Bounds x="800" y="320" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Flow_ToRouter_di" bpmnElement="Flow_ToRouter">
+        <di:waypoint x="186" y="338" />
+        <di:waypoint x="250" y="338" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
-        <di:waypoint x="370" y="117" />
-        <di:waypoint x="430" y="117" />
+      <bpmndi:BPMNEdge id="Flow_ToCreateSubscriber_di" bpmnElement="Flow_ToCreateSubscriber">
+        <di:waypoint x="275" y="313" />
+        <di:waypoint x="275" y="120" />
+        <di:waypoint x="370" y="120" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_3_di" bpmnElement="Flow_3">
-        <di:waypoint x="530" y="117" />
-        <di:waypoint x="590" y="117" />
+      <bpmndi:BPMNEdge id="Flow_ToUpdateSubscriber_di" bpmnElement="Flow_ToUpdateSubscriber">
+        <di:waypoint x="275" y="313" />
+        <di:waypoint x="275" y="240" />
+        <di:waypoint x="370" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToCreateFollower_di" bpmnElement="Flow_ToCreateFollower">
+        <di:waypoint x="300" y="338" />
+        <di:waypoint x="370" y="338" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToDeleteFollower_di" bpmnElement="Flow_ToDeleteFollower">
+        <di:waypoint x="275" y="363" />
+        <di:waypoint x="275" y="460" />
+        <di:waypoint x="370" y="460" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToUpdateBlog_di" bpmnElement="Flow_ToUpdateBlog">
+        <di:waypoint x="275" y="363" />
+        <di:waypoint x="275" y="580" />
+        <di:waypoint x="370" y="580" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_FromCreateSubscriber_di" bpmnElement="Flow_FromCreateSubscriber">
+        <di:waypoint x="470" y="120" />
+        <di:waypoint x="575" y="120" />
+        <di:waypoint x="575" y="313" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FromUpdateSubscriber_di" bpmnElement="Flow_FromUpdateSubscriber">
+        <di:waypoint x="470" y="240" />
+        <di:waypoint x="575" y="240" />
+        <di:waypoint x="575" y="313" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FromCreateFollower_di" bpmnElement="Flow_FromCreateFollower">
+        <di:waypoint x="470" y="338" />
+        <di:waypoint x="550" y="338" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FromDeleteFollower_di" bpmnElement="Flow_FromDeleteFollower">
+        <di:waypoint x="470" y="460" />
+        <di:waypoint x="575" y="460" />
+        <di:waypoint x="575" y="363" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FromUpdateBlog_di" bpmnElement="Flow_FromUpdateBlog">
+        <di:waypoint x="470" y="580" />
+        <di:waypoint x="575" y="580" />
+        <di:waypoint x="575" y="363" />
+      </bpmndi:BPMNEdge>
+      
+      <bpmndi:BPMNEdge id="Flow_ToSendResponse_di" bpmnElement="Flow_ToSendResponse">
+        <di:waypoint x="600" y="338" />
+        <di:waypoint x="650" y="338" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
+        <di:waypoint x="750" y="338" />
+        <di:waypoint x="800" y="338" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
