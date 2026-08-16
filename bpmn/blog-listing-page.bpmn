@@ -17,6 +17,8 @@
           <zeebe:input source="=&#34;ES_BLOG_LISTING&#34;" target="queryType" />
           <zeebe:input source="=if page != null then page else 1" target="page" />
           <zeebe:input source="=if pageSize != null then pageSize else 6" target="pageSize" />
+          <zeebe:input source="=search" target="search" />
+          <zeebe:input source="=categoryId" target="categoryId" />
           <zeebe:output source="=data" target="blogListing" />
           <zeebe:output source="=total" target="totalCount" />
         </zeebe:ioMapping>
