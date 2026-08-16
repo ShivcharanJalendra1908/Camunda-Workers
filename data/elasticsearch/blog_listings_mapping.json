@@ -67,6 +67,17 @@
           }
         }
       },
+      "category_ids": {
+        "type": "keyword"
+      },
+      "category_names": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
+      },
       "additional_media_urls": {
         "type": "keyword",
         "index": false

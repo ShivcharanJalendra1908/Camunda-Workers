@@ -1234,29 +1234,43 @@ func (m *SyncManager) syncBlogIndex(ctx context.Context) error {
 		var additionalMedia []string
 		_ = json.Unmarshal(mediaJSON, &additionalMedia)
 
-		var categories []interface{}
+		var categories []map[string]interface{}
 		_ = json.Unmarshal(categoriesJSON, &categories)
 
+		// Extract flat category_ids and category_names for easy ES filtering
+		var categoryIDs []string
+		var categoryNames []string
+		for _, cat := range categories {
+			if cid, ok := cat["id"].(string); ok && cid != "" {
+				categoryIDs = append(categoryIDs, cid)
+			}
+			if cname, ok := cat["name"].(string); ok && cname != "" {
+				categoryNames = append(categoryNames, cname)
+			}
+		}
+
 		doc := map[string]interface{}{
-			"id":                  id,
-			"title":               title,
-			"slug":                slug,
-			"short_description":   shortDesc.String,
-			"content":             content.String,
-			"reading_time_mins":   readingTime,
-			"seo_title":           seoTitle.String,
-			"seo_description":     seoDesc.String,
-			"featured_image_url":  featuredImage.String,
-			"author_display_name": authorName.String,
-			"author_bio":          authorBio.String,
-			"author_profile_pic":  authorPic.String,
-			"tags":                tags,
-			"categories":          categories,
+			"id":                    id,
+			"title":                 title,
+			"slug":                  slug,
+			"short_description":     shortDesc.String,
+			"content":               content.String,
+			"reading_time_mins":     readingTime,
+			"seo_title":             seoTitle.String,
+			"seo_description":       seoDesc.String,
+			"featured_image_url":    featuredImage.String,
+			"author_display_name":   authorName.String,
+			"author_bio":            authorBio.String,
+			"author_profile_pic":    authorPic.String,
+			"tags":                  tags,
+			"categories":            categories,
+			"category_ids":          categoryIDs,
+			"category_names":        categoryNames,
 			"additional_media_urls": additionalMedia,
-			"status":              status,
-			"created_at":          createdAt.Format(time.RFC3339),
-			"is_featured":         isFeatured,
-			"is_sponsored":        isSponsored,
+			"status":                status,
+			"created_at":            createdAt.Format(time.RFC3339),
+			"is_featured":           isFeatured,
+			"is_sponsored":          isSponsored,
 		}
 
 		if err := m.indexDocument(ctx, BlogIndex, id, doc); err != nil {

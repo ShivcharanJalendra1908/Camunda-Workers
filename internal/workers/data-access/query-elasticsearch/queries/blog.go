@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v8"
 )
@@ -47,8 +48,23 @@ func BlogListing(ctx context.Context, esClient *elasticsearch.Client, params map
 	}
 
 	if catID, ok := params["categoryId"].(string); ok && catID != "" {
-		query["bool"].(map[string]interface{})["filter"] = []map[string]interface{}{
-			{"term": map[string]interface{}{"category_ids": catID}},
+		// Support both UUID (exact match on category_ids) and name (text match on category_names)
+		isUUID := len(catID) == 36 && strings.Count(catID, "-") == 4
+		if isUUID {
+			// Exact UUID filter
+			query["bool"].(map[string]interface{})["filter"] = []map[string]interface{}{
+				{"term": map[string]interface{}{"category_ids": catID}},
+			}
+		} else {
+			// Name-based filter (case-insensitive match)
+			query["bool"].(map[string]interface{})["filter"] = []map[string]interface{}{
+				{"match": map[string]interface{}{
+					"category_names": map[string]interface{}{
+						"query":    catID,
+						"operator": "and",
+					},
+				}},
+			}
 		}
 	}
 
