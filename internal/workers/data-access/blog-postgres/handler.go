@@ -333,10 +333,101 @@ func (h *Handler) handleUpdateBlog(ctx context.Context, input UpdateBlogInput) (
 	}
 	defer tx.Rollback()
 
+	// Update listings table
+	var listingsSet []string
+	var listingsArgs []interface{}
+	listingsArgID := 1
+
+	if input.Name != nil {
+		listingsSet = append(listingsSet, fmt.Sprintf("name = $%d", listingsArgID))
+		listingsArgs = append(listingsArgs, *input.Name)
+		listingsArgID++
+	}
+	if input.ShortDescription != nil {
+		listingsSet = append(listingsSet, fmt.Sprintf("short_description = $%d", listingsArgID))
+		listingsArgs = append(listingsArgs, *input.ShortDescription)
+		listingsArgID++
+	}
+	if input.Description != nil {
+		listingsSet = append(listingsSet, fmt.Sprintf("description = $%d", listingsArgID))
+		listingsArgs = append(listingsArgs, *input.Description)
+		listingsArgID++
+	}
 	if input.Status != nil {
-		_, err = tx.ExecContext(ctx, "UPDATE listings SET status = $1, updated_at = NOW() WHERE id = $2", *input.Status, input.BlogID)
+		listingsSet = append(listingsSet, fmt.Sprintf("status = $%d", listingsArgID))
+		listingsArgs = append(listingsArgs, *input.Status)
+		listingsArgID++
+	}
+
+	if len(listingsSet) > 0 {
+		listingsSet = append(listingsSet, "updated_at = NOW()")
+		listingsArgs = append(listingsArgs, input.BlogID)
+		query := fmt.Sprintf("UPDATE listings SET %s WHERE id = $%d", strings.Join(listingsSet, ", "), listingsArgID)
+		if _, err = tx.ExecContext(ctx, query, listingsArgs...); err != nil {
+			return BaseOutput{}, err
+		}
+	}
+
+	// Update blogs table
+	var blogsSet []string
+	var blogsArgs []interface{}
+	blogsArgID := 1
+
+	if input.ReadingTimeMins != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("reading_time_mins = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.ReadingTimeMins)
+		blogsArgID++
+	}
+	if input.Content != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("content = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.Content)
+		blogsArgID++
+	}
+	if input.SEOTitle != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("seo_title = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.SEOTitle)
+		blogsArgID++
+	}
+	if input.SEODescription != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("seo_description = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.SEODescription)
+		blogsArgID++
+	}
+	if input.FeaturedImageURL != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("featured_image_url = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.FeaturedImageURL)
+		blogsArgID++
+	}
+	if input.AuthorDisplayName != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("author_display_name = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, *input.AuthorDisplayName)
+		blogsArgID++
+	}
+	if input.Tags != nil {
+		blogsSet = append(blogsSet, fmt.Sprintf("tags = $%d", blogsArgID))
+		blogsArgs = append(blogsArgs, pq.Array(*input.Tags))
+		blogsArgID++
+	}
+
+	if len(blogsSet) > 0 {
+		blogsArgs = append(blogsArgs, input.BlogID)
+		query := fmt.Sprintf("UPDATE blogs SET %s WHERE id = $%d", strings.Join(blogsSet, ", "), blogsArgID)
+		if _, err = tx.ExecContext(ctx, query, blogsArgs...); err != nil {
+			return BaseOutput{}, err
+		}
+	}
+
+	// Update categories if provided
+	if input.CategoryIDs != nil {
+		_, err = tx.ExecContext(ctx, "DELETE FROM listing_categories WHERE listing_id = $1", input.BlogID)
 		if err != nil {
 			return BaseOutput{}, err
+		}
+		for _, catID := range *input.CategoryIDs {
+			_, err = tx.ExecContext(ctx, "INSERT INTO listing_categories (listing_id, category_id) VALUES ($1, $2)", input.BlogID, catID)
+			if err != nil {
+				return BaseOutput{}, err
+			}
 		}
 	}
 
