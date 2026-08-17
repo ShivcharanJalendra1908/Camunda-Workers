@@ -108,7 +108,7 @@
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
           <zeebe:input source="=success" target="success" />
-          <zeebe:input source="=message" target="message" />
+          <zeebe:input source="=error_message" target="error_message" />
           <zeebe:input source="=db_result" target="db_result" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>

@@ -135,6 +135,10 @@ func (h *BlogHandler) CreateBlog(c *gin.Context) {
 		return
 	}
 
+	if dbResultStr, ok := response["db_result"].(string); ok && dbResultStr != "" {
+		c.Data(http.StatusCreated, "application/json", []byte(dbResultStr))
+		return
+	}
 	c.JSON(http.StatusCreated, response["db_result"])
 }
 
@@ -165,6 +169,7 @@ func (h *BlogHandler) genericWorkflowSubmit(c *gin.Context, operation string) {
 
 	variables := map[string]interface{}{
 		"payload":        string(payloadBytes),
+		"operation_type": operation,
 		"correlationKey": correlationKey,
 		"entityType":     "blog",
 		"operationsEmail": h.operationsEmail,
@@ -189,6 +194,10 @@ func (h *BlogHandler) genericWorkflowSubmit(c *gin.Context, operation string) {
 		return
 	}
 
+	if dbResultStr, ok := response["db_result"].(string); ok && dbResultStr != "" {
+		c.Data(http.StatusOK, "application/json", []byte(dbResultStr))
+		return
+	}
 	c.JSON(http.StatusOK, response["db_result"])
 }
 
