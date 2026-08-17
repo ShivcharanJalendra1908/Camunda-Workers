@@ -65,7 +65,7 @@ func (h *BlogHandler) executeWorkflow(
 	subCtx, subCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer subCancel()
 	if _, err := pubsub.Receive(subCtx); err != nil {
-		h.logger.Warn("subscription confirm timeout", map[string]interface{}{
+		h.logger.Warn("subscription confirm timeout, proceeding anyway", map[string]interface{}{
 			"channel": channel, "error": err.Error(),
 		})
 	}
@@ -75,17 +75,39 @@ func (h *BlogHandler) executeWorkflow(
 		return nil, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
-	msg, err := pubsub.ReceiveMessage(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive workflow response: %w", err)
+	// envelope is the format sent by send-api-response worker
+	type envelope struct {
+		Response     map[string]interface{} `json:"response"`
+		CookieHeader string                 `json:"cookieHeader,omitempty"`
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(msg.Payload), &response); err != nil {
-		return nil, fmt.Errorf("invalid JSON from workflow: %w", err)
+	parsePayload := func(raw string) (map[string]interface{}, error) {
+		// Try envelope format first (send-api-response publishes this)
+		var env envelope
+		if err := json.Unmarshal([]byte(raw), &env); err == nil && env.Response != nil {
+			if env.Response["success"] == nil {
+				env.Response["success"] = true
+			}
+			return env.Response, nil
+		}
+		// Fallback: direct map (legacy)
+		var direct map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &direct); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+		if direct["success"] == nil {
+			direct["success"] = true
+		}
+		return direct, nil
 	}
 
-	return response, nil
+	responseChan := pubsub.Channel()
+	select {
+	case msg := <-responseChan:
+		return parsePayload(msg.Payload)
+	case <-ctx.Done():
+		return nil, fmt.Errorf("timeout waiting for workflow response")
+	}
 }
 
 // CreateBlog handles POST /api/v1/blog
@@ -128,18 +150,14 @@ func (h *BlogHandler) CreateBlog(c *gin.Context) {
 
 	if success, _ := response["success"].(bool); !success {
 		errMsg := "Unknown error"
-		if msg, ok := response["error_message"].(string); ok {
+		if msg, ok := response["error"].(string); ok && msg != "" {
 			errMsg = msg
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 
-	if dbResultStr, ok := response["db_result"].(string); ok && dbResultStr != "" {
-		c.Data(http.StatusCreated, "application/json", []byte(dbResultStr))
-		return
-	}
-	c.JSON(http.StatusCreated, response["db_result"])
+	c.JSON(http.StatusCreated, response["data"])
 }
 
 func (h *BlogHandler) genericWorkflowSubmit(c *gin.Context, operation string) {
@@ -187,18 +205,14 @@ func (h *BlogHandler) genericWorkflowSubmit(c *gin.Context, operation string) {
 
 	if success, _ := response["success"].(bool); !success {
 		errMsg := "Unknown error"
-		if msg, ok := response["error_message"].(string); ok {
+		if msg, ok := response["error"].(string); ok && msg != "" {
 			errMsg = msg
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": errMsg})
 		return
 	}
 
-	if dbResultStr, ok := response["db_result"].(string); ok && dbResultStr != "" {
-		c.Data(http.StatusOK, "application/json", []byte(dbResultStr))
-		return
-	}
-	c.JSON(http.StatusOK, response["db_result"])
+	c.JSON(http.StatusOK, response["data"])
 }
 
 func (h *BlogHandler) UpdateBlog(c *gin.Context) {

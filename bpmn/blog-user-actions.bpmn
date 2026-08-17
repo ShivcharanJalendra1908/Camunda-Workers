@@ -104,12 +104,10 @@
     <bpmn:sequenceFlow id="Flow_ToSendResponse" sourceRef="Gateway_JoinTasks" targetRef="Task_SendResponse" />
     <bpmn:serviceTask id="Task_SendResponse" name="Send API Response">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="send-api-response" />
+        <zeebe:taskDefinition type="send-api-response" retries="0" />
         <zeebe:ioMapping>
           <zeebe:input source="=correlationKey" target="correlationKey" />
-          <zeebe:input source="=success" target="success" />
-          <zeebe:input source="=error_message" target="error_message" />
-          <zeebe:input source="=db_result" target="db_result" />
+          <zeebe:input source="={success: success, error: error_message, data: if db_result != null then db_result else null}" target="response" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ToSendResponse</bpmn:incoming>
